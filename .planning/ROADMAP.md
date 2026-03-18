@@ -27,10 +27,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. App launches and all existing functionality works identically after the refactor
   2. Code is organized into discrete modules (models, repo, player, assets, UI) with no circular imports
   3. Each module can be read and understood in isolation without loading the full codebase in memory
-**Plans:** 2/2 plans complete
+**Plans:** 3 plans (2 complete, 1 gap closure)
 Plans:
-- [ ] 01-01-PLAN.md — Create package structure, extract data-layer modules (constants, models, repo, assets), write smoke tests
-- [ ] 01-02-PLAN.md — Extract UI-layer modules (player, station_row, edit_dialog, main_window), wire entry point, delete main.py
+- [x] 01-01-PLAN.md — Create package structure, extract data-layer modules (constants, models, repo, assets), write smoke tests
+- [x] 01-02-PLAN.md — Extract UI-layer modules (player, station_row, edit_dialog, main_window), wire entry point, delete main.py
+- [ ] 01-03-PLAN.md — Fix YouTube audio playback and wire edit station button (gap closure)
 
 ### Phase 2: Search and Filter
 **Goal**: Users can find any station in seconds using search and dropdowns that compose together
@@ -72,7 +73,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Module Extraction | 2/2 | Complete   | 2026-03-18 |
+| 1. Module Extraction | 2/3 | Gap closure | - |
 | 2. Search and Filter | 0/? | Not started | - |
 | 3. ICY Metadata Display | 0/? | Not started | - |
 | 4. Cover Art | 0/? | Not started | - |
