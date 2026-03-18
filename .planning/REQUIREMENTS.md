@@ -7,7 +7,7 @@
 
 ### Code Health
 
-- [ ] **CODE-01**: Codebase refactored from monolith into logical modules (models, repo, player, assets, UI) before feature work begins
+- [x] **CODE-01**: Codebase refactored from monolith into logical modules (models, repo, player, assets, UI) before feature work begins
 
 ### Filtering & Search
 
@@ -64,7 +64,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CODE-01 | Phase 1 | Pending |
+| CODE-01 | Phase 1 | Complete |
 | FILT-01 | Phase 2 | Pending |
 | FILT-02 | Phase 2 | Pending |
 | FILT-03 | Phase 2 | Pending |

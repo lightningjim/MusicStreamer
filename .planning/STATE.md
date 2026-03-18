@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-18T20:36:13.165Z"
-last_activity: 2026-03-18 — Roadmap created
+status: unknown
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-18T22:13:47.129Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 1 - Module Extraction
+**Current focus:** Phase 01 — module-extraction
 
 ## Current Position
 
-Phase: 1 of 4 (Module Extraction)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-18 — Roadmap created
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 01 (module-extraction) — EXECUTING
+Plan: 1 of 2
 
 ## Performance Metrics
 
@@ -52,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-module-extraction P01 | 2 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -64,6 +59,8 @@ Recent decisions affecting current work:
 - [Roadmap]: ICY metadata via GStreamer TAG bus — data already flowing, just needs wiring
 - [Roadmap]: Cover art via iTunes Search API (no key required) — Phase 4 only after ICY plumbing exists
 - [Roadmap]: Phases 2 and 3 are independent but sequenced to avoid merge complexity in solo context
+- [Phase 01-module-extraction]: pytest installed via uv (uv run --with pytest) — no pip available on system python, apt requires sudo
+- [Phase 01-module-extraction]: constants.py as dependency leaf for APP_ID, DATA_DIR, DB_PATH, ASSETS_DIR — avoids duplication across 4+ future modules
 
 ### Pending Todos
 
@@ -77,6 +74,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T20:36:13.163Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-module-extraction/01-CONTEXT.md
+Last session: 2026-03-18T22:13:47.128Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
