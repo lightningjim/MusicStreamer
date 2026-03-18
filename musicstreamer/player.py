@@ -33,12 +33,17 @@ class Player:
             "quiet": True,
             "skip_download": True,
             "noplaylist": True,
-            "format": "best[protocol^=m3u8]/best",
+            "format": "bestaudio[ext=m4a]/bestaudio/best",
             "cachedir": False,
         }
         try:
             with YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+                acodec = info.get("acodec", "none")
+                if acodec == "none":
+                    print(f"yt-dlp: selected format has no audio codec (acodec={acodec})")
+                    on_title("(no audio track)")
+                    return
                 stream_url = info.get("url")
                 title = info.get("title") or fallback_name
         except Exception as e:
