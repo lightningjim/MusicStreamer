@@ -42,9 +42,15 @@ Finding and playing a stream should take seconds — the right station should al
 - Last.fm scrobbling — future enhancement
 - Mobile app — Linux desktop only
 
+## Phase History
+
+| Phase | Status | Completed |
+|-------|--------|-----------|
+| 1: Module Extraction | ✓ Complete | 2026-03-18 |
+
 ## Context
 
-- Single Python file (`main.py`, ~512 lines) with GTK4/Libadwaita + GStreamer + SQLite
+- Modular Python package (`musicstreamer/`) with GTK4/Libadwaita + GStreamer + SQLite
 - Existing station list is a plain `Gtk.ListBox` with no filtering or search
 - Tags column exists in the DB schema and station model but is not surfaced in UI filtering
 - ICY metadata arrives via GStreamer bus messages (`TAG` messages) — not yet wired to UI
@@ -68,4 +74,4 @@ Finding and playing a stream should take seconds — the right station should al
 | Twitch deferred | Nice to have — yt-dlp already supports it, low effort if included | — Pending |
 
 ---
-*Last updated: 2026-03-18 after initialization*
+*Last updated: 2026-03-18 — Phase 1 complete*
