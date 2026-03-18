@@ -12,7 +12,7 @@ Starting from a working but monolithic ~512-line GTK4/Python/GStreamer codebase,
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Module Extraction** - Refactor monolith into discrete modules so each feature has a clean home
+- [x] **Phase 1: Module Extraction** - Refactor monolith into discrete modules so each feature has a clean home (completed 2026-03-18)
 - [ ] **Phase 2: Search and Filter** - Live name search and provider/tag dropdown filters with composed AND logic
 - [ ] **Phase 3: ICY Metadata Display** - Wire GStreamer TAG bus to show track title and station logo in now-playing area
 - [ ] **Phase 4: Cover Art** - Fetch and display track/album art from ICY metadata via iTunes Search API
@@ -27,7 +27,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. App launches and all existing functionality works identically after the refactor
   2. Code is organized into discrete modules (models, repo, player, assets, UI) with no circular imports
   3. Each module can be read and understood in isolation without loading the full codebase in memory
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 01-01-PLAN.md — Create package structure, extract data-layer modules (constants, models, repo, assets), write smoke tests
 - [ ] 01-02-PLAN.md — Extract UI-layer modules (player, station_row, edit_dialog, main_window), wire entry point, delete main.py
@@ -72,7 +72,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Module Extraction | 1/2 | In Progress|  |
+| 1. Module Extraction | 2/2 | Complete   | 2026-03-18 |
 | 2. Search and Filter | 0/? | Not started | - |
 | 3. ICY Metadata Display | 0/? | Not started | - |
 | 4. Cover Art | 0/? | Not started | - |
