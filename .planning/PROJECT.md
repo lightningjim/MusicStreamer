@@ -29,7 +29,8 @@ Finding and playing a stream should take seconds — the right station should al
 - [ ] User can search stations by name with a search box
 - [ ] Filters and search compose (multiple active simultaneously)
 - [ ] User sees currently playing track title from ICY metadata (mp3/aac streams)
-- [ ] User sees cover art fetched from stream metadata (ICY artist/title → external API lookup)
+- [ ] Station brand logo displayed top-left (1:1, from existing station art)
+- [ ] Track/album art displayed top-right, mirroring station logo (stream-embedded or generic placeholder fallback)
 - [ ] Station list displays station art (1:1 logo) inline per row
 
 ### Out of Scope
@@ -54,7 +55,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 - **Tech stack**: Python + GTK4/Libadwaita — no framework changes
 - **Platform**: Linux GNOME desktop only
-- **Single file**: Keep architecture in `main.py` unless complexity demands extraction
+- **Refactoring welcome**: Splitting `main.py` into modules is fine if it aids clarity
 - **No network auth**: No API keys required for cover art if using free endpoints (iTunes Search API, MusicBrainz)
 
 ## Key Decisions
