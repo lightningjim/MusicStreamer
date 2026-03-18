@@ -29,6 +29,10 @@ class MainWindow(Adw.ApplicationWindow):
         add_btn = Gtk.Button(label="Add Station")
         add_btn.connect("clicked", self._add_station)
         header.pack_start(add_btn)
+
+        edit_btn = Gtk.Button(label="Edit")
+        edit_btn.connect("clicked", self._edit_selected)
+        header.pack_start(edit_btn)
         header.pack_start(self.now_label)
         header.pack_end(stop_btn)
 

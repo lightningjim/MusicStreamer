@@ -19,7 +19,7 @@ class StationRow(Gtk.ListBoxRow):
             subtitle += f" • {station.tags}"
 
         row = Adw.ActionRow(title=station.name, subtitle=subtitle)
-        row.set_activatable(True)
+        row.set_activatable(False)
 
         if station.station_art_path:
             abs_path = os.path.join(DATA_DIR, station.station_art_path)
