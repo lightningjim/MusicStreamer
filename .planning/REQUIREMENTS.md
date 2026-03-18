@@ -74,8 +74,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NOW-02 | Phase 3 | Pending |
 | NOW-03 | Phase 3 | Pending |
 | NOW-04 | Phase 3 | Pending |
-| NOW-05 | Phase 3 | Pending |
-| NOW-06 | Phase 3 | Pending |
+| NOW-05 | Phase 4 | Pending |
+| NOW-06 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
@@ -84,4 +84,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after initial definition*
+*Last updated: 2026-03-18 after roadmap creation*
