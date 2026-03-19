@@ -43,7 +43,10 @@ Plans:
   3. User selects a genre/tag from the dropdown and only stations with that tag appear
   4. User has search text, a provider selected, and a tag selected simultaneously — only stations matching all three are shown
   5. User clears all filters (or clicks a clear control) and the full station list returns
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 02-01-PLAN.md — TDD: filter_utils.py with normalize_tags and matches_filter pure logic + tests
+- [ ] 02-02-PLAN.md — Wire search, dropdowns, clear button, and empty state into MainWindow UI
 
 ### Phase 3: ICY Metadata Display
 **Goal**: The now-playing area reflects what is actually playing — current track title and station identity
@@ -74,6 +77,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Module Extraction | 2/3 | Gap closure | - |
-| 2. Search and Filter | 0/? | Not started | - |
+| 2. Search and Filter | 0/2 | Planned | - |
 | 3. ICY Metadata Display | 0/? | Not started | - |
 | 4. Cover Art | 0/? | Not started | - |
