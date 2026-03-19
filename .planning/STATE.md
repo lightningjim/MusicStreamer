@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: "02-02 Task 1 committed (12efabe); awaiting human-verify checkpoint for Task 2"
-last_updated: "2026-03-19T23:30:00.000Z"
+stopped_at: Completed 02-02-PLAN.md — Phase 2 search-and-filter all plans done
+last_updated: "2026-03-19T23:50:35.273Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Plan: 2 of 2
 | Phase 01-module-extraction P02 | 15 | 2 tasks | 7 files |
 | Phase 01-module-extraction P03 | 5 | 2 tasks | 3 files |
 | Phase 02-search-and-filter P01 | 5 | 1 tasks | 2 files |
+| Phase 02-search-and-filter P02 | 30 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - [Phase 01-module-extraction]: StationRow subclasses Gtk.ListBoxRow (not Adw.ActionRow) to carry self.station for Phase 2 filter_func
 - [Phase 01-module-extraction]: yt-dlp format bestaudio[ext=m4a]/bestaudio/best; acodec guard prevents silent video-only playback
 - [Phase 02-search-and-filter]: filter_utils.py: pure Python, no GTK — fully testable without display server
+- [Phase 02-search-and-filter]: now_label removed from HeaderBar (kept as instance variable); Phase 3 will redesign now-playing — user confirmed intentional
+- [Phase 02-search-and-filter]: Empty state via shell.set_content swap to Adw.StatusPage on zero filter results
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T23:30:00.000Z
-Stopped at: "02-02 Task 1 committed (12efabe); awaiting human-verify checkpoint for Task 2"
+Last session: 2026-03-19T23:50:24.343Z
+Stopped at: Completed 02-02-PLAN.md — Phase 2 search-and-filter all plans done
 Resume file: None

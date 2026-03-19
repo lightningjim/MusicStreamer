@@ -15,7 +15,7 @@
 - [x] **FILT-02**: User can filter stations by provider/source via a dropdown (e.g., Soma.FM, AudioAddict)
 - [x] **FILT-03**: User can filter stations by genre/tag via a dropdown populated from station tags
 - [x] **FILT-04**: Search and both dropdowns compose with AND logic — all active filters narrow the list simultaneously
-- [ ] **FILT-05**: User can clear all filters to return to full station list
+- [x] **FILT-05**: User can clear all filters to return to full station list
 
 ### Now Playing
 
@@ -69,7 +69,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FILT-02 | Phase 2 | Complete |
 | FILT-03 | Phase 2 | Complete |
 | FILT-04 | Phase 2 | Complete |
-| FILT-05 | Phase 2 | Pending |
+| FILT-05 | Phase 2 | Complete |
 | NOW-01 | Phase 3 | Pending |
 | NOW-02 | Phase 3 | Pending |
 | NOW-03 | Phase 3 | Pending |

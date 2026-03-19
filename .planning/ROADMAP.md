@@ -13,7 +13,7 @@ Starting from a working but monolithic ~512-line GTK4/Python/GStreamer codebase,
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Module Extraction** - Refactor monolith into discrete modules so each feature has a clean home (completed 2026-03-18)
-- [ ] **Phase 2: Search and Filter** - Live name search and provider/tag dropdown filters with composed AND logic
+- [x] **Phase 2: Search and Filter** - Live name search and provider/tag dropdown filters with composed AND logic (completed 2026-03-19)
 - [ ] **Phase 3: ICY Metadata Display** - Wire GStreamer TAG bus to show track title and station logo in now-playing area
 - [ ] **Phase 4: Cover Art** - Fetch and display track/album art from ICY metadata via iTunes Search API
 
@@ -43,7 +43,7 @@ Plans:
   3. User selects a genre/tag from the dropdown and only stations with that tag appear
   4. User has search text, a provider selected, and a tag selected simultaneously — only stations matching all three are shown
   5. User clears all filters (or clicks a clear control) and the full station list returns
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 02-01-PLAN.md — TDD: filter_utils.py with normalize_tags and matches_filter pure logic + tests
 - [ ] 02-02-PLAN.md — Wire search, dropdowns, clear button, and empty state into MainWindow UI
@@ -77,6 +77,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Module Extraction | 2/3 | Gap closure | - |
-| 2. Search and Filter | 0/2 | Planned | - |
+| 2. Search and Filter | 2/2 | Complete   | 2026-03-19 |
 | 3. ICY Metadata Display | 0/? | Not started | - |
 | 4. Cover Art | 0/? | Not started | - |
