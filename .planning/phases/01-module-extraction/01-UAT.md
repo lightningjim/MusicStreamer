@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 01-module-extraction
 source: 01-01-SUMMARY.md, 01-02-SUMMARY.md
 started: 2026-03-18T23:00:00Z
-updated: 2026-03-18T23:00:00Z
+updated: 2026-03-19T01:10:00Z
 ---
 
 ## Current Test
@@ -51,7 +51,7 @@ skipped: 0
 ## Gaps
 
 - truth: "YouTube station playback works (yt-dlp resolves stream URL, GStreamer plays audio)"
-  status: failed
+  status: resolved
   reason: "User reported: The normal stream works, YT doesn't."
   severity: major
   test: 3
@@ -65,7 +65,7 @@ skipped: 0
   debug_session: ".planning/debug/youtube-no-audio.md"
 
 - truth: "Edit station dialog opens when activating a station row, showing name and URL fields"
-  status: failed
+  status: resolved
   reason: "User reported: I see the bar blink for a bit as it registers the click but does nothing. I see no edit action available either"
   severity: major
   test: 5

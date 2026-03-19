@@ -123,3 +123,14 @@ None - no external service configuration required.
 ---
 *Phase: 01-module-extraction*
 *Completed: 2026-03-18*
+
+## Self-Check: PASSED
+
+- musicstreamer/player.py — FOUND
+- musicstreamer/ui/station_row.py — FOUND
+- musicstreamer/ui/edit_dialog.py — FOUND
+- musicstreamer/ui/main_window.py — FOUND
+- musicstreamer/__main__.py — FOUND
+- main.py — deleted OK
+- Commit 37c830b — FOUND
+- Commit 18c64f2 — FOUND
