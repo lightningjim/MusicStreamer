@@ -11,10 +11,10 @@
 
 ### Filtering & Search
 
-- [ ] **FILT-01**: User can search stations by name via a search box that filters the list in real time
-- [ ] **FILT-02**: User can filter stations by provider/source via a dropdown (e.g., Soma.FM, AudioAddict)
-- [ ] **FILT-03**: User can filter stations by genre/tag via a dropdown populated from station tags
-- [ ] **FILT-04**: Search and both dropdowns compose with AND logic — all active filters narrow the list simultaneously
+- [x] **FILT-01**: User can search stations by name via a search box that filters the list in real time
+- [x] **FILT-02**: User can filter stations by provider/source via a dropdown (e.g., Soma.FM, AudioAddict)
+- [x] **FILT-03**: User can filter stations by genre/tag via a dropdown populated from station tags
+- [x] **FILT-04**: Search and both dropdowns compose with AND logic — all active filters narrow the list simultaneously
 - [ ] **FILT-05**: User can clear all filters to return to full station list
 
 ### Now Playing
@@ -65,10 +65,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CODE-01 | Phase 1 | Complete |
-| FILT-01 | Phase 2 | Pending |
-| FILT-02 | Phase 2 | Pending |
-| FILT-03 | Phase 2 | Pending |
-| FILT-04 | Phase 2 | Pending |
+| FILT-01 | Phase 2 | Complete |
+| FILT-02 | Phase 2 | Complete |
+| FILT-03 | Phase 2 | Complete |
+| FILT-04 | Phase 2 | Complete |
 | FILT-05 | Phase 2 | Pending |
 | NOW-01 | Phase 3 | Pending |
 | NOW-02 | Phase 3 | Pending |

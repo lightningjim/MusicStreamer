@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-03-18T23:50:16.592Z"
+stopped_at: Completed 02-search-and-filter-01-PLAN.md
+last_updated: "2026-03-19T23:16:37.821Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 01 — module-extraction
+**Current focus:** Phase 02 — search-and-filter
 
 ## Current Position
 
-Phase: 01 (module-extraction) — EXECUTING
-Plan: 1 of 3
+Phase: 02 (search-and-filter) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Plan: 1 of 3
 | Phase 01-module-extraction P01 | 2 | 2 tasks | 9 files |
 | Phase 01-module-extraction P02 | 15 | 2 tasks | 7 files |
 | Phase 01-module-extraction P03 | 5 | 2 tasks | 3 files |
+| Phase 02-search-and-filter P01 | 5 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,7 @@ Recent decisions affecting current work:
 - [Phase 01-module-extraction]: Player.play() uses on_title callback for UI decoupling — Player has no GTK dependency
 - [Phase 01-module-extraction]: StationRow subclasses Gtk.ListBoxRow (not Adw.ActionRow) to carry self.station for Phase 2 filter_func
 - [Phase 01-module-extraction]: yt-dlp format bestaudio[ext=m4a]/bestaudio/best; acodec guard prevents silent video-only playback
+- [Phase 02-search-and-filter]: filter_utils.py: pure Python, no GTK — fully testable without display server
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T23:50:16.590Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-03-19T23:16:37.819Z
+Stopped at: Completed 02-search-and-filter-01-PLAN.md
 Resume file: None
