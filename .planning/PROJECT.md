@@ -8,6 +8,17 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
+## Current Milestone: v1.1 Polish & Station Management
+
+**Goal:** Fix GTK markup escaping, improve station management UX, and surface station art in the list.
+
+**Target features:**
+- Fix ampersand/markup escaping in ICY track title display
+- Auto-load YouTube thumbnail as station image when adding/editing
+- Per-station ICY override option (disable ICY where it returns wrong data)
+- Station list shows station art inline per row
+- Delete station from list
+
 ## Current State (v1.0 shipped 2026-03-20)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
@@ -38,8 +49,9 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ Cover art displayed top-right via iTunes Search API — v1.0 Phase 4
 - ✓ Placeholder shown when no cover art available — v1.0 Phase 4
 
-### Active (v1.1 candidates)
+### Active (v1.1)
 
+- [ ] Fix GTK markup escaping for ICY track titles (ampersand and other special chars)
 - [ ] Auto-load YouTube thumbnail as station image when adding/editing a YouTube station
 - [ ] Per-station ICY override option (disable ICY for stations where it returns wrong data)
 - [ ] Station list displays station art (1:1 logo) inline per row
@@ -86,4 +98,4 @@ Finding and playing a stream should take seconds — the right station should al
 | 4: Cover Art | v1.0 | ✓ Complete | 2026-03-20 |
 
 ---
-*Last updated: 2026-03-20 after v1.0 milestone*
+*Last updated: 2026-03-20 after v1.1 milestone start*
