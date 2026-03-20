@@ -70,7 +70,9 @@ Plans:
   1. When a track with ICY metadata plays, artwork for that track appears in the top-right of the now-playing area
   2. When no track art is available (no ICY data, API returns no result), a generic placeholder image is shown in the top-right position
   3. When the track changes, the displayed artwork updates to match the new track
-**Plans**: TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 04-01-PLAN.md — Create cover_art.py iTunes fetch module, wire cover_stack into now-playing panel with TAG-driven updates
 
 ## Progress
 
@@ -82,4 +84,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Module Extraction | 2/3 | Gap closure | - |
 | 2. Search and Filter | 2/2 | Complete   | 2026-03-19 |
 | 3. ICY Metadata Display | 2/2 | Complete    | 2026-03-20 |
-| 4. Cover Art | 0/? | Not started | - |
+| 4. Cover Art | 0/1 | Not started | - |
