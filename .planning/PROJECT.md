@@ -22,16 +22,16 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ Provider/source grouping (e.g., Soma.FM, AudioAddict) — existing
 - ✓ SQLite persistence in ~/.local/share/musicstreamer/ — existing
 
-### Active
+### Active (v1.0 Complete)
 
-- [ ] User can filter station list by provider/source via dropdown
-- [ ] User can filter station list by genre/tag via dropdown
-- [ ] User can search stations by name with a search box
-- [ ] Filters and search compose (multiple active simultaneously)
-- [ ] User sees currently playing track title from ICY metadata (mp3/aac streams)
-- [ ] Station brand logo displayed top-left (1:1, from existing station art)
-- [ ] Track/album art displayed top-right, mirroring station logo (stream-embedded or generic placeholder fallback)
-- [ ] Station list displays station art (1:1 logo) inline per row
+- ✓ User can filter station list by provider/source via dropdown — Validated Phase 2
+- ✓ User can filter station list by genre/tag via dropdown — Validated Phase 2
+- ✓ User can search stations by name with a search box — Validated Phase 2
+- ✓ Filters and search compose (multiple active simultaneously) — Validated Phase 2
+- ✓ User sees currently playing track title from ICY metadata (mp3/aac streams) — Validated Phase 3
+- ✓ Station brand logo displayed top-left (1:1, from existing station art) — Validated Phase 3
+- ✓ Track/album art displayed top-right via iTunes Search API, placeholder fallback — Validated Phase 4
+- [ ] Station list displays station art (1:1 logo) inline per row — v2
 
 ### Out of Scope
 
@@ -47,6 +47,9 @@ Finding and playing a stream should take seconds — the right station should al
 | Phase | Status | Completed |
 |-------|--------|-----------|
 | 1: Module Extraction | ✓ Complete | 2026-03-18 |
+| 2: Search and Filter | ✓ Complete | 2026-03-19 |
+| 3: ICY Metadata Display | ✓ Complete | 2026-03-20 |
+| 4: Cover Art | ✓ Complete | 2026-03-20 |
 
 ## Context
 
@@ -74,4 +77,4 @@ Finding and playing a stream should take seconds — the right station should al
 | Twitch deferred | Nice to have — yt-dlp already supports it, low effort if included | — Pending |
 
 ---
-*Last updated: 2026-03-18 — Phase 1 complete*
+*Last updated: 2026-03-20 — v1.0 milestone complete (all 4 phases)*
