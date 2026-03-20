@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-20T12:46:53.619Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-20T23:06:29.161Z"
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 03 — icy-metadata-display
+**Current focus:** Phase 04 — cover-art
 
 ## Current Position
 
-Phase: 03 (icy-metadata-display) — EXECUTING
-Plan: 2 of 2
+Phase: 04 (cover-art) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: 2 of 2
 | Phase 02-search-and-filter P02 | 30 | 2 tasks | 1 files |
 | Phase 03-icy-metadata-display P01 | 3 | 2 tasks | 2 files |
 | Phase 03-icy-metadata-display P02 | 90 | 2 tasks | 1 files |
+| Phase 04-cover-art P01 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 03-icy-metadata-display]: GLib.idle_add used in _on_gst_tag — GStreamer bus signals arrive on non-GTK thread; idle_add marshals to main loop
 - [Phase 03-icy-metadata-display]: GdkPixbuf pre-scale logo to 160x160 before Gtk.Picture.set_pixbuf to avoid GTK downscale rendering artifacts
 - [Phase 03-icy-metadata-display]: Window close-request connected to _stop() — ensures mpv exits cleanly when window is closed
+- [Phase 04-cover-art]: cover_art.py uses stdlib urllib.request + daemon threading; callback pattern requires GLib.idle_add at call site
+- [Phase 04-cover-art]: cover_stack mirrors logo_stack Gtk.Stack pattern; _last_cover_icy dedup cleared on stop
 
 ### Pending Todos
 
@@ -90,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T12:46:53.617Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-cover-art/04-CONTEXT.md
+Last session: 2026-03-20T23:06:29.158Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None

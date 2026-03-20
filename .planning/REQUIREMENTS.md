@@ -23,8 +23,8 @@
 - [x] **NOW-02**: Track title display updates automatically when ICY metadata changes mid-stream
 - [x] **NOW-03**: When no ICY metadata is available (e.g., YouTube streams), now-playing area shows station name instead
 - [x] **NOW-04**: Station brand logo displayed top-left (1:1 aspect, from existing station art)
-- [ ] **NOW-05**: Track/album art displayed top-right, mirroring the station logo position
-- [ ] **NOW-06**: Top-right art falls back to a generic placeholder when no track art is available from the stream
+- [x] **NOW-05**: Track/album art displayed top-right, mirroring the station logo position
+- [x] **NOW-06**: Top-right art falls back to a generic placeholder when no track art is available from the stream
 
 ## v2 Requirements
 
@@ -74,8 +74,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NOW-02 | Phase 3 | Complete |
 | NOW-03 | Phase 3 | Complete |
 | NOW-04 | Phase 3 | Complete |
-| NOW-05 | Phase 4 | Pending |
-| NOW-06 | Phase 4 | Pending |
+| NOW-05 | Phase 4 | Complete |
+| NOW-06 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total

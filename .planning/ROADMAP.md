@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Module Extraction** - Refactor monolith into discrete modules so each feature has a clean home (completed 2026-03-18)
 - [x] **Phase 2: Search and Filter** - Live name search and provider/tag dropdown filters with composed AND logic (completed 2026-03-19)
 - [x] **Phase 3: ICY Metadata Display** - Wire GStreamer TAG bus to show track title and station logo in now-playing area (completed 2026-03-20)
-- [ ] **Phase 4: Cover Art** - Fetch and display track/album art from ICY metadata via iTunes Search API
+- [x] **Phase 4: Cover Art** - Fetch and display track/album art from ICY metadata via iTunes Search API (completed 2026-03-20)
 
 ## Phase Details
 
@@ -70,7 +70,7 @@ Plans:
   1. When a track with ICY metadata plays, artwork for that track appears in the top-right of the now-playing area
   2. When no track art is available (no ICY data, API returns no result), a generic placeholder image is shown in the top-right position
   3. When the track changes, the displayed artwork updates to match the new track
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
 - [ ] 04-01-PLAN.md — Create cover_art.py iTunes fetch module, wire cover_stack into now-playing panel with TAG-driven updates
 
@@ -84,4 +84,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Module Extraction | 2/3 | Gap closure | - |
 | 2. Search and Filter | 2/2 | Complete   | 2026-03-19 |
 | 3. ICY Metadata Display | 2/2 | Complete    | 2026-03-20 |
-| 4. Cover Art | 0/1 | Not started | - |
+| 4. Cover Art | 1/1 | Complete   | 2026-03-20 |
