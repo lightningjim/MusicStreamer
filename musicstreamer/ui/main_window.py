@@ -4,7 +4,8 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import Gtk, Adw, Pango, GdkPixbuf
+from gi.repository import Gtk, Adw, Pango, GdkPixbuf, GLib
+from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.repo import Repo
 from musicstreamer.models import Station
 from musicstreamer.player import Player
@@ -90,11 +91,25 @@ class MainWindow(Adw.ApplicationWindow):
 
         panel.append(center)
 
-        # Right slot -- cover art placeholder (Phase 4 will fill)
-        self.cover_placeholder = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        self.cover_placeholder.set_pixel_size(160)
-        self.cover_placeholder.set_size_request(160, 160)
-        panel.append(self.cover_placeholder)
+        # Right slot -- cover art with Gtk.Stack for fallback swap
+        self.cover_image = Gtk.Image()
+        self.cover_image.set_pixel_size(160)
+        self.cover_image.set_size_request(160, 160)
+        self.cover_image.set_vexpand(False)
+        self.cover_image.set_hexpand(False)
+
+        self.cover_fallback = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+        self.cover_fallback.set_pixel_size(160)
+
+        self.cover_stack = Gtk.Stack()
+        self.cover_stack.set_size_request(160, 160)
+        self.cover_stack.set_vexpand(False)
+        self.cover_stack.set_hexpand(False)
+        self.cover_stack.add_named(self.cover_fallback, "fallback")
+        self.cover_stack.add_named(self.cover_image, "art")
+        self.cover_stack.set_visible_child_name("fallback")
+
+        panel.append(self.cover_stack)
 
         shell.add_top_bar(panel)
 
@@ -159,6 +174,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Guard flag for dropdown model rebuilds
         self._rebuilding = False
         self._visible_count = 0
+        self._last_cover_icy = None
 
         # Wire filter func
         self.listbox.set_filter_func(self._filter_func)
@@ -238,6 +254,39 @@ class MainWindow(Adw.ApplicationWindow):
     # Playback
     # ------------------------------------------------------------------ #
 
+    def _on_cover_art(self, icy_string: str):
+        """Called when a TAG message provides a new ICY title. Fetches cover art."""
+        if icy_string == self._last_cover_icy:
+            return  # dedup — same title, skip API call
+        if is_junk_title(icy_string):
+            self._last_cover_icy = None
+            self.cover_stack.set_visible_child_name("fallback")
+            return
+        self._last_cover_icy = icy_string
+
+        def _on_art_fetched(temp_path):
+            """Callback from background thread — must use GLib.idle_add."""
+            def _update_ui():
+                if temp_path is None:
+                    self.cover_stack.set_visible_child_name("fallback")
+                else:
+                    try:
+                        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(temp_path, 160, 160, False)
+                        self.cover_image.set_from_pixbuf(pixbuf)
+                        self.cover_stack.set_visible_child_name("art")
+                    except Exception:
+                        self.cover_stack.set_visible_child_name("fallback")
+                    finally:
+                        import os
+                        try:
+                            os.unlink(temp_path)
+                        except OSError:
+                            pass
+                return False  # GLib.idle_add: do not repeat
+            GLib.idle_add(_update_ui)
+
+        fetch_cover_art(icy_string, _on_art_fetched)
+
     def _on_close(self, *_):
         self.player.stop()
         return False
@@ -249,6 +298,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.title_label.add_css_class("dim-label")
         self.station_name_label.set_visible(False)
         self.logo_stack.set_visible_child_name("fallback")
+        self.cover_stack.set_visible_child_name("fallback")
+        self._last_cover_icy = None
         self.stop_btn.set_sensitive(False)
 
     def _play_row(self, _listbox, row):
@@ -284,8 +335,11 @@ class MainWindow(Adw.ApplicationWindow):
         # Enable stop button
         self.stop_btn.set_sensitive(True)
 
-        # Start playback -- on_title callback updates title_label
-        self.player.play(st, on_title=lambda t: self.title_label.set_text(t))
+        # Start playback -- on_title callback updates title_label and cover art
+        def _on_title(title):
+            self.title_label.set_text(title)
+            self._on_cover_art(title)
+        self.player.play(st, on_title=_on_title)
 
     # ------------------------------------------------------------------ #
     # Station list
