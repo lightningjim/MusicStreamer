@@ -57,7 +57,10 @@ Plans:
   2. When the track changes mid-stream, the displayed title updates automatically without user action
   3. While a YouTube live stream plays (no ICY metadata), the now-playing area shows the station name instead of a blank or error
   4. The station's brand logo is displayed top-left in the now-playing area while a station is playing
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — TDD: GStreamer TAG bus handler with ICY encoding fix in player.py
+- [ ] 03-02-PLAN.md — Build now-playing panel, relocate buttons, wire TAG-driven title and station logo
 
 ### Phase 4: Cover Art
 **Goal**: Track/album art is displayed alongside the now-playing track title, updating as tracks change
@@ -78,5 +81,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Module Extraction | 2/3 | Gap closure | - |
 | 2. Search and Filter | 2/2 | Complete   | 2026-03-19 |
-| 3. ICY Metadata Display | 0/? | Not started | - |
+| 3. ICY Metadata Display | 0/2 | Planned | - |
 | 4. Cover Art | 0/? | Not started | - |
