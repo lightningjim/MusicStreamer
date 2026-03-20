@@ -1,13 +1,16 @@
+import os
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw
+gi.require_version("Pango", "1.0")
+from gi.repository import Gtk, Adw, Pango
 from musicstreamer.repo import Repo
 from musicstreamer.models import Station
 from musicstreamer.player import Player
 from musicstreamer.ui.station_row import StationRow
 from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter
+from musicstreamer.constants import DATA_DIR
 
 
 class MainWindow(Adw.ApplicationWindow):
@@ -22,22 +25,7 @@ class MainWindow(Adw.ApplicationWindow):
         # --- Playback engine ---
         self.player = Player()
 
-        # --- Now-playing label (kept as instance var; used by _stop and _play_station) ---
-        self.now_label = Gtk.Label(label="Now Playing: —", xalign=0)
-        stop_btn = Gtk.Button(label="Stop")
-        stop_btn.connect("clicked", lambda *_: self._stop())
-
-        add_btn = Gtk.Button(label="Add Station")
-        add_btn.connect("clicked", self._add_station)
-        header.pack_start(add_btn)
-
-        edit_btn = Gtk.Button(label="Edit")
-        edit_btn.connect("clicked", self._edit_selected)
-        header.pack_start(edit_btn)
-
-        header.pack_end(stop_btn)
-
-        # --- Search entry in header center ---
+        # --- Search entry in header center (only content in HeaderBar) ---
         self.search_entry = Gtk.SearchEntry()
         self.search_entry.set_placeholder_text("Search stations\u2026")
         self.search_entry.connect("search-changed", self._on_filter_changed)
@@ -45,12 +33,77 @@ class MainWindow(Adw.ApplicationWindow):
 
         shell.add_top_bar(header)
 
+        # --- Now-playing panel ---
+        panel = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        panel.set_margin_top(4)
+        panel.set_margin_bottom(4)
+        panel.set_margin_start(8)
+        panel.set_margin_end(8)
+        panel.set_size_request(-1, 120)
+
+        # Left slot -- station logo with Gtk.Stack for fallback swap
+        self.logo_picture = Gtk.Picture()
+        self.logo_picture.set_content_fit(Gtk.ContentFit.COVER)
+        self.logo_picture.set_size_request(96, 96)
+
+        self.logo_fallback = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+        self.logo_fallback.set_pixel_size(96)
+
+        self.logo_stack = Gtk.Stack()
+        self.logo_stack.set_size_request(96, 96)
+        self.logo_stack.add_named(self.logo_fallback, "fallback")
+        self.logo_stack.add_named(self.logo_picture, "logo")
+        self.logo_stack.set_visible_child_name("fallback")
+
+        panel.append(self.logo_stack)
+
+        # Center column -- track title + station name + stop button
+        center = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        center.set_hexpand(True)
+        center.set_valign(Gtk.Align.CENTER)
+
+        self.title_label = Gtk.Label(label="Nothing playing")
+        self.title_label.add_css_class("dim-label")
+        self.title_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self.title_label.set_xalign(0)
+        center.append(self.title_label)
+
+        self.station_name_label = Gtk.Label()
+        self.station_name_label.add_css_class("dim-label")
+        self.station_name_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self.station_name_label.set_xalign(0)
+        self.station_name_label.set_visible(False)
+        center.append(self.station_name_label)
+
+        self.stop_btn = Gtk.Button(label="Stop")
+        self.stop_btn.add_css_class("suggested-action")
+        self.stop_btn.set_sensitive(False)
+        self.stop_btn.set_halign(Gtk.Align.START)
+        self.stop_btn.connect("clicked", lambda *_: self._stop())
+        center.append(self.stop_btn)
+
+        panel.append(center)
+
+        # Right slot -- cover art placeholder (Phase 4 will fill)
+        self.cover_placeholder = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+        self.cover_placeholder.set_pixel_size(96)
+        self.cover_placeholder.set_size_request(96, 96)
+        panel.append(self.cover_placeholder)
+
+        shell.add_top_bar(panel)
+
         # --- Filter strip ---
         filter_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         filter_box.set_margin_top(4)
         filter_box.set_margin_bottom(4)
         filter_box.set_margin_start(8)
         filter_box.set_margin_end(8)
+
+        add_btn = Gtk.Button(label="Add Station")
+        add_btn.connect("clicked", self._add_station)
+
+        edit_btn = Gtk.Button(label="Edit")
+        edit_btn.connect("clicked", self._edit_selected)
 
         self._provider_items = ["All Providers"]
         self.provider_dropdown = Gtk.DropDown.new(Gtk.StringList.new(self._provider_items), None)
@@ -66,6 +119,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.clear_btn.set_visible(False)
         self.clear_btn.connect("clicked", self._on_clear)
 
+        filter_box.append(add_btn)
+        filter_box.append(edit_btn)
         filter_box.append(self.provider_dropdown)
         filter_box.append(self.tag_dropdown)
         spacer = Gtk.Box()
@@ -178,7 +233,12 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _stop(self):
         self.player.stop()
-        self.now_label.set_text("Now Playing: —")
+        self.title_label.set_text("Nothing playing")
+        self.title_label.remove_css_class("title-3")
+        self.title_label.add_css_class("dim-label")
+        self.station_name_label.set_visible(False)
+        self.logo_stack.set_visible_child_name("fallback")
+        self.stop_btn.set_sensitive(False)
 
     def _play_row(self, _listbox, row):
         station_id = row.station_id
@@ -186,7 +246,31 @@ class MainWindow(Adw.ApplicationWindow):
         self._play_station(st)
 
     def _play_station(self, st: Station):
-        self.player.play(st, on_title=lambda t: self.now_label.set_text(f"Now Playing: {t}"))
+        # Set station name label
+        self.station_name_label.set_text(st.name)
+        self.station_name_label.set_visible(True)
+
+        # Set title to station name initially (overwritten by TAG for ICY streams)
+        self.title_label.set_text(st.name)
+        self.title_label.remove_css_class("dim-label")
+        self.title_label.add_css_class("title-3")
+
+        # Load station logo
+        if st.station_art_path:
+            abs_path = os.path.join(DATA_DIR, st.station_art_path)
+            if os.path.exists(abs_path):
+                self.logo_picture.set_filename(abs_path)
+                self.logo_stack.set_visible_child_name("logo")
+            else:
+                self.logo_stack.set_visible_child_name("fallback")
+        else:
+            self.logo_stack.set_visible_child_name("fallback")
+
+        # Enable stop button
+        self.stop_btn.set_sensitive(True)
+
+        # Start playback -- on_title callback updates title_label
+        self.player.play(st, on_title=lambda t: self.title_label.set_text(t))
 
     # ------------------------------------------------------------------ #
     # Station list
