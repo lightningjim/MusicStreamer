@@ -3,7 +3,8 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
-from gi.repository import Gtk, Adw, Pango
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gtk, Adw, Pango, GdkPixbuf
 from musicstreamer.repo import Repo
 from musicstreamer.models import Station
 from musicstreamer.player import Player
@@ -39,20 +40,25 @@ class MainWindow(Adw.ApplicationWindow):
         panel.set_margin_bottom(4)
         panel.set_margin_start(8)
         panel.set_margin_end(8)
-        panel.set_size_request(-1, 120)
+        panel.set_size_request(-1, 160)
+        panel.set_vexpand(False)
 
         # Left slot -- station logo with Gtk.Stack for fallback swap
-        self.logo_picture = Gtk.Picture()
-        self.logo_picture.set_content_fit(Gtk.ContentFit.COVER)
-        self.logo_picture.set_size_request(96, 96)
+        self.logo_image = Gtk.Image()
+        self.logo_image.set_pixel_size(160)
+        self.logo_image.set_size_request(160, 160)
+        self.logo_image.set_vexpand(False)
+        self.logo_image.set_hexpand(False)
 
         self.logo_fallback = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        self.logo_fallback.set_pixel_size(96)
+        self.logo_fallback.set_pixel_size(160)
 
         self.logo_stack = Gtk.Stack()
-        self.logo_stack.set_size_request(96, 96)
+        self.logo_stack.set_size_request(160, 160)
+        self.logo_stack.set_vexpand(False)
+        self.logo_stack.set_hexpand(False)
         self.logo_stack.add_named(self.logo_fallback, "fallback")
-        self.logo_stack.add_named(self.logo_picture, "logo")
+        self.logo_stack.add_named(self.logo_image, "logo")
         self.logo_stack.set_visible_child_name("fallback")
 
         panel.append(self.logo_stack)
@@ -86,8 +92,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Right slot -- cover art placeholder (Phase 4 will fill)
         self.cover_placeholder = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        self.cover_placeholder.set_pixel_size(96)
-        self.cover_placeholder.set_size_request(96, 96)
+        self.cover_placeholder.set_pixel_size(160)
+        self.cover_placeholder.set_size_request(160, 160)
         panel.append(self.cover_placeholder)
 
         shell.add_top_bar(panel)
@@ -107,12 +113,12 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._provider_items = ["All Providers"]
         self.provider_dropdown = Gtk.DropDown.new(Gtk.StringList.new(self._provider_items), None)
-        self.provider_dropdown.set_size_request(120, -1)
+        self.provider_dropdown.set_size_request(160, -1)
         self.provider_dropdown.connect("notify::selected", self._on_filter_changed)
 
         self._tag_items = ["All Tags"]
         self.tag_dropdown = Gtk.DropDown.new(Gtk.StringList.new(self._tag_items), None)
-        self.tag_dropdown.set_size_request(120, -1)
+        self.tag_dropdown.set_size_request(160, -1)
         self.tag_dropdown.connect("notify::selected", self._on_filter_changed)
 
         self.clear_btn = Gtk.Button(label="Clear")
@@ -159,6 +165,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         shell.set_content(scroller)
         self.set_content(shell)
+        self.connect("close-request", self._on_close)
 
         self.reload_list()
 
@@ -231,6 +238,10 @@ class MainWindow(Adw.ApplicationWindow):
     # Playback
     # ------------------------------------------------------------------ #
 
+    def _on_close(self, *_):
+        self.player.stop()
+        return False
+
     def _stop(self):
         self.player.stop()
         self.title_label.set_text("Nothing playing")
@@ -255,12 +266,16 @@ class MainWindow(Adw.ApplicationWindow):
         self.title_label.remove_css_class("dim-label")
         self.title_label.add_css_class("title-3")
 
-        # Load station logo
+        # Load station logo scaled to 96x96 to prevent panel from expanding
         if st.station_art_path:
             abs_path = os.path.join(DATA_DIR, st.station_art_path)
             if os.path.exists(abs_path):
-                self.logo_picture.set_filename(abs_path)
-                self.logo_stack.set_visible_child_name("logo")
+                try:
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(abs_path, 160, 160, False)
+                    self.logo_image.set_from_pixbuf(pixbuf)
+                    self.logo_stack.set_visible_child_name("logo")
+                except Exception:
+                    self.logo_stack.set_visible_child_name("fallback")
             else:
                 self.logo_stack.set_visible_child_name("fallback")
         else:
