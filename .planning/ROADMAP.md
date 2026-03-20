@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Module Extraction** - Refactor monolith into discrete modules so each feature has a clean home (completed 2026-03-18)
 - [x] **Phase 2: Search and Filter** - Live name search and provider/tag dropdown filters with composed AND logic (completed 2026-03-19)
-- [ ] **Phase 3: ICY Metadata Display** - Wire GStreamer TAG bus to show track title and station logo in now-playing area
+- [x] **Phase 3: ICY Metadata Display** - Wire GStreamer TAG bus to show track title and station logo in now-playing area (completed 2026-03-20)
 - [ ] **Phase 4: Cover Art** - Fetch and display track/album art from ICY metadata via iTunes Search API
 
 ## Phase Details
@@ -57,7 +57,7 @@ Plans:
   2. When the track changes mid-stream, the displayed title updates automatically without user action
   3. While a YouTube live stream plays (no ICY metadata), the now-playing area shows the station name instead of a blank or error
   4. The station's brand logo is displayed top-left in the now-playing area while a station is playing
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 03-01-PLAN.md — TDD: GStreamer TAG bus handler with ICY encoding fix in player.py
 - [ ] 03-02-PLAN.md — Build now-playing panel, relocate buttons, wire TAG-driven title and station logo
@@ -81,5 +81,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Module Extraction | 2/3 | Gap closure | - |
 | 2. Search and Filter | 2/2 | Complete   | 2026-03-19 |
-| 3. ICY Metadata Display | 0/2 | Planned | - |
+| 3. ICY Metadata Display | 2/2 | Complete   | 2026-03-20 |
 | 4. Cover Art | 0/? | Not started | - |

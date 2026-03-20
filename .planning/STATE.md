@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-01-PLAN.md (TAG handler + ICY encoding)
-last_updated: "2026-03-20T02:28:03.100Z"
+stopped_at: Completed 03-02-PLAN.md (now-playing panel)
+last_updated: "2026-03-20T03:53:28.145Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Plan: 2 of 2
 | Phase 02-search-and-filter P01 | 5 | 1 tasks | 2 files |
 | Phase 02-search-and-filter P02 | 30 | 2 tasks | 1 files |
 | Phase 03-icy-metadata-display P01 | 3 | 2 tasks | 2 files |
+| Phase 03-icy-metadata-display P02 | 90 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 02-search-and-filter]: Empty state via shell.set_content swap to Adw.StatusPage on zero filter results
 - [Phase 03-icy-metadata-display]: _set_uri no longer calls on_title() directly — ICY TAG bus provides async track titles; direct call removed to avoid stale title flash
 - [Phase 03-icy-metadata-display]: GLib.idle_add used in _on_gst_tag — GStreamer bus signals arrive on non-GTK thread; idle_add marshals to main loop
+- [Phase 03-icy-metadata-display]: GdkPixbuf pre-scale logo to 160x160 before Gtk.Picture.set_pixbuf to avoid GTK downscale rendering artifacts
+- [Phase 03-icy-metadata-display]: Window close-request connected to _stop() — ensures mpv exits cleanly when window is closed
 
 ### Pending Todos
 
@@ -87,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T02:27:58.637Z
-Stopped at: Completed 03-01-PLAN.md (TAG handler + ICY encoding)
+Last session: 2026-03-20T03:53:28.143Z
+Stopped at: Completed 03-02-PLAN.md (now-playing panel)
 Resume file: None
