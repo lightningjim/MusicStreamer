@@ -81,5 +81,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Module Extraction | 2/3 | Gap closure | - |
 | 2. Search and Filter | 2/2 | Complete   | 2026-03-19 |
-| 3. ICY Metadata Display | 2/2 | Complete   | 2026-03-20 |
+| 3. ICY Metadata Display | 2/2 | Complete    | 2026-03-20 |
 | 4. Cover Art | 0/? | Not started | - |
