@@ -19,9 +19,9 @@
 
 ### Now Playing
 
-- [ ] **NOW-01**: User sees currently playing track title from ICY metadata for mp3/aac streams
-- [ ] **NOW-02**: Track title display updates automatically when ICY metadata changes mid-stream
-- [ ] **NOW-03**: When no ICY metadata is available (e.g., YouTube streams), now-playing area shows station name instead
+- [x] **NOW-01**: User sees currently playing track title from ICY metadata for mp3/aac streams
+- [x] **NOW-02**: Track title display updates automatically when ICY metadata changes mid-stream
+- [x] **NOW-03**: When no ICY metadata is available (e.g., YouTube streams), now-playing area shows station name instead
 - [ ] **NOW-04**: Station brand logo displayed top-left (1:1 aspect, from existing station art)
 - [ ] **NOW-05**: Track/album art displayed top-right, mirroring the station logo position
 - [ ] **NOW-06**: Top-right art falls back to a generic placeholder when no track art is available from the stream
@@ -70,9 +70,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FILT-03 | Phase 2 | Complete |
 | FILT-04 | Phase 2 | Complete |
 | FILT-05 | Phase 2 | Complete |
-| NOW-01 | Phase 3 | Pending |
-| NOW-02 | Phase 3 | Pending |
-| NOW-03 | Phase 3 | Pending |
+| NOW-01 | Phase 3 | Complete |
+| NOW-02 | Phase 3 | Complete |
+| NOW-03 | Phase 3 | Complete |
 | NOW-04 | Phase 3 | Pending |
 | NOW-05 | Phase 4 | Pending |
 | NOW-06 | Phase 4 | Pending |

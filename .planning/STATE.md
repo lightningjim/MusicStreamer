@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 3 UI-SPEC approved
-last_updated: "2026-03-20T01:46:16.598Z"
+stopped_at: Completed 03-01-PLAN.md (TAG handler + ICY encoding)
+last_updated: "2026-03-20T02:28:03.100Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-18)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 02 — search-and-filter
+**Current focus:** Phase 03 — icy-metadata-display
 
 ## Current Position
 
-Phase: 02 (search-and-filter) — EXECUTING
+Phase: 03 (icy-metadata-display) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ Plan: 2 of 2
 | Phase 01-module-extraction P03 | 5 | 2 tasks | 3 files |
 | Phase 02-search-and-filter P01 | 5 | 1 tasks | 2 files |
 | Phase 02-search-and-filter P02 | 30 | 2 tasks | 1 files |
+| Phase 03-icy-metadata-display P01 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 02-search-and-filter]: filter_utils.py: pure Python, no GTK — fully testable without display server
 - [Phase 02-search-and-filter]: now_label removed from HeaderBar (kept as instance variable); Phase 3 will redesign now-playing — user confirmed intentional
 - [Phase 02-search-and-filter]: Empty state via shell.set_content swap to Adw.StatusPage on zero filter results
+- [Phase 03-icy-metadata-display]: _set_uri no longer calls on_title() directly — ICY TAG bus provides async track titles; direct call removed to avoid stale title flash
+- [Phase 03-icy-metadata-display]: GLib.idle_add used in _on_gst_tag — GStreamer bus signals arrive on non-GTK thread; idle_add marshals to main loop
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T01:46:16.596Z
-Stopped at: Phase 3 UI-SPEC approved
-Resume file: .planning/phases/03-icy-metadata-display/03-UI-SPEC.md
+Last session: 2026-03-20T02:27:58.637Z
+Stopped at: Completed 03-01-PLAN.md (TAG handler + ICY encoding)
+Resume file: None
