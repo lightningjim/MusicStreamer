@@ -5,6 +5,14 @@ from gi.repository import Gst, GLib
 from musicstreamer.models import Station
 
 
+def _fix_icy_encoding(s: str) -> str:
+    """Re-encode latin-1 mojibake back to proper UTF-8."""
+    try:
+        return s.encode('latin-1').decode('utf-8')
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return s
+
+
 class Player:
     def __init__(self):
         self._pipeline = Gst.ElementFactory.make("playbin3", "player")
@@ -17,13 +25,25 @@ class Player:
         bus = self._pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message::error", self._on_gst_error)
+        bus.connect("message::tag", self._on_gst_tag)
         self._yt_proc = None
+        self._on_title = None
 
     def _on_gst_error(self, bus, msg):
         err, debug = msg.parse_error()
         print(f"GStreamer ERROR: {err}\n  debug: {debug}")
 
+    def _on_gst_tag(self, bus, msg):
+        taglist = msg.parse_tag()
+        found, value = taglist.get_string(Gst.TAG_TITLE)
+        if not found:
+            return
+        title = _fix_icy_encoding(value)
+        if self._on_title:
+            GLib.idle_add(self._on_title, title)
+
     def play(self, station: Station, on_title: callable):
+        self._on_title = on_title
         url = (station.url or "").strip()
         if not url:
             on_title("(no URL set)")
@@ -35,6 +55,7 @@ class Player:
             self._set_uri(url, station.name, on_title)
 
     def stop(self):
+        self._on_title = None
         self._stop_yt_proc()
         self._pipeline.set_state(Gst.State.NULL)
 
@@ -57,4 +78,3 @@ class Player:
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.set_property("uri", uri)
         self._pipeline.set_state(Gst.State.PLAYING)
-        on_title(title)
