@@ -23,7 +23,7 @@ decisions:
 metrics:
   duration: "2 minutes"
   completed: "2026-03-21"
-  tasks_completed: 2
+  tasks_completed: 3
   tasks_total: 3
   files_changed: 2
 ---
@@ -38,7 +38,7 @@ EditStationDialog now supports station deletion with confirmation/playing-guard,
 |---|------|--------|--------|
 | 1 | YouTube thumbnail fetch helper + tests (TDD) | c9967ca (RED: c2fe612, GREEN: c9967ca) | Done |
 | 2 | EditStationDialog — delete button, ICY toggle, YT fetch wiring | 6176f27 | Done |
-| 3 | Verify all three features end-to-end | — | Awaiting human verification |
+| 3 | Verify all three features end-to-end | 32ebbb8 | Done — user approved all scenarios |
 
 ## What Was Built
 
@@ -83,6 +83,9 @@ Module-level helpers added to `edit_dialog.py`:
 
 None — plan executed exactly as written.
 
-## Self-Check
+## Self-Check: PASSED
 
-Pending (to be verified after human-verify checkpoint).
+- `musicstreamer/ui/edit_dialog.py` — FOUND (commit 6176f27)
+- `tests/test_yt_thumbnail.py` — FOUND (commit c9967ca)
+- Task commits c2fe612, c9967ca, 6176f27, 32ebbb8 — all present in git log
+- All three requirements verified by user: delete flow (playing + not-playing), ICY toggle persist, YT thumbnail auto-fetch and manual fetch, non-YT URL no-op

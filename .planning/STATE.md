@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Polish & Station Management
 status: unknown
-stopped_at: "Checkpoint 06-02: awaiting human-verify of delete/ICY/YT thumbnail"
-last_updated: "2026-03-21T14:43:29.201Z"
+stopped_at: Completed 06-02-PLAN.md — Phase 06 complete
+last_updated: "2026-03-21T14:55:26.190Z"
 progress:
   total_phases: 2
   completed_phases: 2
@@ -50,6 +50,7 @@ Plan: 2 of 2
 *Updated after each plan completion*
 | Phase 05 P01 | 10m | 2 tasks | 2 files |
 | Phase 06-station-management P01 | 3min | 2 tasks | 5 files |
+| Phase 06-station-management P02 | 45min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting current work:
 - [Phase 06-station-management]: ICY suppression guard in _on_title closure (UI-side), not in Player — keeps suppression tied to user intent via _current_station
 - [Phase 06-station-management]: icy_disabled defaults to False at dataclass and SQL column level — migration safe on existing rows with no backfill
 - [Phase 06]: fetch_yt_thumbnail uses GLib.idle_add inside helper so callers never wrap themselves
+- [Phase 06-station-management]: fetch_yt_thumbnail uses GLib.idle_add inside helper so callers never wrap themselves
+- [Phase 06-station-management]: Gtk.Stack swap pattern for spinner/content slot; _fetch_cancelled flag guards post-close widget updates
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T14:43:23.627Z
-Stopped at: Checkpoint 06-02: awaiting human-verify of delete/ICY/YT thumbnail
+Last session: 2026-03-21T14:55:26.188Z
+Stopped at: Completed 06-02-PLAN.md — Phase 06 complete
 Resume file: None
