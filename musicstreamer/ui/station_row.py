@@ -2,7 +2,7 @@ import os
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw
+from gi.repository import Gtk, Adw, GLib
 from musicstreamer.models import Station
 from musicstreamer.constants import DATA_DIR
 
@@ -18,7 +18,10 @@ class StationRow(Gtk.ListBoxRow):
         if station.tags:
             subtitle += f" • {station.tags}"
 
-        row = Adw.ActionRow(title=station.name, subtitle=subtitle)
+        row = Adw.ActionRow(
+            title=GLib.markup_escape_text(station.name, -1),
+            subtitle=GLib.markup_escape_text(subtitle, -1),
+        )
         row.set_activatable(False)
 
         has_art = False
