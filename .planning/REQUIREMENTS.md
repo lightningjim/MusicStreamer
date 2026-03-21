@@ -17,7 +17,7 @@
 
 ### Station Display
 
-- [ ] **DISP-01**: Station list shows each station's logo image inline in the row
+- [x] **DISP-01**: Station list shows each station's logo image inline in the row
 
 ### ICY Behavior
 
@@ -42,7 +42,7 @@
 |-------------|-------|--------|
 | BUG-01 | Phase 5 | Pending |
 | BUG-02 | Phase 5 | Pending |
-| DISP-01 | Phase 5 | Pending |
+| DISP-01 | Phase 5 | Complete |
 | MGMT-01 | Phase 6 | Pending |
 | MGMT-02 | Phase 6 | Pending |
 | ICY-01 | Phase 6 | Pending |
