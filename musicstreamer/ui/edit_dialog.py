@@ -52,7 +52,11 @@ class EditStationDialog(Adw.Window):
         self.on_saved = on_saved
         self.is_playing = is_playing
 
-        self.set_default_size(560, 420)
+        # Fetch state
+        self._fetch_in_progress = False
+        self._fetch_cancelled = False
+
+        self.set_default_size(560, 480)
 
         self.station = repo.get_station(station_id)
 
@@ -62,6 +66,12 @@ class EditStationDialog(Adw.Window):
 
         root = Adw.ToolbarView()
         header = Adw.HeaderBar()
+
+        # Delete Station button (destructive, packed start)
+        delete_btn = Gtk.Button(label="Delete Station")
+        delete_btn.add_css_class("destructive-action")
+        delete_btn.connect("clicked", self._on_delete_clicked)
+        header.pack_start(delete_btn)
 
         save_btn = Gtk.Button(label="Save")
         save_btn.add_css_class("suggested-action")
@@ -83,6 +93,11 @@ class EditStationDialog(Adw.Window):
         self.tags_entry = Gtk.Entry(text=self.station.tags)
         self.tags_entry.set_placeholder_text("Comma-separated tags (e.g. Chillout, Ambient)")
 
+        # URL focus-out controller for auto-fetch
+        focus_controller = Gtk.EventControllerFocus()
+        focus_controller.connect("leave", self._on_url_focus_out)
+        self.url_entry.add_controller(focus_controller)
+
         # Art previews
         self.station_pic = Gtk.Picture()
         self.station_pic.set_size_request(128, 128)
@@ -97,8 +112,20 @@ class EditStationDialog(Adw.Window):
         station_art_btn = Gtk.Button(label="Choose Station Art…")
         station_art_btn.connect("clicked", self._choose_station_art)
 
+        fetch_btn = Gtk.Button(label="Fetch from URL")
+        fetch_btn.connect("clicked", self._on_fetch_clicked)
+
         album_art_btn = Gtk.Button(label="Choose Default Album Art…")
         album_art_btn.connect("clicked", self._choose_album_art)
+
+        # Spinner for thumbnail fetch (shown in place of station_pic)
+        self._art_spinner = Gtk.Spinner()
+        self._art_spinner.set_size_request(128, 128)
+
+        self._art_stack = Gtk.Stack()
+        self._art_stack.add_named(self.station_pic, "pic")
+        self._art_stack.add_named(self._art_spinner, "spinner")
+        self._art_stack.set_visible_child_name("pic")
 
         form = Gtk.Grid(column_spacing=12, row_spacing=12)
         form.attach(Gtk.Label(label="Name", xalign=0), 0, 0, 1, 1)
@@ -113,21 +140,114 @@ class EditStationDialog(Adw.Window):
         form.attach(Gtk.Label(label="Tags", xalign=0), 0, 3, 1, 1)
         form.attach(self.tags_entry, 1, 3, 1, 1)
 
+        # ICY metadata toggle (SwitchRow, between form and arts section)
+        self.icy_switch = Adw.SwitchRow(title="Disable ICY metadata")
+        self.icy_switch.set_active(self.station.icy_disabled)
+
         arts = Gtk.Grid(column_spacing=12, row_spacing=12)
         arts.attach(Gtk.Label(label="Station Art", xalign=0), 0, 0, 1, 1)
-        arts.attach(self.station_pic, 0, 1, 1, 1)
+        arts.attach(self._art_stack, 0, 1, 1, 1)
         arts.attach(station_art_btn, 0, 2, 1, 1)
+        arts.attach(fetch_btn, 0, 3, 1, 1)
 
         arts.attach(Gtk.Label(label="Default Album Art", xalign=0), 1, 0, 1, 1)
         arts.attach(self.album_pic, 1, 1, 1, 1)
         arts.attach(album_art_btn, 1, 2, 1, 1)
 
         content.append(form)
+        content.append(self.icy_switch)
         content.append(Gtk.Separator())
         content.append(arts)
 
         root.set_content(content)
         self.set_content(root)
+
+        # Guard against post-destroy widget updates
+        self.connect("close-request", self._on_close_request)
+
+    # ------------------------------------------------------------------
+    # Delete Station
+    # ------------------------------------------------------------------
+
+    def _on_delete_clicked(self, *_):
+        if self.is_playing and self.is_playing():
+            dlg = Adw.MessageDialog(
+                transient_for=self,
+                heading="Cannot Delete Station",
+                body="Stop playback before deleting this station.",
+            )
+            dlg.add_response("ok", "OK")
+            dlg.set_default_response("ok")
+            dlg.set_close_response("ok")
+            dlg.present()
+            return
+
+        dlg = Adw.MessageDialog(
+            transient_for=self,
+            heading=f"Delete {self.station.name}?",
+            body="This station will be permanently removed.",
+        )
+        dlg.add_response("cancel", "Keep Station")
+        dlg.add_response("delete", "Delete")
+        dlg.set_default_response("cancel")
+        dlg.set_close_response("cancel")
+        dlg.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+        dlg.connect("response", self._on_delete_response)
+        dlg.present()
+
+    def _on_delete_response(self, dialog, response):
+        if response == "delete":
+            self.repo.delete_station(self.station_id)
+            if self.on_saved:
+                self.on_saved()  # reload list to reflect deletion
+            self.close()
+
+    # ------------------------------------------------------------------
+    # YouTube thumbnail fetch
+    # ------------------------------------------------------------------
+
+    def _on_url_focus_out(self, *_):
+        url = self.url_entry.get_text().strip()
+        if _is_youtube_url(url):
+            self._start_thumbnail_fetch(url)
+
+    def _on_fetch_clicked(self, *_):
+        url = self.url_entry.get_text().strip()
+        if _is_youtube_url(url):
+            self._start_thumbnail_fetch(url)
+
+    def _start_thumbnail_fetch(self, url: str):
+        if self._fetch_in_progress:
+            return  # race guard — skip if already fetching
+        self._fetch_in_progress = True
+        self._art_stack.set_visible_child_name("spinner")
+        self._art_spinner.start()
+        fetch_yt_thumbnail(url, self._on_thumbnail_fetched)
+
+    def _on_thumbnail_fetched(self, temp_path):
+        """Called via GLib.idle_add from fetch_yt_thumbnail — runs on main thread."""
+        self._fetch_in_progress = False
+        self._art_spinner.stop()
+        if self._fetch_cancelled:
+            return  # dialog was closed mid-fetch
+        if temp_path:
+            self.station_art_rel = copy_asset_for_station(
+                self.station_id, temp_path, "station_art"
+            )
+            self._refresh_pictures()
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+        self._art_stack.set_visible_child_name("pic")
+
+    def _on_close_request(self, *_):
+        self._fetch_cancelled = True
+        return False  # allow close to proceed
+
+    # ------------------------------------------------------------------
+    # Art helpers
+    # ------------------------------------------------------------------
 
     def _refresh_pictures(self):
         # Use local files if set; otherwise empty
@@ -180,6 +300,10 @@ class EditStationDialog(Adw.Window):
             self._refresh_pictures()
         self._choose_file(set_art)
 
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
+
     def _save(self, *_):
         name = self.name_entry.get_text().strip() or "Unnamed"
         url = self.url_entry.get_text().strip()
@@ -196,6 +320,7 @@ class EditStationDialog(Adw.Window):
             tags=tags,
             station_art_path=self.station_art_rel,
             album_fallback_path=self.album_art_rel,
+            icy_disabled=self.icy_switch.get_active(),
         )
 
         if self.on_saved:
