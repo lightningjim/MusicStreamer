@@ -41,6 +41,11 @@ def db_init(con: sqlite3.Connection):
         """
     )
     con.commit()
+    try:
+        con.execute("ALTER TABLE stations ADD COLUMN icy_disabled INTEGER NOT NULL DEFAULT 0")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
 
 
 class Repo:
@@ -81,6 +86,7 @@ class Repo:
                     tags=r["tags"] or "",
                     station_art_path=r["station_art_path"],
                     album_fallback_path=r["album_fallback_path"],
+                    icy_disabled=bool(r["icy_disabled"]),
                 )
             )
         return out
@@ -113,7 +119,12 @@ class Repo:
             tags=r["tags"] or "",
             station_art_path=r["station_art_path"],
             album_fallback_path=r["album_fallback_path"],
+            icy_disabled=bool(r["icy_disabled"]),
         )
+
+    def delete_station(self, station_id: int):
+        self.con.execute("DELETE FROM stations WHERE id = ?", (station_id,))
+        self.con.commit()
 
     def update_station(
         self,
@@ -124,14 +135,16 @@ class Repo:
         tags: str,
         station_art_path: Optional[str],
         album_fallback_path: Optional[str],
+        icy_disabled: bool = False,
     ):
         self.con.execute(
             """
             UPDATE stations
             SET name = ?, url = ?, provider_id = ?, tags = ?,
-                station_art_path = ?, album_fallback_path = ?
+                station_art_path = ?, album_fallback_path = ?, icy_disabled = ?
             WHERE id = ?
             """,
-            (name, url, provider_id, tags, station_art_path, album_fallback_path, station_id),
+            (name, url, provider_id, tags, station_art_path, album_fallback_path,
+             int(icy_disabled), station_id),
         )
         self.con.commit()

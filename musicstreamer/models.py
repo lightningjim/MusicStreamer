@@ -18,3 +18,4 @@ class Station:
     tags: str
     station_art_path: Optional[str]
     album_fallback_path: Optional[str]
+    icy_disabled: bool = False
