@@ -1,4 +1,8 @@
 import os
+import subprocess
+import tempfile
+import threading
+import urllib.request
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -6,6 +10,38 @@ from gi.repository import Gtk, Adw, GLib
 from musicstreamer.repo import Repo
 from musicstreamer.assets import copy_asset_for_station
 from musicstreamer.constants import DATA_DIR
+
+
+def _is_youtube_url(url: str) -> bool:
+    """Return True if url is a YouTube URL."""
+    return "youtube.com" in url or "youtu.be" in url
+
+
+def fetch_yt_thumbnail(url: str, callback: callable) -> None:
+    """Fetch YouTube thumbnail via yt-dlp in a daemon thread.
+
+    callback receives temp_path (str) on success, None on failure.
+    The callback is invoked via GLib.idle_add so widget updates inside it are safe.
+    """
+    def _worker():
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--print", "thumbnail", "--no-playlist", url],
+                capture_output=True, text=True, timeout=15,
+            )
+            thumb_url = result.stdout.strip()
+            if not thumb_url:
+                GLib.idle_add(callback, None)
+                return
+            with urllib.request.urlopen(thumb_url, timeout=10) as resp:
+                data = resp.read()
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp.write(data)
+                GLib.idle_add(callback, tmp.name)
+        except Exception:
+            GLib.idle_add(callback, None)
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 class EditStationDialog(Adw.Window):
