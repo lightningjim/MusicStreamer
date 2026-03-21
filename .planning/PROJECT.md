@@ -19,14 +19,15 @@ Finding and playing a stream should take seconds — the right station should al
 - Station list shows station art inline per row
 - Delete station from list
 
-## Current State (v1.0 shipped 2026-03-20)
+## Current State (v1.1 in progress — Phase 06 complete 2026-03-21)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
-- **LOC:** ~1,409 Python | **Tests:** 43 passing (test_repo, test_filter_utils, test_player_tag, test_cover_art)
+- **LOC:** ~1,600 Python | **Tests:** 58 passing
 - **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API)
 - **Filtering:** Live search + provider/tag dropdowns + AND composition + empty state
 - **Now-playing:** Three-column panel — logo | title/name/stop | cover art
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback
+- **Station management:** Delete station (playing guard), ICY metadata disable per-station, YouTube thumbnail auto-fetch
 
 ## Requirements
 
@@ -98,4 +99,4 @@ Finding and playing a stream should take seconds — the right station should al
 | 4: Cover Art | v1.0 | ✓ Complete | 2026-03-20 |
 
 ---
-*Last updated: 2026-03-20 after v1.1 milestone start*
+*Last updated: 2026-03-21 after Phase 06 station-management complete*
