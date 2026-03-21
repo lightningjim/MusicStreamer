@@ -2,32 +2,22 @@
 
 ## What This Is
 
-A personal GNOME desktop app for listening to curated internet radio and live streams. Supports ShoutCast-style streams (AudioAddict, Soma.FM, etc.) and YouTube live streams (e.g., Lofi Girl). Designed for a personal library of 50–200 stations with fast browsing via search and filtering, live track title display, and cover art from iTunes.
+A personal GNOME desktop app for listening to curated internet radio and live streams. Supports ShoutCast-style streams (AudioAddict, Soma.FM, etc.) and YouTube live streams (e.g., Lofi Girl). Designed for a personal library of 50–200 stations with fast browsing via search and filtering, live track title display, cover art from iTunes, and per-station management (delete, ICY override, thumbnail auto-fetch).
 
 ## Core Value
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v1.1 Polish & Station Management
-
-**Goal:** Fix GTK markup escaping, improve station management UX, and surface station art in the list.
-
-**Target features:**
-- Fix ampersand/markup escaping in ICY track title display
-- Auto-load YouTube thumbnail as station image when adding/editing
-- Per-station ICY override option (disable ICY where it returns wrong data)
-- Station list shows station art inline per row
-- Delete station from list
-
-## Current State (v1.1 in progress — Phase 06 complete 2026-03-21)
+## Current State (v1.1 shipped 2026-03-21)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
-- **LOC:** ~1,600 Python | **Tests:** 58 passing
+- **LOC:** ~1,782 Python | **Tests:** 58 passing
 - **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API)
 - **Filtering:** Live search + provider/tag dropdowns + AND composition + empty state
 - **Now-playing:** Three-column panel — logo | title/name/stop | cover art
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback
-- **Station management:** Delete station (playing guard), ICY metadata disable per-station, YouTube thumbnail auto-fetch
+- **Station list:** 48px logo prefix per row, generic icon placeholder when no art
+- **Station management:** Delete (playing guard), ICY disable per-station, YouTube thumbnail auto-fetch
 
 ## Requirements
 
@@ -49,24 +39,28 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ Station brand logo displayed top-left in now-playing — v1.0 Phase 3
 - ✓ Cover art displayed top-right via iTunes Search API — v1.0 Phase 4
 - ✓ Placeholder shown when no cover art available — v1.0 Phase 4
+- ✓ ICY track titles with &, <, > display as literal characters — v1.1 Phase 5
+- ✓ Cover art slot shows station logo when no ICY title available — v1.1 Phase 5
+- ✓ Station list shows each station's logo inline per row — v1.1 Phase 5
+- ✓ User can delete a station from the list — v1.1 Phase 6
+- ✓ Station editor auto-populates image from YouTube thumbnail — v1.1 Phase 6
+- ✓ User can disable ICY metadata per station — v1.1 Phase 6
 
-### Active (v1.1)
+### Active (v2.x)
 
-- [ ] Fix GTK markup escaping for ICY track titles (ampersand and other special chars)
-- [ ] Auto-load YouTube thumbnail as station image when adding/editing a YouTube station
-- [ ] Per-station ICY override option (disable ICY for stations where it returns wrong data)
-- [ ] Station list displays station art (1:1 logo) inline per row
-- [ ] Delete station from list
+*(None defined yet — start with `/gsd:new-milestone`)*
 
 ### Out of Scope
 
-- Twitch stream support — yt-dlp supports it; revisit if user adds Twitch stations
-- Local music library / file playback — streaming app only
-- Multi-user / authentication — single-user desktop app
-- Podcast support — different use case
-- Last.fm scrobbling — future enhancement
-- Mobile app — Linux GNOME desktop only
-- MusicBrainz fallback for cover art — v2 if iTunes proves insufficient
+| Feature | Reason |
+|---------|--------|
+| MusicBrainz cover art fallback | iTunes sufficient; revisit if gaps found |
+| Twitch stream support | yt-dlp supports it; revisit if user adds Twitch stations |
+| Local music library / file playback | Streaming app only |
+| Multi-user / authentication | Single-user desktop app |
+| Podcast support | Different use case |
+| Last.fm scrobbling | Future enhancement |
+| Mobile app | Linux GNOME desktop only |
 
 ## Key Decisions
 
@@ -80,6 +74,11 @@ Finding and playing a stream should take seconds — the right station should al
 | GdkPixbuf pre-scale to 160×160 | Avoid GTK downscale artifacts | ✓ Good — consistent with logo slot |
 | Gtk.Stack for logo/art slots | Smooth fallback swap without flicker | ✓ Good — reused across both slots |
 | Session dedup via `_last_cover_icy` | Avoid redundant API calls on repeated TAG | ✓ Good — no external cache needed |
+| set_text() not set_markup() for ICY labels | set_text() does not parse Pango markup | ✓ Good — no escaping needed for plain labels |
+| markup_escape_text in Adw.ActionRow | ActionRow title/subtitle ARE parsed as Pango markup | ✓ Good — escaping required here |
+| Adw.SwitchRow for ICY toggle | Native Adwaita toggle, integrates with form layout | ✓ Good — consistent with Adwaita HIG |
+| daemon thread + GLib.idle_add for YT thumbnail | yt-dlp subprocess must not block GTK main loop | ✓ Good — established cross-thread pattern |
+| Gtk.Stack (pic/spinner) in arts grid | Avoids re-parenting station_pic during fetch | ✓ Good — no flicker during thumbnail load |
 | Twitch deferred | Requires stations in library to validate | — Pending |
 
 ## Constraints
@@ -97,6 +96,8 @@ Finding and playing a stream should take seconds — the right station should al
 | 2: Search and Filter | v1.0 | ✓ Complete | 2026-03-19 |
 | 3: ICY Metadata Display | v1.0 | ✓ Complete | 2026-03-20 |
 | 4: Cover Art | v1.0 | ✓ Complete | 2026-03-20 |
+| 5: Display Polish | v1.1 | ✓ Complete | 2026-03-21 |
+| 6: Station Management | v1.1 | ✓ Complete | 2026-03-21 |
 
 ---
-*Last updated: 2026-03-21 after Phase 06 station-management complete*
+*Last updated: 2026-03-21 after v1.1 milestone complete*

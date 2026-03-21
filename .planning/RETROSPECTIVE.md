@@ -45,11 +45,55 @@
 
 ## Cross-Milestone Trends
 
-| Metric | v1.0 |
-|--------|------|
-| Phases | 4 |
-| Plans | 8 |
-| Tests | 43 |
-| LOC (Python) | 1,409 |
-| Gap closure plans | 1 |
-| Days | 35 |
+| Metric | v1.0 | v1.1 |
+|--------|------|------|
+| Phases | 4 | 2 |
+| Plans | 8 | 4 |
+| Tests | 43 | 58 (+15) |
+| LOC (Python) | 1,409 | 1,782 (+373) |
+| Gap closure plans | 1 | 0 |
+| Days | 35 | 1 |
+
+## Milestone: v1.1 — Polish & Station Management
+
+**Shipped:** 2026-03-21
+**Phases:** 2 | **Plans:** 4 | **Timeline:** 1 day (2026-03-21)
+
+### What Was Built
+
+- GTK markup escaping fixed for ICY titles and Adw.ActionRow station names (Phase 5)
+- Station logo pre-loaded into cover art slot as default; cover not cleared on junk ICY title (Phase 5)
+- StationRow always shows 48px prefix widget — logo or generic icon placeholder (Phase 5)
+- Station.icy_disabled field, migration, repo CRUD, MainWindow suppression guard (Phase 6)
+- Delete Station dialog with playing guard, per-station ICY SwitchRow, YouTube thumbnail auto-fetch (Phase 6)
+
+### What Worked
+
+- **TDD red→green** — escaping tests and delete/icy_disabled repo tests written before implementation; caught edge cases early
+- **Bug fix mid-execution** — `&amp;` display issue caught during Phase 6 checkpoint, fixed inline (two commits: set_text labels + ActionRow escaping). Checkpoints gave the right moment
+- **Daemon thread + GLib.idle_add** — re-applied from v1.0 for YT thumbnail fetch; zero new problems
+- **Audit → complete workflow** — running audit before complete-milestone surfaced SUMMARY frontmatter gaps early
+
+### What Was Inefficient
+
+- SUMMARY `requirements_completed` frontmatter incomplete across several plans — BUG-01, BUG-02, MGMT-02 missing
+- Phase 5 VERIFICATION evidence for BUG-01 went stale after the bug fix changed the implementation — verification snapshots can be invalidated mid-session
+
+### Patterns Established
+
+- `set_text()` never needs escaping; `Adw.ActionRow(title=)` always needs `GLib.markup_escape_text`
+- `Adw.SwitchRow` for boolean per-item toggles in edit dialogs
+- `Gtk.Stack` (pic/spinner) to swap between image and spinner without re-parenting
+- Playing guard: `is_playing=lambda: ...` passed into dialogs for live state check without MainWindow reference
+
+### Key Lessons
+
+- GTK markup context is per-widget — document which labels use set_text vs set_markup vs ActionRow
+- Verification evidence can go stale within the same session if a bug fix lands after verify runs
+- 27 commits in ~2 hours; checkpoints are load-bearing at this pace
+
+### Cost Observations
+
+- Model mix: sonnet throughout
+- Sessions: 1 (completed same day started)
+- Notable: fastest milestone yet — 1 day vs 35 days for v1.0

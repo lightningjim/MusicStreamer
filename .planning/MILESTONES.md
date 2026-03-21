@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.1 Polish & Station Management (Shipped: 2026-03-21)
+
+**Phases completed:** 2 phases, 4 plans | **Stats:** 58 tests | 1,782 Python LOC | 27 commits | 1 day
+
+**Delivered:** Fixed GTK markup escaping for ICY titles, surfaced station logos in the list, added delete station, per-station ICY disable, and YouTube thumbnail auto-fetch.
+
+**Key accomplishments:**
+
+- GTK markup escaping: `&`, `<`, `>` in ICY titles and station names display as literal characters
+- Station logo pre-loaded into cover art slot as default; junk ICY title no longer clears it
+- Station list always shows 48px prefix widget — logo when available, generic icon otherwise
+- `Station.icy_disabled` field, SQLite migration, repo CRUD, and MainWindow playback guard for per-station ICY suppression
+- Delete Station in edit dialog with playing guard (blocks deletion while streaming) and confirmation dialog
+- YouTube URL auto-fetch: entering a YT URL triggers yt-dlp thumbnail fetch with spinner feedback
+
+---
+
 ## v1.0 MVP (Shipped: 2026-03-20)
 
 **Phases completed:** 4 phases, 8 plans, 0 tasks
