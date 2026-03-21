@@ -24,7 +24,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 **Milestone Goal:** Fix visual correctness issues and complete station management UX.
 
 - [x] **Phase 5: Display Polish** - Fix GTK markup escaping and surface station art in the list (completed 2026-03-21)
-- [ ] **Phase 6: Station Management** - Delete stations and improve the station editor with YT thumbnail auto-load and per-station ICY override
+- [x] **Phase 6: Station Management** - Delete stations and improve the station editor with YT thumbnail auto-load and per-station ICY override (completed 2026-03-21)
 
 ## Phase Details
 
@@ -52,11 +52,11 @@ Plans:
   2. Entering a YouTube URL in the station editor automatically populates the station image field with the video thumbnail
   3. User can toggle ICY metadata off for a specific station and the setting persists across sessions
   4. A station with ICY disabled plays without showing ICY track title metadata (station name or silence shown instead)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 06-01-PLAN.md — Data model, repo layer, ICY suppression guard
-- [ ] 06-02-PLAN.md — EditStationDialog: delete button, ICY toggle, YT thumbnail fetch
+- [x] 06-02-PLAN.md — EditStationDialog: delete button, ICY toggle, YT thumbnail fetch
 
 ## Progress
 
@@ -67,4 +67,4 @@ Plans:
 | 3. ICY Metadata Display | v1.0 | 2/2 | Complete | 2026-03-20 |
 | 4. Cover Art | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 5. Display Polish | 2/2 | Complete   | 2026-03-21 | - |
-| 6. Station Management | v1.1 | 1/2 | In Progress|  |
+| 6. Station Management | v1.1 | 2/2 | Complete   | 2026-03-21 |

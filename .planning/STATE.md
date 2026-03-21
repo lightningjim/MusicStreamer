@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Polish & Station Management
 status: unknown
-stopped_at: Completed 06-station-management plan 01
-last_updated: "2026-03-21T14:40:04.127Z"
+stopped_at: "Checkpoint 06-02: awaiting human-verify of delete/ICY/YT thumbnail"
+last_updated: "2026-03-21T14:43:29.201Z"
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -65,6 +65,7 @@ Recent decisions affecting current work:
 - [Phase 05-display-polish]: Pass raw ICY title to cover art lookup; escape only for GTK label display
 - [Phase 06-station-management]: ICY suppression guard in _on_title closure (UI-side), not in Player — keeps suppression tied to user intent via _current_station
 - [Phase 06-station-management]: icy_disabled defaults to False at dataclass and SQL column level — migration safe on existing rows with no backfill
+- [Phase 06]: fetch_yt_thumbnail uses GLib.idle_add inside helper so callers never wrap themselves
 
 ### Pending Todos
 
@@ -77,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T14:40:04.125Z
-Stopped at: Completed 06-station-management plan 01
+Last session: 2026-03-21T14:43:23.627Z
+Stopped at: Checkpoint 06-02: awaiting human-verify of delete/ICY/YT thumbnail
 Resume file: None
