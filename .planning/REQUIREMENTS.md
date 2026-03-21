@@ -7,8 +7,8 @@
 
 ### Bug Fix
 
-- [ ] **BUG-01**: ICY track title displays correctly when title contains `&`, `<`, `>`, or other GTK markup special characters
-- [ ] **BUG-02**: Cover art slot shows station logo when no ICY title is available (rather than generic notes icon)
+- [x] **BUG-01**: ICY track title displays correctly when title contains `&`, `<`, `>`, or other GTK markup special characters
+- [x] **BUG-02**: Cover art slot shows station logo when no ICY title is available (rather than generic notes icon)
 
 ### Station Management
 
@@ -40,8 +40,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-01 | Phase 5 | Pending |
-| BUG-02 | Phase 5 | Pending |
+| BUG-01 | Phase 5 | Complete |
+| BUG-02 | Phase 5 | Complete |
 | DISP-01 | Phase 5 | Complete |
 | MGMT-01 | Phase 6 | Pending |
 | MGMT-02 | Phase 6 | Pending |
