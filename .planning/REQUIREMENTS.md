@@ -12,7 +12,7 @@
 
 ### Station Management
 
-- [ ] **MGMT-01**: User can delete a station from the station list
+- [x] **MGMT-01**: User can delete a station from the station list
 - [ ] **MGMT-02**: Station editor auto-populates station image from YouTube thumbnail when a YouTube URL is entered
 
 ### Station Display
@@ -21,7 +21,7 @@
 
 ### ICY Behavior
 
-- [ ] **ICY-01**: User can disable ICY metadata per station (for stations where ICY returns wrong/irrelevant data)
+- [x] **ICY-01**: User can disable ICY metadata per station (for stations where ICY returns wrong/irrelevant data)
 
 ## v2 Requirements
 
@@ -43,9 +43,9 @@
 | BUG-01 | Phase 5 | Complete |
 | BUG-02 | Phase 5 | Complete |
 | DISP-01 | Phase 5 | Complete |
-| MGMT-01 | Phase 6 | Pending |
+| MGMT-01 | Phase 6 | Complete |
 | MGMT-02 | Phase 6 | Pending |
-| ICY-01 | Phase 6 | Pending |
+| ICY-01 | Phase 6 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 6 total

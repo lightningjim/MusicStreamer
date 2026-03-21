@@ -52,10 +52,10 @@ Plans:
   2. Entering a YouTube URL in the station editor automatically populates the station image field with the video thumbnail
   3. User can toggle ICY metadata off for a specific station and the setting persists across sessions
   4. A station with ICY disabled plays without showing ICY track title metadata (station name or silence shown instead)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 06-01-PLAN.md — Data model, repo layer, ICY suppression guard
+- [x] 06-01-PLAN.md — Data model, repo layer, ICY suppression guard
 - [ ] 06-02-PLAN.md — EditStationDialog: delete button, ICY toggle, YT thumbnail fetch
 
 ## Progress
@@ -67,4 +67,4 @@ Plans:
 | 3. ICY Metadata Display | v1.0 | 2/2 | Complete | 2026-03-20 |
 | 4. Cover Art | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 5. Display Polish | 2/2 | Complete   | 2026-03-21 | - |
-| 6. Station Management | v1.1 | 0/2 | Not started | - |
+| 6. Station Management | v1.1 | 1/2 | In Progress|  |

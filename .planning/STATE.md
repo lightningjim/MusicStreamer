@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Polish & Station Management
 status: unknown
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-21T14:13:04.945Z"
+stopped_at: Completed 06-station-management plan 01
+last_updated: "2026-03-21T14:40:04.127Z"
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 05 — display-polish
+**Current focus:** Phase 06 — station-management
 
 ## Current Position
 
-Phase: 05 (display-polish) — COMPLETE
-Plan: 2 of 2 (complete)
+Phase: 06 (station-management) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Plan: 2 of 2 (complete)
 
 *Updated after each plan completion*
 | Phase 05 P01 | 10m | 2 tasks | 2 files |
+| Phase 06-station-management P01 | 3min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,8 @@ Recent decisions affecting current work:
 - [Roadmap v1.1]: BUG-01 + DISP-01 grouped into Phase 5 (no data model changes); MGMT-01 + MGMT-02 + ICY-01 into Phase 6 (all touch station record or editor)
 - [Phase 05-display-polish]: audio-x-generic-symbolic at 48px for StationRow placeholder, mirroring now-playing logo_fallback pattern
 - [Phase 05-display-polish]: Pass raw ICY title to cover art lookup; escape only for GTK label display
+- [Phase 06-station-management]: ICY suppression guard in _on_title closure (UI-side), not in Player — keeps suppression tied to user intent via _current_station
+- [Phase 06-station-management]: icy_disabled defaults to False at dataclass and SQL column level — migration safe on existing rows with no backfill
 
 ### Pending Todos
 
@@ -74,6 +77,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T14:13:04.943Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-station-management/06-CONTEXT.md
+Last session: 2026-03-21T14:40:04.125Z
+Stopped at: Completed 06-station-management plan 01
+Resume file: None
