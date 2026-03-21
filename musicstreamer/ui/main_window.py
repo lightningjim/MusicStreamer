@@ -175,6 +175,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._rebuilding = False
         self._visible_count = 0
         self._last_cover_icy = None
+        self._current_station = None
 
         # Wire filter func
         self.listbox.set_filter_func(self._filter_func)
@@ -298,6 +299,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.logo_stack.set_visible_child_name("fallback")
         self.cover_stack.set_visible_child_name("fallback")
         self._last_cover_icy = None
+        self._current_station = None
         self.stop_btn.set_sensitive(False)
 
     def _play_row(self, _listbox, row):
@@ -306,6 +308,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._play_station(st)
 
     def _play_station(self, st: Station):
+        self._current_station = st
+
         # Set station name label
         self.station_name_label.set_text(GLib.markup_escape_text(st.name, -1))
         self.station_name_label.set_visible(True)
@@ -350,6 +354,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Start playback -- on_title callback updates title_label and cover art
         def _on_title(title):
+            if self._current_station and self._current_station.icy_disabled:
+                return  # suppress ICY metadata per user setting
             safe = GLib.markup_escape_text(title, -1)
             self.title_label.set_text(safe)
             self._on_cover_art(title)  # pass RAW title to cover art (iTunes needs real chars)
@@ -386,6 +392,13 @@ class MainWindow(Adw.ApplicationWindow):
             self._open_editor(row.station_id)
 
     def _open_editor(self, station_id: int):
-        dlg = EditStationDialog(self.get_application(), self.repo, station_id, on_saved=self.reload_list)
+        dlg = EditStationDialog(
+            self.get_application(),
+            self.repo,
+            station_id,
+            on_saved=self.reload_list,
+            is_playing=lambda: (self._current_station is not None
+                                and self._current_station.id == station_id),
+        )
         dlg.set_transient_for(self)
         dlg.present()

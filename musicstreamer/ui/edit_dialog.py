@@ -9,11 +9,12 @@ from musicstreamer.constants import DATA_DIR
 
 
 class EditStationDialog(Adw.Window):
-    def __init__(self, app, repo: Repo, station_id: int, on_saved):
+    def __init__(self, app, repo: Repo, station_id: int, on_saved, is_playing=None):
         super().__init__(application=app, title="Edit Station")
         self.repo = repo
         self.station_id = station_id
         self.on_saved = on_saved
+        self.is_playing = is_playing
 
         self.set_default_size(560, 420)
 
