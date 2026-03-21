@@ -21,6 +21,7 @@ class StationRow(Gtk.ListBoxRow):
         row = Adw.ActionRow(title=station.name, subtitle=subtitle)
         row.set_activatable(False)
 
+        has_art = False
         if station.station_art_path:
             abs_path = os.path.join(DATA_DIR, station.station_art_path)
             if os.path.exists(abs_path):
@@ -28,5 +29,11 @@ class StationRow(Gtk.ListBoxRow):
                 pic.set_size_request(48, 48)
                 pic.set_content_fit(Gtk.ContentFit.COVER)
                 row.add_prefix(pic)
+                has_art = True
+
+        if not has_art:
+            placeholder = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+            placeholder.set_pixel_size(48)
+            row.add_prefix(placeholder)
 
         self.set_child(row)
