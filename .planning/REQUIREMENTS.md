@@ -40,16 +40,16 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BUG-01 | Phase 5 | Pending |
-| MGMT-01 | Phase 5 | Pending |
-| MGMT-02 | Phase 5 | Pending |
 | DISP-01 | Phase 5 | Pending |
-| ICY-01 | Phase 5 | Pending |
+| MGMT-01 | Phase 6 | Pending |
+| MGMT-02 | Phase 6 | Pending |
+| ICY-01 | Phase 6 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 5 total
-- Mapped to phases: 0
-- Unmapped: 5 ⚠️
+- Mapped to phases: 5
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-20*
-*Last updated: 2026-03-20 after initial v1.1 definition*
+*Last updated: 2026-03-20 after v1.1 roadmap creation*

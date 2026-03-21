@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Polish & Station Management
-status: defining_requirements
-stopped_at: ""
+status: ready_to_plan
+stopped_at: "Roadmap created for v1.1 — ready to plan Phase 5"
 last_updated: "2026-03-20T00:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,23 +16,25 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-18)
+See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 04 — cover-art
+**Current focus:** Phase 5 — Display Polish
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-20 — Milestone v1.1 started
+Phase: 5 of 6 (Display Polish)
+Plan: — of TBD
+Status: Ready to plan
+Last activity: 2026-03-20 — v1.1 roadmap created (2 phases, 5 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 0 (v1.1)
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -44,18 +46,10 @@ Last activity: 2026-03-20 — Milestone v1.1 started
 
 **Recent Trend:**
 
-- Last 5 plans: none yet
+- Last 5 plans: none yet (v1.1)
 - Trend: -
 
 *Updated after each plan completion*
-| Phase 01-module-extraction P01 | 2 | 2 tasks | 9 files |
-| Phase 01-module-extraction P02 | 15 | 2 tasks | 7 files |
-| Phase 01-module-extraction P03 | 5 | 2 tasks | 3 files |
-| Phase 02-search-and-filter P01 | 5 | 1 tasks | 2 files |
-| Phase 02-search-and-filter P02 | 30 | 2 tasks | 1 files |
-| Phase 03-icy-metadata-display P01 | 3 | 2 tasks | 2 files |
-| Phase 03-icy-metadata-display P02 | 90 | 2 tasks | 1 files |
-| Phase 04-cover-art P01 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -64,37 +58,21 @@ Last activity: 2026-03-20 — Milestone v1.1 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Roadmap]: Search + dropdowns for filtering (not sidebar/chips) — user's explicit choice
-- [Roadmap]: ICY metadata via GStreamer TAG bus — data already flowing, just needs wiring
-- [Roadmap]: Cover art via iTunes Search API (no key required) — Phase 4 only after ICY plumbing exists
-- [Roadmap]: Phases 2 and 3 are independent but sequenced to avoid merge complexity in solo context
-- [Phase 01-module-extraction]: pytest installed via uv (uv run --with pytest) — no pip available on system python, apt requires sudo
-- [Phase 01-module-extraction]: constants.py as dependency leaf for APP_ID, DATA_DIR, DB_PATH, ASSETS_DIR — avoids duplication across 4+ future modules
-- [Phase 01-module-extraction]: Player.play() uses on_title callback for UI decoupling — Player has no GTK dependency
-- [Phase 01-module-extraction]: StationRow subclasses Gtk.ListBoxRow (not Adw.ActionRow) to carry self.station for Phase 2 filter_func
-- [Phase 01-module-extraction]: yt-dlp format bestaudio[ext=m4a]/bestaudio/best; acodec guard prevents silent video-only playback
-- [Phase 02-search-and-filter]: filter_utils.py: pure Python, no GTK — fully testable without display server
-- [Phase 02-search-and-filter]: now_label removed from HeaderBar (kept as instance variable); Phase 3 will redesign now-playing — user confirmed intentional
-- [Phase 02-search-and-filter]: Empty state via shell.set_content swap to Adw.StatusPage on zero filter results
-- [Phase 03-icy-metadata-display]: _set_uri no longer calls on_title() directly — ICY TAG bus provides async track titles; direct call removed to avoid stale title flash
-- [Phase 03-icy-metadata-display]: GLib.idle_add used in _on_gst_tag — GStreamer bus signals arrive on non-GTK thread; idle_add marshals to main loop
-- [Phase 03-icy-metadata-display]: GdkPixbuf pre-scale logo to 160x160 before Gtk.Picture.set_pixbuf to avoid GTK downscale rendering artifacts
-- [Phase 03-icy-metadata-display]: Window close-request connected to _stop() — ensures mpv exits cleanly when window is closed
 - [Phase 04-cover-art]: cover_art.py uses stdlib urllib.request + daemon threading; callback pattern requires GLib.idle_add at call site
 - [Phase 04-cover-art]: cover_stack mirrors logo_stack Gtk.Stack pattern; _last_cover_icy dedup cleared on stop
+- [Roadmap v1.1]: BUG-01 + DISP-01 grouped into Phase 5 (no data model changes); MGMT-01 + MGMT-02 + ICY-01 into Phase 6 (all touch station record or editor)
 
 ### Pending Todos
 
-None yet.
+- .planning/notes/2026-03-20-icy-override-per-station.md
+- .planning/notes/2026-03-20-yt-thumbnail-station-image.md
 
 ### Blockers/Concerns
 
-- [Phase 4]: iTunes Search API rate limits are undocumented — validate empirically during Phase 4 development
-- [Phase 3]: ICY encoding (Latin-1 vs UTF-8) is stream-dependent — implement heuristic re-encoding and test against real stations
-- [Phase 4]: MusicBrainz Lucene query field names are MEDIUM confidence — test fallback independently before relying on it
+None.
 
 ## Session Continuity
 
 Last session: 2026-03-20T23:06:29.158Z
-Stopped at: Completed 04-01-PLAN.md
+Stopped at: v1.1 roadmap created — Phase 5 ready to plan
 Resume file: None
