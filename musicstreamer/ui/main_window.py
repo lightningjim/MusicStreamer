@@ -259,8 +259,6 @@ class MainWindow(Adw.ApplicationWindow):
         if icy_string == self._last_cover_icy:
             return  # dedup — same title, skip API call
         if is_junk_title(icy_string):
-            self._last_cover_icy = None
-            self.cover_stack.set_visible_child_name("fallback")
             return
         self._last_cover_icy = icy_string
 
@@ -331,6 +329,21 @@ class MainWindow(Adw.ApplicationWindow):
                 self.logo_stack.set_visible_child_name("fallback")
         else:
             self.logo_stack.set_visible_child_name("fallback")
+
+        # Default cover art to station logo until ICY-driven art replaces it
+        if st.station_art_path:
+            abs_path = os.path.join(DATA_DIR, st.station_art_path)
+            if os.path.exists(abs_path):
+                try:
+                    cover_pb = GdkPixbuf.Pixbuf.new_from_file_at_scale(abs_path, 160, 160, False)
+                    self.cover_image.set_from_pixbuf(cover_pb)
+                    self.cover_stack.set_visible_child_name("art")
+                except Exception:
+                    self.cover_stack.set_visible_child_name("fallback")
+            else:
+                self.cover_stack.set_visible_child_name("fallback")
+        else:
+            self.cover_stack.set_visible_child_name("fallback")
 
         # Enable stop button
         self.stop_btn.set_sensitive(True)
