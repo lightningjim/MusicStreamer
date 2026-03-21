@@ -39,7 +39,7 @@ main_window.py). All values are multiples of 4.
 |-------|-------|-------|
 | xs | 4px | Icon gaps, tight row padding |
 | sm | 8px | Panel margin-start/end, row internal spacing |
-| md | 12px | Dialog content margins (matches existing edit_dialog) |
+| md | 12px | Dialog content margins (exception: matches existing edit_dialog.py content-area margins — codebase compatibility) |
 | lg | 16px | Separator breathing room |
 | xl | 24px | Major dialog section gaps |
 | 2xl | 32px | Not used in this phase |
@@ -74,10 +74,10 @@ GTK4/Adwaita — colors are resolved by the system theme. No hex values are hard
 |------|---------------|-------|
 | Dominant (60%) | `@window_bg_color` | Window background, dialog background |
 | Secondary (30%) | `@card_bg_color` | Form rows, art preview containers |
-| Accent (10%) | `@accent_color` | Save button (`suggested-action` CSS class) |
+| Accent (10%) | `@accent_color` | Save Station button (`suggested-action` CSS class) |
 | Destructive | `@destructive_color` | Delete button (`destructive-action` CSS class) |
 
-Accent reserved for: **Save button only.**
+Accent reserved for: **Save Station button only.**
 Destructive reserved for: **Delete button only** (inside EditStationDialog footer area).
 
 ---
@@ -86,12 +86,17 @@ Destructive reserved for: **Delete button only** (inside EditStationDialog foote
 
 ### EditStationDialog — New Controls (source: CONTEXT.md decisions)
 
+**Primary Visual Anchor**
+- The station name entry (`Gtk.Entry` for the Name field) is the focal point of
+  EditStationDialog. It is the top-most form field and the primary identifier for
+  the station. It receives focus on dialog open.
+
 **ICY Metadata Toggle**
 - Widget: `Adw.SwitchRow`
 - Label: `"Disable ICY metadata"`
 - Placement: append after the Tags row in the existing form grid, above the
   `Gtk.Separator` that precedes the art section
-- State: initialized from `station.icy_disabled`; saved on Save press
+- State: initialized from `station.icy_disabled`; saved on Save Station press
 
 **YouTube Thumbnail Fetch**
 - Auto-fetch trigger: URL entry `focus-out` event (only when URL contains
@@ -107,7 +112,7 @@ Destructive reserved for: **Delete button only** (inside EditStationDialog foote
 **Delete Button**
 - Widget: `Gtk.Button(label="Delete Station")`
 - CSS class: `destructive-action`
-- Placement: header bar, packed-start (left side), opposite Save button
+- Placement: header bar, packed-start (left side), opposite Save Station button
 - Source: Claude's Discretion (exact placement); destructive-action at top-left
   is the GNOME HIG pattern for irreversible header actions
 
@@ -121,7 +126,7 @@ Destructive reserved for: **Delete button only** (inside EditStationDialog foote
 3. If station is NOT playing: show `Adw.MessageDialog`
    - Heading: `"Delete [Station Name]?"`
    - Body: `"This station will be permanently removed."`
-   - Buttons: Cancel (default) / Delete (destructive)
+   - Buttons: Keep Station (default) / Delete (destructive)
 4. On Delete confirmed: close dialog, remove station from list
 
 ---
@@ -130,13 +135,13 @@ Destructive reserved for: **Delete button only** (inside EditStationDialog foote
 
 | Element | Copy |
 |---------|------|
-| Primary CTA (save) | "Save" |
+| Primary CTA (save) | "Save Station" |
 | Delete action button | "Delete Station" |
 | Delete confirmation heading (blocked) | "Cannot Delete Station" |
 | Delete confirmation body (blocked) | "Stop playback before deleting this station." |
 | Delete confirmation heading (allowed) | "Delete [Station Name]?" |
 | Delete confirmation body (allowed) | "This station will be permanently removed." |
-| Delete confirmation buttons | Cancel / Delete |
+| Delete confirmation buttons | Keep Station / Delete |
 | Fetch button | "Fetch from URL" |
 | ICY toggle label | "Disable ICY metadata" |
 | Error state (fetch failure) | silent no-op — no copy shown |
