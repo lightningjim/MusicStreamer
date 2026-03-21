@@ -309,11 +309,11 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _play_station(self, st: Station):
         # Set station name label
-        self.station_name_label.set_text(st.name)
+        self.station_name_label.set_text(GLib.markup_escape_text(st.name, -1))
         self.station_name_label.set_visible(True)
 
         # Set title to station name initially (overwritten by TAG for ICY streams)
-        self.title_label.set_text(st.name)
+        self.title_label.set_text(GLib.markup_escape_text(st.name, -1))
         self.title_label.remove_css_class("dim-label")
         self.title_label.add_css_class("title-3")
 
@@ -337,8 +337,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Start playback -- on_title callback updates title_label and cover art
         def _on_title(title):
-            self.title_label.set_text(title)
-            self._on_cover_art(title)
+            safe = GLib.markup_escape_text(title, -1)
+            self.title_label.set_text(safe)
+            self._on_cover_art(title)  # pass RAW title to cover art (iTunes needs real chars)
         self.player.play(st, on_title=_on_title)
 
     # ------------------------------------------------------------------ #
