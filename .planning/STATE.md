@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Polish & Station Management
-status: unknown
-stopped_at: Completed 06-02-PLAN.md — Phase 06 complete
-last_updated: "2026-03-21T15:16:24.593Z"
+milestone: v1.2
+milestone_name: Station UX & Polish
+status: active
+stopped_at: ""
+last_updated: "2026-03-21T00:00:00.000Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -19,12 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 06 — station-management
+**Current focus:** v1.2 — Station UX & Polish (requirements phase)
 
 ## Current Position
 
-Phase: 06
-Plan: Not started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-21 — Milestone v1.2 started
 
 ## Performance Metrics
 

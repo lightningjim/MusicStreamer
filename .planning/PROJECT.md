@@ -8,6 +8,17 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
+## Current Milestone: v1.2 Station UX & Polish
+
+**Goal:** Better station browsing with provider grouping, multi-select filters, recently played, volume control, and visual polish.
+
+**Target features:**
+- Provider-grouped station list (collapsible) + recently played section
+- Multi-select provider/genre filters; inline provider/genre creation in editor
+- YouTube stream title auto-import; provider name in Now Playing
+- Volume slider with persistence
+- Rounded corners, subtle gradients, improved spacing
+
 ## Current State (v1.1 shipped 2026-03-21)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
@@ -46,9 +57,23 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ Station editor auto-populates image from YouTube thumbnail — v1.1 Phase 6
 - ✓ User can disable ICY metadata per station — v1.1 Phase 6
 
-### Active (v2.x)
+### Active (v1.2)
 
-*(None defined yet — start with `/gsd:new-milestone`)*
+- [ ] BROWSE-01: Stations grouped by provider in list, collapsed by default, expandable
+- [ ] BROWSE-02: User can filter by multiple providers simultaneously
+- [ ] BROWSE-03: User can filter by multiple genres/tags simultaneously
+- [ ] BROWSE-04: "Recently Played" section at top of station list showing last 3 played stations (most recent first)
+- [ ] MGMT-01: Station editor shows existing providers as selectable options
+- [ ] MGMT-02: Station editor shows existing genres/tags as selectable options (multi-select)
+- [ ] MGMT-03: User can add a new provider/genre inline from the station editor
+- [ ] MGMT-04: YouTube station URL auto-imports stream title
+- [ ] NP-01: Now Playing panel shows provider name
+- [ ] AUDIO-01: Volume slider controls playback volume
+- [ ] AUDIO-02: Volume persists between sessions
+- [ ] UI-01: Panels use rounded corners
+- [ ] UI-02: Colors softened with subtle gradients
+- [ ] UI-03: Station list rows have more vertical padding
+- [ ] UI-04: Now Playing panel has more internal whitespace
 
 ### Out of Scope
 
@@ -100,4 +125,22 @@ Finding and playing a stream should take seconds — the right station should al
 | 6: Station Management | v1.1 | ✓ Complete | 2026-03-21 |
 
 ---
-*Last updated: 2026-03-21 after v1.1 milestone complete*
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
+---
+*Last updated: 2026-03-21 after v1.2 milestone started*
