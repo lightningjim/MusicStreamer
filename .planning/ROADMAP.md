@@ -31,11 +31,12 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 ### Phase 5: Display Polish
 **Goal**: The station list and now-playing panel display content correctly with no visual defects
 **Depends on**: Phase 4
-**Requirements**: BUG-01, DISP-01
+**Requirements**: BUG-01, BUG-02, DISP-01
 **Success Criteria** (what must be TRUE):
   1. ICY track titles containing `&`, `<`, `>`, or `"` display as readable text, not as broken GTK markup or blank labels
-  2. Each station row in the list shows the station's logo image at the correct size alongside the station name
-  3. Stations without a logo show a consistent placeholder in the row (no missing-image artifacts)
+  2. Cover art slot shows the station's own logo when no ICY title is available (not the generic notes icon)
+  3. Each station row in the list shows the station's logo image at the correct size alongside the station name
+  4. Stations without a logo show a consistent placeholder in the row (no missing-image artifacts)
 **Plans**: TBD
 
 ### Phase 6: Station Management
