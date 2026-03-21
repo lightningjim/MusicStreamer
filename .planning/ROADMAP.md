@@ -37,7 +37,11 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   2. Cover art slot shows the station's own logo when no ICY title is available (not the generic notes icon)
   3. Each station row in the list shows the station's logo image at the correct size alongside the station name
   4. Stations without a logo show a consistent placeholder in the row (no missing-image artifacts)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Fix ICY title markup escaping + station logo as cover art default
+- [ ] 05-02-PLAN.md — Station row logo images with placeholder fallback
 
 ### Phase 6: Station Management
 **Goal**: Users can delete stations and the station editor handles YouTube URLs and ICY behavior correctly
@@ -58,5 +62,5 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 | 2. Search and Filter | v1.0 | 2/2 | Complete | 2026-03-19 |
 | 3. ICY Metadata Display | v1.0 | 2/2 | Complete | 2026-03-20 |
 | 4. Cover Art | v1.0 | 1/1 | Complete | 2026-03-20 |
-| 5. Display Polish | v1.1 | 0/TBD | Not started | - |
+| 5. Display Polish | v1.1 | 0/2 | Not started | - |
 | 6. Station Management | v1.1 | 0/TBD | Not started | - |
