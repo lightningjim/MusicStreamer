@@ -34,7 +34,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Better station browsing with provider grouping, multi-select filters, recently played, volume control, and visual polish.
 
-- [ ] **Phase 7: Station List Restructuring** — Provider-grouped list with recently played section
+- [x] **Phase 7: Station List Restructuring** — Provider-grouped list with recently played section (completed 2026-03-22)
 - [ ] **Phase 8: Filter Bar Multi-Select** — Replace dropdowns with multi-select provider/genre filters
 - [ ] **Phase 9: Station Editor Improvements** — Structured provider/genre selectors with inline creation and YouTube title import
 - [ ] **Phase 10: Now Playing & Audio** — Provider name in now-playing panel, volume slider with persistence
@@ -51,12 +51,12 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   2. All provider groups are collapsed by default; clicking a header expands that group
   3. A "Recently Played" section appears above all provider groups, showing the last 3 played stations in order (most recent first)
   4. Recently Played updates after each play session without requiring restart
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 07-01-PLAN.md — Data layer: schema migrations, Station model update, repo methods for recently played and settings
 - [x] 07-02-PLAN.md — UI restructuring: provider-grouped ExpanderRow layout with dual render modes
-- [ ] 07-03-PLAN.md — Recently Played section integration and play hook wiring
+- [x] 07-03-PLAN.md — Recently Played section integration and play hook wiring
 
 ### Phase 8: Filter Bar Multi-Select
 **Goal**: Users can filter the station list by multiple providers and/or genres simultaneously
@@ -111,7 +111,7 @@ Plans:
 | 4. Cover Art | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 5. Display Polish | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 6. Station Management | v1.1 | 2/2 | Complete | 2026-03-21 |
-| 7. Station List Restructuring | v1.2 | 2/3 | In Progress|  |
+| 7. Station List Restructuring | v1.2 | 3/3 | Complete   | 2026-03-22 |
 | 8. Filter Bar Multi-Select | v1.2 | 0/? | Not started | - |
 | 9. Station Editor Improvements | v1.2 | 0/? | Not started | - |
 | 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
