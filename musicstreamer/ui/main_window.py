@@ -260,7 +260,33 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _rebuild_grouped(self, stations, search_text=""):
         self._clear_listbox()
-        self._rp_rows = []  # clear RP refs (Plan 03 will populate)
+        self._rp_rows = []
+
+        # Recently Played section (per D-06, D-07, D-15)
+        # Only show when no filter is active and there are recently played stations
+        if not search_text and not self._any_filter_active():
+            rp_count = int(self.repo.get_setting("recently_played_count", "3"))
+            recently_played = self.repo.list_recently_played(rp_count)
+            if recently_played:
+                # Header label row (non-interactive)
+                label = Gtk.Label(label="Recently Played")
+                label.set_margin_top(8)
+                label.set_margin_bottom(4)
+                label.set_margin_start(12)
+                label.set_margin_end(8)
+                label.set_xalign(0.0)
+                header_row = Gtk.ListBoxRow()
+                header_row.set_activatable(False)
+                header_row.set_selectable(False)
+                header_row.set_child(label)
+                self.listbox.append(header_row)
+                self._rp_rows.append(header_row)
+
+                # Station rows (StationRow — direct listbox children, playable via row-activated)
+                for st in recently_played:
+                    row = StationRow(st)
+                    self.listbox.append(row)
+                    self._rp_rows.append(row)
 
         # Group stations by provider name
         groups: dict[str, list] = {}
@@ -350,6 +376,49 @@ class MainWindow(Adw.ApplicationWindow):
         ar.connect("activated", lambda r, _sid=st.id: self._play_by_id(_sid))
         return ar
 
+    def _refresh_recently_played(self):
+        """Replace Recently Played rows in-place without rebuilding the full list.
+
+        Preserves ExpanderRow expand/collapse state (Pitfall 3).
+        Only operates in grouped mode (RP is hidden in flat mode).
+        """
+        # If any filter is active, RP is hidden — nothing to refresh
+        if self._any_filter_active():
+            return
+
+        # Remove existing RP rows
+        for row in self._rp_rows:
+            self.listbox.remove(row)
+        self._rp_rows = []
+
+        # Get fresh RP data
+        rp_count = int(self.repo.get_setting("recently_played_count", "3"))
+        recently_played = self.repo.list_recently_played(rp_count)
+        if not recently_played:
+            return
+
+        # Insert at the top of listbox (before first ExpanderRow)
+        # Header label row
+        label = Gtk.Label(label="Recently Played")
+        label.set_margin_top(8)
+        label.set_margin_bottom(4)
+        label.set_margin_start(12)
+        label.set_margin_end(8)
+        label.set_xalign(0.0)
+        header_row = Gtk.ListBoxRow()
+        header_row.set_activatable(False)
+        header_row.set_selectable(False)
+        header_row.set_child(label)
+        self.listbox.insert(header_row, 0)
+        self._rp_rows.append(header_row)
+
+        # Station rows — insert after header, before ExpanderRows
+        for i, st in enumerate(recently_played):
+            row = StationRow(st)
+            # insert at position i+1 (after header which is at 0)
+            self.listbox.insert(row, i + 1)
+            self._rp_rows.append(row)
+
     def _play_by_id(self, station_id: int):
         st = self.repo.get_station(station_id)
         self._play_station(st)
@@ -411,6 +480,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._play_station(st)
 
     def _play_station(self, st: Station):
+        self.repo.update_last_played(st.id)
+        self._refresh_recently_played()
         self._current_station = st
 
         # Set station name label
