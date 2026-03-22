@@ -6,7 +6,7 @@ status: active
 stopped_at: ""
 last_updated: "2026-03-21T00:00:00.000Z"
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -16,43 +16,43 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-20)
+See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** v1.2 — Station UX & Polish (requirements phase)
+**Current focus:** Phase 7 — Station List Restructuring
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-21 — Milestone v1.2 started
+Phase: 7 of 11 (Station List Restructuring)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-03-21 — v1.2 roadmap created; ready to plan Phase 7
+
+Progress: [████████░░░░░░░░░░░░] 40% (phases 1–6 complete; v1.2 at 0/5 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0 (v1.1)
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 10 (v1.0 + v1.1)
+- Average duration: ~30 min
+- Total execution time: ~5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 05-display-polish P01 | 1 | 10m | 10m |
+| 05-display-polish P02 | 1 | 3m | 3m |
+| 06-station-management P01 | 1 | 3m | 3m |
+| 06-station-management P02 | 1 | 45m | 45m |
 
 **Recent Trend:**
 
-- Last 5 plans: none yet (v1.1)
-- Trend: -
-
-| Phase 05-display-polish P02 | 3min | 1 task | 1 file |
+- Last 4 plans: 10m, 3m, 3m, 45m
+- Trend: Stable
 
 *Updated after each plan completion*
-| Phase 05 P01 | 10m | 2 tasks | 2 files |
-| Phase 06-station-management P01 | 3min | 2 tasks | 5 files |
-| Phase 06-station-management P02 | 45min | 3 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -61,19 +61,18 @@ Last activity: 2026-03-21 — Milestone v1.2 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [Phase 04-cover-art]: cover_art.py uses stdlib urllib.request + daemon threading; callback pattern requires GLib.idle_add at call site
-- [Phase 04-cover-art]: cover_stack mirrors logo_stack Gtk.Stack pattern; _last_cover_icy dedup cleared on stop
-- [Roadmap v1.1]: BUG-01 + DISP-01 grouped into Phase 5 (no data model changes); MGMT-01 + MGMT-02 + ICY-01 into Phase 6 (all touch station record or editor)
-- [Phase 05-display-polish]: audio-x-generic-symbolic at 48px for StationRow placeholder, mirroring now-playing logo_fallback pattern
-- [Phase 05-display-polish]: Pass raw ICY title to cover art lookup; escape only for GTK label display
-- [Phase 06-station-management]: ICY suppression guard in _on_title closure (UI-side), not in Player — keeps suppression tied to user intent via _current_station
-- [Phase 06-station-management]: icy_disabled defaults to False at dataclass and SQL column level — migration safe on existing rows with no backfill
 - [Phase 06]: fetch_yt_thumbnail uses GLib.idle_add inside helper so callers never wrap themselves
-- [Phase 06-station-management]: fetch_yt_thumbnail uses GLib.idle_add inside helper so callers never wrap themselves
-- [Phase 06-station-management]: Gtk.Stack swap pattern for spinner/content slot; _fetch_cancelled flag guards post-close widget updates
+- [Phase 06]: Gtk.Stack swap pattern for spinner/content slot; _fetch_cancelled flag guards post-close widget updates
+- [Phase 06]: ICY suppression guard in _on_title closure (UI-side), not in Player — keeps suppression tied to user intent via _current_station
+- [Phase 05]: Pass raw ICY title to cover art lookup; escape only for GTK label display
+- [Phase 04]: cover_stack mirrors logo_stack Gtk.Stack pattern; _last_cover_icy dedup cleared on stop
 
 ### Pending Todos
 
+- .planning/notes/2026-03-21-collapse-expand-radio-stations.md
+- .planning/notes/2026-03-21-now-playing-show-provider.md
+- .planning/notes/2026-03-21-sdr-live-radio-support.md
+- .planning/notes/2026-03-21-sync-config-between-computers.md
 - .planning/notes/2026-03-20-icy-override-per-station.md
 - .planning/notes/2026-03-20-yt-thumbnail-station-image.md
 
@@ -83,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21T14:55:26.188Z
-Stopped at: Completed 06-02-PLAN.md — Phase 06 complete
+Last session: 2026-03-21
+Stopped at: v1.2 roadmap created — ready to plan Phase 7
 Resume file: None

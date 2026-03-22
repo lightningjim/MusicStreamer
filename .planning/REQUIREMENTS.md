@@ -66,27 +66,27 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BROWSE-01 | TBD | Pending |
-| BROWSE-02 | TBD | Pending |
-| BROWSE-03 | TBD | Pending |
-| BROWSE-04 | TBD | Pending |
-| MGMT-01 | TBD | Pending |
-| MGMT-02 | TBD | Pending |
-| MGMT-03 | TBD | Pending |
-| MGMT-04 | TBD | Pending |
-| NP-01 | TBD | Pending |
-| AUDIO-01 | TBD | Pending |
-| AUDIO-02 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| UI-03 | TBD | Pending |
-| UI-04 | TBD | Pending |
+| BROWSE-01 | Phase 7 | Pending |
+| BROWSE-04 | Phase 7 | Pending |
+| BROWSE-02 | Phase 8 | Pending |
+| BROWSE-03 | Phase 8 | Pending |
+| MGMT-01 | Phase 9 | Pending |
+| MGMT-02 | Phase 9 | Pending |
+| MGMT-03 | Phase 9 | Pending |
+| MGMT-04 | Phase 9 | Pending |
+| NP-01 | Phase 10 | Pending |
+| AUDIO-01 | Phase 10 | Pending |
+| AUDIO-02 | Phase 10 | Pending |
+| UI-01 | Phase 11 | Pending |
+| UI-02 | Phase 11 | Pending |
+| UI-03 | Phase 11 | Pending |
+| UI-04 | Phase 11 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 15 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-21*
-*Last updated: 2026-03-21 after initial definition*
+*Last updated: 2026-03-21 after v1.2 roadmap created*
