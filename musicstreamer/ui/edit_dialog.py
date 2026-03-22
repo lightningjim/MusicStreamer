@@ -89,9 +89,63 @@ class EditStationDialog(Adw.Window):
         # Fields
         self.name_entry = Gtk.Entry(text=self.station.name)
         self.url_entry = Gtk.Entry(text=self.station.url)
-        self.provider_entry = Gtk.Entry(text=self.station.provider_name or "")
-        self.tags_entry = Gtk.Entry(text=self.station.tags)
-        self.tags_entry.set_placeholder_text("Comma-separated tags (e.g. Chillout, Ambient)")
+
+        # Provider picker: ComboRow of existing providers + entry for new ones
+        providers = repo.list_providers()
+        provider_model = Gtk.StringList()
+        provider_model.append("")  # blank = no provider (index 0)
+        for p in providers:
+            provider_model.append(p.name)
+
+        self.provider_combo = Adw.ComboRow(title="Provider", model=provider_model)
+        self.provider_combo.set_enable_search(True)
+
+        current_prov = self.station.provider_name or ""
+        for i, pname in enumerate([""] + [p.name for p in providers]):
+            if pname == current_prov:
+                self.provider_combo.set_selected(i)
+                break
+
+        self.new_provider_entry = Gtk.Entry()
+        self.new_provider_entry.set_placeholder_text("Or type new provider name\u2026")
+
+        provider_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        provider_box.append(self.provider_combo)
+        provider_box.append(self.new_provider_entry)
+
+        # Tag chip panel: toggleable chips for existing tags + entry for new ones
+        all_tags = sorted({t.strip() for s in repo.list_stations()
+                           for t in s.tags.split(",") if t.strip()})
+        current_tags = {t.strip() for t in self.station.tags.split(",") if t.strip()}
+        self._selected_tags = set(current_tags)
+        self._tag_chip_btns = []
+        self._rebuilding = False
+
+        self._chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        chip_scroll = Gtk.ScrolledWindow()
+        chip_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
+        chip_scroll.set_min_content_height(36)
+        chip_scroll.set_margin_top(4)
+        chip_scroll.set_margin_bottom(4)
+        chip_scroll.set_margin_start(8)
+        chip_scroll.set_margin_end(8)
+        chip_scroll.set_child(self._chip_box)
+
+        self._rebuilding = True
+        for tag in all_tags:
+            btn = Gtk.ToggleButton(label=tag)
+            btn.set_active(tag in self._selected_tags)
+            btn.connect("toggled", self._on_tag_chip_toggled, tag)
+            self._chip_box.append(btn)
+            self._tag_chip_btns.append(btn)
+        self._rebuilding = False
+
+        self.new_tag_entry = Gtk.Entry()
+        self.new_tag_entry.set_placeholder_text("New tag\u2026")
+
+        tags_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        tags_box.append(chip_scroll)
+        tags_box.append(self.new_tag_entry)
 
         # URL focus-out controller for auto-fetch
         focus_controller = Gtk.EventControllerFocus()
@@ -135,10 +189,10 @@ class EditStationDialog(Adw.Window):
         form.attach(self.url_entry, 1, 1, 1, 1)
 
         form.attach(Gtk.Label(label="Provider", xalign=0), 0, 2, 1, 1)
-        form.attach(self.provider_entry, 1, 2, 1, 1)
+        form.attach(provider_box, 1, 2, 1, 1)
 
         form.attach(Gtk.Label(label="Tags", xalign=0), 0, 3, 1, 1)
-        form.attach(self.tags_entry, 1, 3, 1, 1)
+        form.attach(tags_box, 1, 3, 1, 1)
 
         # ICY metadata toggle (SwitchRow, between form and arts section)
         self.icy_switch = Adw.SwitchRow(title="Disable ICY metadata")
@@ -164,6 +218,18 @@ class EditStationDialog(Adw.Window):
 
         # Guard against post-destroy widget updates
         self.connect("close-request", self._on_close_request)
+
+    # ------------------------------------------------------------------
+    # Tag chip toggle
+    # ------------------------------------------------------------------
+
+    def _on_tag_chip_toggled(self, btn, tag_name):
+        if self._rebuilding:
+            return
+        if btn.get_active():
+            self._selected_tags.add(tag_name)
+        else:
+            self._selected_tags.discard(tag_name)
 
     # ------------------------------------------------------------------
     # Delete Station
@@ -307,8 +373,21 @@ class EditStationDialog(Adw.Window):
     def _save(self, *_):
         name = self.name_entry.get_text().strip() or "Unnamed"
         url = self.url_entry.get_text().strip()
-        provider_name = self.provider_entry.get_text().strip()
-        tags = self.tags_entry.get_text().strip()
+
+        new_prov = self.new_provider_entry.get_text().strip()
+        if new_prov:
+            # Case-insensitive match against existing providers to avoid duplicates
+            providers = self.repo.list_providers()
+            match = next((p.name for p in providers if p.name.casefold() == new_prov.casefold()), None)
+            provider_name = match if match else new_prov
+        else:
+            idx = self.provider_combo.get_selected()
+            item = self.provider_combo.get_model().get_item(idx)
+            provider_name = item.get_string() if item else ""
+
+        new_tag = self.new_tag_entry.get_text().strip()
+        all_selected = self._selected_tags | ({new_tag} if new_tag else set())
+        tags = ", ".join(sorted(all_selected))
 
         provider_id = self.repo.ensure_provider(provider_name) if provider_name else None
 
