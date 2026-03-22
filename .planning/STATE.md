@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Station UX & Polish
 status: unknown
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-03-22T18:39:06.532Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-22T19:23:05.595Z"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 07 — station-list-restructuring
+**Current focus:** Phase 08 — filter-bar-multi-select
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (filter-bar-multi-select) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: Not started
 | Phase 07 P01 | 8min | 1 tasks | 3 files |
 | Phase 07 P02 | 2 | 1 tasks | 1 files |
 | Phase 07 P03 | 15 | 1 tasks | 1 files |
+| Phase 08 P01 | 1 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 07]: ExpanderRow children use activated signal -> _play_by_id; row-activated on outer ListBox does not fire for group children
 - [Phase 07]: Use Gtk.ListBox.insert(row, 0) for in-place RP refresh rather than reload_list — preserves ExpanderRow expand/collapse state
 - [Phase 07]: recently_played_count configurable via settings table with default 3
+- [Phase 08]: Empty set = inactive filter dimension (parallel to matches_filter None/empty string convention)
+- [Phase 08]: Tag matching casefolded at call time — no mutation of input sets
 
 ### Pending Todos
 
@@ -87,6 +90,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T18:36:20.388Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-03-22T19:23:05.593Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None

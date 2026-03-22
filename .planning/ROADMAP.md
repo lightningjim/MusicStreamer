@@ -67,10 +67,10 @@ Plans:
   2. User can select more than one genre/tag and the list shows stations matching any selected genre
   3. Provider and genre filters compose with AND logic (selected providers AND selected genres)
   4. Clearing all filter selections returns the full grouped station list
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 08-01-PLAN.md — TDD: matches_filter_multi function for multi-select OR/AND filter logic
+- [x] 08-01-PLAN.md — TDD: matches_filter_multi function for multi-select OR/AND filter logic
 - [ ] 08-02-PLAN.md — Replace DropDown widgets with ToggleButton chip strips and wire multi-select state
 
 ### Phase 9: Station Editor Improvements
@@ -116,7 +116,7 @@ Plans:
 | 5. Display Polish | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 6. Station Management | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 7. Station List Restructuring | v1.2 | 3/3 | Complete    | 2026-03-22 |
-| 8. Filter Bar Multi-Select | v1.2 | 0/? | Not started | - |
+| 8. Filter Bar Multi-Select | v1.2 | 1/2 | In Progress|  |
 | 9. Station Editor Improvements | v1.2 | 0/? | Not started | - |
 | 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
 | 11. UI Polish | v1.2 | 0/? | Not started | - |
