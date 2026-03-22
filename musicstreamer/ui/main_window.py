@@ -173,12 +173,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Guard flag for dropdown model rebuilds
         self._rebuilding = False
-        self._visible_count = 0
+        self._rp_rows: list = []  # recently played row refs (Plan 03 will populate)
         self._last_cover_icy = None
         self._current_station = None
-
-        # Wire filter func
-        self.listbox.set_filter_func(self._filter_func)
 
         shell.set_content(scroller)
         self.set_content(shell)
@@ -190,25 +187,11 @@ class MainWindow(Adw.ApplicationWindow):
     # Filter logic
     # ------------------------------------------------------------------ #
 
-    def _filter_func(self, row):
-        station = row.station
-        search_text = self.search_entry.get_text()
-        prov_idx = self.provider_dropdown.get_selected()
-        provider_filter = self._provider_items[prov_idx] if prov_idx > 0 else None
-        tag_idx = self.tag_dropdown.get_selected()
-        tag_filter = self._tag_items[tag_idx] if tag_idx > 0 else None
-        result = matches_filter(station, search_text, provider_filter, tag_filter)
-        if result:
-            self._visible_count += 1
-        return result
-
     def _on_filter_changed(self, *_):
         if self._rebuilding:
             return
-        self._visible_count = 0
-        self.listbox.invalidate_filter()
+        self._render_list()
         self._update_clear_button()
-        self._update_empty_state()
 
     def _any_filter_active(self) -> bool:
         return (
@@ -219,12 +202,6 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _update_clear_button(self):
         self.clear_btn.set_visible(self._any_filter_active())
-
-    def _update_empty_state(self):
-        if self._visible_count == 0 and self._any_filter_active():
-            self.shell.set_content(self.empty_page)
-        else:
-            self.shell.set_content(self.scroller)
 
     def _on_clear(self, *_):
         self.search_entry.set_text("")
@@ -250,6 +227,132 @@ class MainWindow(Adw.ApplicationWindow):
         self.tag_dropdown.set_model(Gtk.StringList.new(self._tag_items))
 
         self._rebuilding = False
+
+    # ------------------------------------------------------------------ #
+    # List rendering
+    # ------------------------------------------------------------------ #
+
+    def _clear_listbox(self):
+        child = self.listbox.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self.listbox.remove(child)
+            child = nxt
+
+    def _render_list(self):
+        stations = self.repo.list_stations()
+        search_text = self.search_entry.get_text().strip()
+        prov_idx = self.provider_dropdown.get_selected()
+        provider_filter = self._provider_items[prov_idx] if prov_idx > 0 else None
+        tag_idx = self.tag_dropdown.get_selected()
+        tag_filter = self._tag_items[tag_idx] if tag_idx > 0 else None
+
+        # Filter stations by tag (tags apply in both modes)
+        if tag_filter:
+            stations = [s for s in stations if matches_filter(s, "", None, tag_filter)]
+
+        # Per D-12, D-14: provider filter active -> flat mode
+        if provider_filter:
+            filtered = [s for s in stations if matches_filter(s, search_text, provider_filter, None)]
+            self._rebuild_flat(filtered)
+        else:
+            self._rebuild_grouped(stations, search_text)
+
+    def _rebuild_grouped(self, stations, search_text=""):
+        self._clear_listbox()
+        self._rp_rows = []  # clear RP refs (Plan 03 will populate)
+
+        # Group stations by provider name
+        groups: dict[str, list] = {}
+        uncategorized: list = []
+        for st in stations:
+            if search_text and search_text.casefold() not in st.name.casefold():
+                continue
+            if st.provider_name:
+                groups.setdefault(st.provider_name, []).append(st)
+            else:
+                uncategorized.append(st)
+
+        # Add provider groups alphabetically (per D-01, D-02)
+        for provider_name in sorted(groups.keys()):
+            provider_stations = groups[provider_name]
+            group = Adw.ExpanderRow()
+            group.set_title(GLib.markup_escape_text(provider_name, -1))
+            group.set_expanded(False)  # D-02: collapsed by default
+
+            for st in provider_stations:
+                row = self._make_action_row(st)
+                group.add_row(row)
+
+            self.listbox.append(group)
+
+        # Uncategorized group at bottom (per D-04, D-05)
+        if uncategorized:
+            group = Adw.ExpanderRow()
+            group.set_title("Uncategorized")
+            group.set_expanded(False)  # D-05
+
+            for st in uncategorized:
+                row = self._make_action_row(st)
+                group.add_row(row)
+
+            self.listbox.append(group)
+
+        # Empty state check
+        total_stations = sum(len(v) for v in groups.values()) + len(uncategorized)
+        if total_stations == 0 and self._any_filter_active():
+            self.shell.set_content(self.empty_page)
+        else:
+            self.shell.set_content(self.scroller)
+
+    def _rebuild_flat(self, stations):
+        self._clear_listbox()
+        self._rp_rows = []
+
+        for st in stations:
+            row = StationRow(st)
+            self.listbox.append(row)
+
+        if not stations and self._any_filter_active():
+            self.shell.set_content(self.empty_page)
+        else:
+            self.shell.set_content(self.scroller)
+
+    def _make_action_row(self, st: Station) -> Adw.ActionRow:
+        provider = st.provider_name or "Unknown"
+        subtitle = provider
+        if st.tags:
+            subtitle += f" \u2022 {st.tags}"
+
+        ar = Adw.ActionRow(
+            title=GLib.markup_escape_text(st.name, -1),
+            subtitle=GLib.markup_escape_text(subtitle, -1),
+        )
+        ar.set_activatable(True)
+
+        # Station art prefix (same pattern as StationRow)
+        has_art = False
+        if st.station_art_path:
+            abs_path = os.path.join(DATA_DIR, st.station_art_path)
+            if os.path.exists(abs_path):
+                pic = Gtk.Picture.new_for_filename(abs_path)
+                pic.set_size_request(48, 48)
+                pic.set_content_fit(Gtk.ContentFit.COVER)
+                ar.add_prefix(pic)
+                has_art = True
+        if not has_art:
+            placeholder = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+            placeholder.set_pixel_size(48)
+            ar.add_prefix(placeholder)
+
+        # Connect activated signal — ExpanderRow children don't trigger listbox row-activated
+        # (per RESEARCH.md Pitfall 2)
+        ar.connect("activated", lambda r, _sid=st.id: self._play_by_id(_sid))
+        return ar
+
+    def _play_by_id(self, station_id: int):
+        st = self.repo.get_station(station_id)
+        self._play_station(st)
 
     # ------------------------------------------------------------------ #
     # Playback
@@ -365,17 +468,8 @@ class MainWindow(Adw.ApplicationWindow):
     # ------------------------------------------------------------------ #
 
     def reload_list(self):
-        child = self.listbox.get_first_child()
-        while child is not None:
-            nxt = child.get_next_sibling()
-            self.listbox.remove(child)
-            child = nxt
-
-        for st in self.repo.list_stations():
-            row = StationRow(st)
-            self.listbox.append(row)
-
         self._rebuild_filter_state()
+        self._render_list()
 
     # ------------------------------------------------------------------ #
     # Station edit
