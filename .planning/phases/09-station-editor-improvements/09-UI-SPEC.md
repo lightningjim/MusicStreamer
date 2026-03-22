@@ -38,15 +38,14 @@ Declared values (multiples of 4, derived from existing codebase — source: `mai
 |-------|-------|-------|
 | xs | 4px | Chip row vertical margin, label bottom margin |
 | sm | 8px | Chip box spacing, scroll margin (start/end/top/bottom), form label margin |
-| md | 12px | Content box margins (top/bottom/start/end), grid row spacing |
 | lg | 16px | — (not used in this dialog) |
 | xl | 24px | — (not used in this dialog) |
 
 Exceptions:
+- Grid column/row spacing: 12px — pre-existing codebase value in `edit_dialog.py`, not a new design token; out of scope to change in this phase.
 - Dialog default size: 560 x 480px (fixed, not a spacing token)
 - Art previews: 128 x 128px (fixed size_request)
 - Chip scroll min-content-height: 36px (to ensure a single chip row is fully visible)
-- Grid column spacing: 12px (matches existing `form = Gtk.Grid(column_spacing=12, row_spacing=12)`)
 
 ---
 
