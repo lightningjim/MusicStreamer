@@ -101,3 +101,69 @@ def test_update_station_preserves_icy_disabled(repo):
     repo.update_station(sid, "Radio", "http://example.com", None, "", None, None, icy_disabled=True)
     st = repo.get_station(sid)
     assert st.icy_disabled is True
+
+
+# --- last_played_at tests ---
+
+def test_last_played_migration(repo):
+    """Second db_init must not raise — ALTER TABLE is idempotent."""
+    db_init(repo.con)
+    assert len(repo.list_stations()) >= 0
+
+def test_station_last_played_at_default(repo):
+    sid = repo.create_station()
+    st = repo.get_station(sid)
+    assert st.last_played_at is None
+
+def test_update_last_played(repo):
+    sid = repo.create_station()
+    repo.update_last_played(sid)
+    st = repo.get_station(sid)
+    assert st.last_played_at is not None
+    assert "T" in st.last_played_at or "-" in st.last_played_at  # ISO-ish
+
+def test_list_recently_played_order(repo):
+    import time
+    s1 = repo.create_station()
+    s2 = repo.create_station()
+    s3 = repo.create_station()
+    repo.update_last_played(s1)
+    time.sleep(0.05)
+    repo.update_last_played(s2)
+    time.sleep(0.05)
+    repo.update_last_played(s3)
+    rp = repo.list_recently_played(3)
+    assert [s.id for s in rp] == [s3, s2, s1]
+
+def test_list_recently_played_limit(repo):
+    import time
+    ids = []
+    for _ in range(4):
+        ids.append(repo.create_station())
+    for sid in ids:
+        repo.update_last_played(sid)
+        time.sleep(0.05)
+    rp = repo.list_recently_played(2)
+    assert len(rp) == 2
+
+def test_list_recently_played_empty(repo):
+    repo.create_station()
+    assert repo.list_recently_played(3) == []
+
+# --- settings tests ---
+
+def test_settings_migration(repo):
+    db_init(repo.con)
+    assert repo.get_setting("any", "default") == "default"
+
+def test_settings_round_trip(repo):
+    repo.set_setting("key1", "value1")
+    assert repo.get_setting("key1", "fallback") == "value1"
+
+def test_settings_default(repo):
+    assert repo.get_setting("missing", "fallback") == "fallback"
+
+def test_settings_overwrite(repo):
+    repo.set_setting("k", "a")
+    repo.set_setting("k", "b")
+    assert repo.get_setting("k", "x") == "b"

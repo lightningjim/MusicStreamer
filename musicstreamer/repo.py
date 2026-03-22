@@ -47,6 +47,20 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists
 
+    try:
+        con.execute("ALTER TABLE stations ADD COLUMN last_played_at TEXT")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+    try:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # table already exists
+
 
 class Repo:
     def __init__(self, con: sqlite3.Connection):
@@ -87,6 +101,7 @@ class Repo:
                     station_art_path=r["station_art_path"],
                     album_fallback_path=r["album_fallback_path"],
                     icy_disabled=bool(r["icy_disabled"]),
+                    last_played_at=r["last_played_at"],
                 )
             )
         return out
@@ -120,6 +135,7 @@ class Repo:
             station_art_path=r["station_art_path"],
             album_fallback_path=r["album_fallback_path"],
             icy_disabled=bool(r["icy_disabled"]),
+            last_played_at=r["last_played_at"],
         )
 
     def delete_station(self, station_id: int):
@@ -146,5 +162,53 @@ class Repo:
             """,
             (name, url, provider_id, tags, station_art_path, album_fallback_path,
              int(icy_disabled), station_id),
+        )
+        self.con.commit()
+
+    def update_last_played(self, station_id: int):
+        self.con.execute(
+            "UPDATE stations SET last_played_at = strftime('%Y-%m-%dT%H:%M:%f', 'now') WHERE id = ?",
+            (station_id,),
+        )
+        self.con.commit()
+
+    def list_recently_played(self, n: int = 3) -> List[Station]:
+        rows = self.con.execute(
+            """
+            SELECT s.*, p.name AS provider_name
+            FROM stations s
+            LEFT JOIN providers p ON p.id = s.provider_id
+            WHERE s.last_played_at IS NOT NULL
+            ORDER BY s.last_played_at DESC
+            LIMIT ?
+            """,
+            (n,),
+        ).fetchall()
+        return [
+            Station(
+                id=r["id"],
+                name=r["name"],
+                url=r["url"],
+                provider_id=r["provider_id"],
+                provider_name=r["provider_name"],
+                tags=r["tags"] or "",
+                station_art_path=r["station_art_path"],
+                album_fallback_path=r["album_fallback_path"],
+                icy_disabled=bool(r["icy_disabled"]),
+                last_played_at=r["last_played_at"],
+            )
+            for r in rows
+        ]
+
+    def get_setting(self, key: str, default: str) -> str:
+        row = self.con.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+
+    def set_setting(self, key: str, value: str):
+        self.con.execute(
+            "INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)",
+            (key, value),
         )
         self.con.commit()
