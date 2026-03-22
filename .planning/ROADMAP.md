@@ -67,7 +67,11 @@ Plans:
   2. User can select more than one genre/tag and the list shows stations matching any selected genre
   3. Provider and genre filters compose with AND logic (selected providers AND selected genres)
   4. Clearing all filter selections returns the full grouped station list
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — TDD: matches_filter_multi function for multi-select OR/AND filter logic
+- [ ] 08-02-PLAN.md — Replace DropDown widgets with ToggleButton chip strips and wire multi-select state
 
 ### Phase 9: Station Editor Improvements
 **Goal**: Users can assign providers and genres from existing values without manual typing, add new values inline, and get station names auto-filled from YouTube URLs
