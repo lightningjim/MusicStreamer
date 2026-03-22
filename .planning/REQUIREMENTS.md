@@ -10,7 +10,7 @@
 - [ ] **BROWSE-01**: Stations are grouped by provider in the station list, collapsed by default, expandable per group
 - [ ] **BROWSE-02**: User can filter by multiple providers simultaneously (multi-select)
 - [ ] **BROWSE-03**: User can filter by multiple genres/tags simultaneously (multi-select)
-- [ ] **BROWSE-04**: A "Recently Played" section sits at the top of the station list (above provider groups) showing the last 3 played stations, most recent first
+- [x] **BROWSE-04**: A "Recently Played" section sits at the top of the station list (above provider groups) showing the last 3 played stations, most recent first
 
 ### Station Management
 
@@ -67,7 +67,7 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BROWSE-01 | Phase 7 | Pending |
-| BROWSE-04 | Phase 7 | Pending |
+| BROWSE-04 | Phase 7 | Complete |
 | BROWSE-02 | Phase 8 | Pending |
 | BROWSE-03 | Phase 8 | Pending |
 | MGMT-01 | Phase 9 | Pending |

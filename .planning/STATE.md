@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Station UX & Polish
-status: active
-stopped_at: ""
-last_updated: "2026-03-21T00:00:00.000Z"
+status: unknown
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-22T17:39:23.645Z"
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # Project State
@@ -19,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 7 — Station List Restructuring
+**Current focus:** Phase 07 — station-list-restructuring
 
 ## Current Position
 
-Phase: 7 of 11 (Station List Restructuring)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-21 — v1.2 roadmap created; ready to plan Phase 7
-
-Progress: [████████░░░░░░░░░░░░] 40% (phases 1–6 complete; v1.2 at 0/5 phases)
+Phase: 07 (station-list-restructuring) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -53,6 +49,8 @@ Progress: [████████░░░░░░░░░░░░] 40% (ph
 - Trend: Stable
 
 *Updated after each plan completion*
+| Phase 07 P01 | 525659min | 1 tasks | 3 files |
+| Phase 07 P01 | 8min | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -66,6 +64,7 @@ Recent decisions affecting current work:
 - [Phase 06]: ICY suppression guard in _on_title closure (UI-side), not in Player — keeps suppression tied to user intent via _current_station
 - [Phase 05]: Pass raw ICY title to cover art lookup; escape only for GTK label display
 - [Phase 04]: cover_stack mirrors logo_stack Gtk.Stack pattern; _last_cover_icy dedup cleared on stop
+- [Phase 07]: Use strftime millisecond precision for last_played_at; datetime('now') second-level granularity caused ordering failures
 
 ### Pending Todos
 
@@ -82,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-21
-Stopped at: v1.2 roadmap created — ready to plan Phase 7
+Last session: 2026-03-22T17:39:23.643Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None
