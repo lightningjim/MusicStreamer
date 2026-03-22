@@ -51,11 +51,11 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
   2. All provider groups are collapsed by default; clicking a header expands that group
   3. A "Recently Played" section appears above all provider groups, showing the last 3 played stations in order (most recent first)
   4. Recently Played updates after each play session without requiring restart
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 07-01-PLAN.md — Data layer: schema migrations, Station model update, repo methods for recently played and settings
-- [ ] 07-02-PLAN.md — UI restructuring: provider-grouped ExpanderRow layout with dual render modes
+- [x] 07-02-PLAN.md — UI restructuring: provider-grouped ExpanderRow layout with dual render modes
 - [ ] 07-03-PLAN.md — Recently Played section integration and play hook wiring
 
 ### Phase 8: Filter Bar Multi-Select
@@ -111,7 +111,7 @@ Plans:
 | 4. Cover Art | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 5. Display Polish | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 6. Station Management | v1.1 | 2/2 | Complete | 2026-03-21 |
-| 7. Station List Restructuring | v1.2 | 1/3 | In Progress|  |
+| 7. Station List Restructuring | v1.2 | 2/3 | In Progress|  |
 | 8. Filter Bar Multi-Select | v1.2 | 0/? | Not started | - |
 | 9. Station Editor Improvements | v1.2 | 0/? | Not started | - |
 | 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
