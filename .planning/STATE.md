@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Station UX & Polish
 status: unknown
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-22T19:23:05.595Z"
+stopped_at: Completed 08-02 Task 1; awaiting human-verify checkpoint for Task 2
+last_updated: "2026-03-22T19:25:56.691Z"
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -54,6 +54,7 @@ Plan: 2 of 2
 | Phase 07 P02 | 2 | 1 tasks | 1 files |
 | Phase 07 P03 | 15 | 1 tasks | 1 files |
 | Phase 08 P01 | 1 | 1 tasks | 2 files |
+| Phase 08 P02 | 10 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 07]: recently_played_count configurable via settings table with default 3
 - [Phase 08]: Empty set = inactive filter dimension (parallel to matches_filter None/empty string convention)
 - [Phase 08]: Tag matching casefolded at call time — no mutation of input sets
+- [Phase 08]: Chip x dismiss calls btn.set_active(False) — fires toggled signal, avoids double _on_filter_changed call
+- [Phase 08]: _rebuilding flag wraps bulk chip mutations in _rebuild_filter_state and _on_clear to prevent spurious filter updates
 
 ### Pending Todos
 
@@ -90,6 +93,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T19:23:05.593Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-22T19:25:56.689Z
+Stopped at: Completed 08-02 Task 1; awaiting human-verify checkpoint for Task 2
 Resume file: None

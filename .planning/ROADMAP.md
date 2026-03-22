@@ -35,7 +35,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 **Milestone Goal:** Better station browsing with provider grouping, multi-select filters, recently played, volume control, and visual polish.
 
 - [x] **Phase 7: Station List Restructuring** — Provider-grouped list with recently played section (completed 2026-03-22)
-- [ ] **Phase 8: Filter Bar Multi-Select** — Replace dropdowns with multi-select provider/genre filters
+- [x] **Phase 8: Filter Bar Multi-Select** — Replace dropdowns with multi-select provider/genre filters (completed 2026-03-22)
 - [ ] **Phase 9: Station Editor Improvements** — Structured provider/genre selectors with inline creation and YouTube title import
 - [ ] **Phase 10: Now Playing & Audio** — Provider name in now-playing panel, volume slider with persistence
 - [ ] **Phase 11: UI Polish** — Rounded corners, softened colors, improved spacing throughout
@@ -67,11 +67,11 @@ Plans:
   2. User can select more than one genre/tag and the list shows stations matching any selected genre
   3. Provider and genre filters compose with AND logic (selected providers AND selected genres)
   4. Clearing all filter selections returns the full grouped station list
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md — TDD: matches_filter_multi function for multi-select OR/AND filter logic
-- [ ] 08-02-PLAN.md — Replace DropDown widgets with ToggleButton chip strips and wire multi-select state
+- [x] 08-02-PLAN.md — Replace DropDown widgets with ToggleButton chip strips and wire multi-select state
 
 ### Phase 9: Station Editor Improvements
 **Goal**: Users can assign providers and genres from existing values without manual typing, add new values inline, and get station names auto-filled from YouTube URLs
@@ -116,7 +116,7 @@ Plans:
 | 5. Display Polish | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 6. Station Management | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 7. Station List Restructuring | v1.2 | 3/3 | Complete    | 2026-03-22 |
-| 8. Filter Bar Multi-Select | v1.2 | 1/2 | In Progress|  |
+| 8. Filter Bar Multi-Select | v1.2 | 2/2 | Complete   | 2026-03-22 |
 | 9. Station Editor Improvements | v1.2 | 0/? | Not started | - |
 | 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
 | 11. UI Polish | v1.2 | 0/? | Not started | - |
