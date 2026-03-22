@@ -79,6 +79,9 @@ This project has no custom CSS file. All colors are Adwaita system tokens.
 
 Accent (`suggested-action`) reserved for: **Save button only.**
 
+The Save button (HeaderBar, `suggested-action` class) is the primary visual anchor
+of the dialog.
+
 Destructive (`destructive-action` / `Adw.ResponseAppearance.DESTRUCTIVE`) reserved for:
 - Delete Station button (HeaderBar)
 - "Delete" response in the delete confirmation `Adw.MessageDialog`
@@ -190,7 +193,7 @@ Source: existing `edit_dialog.py` lines 172–203. No change in Phase 9.
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | "Save" (existing HeaderBar button — no change) |
+| Primary CTA | "Save" (existing HeaderBar button — GNOME HIG standard for edit dialog HeaderBar buttons; single-verb form is idiomatic Adwaita; pre-existing locked pattern; not changing in this phase) |
 | Provider combo title | "Provider" |
 | New-provider entry placeholder | "Or type new provider name…" |
 | New-tag entry placeholder | "New tag…" |
