@@ -11,7 +11,7 @@ from musicstreamer.models import Station
 from musicstreamer.player import Player
 from musicstreamer.ui.station_row import StationRow
 from musicstreamer.ui.edit_dialog import EditStationDialog
-from musicstreamer.filter_utils import normalize_tags, matches_filter
+from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
 from musicstreamer.constants import DATA_DIR
 
 
@@ -126,15 +126,31 @@ class MainWindow(Adw.ApplicationWindow):
         edit_btn = Gtk.Button(label="Edit")
         edit_btn.connect("clicked", self._edit_selected)
 
-        self._provider_items = ["All Providers"]
-        self.provider_dropdown = Gtk.DropDown.new(Gtk.StringList.new(self._provider_items), None)
-        self.provider_dropdown.set_size_request(160, -1)
-        self.provider_dropdown.connect("notify::selected", self._on_filter_changed)
+        # Chip strip container (vertical — two rows of chips)
+        chip_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        chip_container.set_hexpand(True)
 
-        self._tag_items = ["All Tags"]
-        self.tag_dropdown = Gtk.DropDown.new(Gtk.StringList.new(self._tag_items), None)
-        self.tag_dropdown.set_size_request(160, -1)
-        self.tag_dropdown.connect("notify::selected", self._on_filter_changed)
+        # Provider chip row
+        self._provider_scroll = Gtk.ScrolledWindow()
+        self._provider_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
+        self._provider_scroll.set_margin_top(4)
+        self._provider_scroll.set_margin_bottom(4)
+        self._provider_scroll.set_margin_start(8)
+        self._provider_scroll.set_margin_end(8)
+        self._provider_chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._provider_scroll.set_child(self._provider_chip_box)
+        chip_container.append(self._provider_scroll)
+
+        # Tag chip row
+        self._tag_scroll = Gtk.ScrolledWindow()
+        self._tag_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
+        self._tag_scroll.set_margin_top(4)
+        self._tag_scroll.set_margin_bottom(4)
+        self._tag_scroll.set_margin_start(8)
+        self._tag_scroll.set_margin_end(8)
+        self._tag_chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._tag_scroll.set_child(self._tag_chip_box)
+        chip_container.append(self._tag_scroll)
 
         self.clear_btn = Gtk.Button(label="Clear")
         self.clear_btn.set_visible(False)
@@ -142,11 +158,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         filter_box.append(add_btn)
         filter_box.append(edit_btn)
-        filter_box.append(self.provider_dropdown)
-        filter_box.append(self.tag_dropdown)
-        spacer = Gtk.Box()
-        spacer.set_hexpand(True)
-        filter_box.append(spacer)
+        filter_box.append(chip_container)
         filter_box.append(self.clear_btn)
         shell.add_top_bar(filter_box)
 
@@ -171,11 +183,15 @@ class MainWindow(Adw.ApplicationWindow):
         clear_all_btn.connect("clicked", self._on_clear)
         self.empty_page.set_child(clear_all_btn)
 
-        # Guard flag for dropdown model rebuilds
+        # Guard flag for chip strip rebuilds
         self._rebuilding = False
         self._rp_rows: list = []  # recently played row refs (Plan 03 will populate)
         self._last_cover_icy = None
         self._current_station = None
+        self._selected_providers: set[str] = set()
+        self._selected_tags: set[str] = set()
+        self._provider_chip_btns: list[Gtk.ToggleButton] = []
+        self._tag_chip_btns: list[Gtk.ToggleButton] = []
 
         shell.set_content(scroller)
         self.set_content(shell)
@@ -196,8 +212,8 @@ class MainWindow(Adw.ApplicationWindow):
     def _any_filter_active(self) -> bool:
         return (
             bool(self.search_entry.get_text())
-            or self.provider_dropdown.get_selected() > 0
-            or self.tag_dropdown.get_selected() > 0
+            or bool(self._selected_providers)
+            or bool(self._selected_tags)
         )
 
     def _update_clear_button(self):
@@ -205,17 +221,78 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_clear(self, *_):
         self.search_entry.set_text("")
-        self.provider_dropdown.set_selected(0)
-        self.tag_dropdown.set_selected(0)
+        self._rebuilding = True
+        for btn in self._provider_chip_btns:
+            btn.set_active(False)
+        for btn in self._tag_chip_btns:
+            btn.set_active(False)
+        self._selected_providers.clear()
+        self._selected_tags.clear()
+        self._rebuilding = False
         self._on_filter_changed()
+
+    def _make_chip(self, label: str, toggle_cb) -> tuple[Gtk.Box, Gtk.ToggleButton]:
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        btn = Gtk.ToggleButton(label=label)
+        btn.connect("toggled", toggle_cb)
+        dismiss = Gtk.Button()
+        dismiss.set_icon_name("window-close-symbolic")
+        dismiss.add_css_class("flat")
+        dismiss.connect("clicked", lambda *_: btn.set_active(False))
+        box.append(btn)
+        box.append(dismiss)
+        return box, btn
+
+    def _make_provider_toggle_cb(self, provider_name: str):
+        def _cb(btn):
+            if self._rebuilding:
+                return
+            if btn.get_active():
+                self._selected_providers.add(provider_name)
+            else:
+                self._selected_providers.discard(provider_name)
+            self._on_filter_changed()
+        return _cb
+
+    def _make_tag_toggle_cb(self, tag_name: str):
+        def _cb(btn):
+            if self._rebuilding:
+                return
+            if btn.get_active():
+                self._selected_tags.add(tag_name)
+            else:
+                self._selected_tags.discard(tag_name)
+            self._on_filter_changed()
+        return _cb
 
     def _rebuild_filter_state(self):
         self._rebuilding = True
         stations = self.repo.list_stations()
 
+        # --- Provider chips ---
+        # Clear existing chips
+        child = self._provider_chip_box.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self._provider_chip_box.remove(child)
+            child = nxt
+        self._provider_chip_btns = []
+
         providers = sorted({s.provider_name for s in stations if s.provider_name})
-        self._provider_items = ["All Providers"] + providers
-        self.provider_dropdown.set_model(Gtk.StringList.new(self._provider_items))
+        for pname in providers:
+            chip_box, btn = self._make_chip(pname, self._make_provider_toggle_cb(pname))
+            if pname in self._selected_providers:
+                btn.set_active(True)
+            self._provider_chip_box.append(chip_box)
+            self._provider_chip_btns.append(btn)
+
+        # --- Tag chips ---
+        child = self._tag_chip_box.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self._tag_chip_box.remove(child)
+            child = nxt
+        self._tag_chip_btns = []
 
         all_tags: dict[str, str] = {}
         for s in stations:
@@ -223,8 +300,18 @@ class MainWindow(Adw.ApplicationWindow):
                 key = t.casefold()
                 if key not in all_tags:
                     all_tags[key] = t
-        self._tag_items = ["All Tags"] + sorted(all_tags.values(), key=str.casefold)
-        self.tag_dropdown.set_model(Gtk.StringList.new(self._tag_items))
+        for tag_display in sorted(all_tags.values(), key=str.casefold):
+            chip_box, btn = self._make_chip(tag_display, self._make_tag_toggle_cb(tag_display))
+            if tag_display in self._selected_tags:
+                btn.set_active(True)
+            self._tag_chip_box.append(chip_box)
+            self._tag_chip_btns.append(btn)
+
+        # Remove stale selections (provider/tag no longer exists)
+        current_providers = set(providers)
+        self._selected_providers &= current_providers
+        current_tag_displays = set(all_tags.values())
+        self._selected_tags &= current_tag_displays
 
         self._rebuilding = False
 
@@ -242,18 +329,16 @@ class MainWindow(Adw.ApplicationWindow):
     def _render_list(self):
         stations = self.repo.list_stations()
         search_text = self.search_entry.get_text().strip()
-        prov_idx = self.provider_dropdown.get_selected()
-        provider_filter = self._provider_items[prov_idx] if prov_idx > 0 else None
-        tag_idx = self.tag_dropdown.get_selected()
-        tag_filter = self._tag_items[tag_idx] if tag_idx > 0 else None
+        tag_set = {t.casefold() for t in self._selected_tags}
 
-        # Filter stations by tag (tags apply in both modes)
-        if tag_filter:
-            stations = [s for s in stations if matches_filter(s, "", None, tag_filter)]
+        # Tag filter applies in both modes (D-07)
+        if tag_set:
+            stations = [s for s in stations if matches_filter_multi(s, "", set(), tag_set)]
 
-        # Per D-12, D-14: provider filter active -> flat mode
-        if provider_filter:
-            filtered = [s for s in stations if matches_filter(s, search_text, provider_filter, None)]
+        # Provider filter active -> flat mode (D-05, D-06)
+        if self._selected_providers:
+            filtered = [s for s in stations
+                        if matches_filter_multi(s, search_text, self._selected_providers, set())]
             self._rebuild_flat(filtered)
         else:
             self._rebuild_grouped(stations, search_text)
