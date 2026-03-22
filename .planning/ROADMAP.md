@@ -111,7 +111,7 @@ Plans:
 | 4. Cover Art | v1.0 | 1/1 | Complete | 2026-03-20 |
 | 5. Display Polish | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 6. Station Management | v1.1 | 2/2 | Complete | 2026-03-21 |
-| 7. Station List Restructuring | v1.2 | 3/3 | Complete   | 2026-03-22 |
+| 7. Station List Restructuring | v1.2 | 3/3 | Complete    | 2026-03-22 |
 | 8. Filter Bar Multi-Select | v1.2 | 0/? | Not started | - |
 | 9. Station Editor Improvements | v1.2 | 0/? | Not started | - |
 | 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
