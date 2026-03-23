@@ -231,24 +231,22 @@ class MainWindow(Adw.ApplicationWindow):
         self._rebuilding = False
         self._on_filter_changed()
 
-    def _make_chip(self, label: str, toggle_cb) -> tuple[Gtk.Box, Gtk.ToggleButton]:
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+    def _make_chip(self, label: str, toggle_cb) -> Gtk.ToggleButton:
         btn = Gtk.ToggleButton(label=label)
         btn.connect("toggled", toggle_cb)
-        dismiss = Gtk.Button()
-        dismiss.set_icon_name("window-close-symbolic")
-        dismiss.add_css_class("flat")
-        dismiss.connect("clicked", lambda *_: btn.set_active(False))
-        box.append(btn)
-        box.append(dismiss)
-        return box, btn
+        return btn
 
     def _make_provider_toggle_cb(self, provider_name: str):
         def _cb(btn):
             if self._rebuilding:
                 return
             if btn.get_active():
-                self._selected_providers.add(provider_name)
+                self._rebuilding = True
+                for other in self._provider_chip_btns:
+                    if other is not btn:
+                        other.set_active(False)
+                self._selected_providers = {provider_name}
+                self._rebuilding = False
             else:
                 self._selected_providers.discard(provider_name)
             self._on_filter_changed()
@@ -259,7 +257,12 @@ class MainWindow(Adw.ApplicationWindow):
             if self._rebuilding:
                 return
             if btn.get_active():
-                self._selected_tags.add(tag_name)
+                self._rebuilding = True
+                for other in self._tag_chip_btns:
+                    if other is not btn:
+                        other.set_active(False)
+                self._selected_tags = {tag_name}
+                self._rebuilding = False
             else:
                 self._selected_tags.discard(tag_name)
             self._on_filter_changed()
@@ -280,10 +283,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         providers = sorted({s.provider_name for s in stations if s.provider_name})
         for pname in providers:
-            chip_box, btn = self._make_chip(pname, self._make_provider_toggle_cb(pname))
+            btn = self._make_chip(pname, self._make_provider_toggle_cb(pname))
             if pname in self._selected_providers:
                 btn.set_active(True)
-            self._provider_chip_box.append(chip_box)
+            self._provider_chip_box.append(btn)
             self._provider_chip_btns.append(btn)
 
         # --- Tag chips ---
@@ -301,10 +304,10 @@ class MainWindow(Adw.ApplicationWindow):
                 if key not in all_tags:
                     all_tags[key] = t
         for tag_display in sorted(all_tags.values(), key=str.casefold):
-            chip_box, btn = self._make_chip(tag_display, self._make_tag_toggle_cb(tag_display))
+            btn = self._make_chip(tag_display, self._make_tag_toggle_cb(tag_display))
             if tag_display in self._selected_tags:
                 btn.set_active(True)
-            self._tag_chip_box.append(chip_box)
+            self._tag_chip_box.append(btn)
             self._tag_chip_btns.append(btn)
 
         # Remove stale selections (provider/tag no longer exists)
@@ -455,6 +458,14 @@ class MainWindow(Adw.ApplicationWindow):
             placeholder = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
             placeholder.set_pixel_size(48)
             ar.add_prefix(placeholder)
+
+        # Edit button suffix
+        edit_btn = Gtk.Button()
+        edit_btn.set_icon_name("document-edit-symbolic")
+        edit_btn.add_css_class("flat")
+        edit_btn.set_valign(Gtk.Align.CENTER)
+        edit_btn.connect("clicked", lambda _, _sid=st.id: self._open_editor(_sid))
+        ar.add_suffix(edit_btn)
 
         # Connect activated signal — ExpanderRow children don't trigger listbox row-activated
         # (per RESEARCH.md Pitfall 2)
