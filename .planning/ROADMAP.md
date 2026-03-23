@@ -36,7 +36,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 - [x] **Phase 7: Station List Restructuring** — Provider-grouped list with recently played section (completed 2026-03-22)
 - [x] **Phase 8: Filter Bar Multi-Select** — Replace dropdowns with multi-select provider/genre filters (completed 2026-03-22)
-- [ ] **Phase 9: Station Editor Improvements** — Structured provider/genre selectors with inline creation and YouTube title import
+- [x] **Phase 9: Station Editor Improvements** — Structured provider/genre selectors with inline creation and YouTube title import (completed 2026-03-23)
 - [ ] **Phase 10: Now Playing & Audio** — Provider name in now-playing panel, volume slider with persistence
 - [ ] **Phase 11: UI Polish** — Rounded corners, softened colors, improved spacing throughout
 
@@ -82,11 +82,11 @@ Plans:
   2. Station editor shows existing genres/tags as multi-select checkboxes or chips
   3. User can type a new provider or genre name in the editor and save it without leaving the dialog
   4. Entering a YouTube URL auto-populates the station name field with the stream title fetched from YouTube
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 09-01-PLAN.md — Provider ComboRow picker + tag chip panel with inline creation
-- [ ] 09-02-PLAN.md — YouTube title auto-import on URL focus-out
+- [x] 09-01-PLAN.md — Provider ComboRow picker + tag chip panel with inline creation
+- [x] 09-02-PLAN.md — YouTube title auto-import on URL focus-out
 
 ### Phase 10: Now Playing & Audio
 **Goal**: Users can see which provider a playing station belongs to and control playback volume persistently
@@ -121,6 +121,6 @@ Plans:
 | 6. Station Management | v1.1 | 2/2 | Complete | 2026-03-21 |
 | 7. Station List Restructuring | v1.2 | 3/3 | Complete    | 2026-03-22 |
 | 8. Filter Bar Multi-Select | v1.2 | 2/2 | Complete   | 2026-03-22 |
-| 9. Station Editor Improvements | v1.2 | 0/2 | Planning complete | - |
+| 9. Station Editor Improvements | v1.2 | 2/2 | Complete   | 2026-03-23 |
 | 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
 | 11. UI Polish | v1.2 | 0/? | Not started | - |

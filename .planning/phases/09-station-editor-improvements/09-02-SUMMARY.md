@@ -65,23 +65,40 @@ completed: 2026-03-23
 ## Task Commits
 
 1. **Task 1: Add fetch_yt_title and wire parallel title fetch on URL focus-out** - `33ec4cb` (feat)
+2. **Task 1 auto-fix: strip trailing date/time from YT stream titles** - `51fae19` (fix)
+3. **Task 2: Verify YouTube title auto-import** - checkpoint approved by user (no code changes)
+
+**Plan metadata:** (this commit)
 
 ## Files Created/Modified
 
-- `musicstreamer/ui/edit_dialog.py` - Added fetch_yt_title(), split fetch flags, _start_title_fetch, _on_title_fetched, extended _on_url_focus_out
+- `musicstreamer/ui/edit_dialog.py` - Added fetch_yt_title(), split fetch flags, _start_title_fetch, _on_title_fetched, extended _on_url_focus_out, strip trailing date/time suffix from yt-dlp title output
 
 ## Decisions Made
 
 - Split flags: thumbnail and title fetches are independent; a slow yt-dlp title fetch does not block the spinner from clearing when thumbnail completes
 - Name guard only allows two sentinels (empty or "New Station") — matches the "New Station" default assigned when adding a station
+- Strip trailing ` YYYY-MM-DD HH:MM` from yt-dlp title output — live streams append this and it makes poor station names
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] Stripped trailing date/time suffix from yt-dlp stream title**
+- **Found during:** Task 1 (post-commit verification against live YouTube URL)
+- **Issue:** yt-dlp `--print title` for live streams returns title with appended date/time, e.g. `"Lo-Fi Girl 2026-03-23 01:15"` — unusable as a station name
+- **Fix:** Added regex strip of trailing ` YYYY-MM-DD HH:MM` pattern before passing title to callback
+- **Files modified:** musicstreamer/ui/edit_dialog.py
+- **Committed in:** 51fae19
+
+---
+
+**Total deviations:** 1 auto-fixed (Rule 1 - bug)
+**Impact on plan:** Necessary for correct output. No scope creep.
 
 ## Issues Encountered
 
-None.
+None beyond the auto-fixed date/time suffix.
 
 ## User Setup Required
 
@@ -89,9 +106,9 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-- MGMT-04 fulfilled — YouTube URL auto-imports stream title into name field
-- Task 2 (human-verify checkpoint) requires user to open editor, paste a YouTube URL, tab out, and confirm name auto-populates
-- Remaining phase 09 plans can proceed after checkpoint approval
+- Phase 9 complete: provider picker, tag chips, and YouTube title auto-import all shipped
+- Phase 10 (Now Playing & Audio) can proceed: provider name in now-playing panel, volume slider
+- No blockers.
 
 ---
 *Phase: 09-station-editor-improvements*
@@ -101,3 +118,4 @@ None - no external service configuration required.
 
 - `musicstreamer/ui/edit_dialog.py` exists: FOUND
 - Commit `33ec4cb` exists: FOUND
+- Commit `51fae19` exists: FOUND

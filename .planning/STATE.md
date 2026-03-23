@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Station UX & Polish
-status: unknown
-stopped_at: Completed 08-02 Task 1; awaiting human-verify checkpoint for Task 2
-last_updated: "2026-03-22T19:25:56.691Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 09-02-PLAN.md (Phase 9 complete)
+last_updated: "2026-03-23T02:15:07.454Z"
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 08 — filter-bar-multi-select
+**Current focus:** Phase 09 — station-editor-improvements
 
 ## Current Position
 
-Phase: 08 (filter-bar-multi-select) — EXECUTING
+Phase: 09 (station-editor-improvements) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -55,6 +55,9 @@ Plan: 2 of 2
 | Phase 07 P03 | 15 | 1 tasks | 1 files |
 | Phase 08 P01 | 1 | 1 tasks | 2 files |
 | Phase 08 P02 | 10 | 1 tasks | 1 files |
+| Phase 09-station-editor-improvements P01 | 8 | 1 tasks | 1 files |
+| Phase 09 P02 | 5 | 1 tasks | 1 files |
+| Phase 09-station-editor-improvements P02 | 5 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -77,6 +80,11 @@ Recent decisions affecting current work:
 - [Phase 08]: Tag matching casefolded at call time — no mutation of input sets
 - [Phase 08]: Chip x dismiss calls btn.set_active(False) — fires toggled signal, avoids double _on_filter_changed call
 - [Phase 08]: _rebuilding flag wraps bulk chip mutations in _rebuild_filter_state and _on_clear to prevent spurious filter updates
+- [Phase 09-station-editor-improvements]: new_provider_entry takes precedence over provider_combo on save — explicit typed value always wins
+- [Phase 09-station-editor-improvements]: Case-insensitive provider dedup via casefold() prevents Soma.fm/soma.fm duplicates
+- [Phase 09]: Split _fetch_in_progress into _thumb_fetch_in_progress and _title_fetch_in_progress — thumbnail and title fetches are independent
+- [Phase 09]: Name guard in _on_title_fetched: only auto-populate if current name is blank or New Station
+- [Phase 09]: Strip trailing date/time suffix from yt-dlp stream title output — live streams append YYYY-MM-DD HH:MM and it makes poor station names
 
 ### Pending Todos
 
@@ -93,6 +101,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T19:25:56.689Z
-Stopped at: Completed 08-02 Task 1; awaiting human-verify checkpoint for Task 2
+Last session: 2026-03-23T02:15:07.451Z
+Stopped at: Completed 09-02-PLAN.md (Phase 9 complete)
 Resume file: None
