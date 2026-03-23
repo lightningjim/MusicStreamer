@@ -89,6 +89,20 @@ class MainWindow(Adw.ApplicationWindow):
         self.stop_btn.connect("clicked", lambda *_: self._stop())
         center.append(self.stop_btn)
 
+        # Volume slider (AUDIO-01, per D-03: inline near play/stop)
+        self.volume_slider = Gtk.Scale.new_with_range(
+            Gtk.Orientation.HORIZONTAL, 0, 100, 1
+        )
+        self.volume_slider.set_digits(0)
+        self.volume_slider.set_draw_value(False)
+        self.volume_slider.set_increments(1, 10)
+        self.volume_slider.set_size_request(120, -1)
+        self.volume_slider.set_hexpand(True)
+        initial_vol = int(self.repo.get_setting("volume", "80"))
+        self.volume_slider.set_value(initial_vol)
+        self.volume_slider.connect("value-changed", self._on_volume_changed)
+        center.append(self.volume_slider)
+
         panel.append(center)
 
         # Right slot -- cover art with Gtk.Stack for fallback swap
@@ -196,6 +210,9 @@ class MainWindow(Adw.ApplicationWindow):
         shell.set_content(scroller)
         self.set_content(shell)
         self.connect("close-request", self._on_close)
+
+        # Apply initial volume to player (AUDIO-02: load persisted value)
+        self.player.set_volume(int(self.repo.get_setting("volume", "80")) / 100.0)
 
         self.reload_list()
 
@@ -569,6 +586,11 @@ class MainWindow(Adw.ApplicationWindow):
         self._last_cover_icy = None
         self._current_station = None
         self.stop_btn.set_sensitive(False)
+
+    def _on_volume_changed(self, slider):
+        val = int(slider.get_value())
+        self.player.set_volume(val / 100.0)
+        self.repo.set_setting("volume", str(val))
 
     def _play_row(self, _listbox, row):
         station_id = row.station_id
