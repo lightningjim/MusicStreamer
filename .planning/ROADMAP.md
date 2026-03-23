@@ -96,7 +96,11 @@ Plans:
   1. Now Playing panel shows the station's provider name alongside the station name
   2. A volume slider in the main window controls GStreamer playback volume in real time
   3. Volume setting is restored to its previous value when the app is restarted
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 10-01-PLAN.md — TDD: Player.set_volume with clamping and mpv --volume arg
+- [ ] 10-02-PLAN.md — Provider label formatting and volume slider UI with persistence
 
 ### Phase 11: UI Polish
 **Goal**: The app has a visually refined appearance with consistent rounded corners, softened colors, and improved spacing
@@ -122,5 +126,5 @@ Plans:
 | 7. Station List Restructuring | v1.2 | 3/3 | Complete    | 2026-03-22 |
 | 8. Filter Bar Multi-Select | v1.2 | 2/2 | Complete   | 2026-03-22 |
 | 9. Station Editor Improvements | v1.2 | 2/2 | Complete   | 2026-03-23 |
-| 10. Now Playing & Audio | v1.2 | 0/? | Not started | - |
+| 10. Now Playing & Audio | v1.2 | 0/2 | Planned | - |
 | 11. UI Polish | v1.2 | 0/? | Not started | - |
