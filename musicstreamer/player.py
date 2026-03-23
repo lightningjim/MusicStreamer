@@ -28,6 +28,12 @@ class Player:
         bus.connect("message::tag", self._on_gst_tag)
         self._yt_proc = None
         self._on_title = None
+        self._volume = 1.0
+
+    def set_volume(self, value: float):
+        clamped = max(0.0, min(1.0, value))
+        self._volume = clamped
+        self._pipeline.set_property("volume", clamped)
 
     def _on_gst_error(self, bus, msg):
         err, debug = msg.parse_error()
@@ -69,7 +75,7 @@ class Player:
         self._pipeline.set_state(Gst.State.NULL)
         # mpv handles yt-dlp extraction, auth, and HLS internally
         self._yt_proc = subprocess.Popen(
-            ["mpv", "--no-video", "--really-quiet", url],
+            ["mpv", "--no-video", "--really-quiet", f"--volume={int(self._volume * 100)}", url],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         on_title(fallback_name)
