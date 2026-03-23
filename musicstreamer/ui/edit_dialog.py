@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -344,6 +345,7 @@ class EditStationDialog(Adw.Window):
         if self._fetch_cancelled:
             return
         if title:
+            title = re.sub(r'\s*\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?\s*$', '', title).strip()
             current = self.name_entry.get_text().strip()
             if current in ("", "New Station"):
                 self.name_entry.set_text(title)
