@@ -648,7 +648,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _edit_selected(self, *_):
         row = self.listbox.get_selected_row()
-        if row:
+        if row and hasattr(row, 'station_id'):
             self._open_editor(row.station_id)
 
     def _open_editor(self, station_id: int):
