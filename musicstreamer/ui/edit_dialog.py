@@ -97,7 +97,7 @@ class EditStationDialog(Adw.Window):
         for p in providers:
             provider_model.append(p.name)
 
-        self.provider_combo = Adw.ComboRow(title="Provider", model=provider_model)
+        self.provider_combo = Gtk.DropDown(model=provider_model)
         self.provider_combo.set_enable_search(True)
 
         current_prov = self.station.provider_name or ""
