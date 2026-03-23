@@ -44,6 +44,26 @@ def fetch_yt_thumbnail(url: str, callback: callable) -> None:
     threading.Thread(target=_worker, daemon=True).start()
 
 
+def fetch_yt_title(url: str, callback: callable) -> None:
+    """Fetch YouTube stream title via yt-dlp in a daemon thread.
+
+    callback receives title (str) on success, None on failure.
+    The callback is invoked via GLib.idle_add so widget updates inside it are safe.
+    """
+    def _worker():
+        try:
+            result = subprocess.run(
+                ["yt-dlp", "--print", "title", "--no-playlist", url],
+                capture_output=True, text=True, timeout=15,
+            )
+            title = result.stdout.strip()
+            GLib.idle_add(callback, title or None)
+        except Exception:
+            GLib.idle_add(callback, None)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 class EditStationDialog(Adw.Window):
     def __init__(self, app, repo: Repo, station_id: int, on_saved, is_playing=None):
         super().__init__(application=app, title="Edit Station")
@@ -53,7 +73,8 @@ class EditStationDialog(Adw.Window):
         self.is_playing = is_playing
 
         # Fetch state
-        self._fetch_in_progress = False
+        self._thumb_fetch_in_progress = False
+        self._title_fetch_in_progress = False
         self._fetch_cancelled = False
 
         self.set_default_size(560, 480)
@@ -276,6 +297,7 @@ class EditStationDialog(Adw.Window):
         url = self.url_entry.get_text().strip()
         if _is_youtube_url(url):
             self._start_thumbnail_fetch(url)
+            self._start_title_fetch(url)
 
     def _on_fetch_clicked(self, *_):
         url = self.url_entry.get_text().strip()
@@ -283,16 +305,16 @@ class EditStationDialog(Adw.Window):
             self._start_thumbnail_fetch(url)
 
     def _start_thumbnail_fetch(self, url: str):
-        if self._fetch_in_progress:
+        if self._thumb_fetch_in_progress:
             return  # race guard — skip if already fetching
-        self._fetch_in_progress = True
+        self._thumb_fetch_in_progress = True
         self._art_stack.set_visible_child_name("spinner")
         self._art_spinner.start()
         fetch_yt_thumbnail(url, self._on_thumbnail_fetched)
 
     def _on_thumbnail_fetched(self, temp_path):
         """Called via GLib.idle_add from fetch_yt_thumbnail — runs on main thread."""
-        self._fetch_in_progress = False
+        self._thumb_fetch_in_progress = False
         self._art_spinner.stop()
         if self._fetch_cancelled:
             return  # dialog was closed mid-fetch
@@ -310,6 +332,21 @@ class EditStationDialog(Adw.Window):
     def _on_close_request(self, *_):
         self._fetch_cancelled = True
         return False  # allow close to proceed
+
+    def _start_title_fetch(self, url: str):
+        if self._title_fetch_in_progress:
+            return
+        self._title_fetch_in_progress = True
+        fetch_yt_title(url, self._on_title_fetched)
+
+    def _on_title_fetched(self, title):
+        self._title_fetch_in_progress = False
+        if self._fetch_cancelled:
+            return
+        if title:
+            current = self.name_entry.get_text().strip()
+            if current in ("", "New Station"):
+                self.name_entry.set_text(title)
 
     # ------------------------------------------------------------------
     # Art helpers
