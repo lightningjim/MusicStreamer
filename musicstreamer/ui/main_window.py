@@ -580,8 +580,11 @@ class MainWindow(Adw.ApplicationWindow):
         self._refresh_recently_played()
         self._current_station = st
 
-        # Set station name label
-        self.station_name_label.set_text(st.name)
+        # Set station name label (NP-01: include provider when present)
+        if st.provider_name:
+            self.station_name_label.set_text(f"{st.name} \u00b7 {st.provider_name}")
+        else:
+            self.station_name_label.set_text(st.name)
         self.station_name_label.set_visible(True)
 
         # Set title to station name initially (overwritten by TAG for ICY streams)
