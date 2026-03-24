@@ -23,6 +23,7 @@ class StationRow(Gtk.ListBoxRow):
             subtitle=GLib.markup_escape_text(subtitle, -1),
         )
         row.set_activatable(False)
+        row.add_css_class("station-list-row")
 
         has_art = False
         if station.station_art_path:
