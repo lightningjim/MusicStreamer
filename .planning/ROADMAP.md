@@ -96,10 +96,10 @@ Plans:
   1. Now Playing panel shows the station's provider name alongside the station name
   2. A volume slider in the main window controls GStreamer playback volume in real time
   3. Volume setting is restored to its previous value when the app is restarted
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 10-01-PLAN.md — TDD: Player.set_volume with clamping and mpv --volume arg
+- [x] 10-01-PLAN.md — TDD: Player.set_volume with clamping and mpv --volume arg
 - [ ] 10-02-PLAN.md — Provider label formatting and volume slider UI with persistence
 
 ### Phase 11: UI Polish
@@ -111,7 +111,10 @@ Plans:
   2. Background and surface colors use subtle gradients rather than flat fills
   3. Station list rows have noticeably more vertical padding (station names and logos are not cramped)
   4. Now Playing panel has increased internal whitespace around its content areas
-**Plans**: TBD
+**Plans:** 1 plan
+
+Plans:
+- [ ] 11-01-PLAN.md — CSS provider with gradient+rounded panel, increased margins, station row padding bump
 
 ## Progress
 
@@ -126,5 +129,5 @@ Plans:
 | 7. Station List Restructuring | v1.2 | 3/3 | Complete    | 2026-03-22 |
 | 8. Filter Bar Multi-Select | v1.2 | 2/2 | Complete   | 2026-03-22 |
 | 9. Station Editor Improvements | v1.2 | 2/2 | Complete   | 2026-03-23 |
-| 10. Now Playing & Audio | v1.2 | 0/2 | Planned | - |
-| 11. UI Polish | v1.2 | 0/? | Not started | - |
+| 10. Now Playing & Audio | v1.2 | 1/2 | In Progress|  |
+| 11. UI Polish | v1.2 | 0/1 | Not started | - |
