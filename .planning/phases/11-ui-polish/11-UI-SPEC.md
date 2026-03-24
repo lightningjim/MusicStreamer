@@ -36,7 +36,6 @@ Declared values (multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, chip row margins |
 | sm | 8px | Panel internal horizontal margins (existing: `margin_start/end=8`) |
-| md | 12px | Station row vertical padding bump target (existing rows have 0 explicit padding; Adwaita default ~8px top+bottom; target ~12-14px top+bottom) |
 | lg | 16px | Panel vertical margins (target: `margin_top/bottom` increased from 4px to 16px) |
 | xl | 24px | Panel internal content whitespace (target: `margin_start/end` increased from 8px to 24px) |
 | 2xl | 48px | Not used in this phase |
@@ -54,7 +53,7 @@ Declared values (multiples of 4):
 | `panel` | `margin_bottom` | 4px | 16px |
 | `panel` | `margin_start` | 8px | 24px |
 | `panel` | `margin_end` | 8px | 24px |
-| `Adw.ActionRow` (station rows) | CSS padding-top/bottom | Adwaita default (~8px each) | +4px each = ~12px each |
+| `Adw.ActionRow` (station rows) | CSS padding-top/bottom | Adwaita default | +4px each (CSS delta over Adwaita default — not a design token) |
 
 ---
 
@@ -194,7 +193,7 @@ No new interactions introduced in this phase. All changes are visual/CSS only:
 |-------------|--------|-------|
 | Panel appearance | Flat `@window_bg_color` fill, sharp corners | `@card_bg_color` gradient fill, 12px rounded corners |
 | Panel whitespace | 4px top/bottom margin, 8px start/end margin | 16px top/bottom, 24px start/end |
-| Station row height | Adwaita default (~8px top/bottom padding) | +4px each = ~12px top/bottom padding |
+| Station row height | Adwaita default padding | +4px top/bottom CSS delta over Adwaita default |
 
 No hover states, focus states, or animations added.
 
