@@ -62,6 +62,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.logo_stack.add_named(self.logo_fallback, "fallback")
         self.logo_stack.add_named(self.logo_image, "logo")
         self.logo_stack.set_visible_child_name("fallback")
+        self.logo_stack.add_css_class("now-playing-art")
 
         panel.append(self.logo_stack)
 
@@ -69,6 +70,7 @@ class MainWindow(Adw.ApplicationWindow):
         center = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         center.set_hexpand(True)
         center.set_valign(Gtk.Align.CENTER)
+        center.set_margin_start(12)
 
         self.title_label = Gtk.Label(label="Nothing playing")
         self.title_label.add_css_class("dim-label")
@@ -123,6 +125,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cover_stack.add_named(self.cover_fallback, "fallback")
         self.cover_stack.add_named(self.cover_image, "art")
         self.cover_stack.set_visible_child_name("fallback")
+        self.cover_stack.add_css_class("now-playing-art")
 
         panel.append(self.cover_stack)
 

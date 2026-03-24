@@ -26,6 +26,10 @@ _APP_CSS = """
     padding-top: 4px;
     padding-bottom: 4px;
 }
+
+.now-playing-art {
+    border-radius: 5px;
+}
 """
 
 
