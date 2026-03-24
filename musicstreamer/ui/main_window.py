@@ -37,12 +37,13 @@ class MainWindow(Adw.ApplicationWindow):
 
         # --- Now-playing panel ---
         panel = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        panel.set_margin_top(4)
-        panel.set_margin_bottom(4)
-        panel.set_margin_start(8)
-        panel.set_margin_end(8)
+        panel.set_margin_top(16)
+        panel.set_margin_bottom(16)
+        panel.set_margin_start(24)
+        panel.set_margin_end(24)
         panel.set_size_request(-1, 160)
         panel.set_vexpand(False)
+        panel.add_css_class("now-playing-panel")
 
         # Left slot -- station logo with Gtk.Stack for fallback swap
         self.logo_image = Gtk.Image()
@@ -460,6 +461,7 @@ class MainWindow(Adw.ApplicationWindow):
             subtitle=GLib.markup_escape_text(subtitle, -1),
         )
         ar.set_activatable(True)
+        ar.add_css_class("station-list-row")
 
         # Station art prefix (same pattern as StationRow)
         has_art = False
