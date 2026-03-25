@@ -2,33 +2,21 @@
 
 ## What This Is
 
-A personal GNOME desktop app for listening to curated internet radio and live streams. Supports ShoutCast-style streams (AudioAddict, Soma.FM, etc.) and YouTube live streams (e.g., Lofi Girl). Designed for a personal library of 50–200 stations with fast browsing via search and filtering, live track title display, cover art from iTunes, and per-station management (delete, ICY override, thumbnail auto-fetch).
+A personal GNOME desktop app for listening to curated internet radio and live streams. Supports ShoutCast-style streams (AudioAddict, Soma.FM, etc.) and YouTube live streams (e.g., Lofi Girl). Designed for a personal library of 50–200 stations organized by provider with multi-select filtering, recently played, live track title display, cover art from iTunes, volume control, and full per-station management.
 
 ## Core Value
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v1.2 Station UX & Polish
-
-**Goal:** Better station browsing with provider grouping, multi-select filters, recently played, volume control, and visual polish.
-
-**Target features:**
-- Provider-grouped station list (collapsible) + recently played section
-- Multi-select provider/genre filters; inline provider/genre creation in editor
-- YouTube stream title auto-import; provider name in Now Playing
-- Volume slider with persistence
-- Rounded corners, subtle gradients, improved spacing
-
-## Current State (v1.2 in progress — Phase 11 complete 2026-03-25)
+## Current State (shipped v1.2 — 2026-03-25)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
-- **LOC:** ~1,782 Python | **Tests:** 58 passing
+- **LOC:** ~17,505 Python total | **Tests:** 85 passing
 - **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API)
-- **Filtering:** Live search + provider/tag dropdowns + AND composition + empty state
-- **Now-playing:** Three-column panel — logo | title/name/stop | cover art
+- **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
+- **Now-playing:** Three-column panel — logo | "Name · Provider" / track title / Stop | cover art; volume slider with GStreamer + persistence
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback
-- **Station list:** 48px logo prefix per row, generic icon placeholder when no art
-- **Station management:** Delete (playing guard), ICY disable per-station, YouTube thumbnail auto-fetch
+- **Station management:** ComboRow provider picker, tag chip panel (inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch
 
 ## Requirements
 
@@ -56,24 +44,25 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ User can delete a station from the list — v1.1 Phase 6
 - ✓ Station editor auto-populates image from YouTube thumbnail — v1.1 Phase 6
 - ✓ User can disable ICY metadata per station — v1.1 Phase 6
-
-### Active (v1.2)
-
-- [ ] BROWSE-01: Stations grouped by provider in list, collapsed by default, expandable
-- [ ] BROWSE-02: User can filter by multiple providers simultaneously
-- [ ] BROWSE-03: User can filter by multiple genres/tags simultaneously
-- [ ] BROWSE-04: "Recently Played" section at top of station list showing last 3 played stations (most recent first)
-- [ ] MGMT-01: Station editor shows existing providers as selectable options
-- [ ] MGMT-02: Station editor shows existing genres/tags as selectable options (multi-select)
-- [ ] MGMT-03: User can add a new provider/genre inline from the station editor
-- [ ] MGMT-04: YouTube station URL auto-imports stream title
-- [ ] NP-01: Now Playing panel shows provider name
-- [ ] AUDIO-01: Volume slider controls playback volume
-- [ ] AUDIO-02: Volume persists between sessions
+- ✓ BROWSE-01: Stations grouped by provider in list, collapsed by default, expandable — v1.2 Phase 7
+- ✓ BROWSE-04: "Recently Played" section at top showing last 3 played stations, most recent first — v1.2 Phase 7
+- ✓ BROWSE-02: User can filter by multiple providers simultaneously — v1.2 Phase 8
+- ✓ BROWSE-03: User can filter by multiple genres/tags simultaneously — v1.2 Phase 8
+- ✓ MGMT-01: Station editor shows existing providers as selectable options — v1.2 Phase 9
+- ✓ MGMT-02: Station editor shows existing genres/tags as selectable options (multi-select) — v1.2 Phase 9
+- ✓ MGMT-03: User can add a new provider/genre inline from the station editor — v1.2 Phase 9
+- ✓ MGMT-04: YouTube station URL auto-imports stream title — v1.2 Phase 9
+- ✓ NP-01: Now Playing panel shows provider name alongside station name — v1.2 Phase 10
+- ✓ AUDIO-01: Volume slider in main window controls playback volume — v1.2 Phase 10
+- ✓ AUDIO-02: Volume setting persists between sessions — v1.2 Phase 10
 - ✓ UI-01: Panels use rounded corners — v1.2 Phase 11
 - ✓ UI-02: Colors softened with subtle gradients — v1.2 Phase 11
 - ✓ UI-03: Station list rows have more vertical padding — v1.2 Phase 11
 - ✓ UI-04: Now Playing panel has more internal whitespace — v1.2 Phase 11
+
+### Active (v1.3)
+
+(none defined yet — run `/gsd:new-milestone` to define next milestone)
 
 ### Out of Scope
 
@@ -105,6 +94,17 @@ Finding and playing a stream should take seconds — the right station should al
 | daemon thread + GLib.idle_add for YT thumbnail | yt-dlp subprocess must not block GTK main loop | ✓ Good — established cross-thread pattern |
 | Gtk.Stack (pic/spinner) in arts grid | Avoids re-parenting station_pic during fetch | ✓ Good — no flicker during thumbnail load |
 | Twitch deferred | Requires stations in library to validate | — Pending |
+| strftime ms precision for last_played_at | datetime('now') second-level granularity caused ordering failures | ✓ Good |
+| Drop set_filter_func for grouped list | filter_func cannot inspect ExpanderRow children added via add_row() | ✓ Good |
+| ExpanderRow activated signal for play | row-activated on outer ListBox does not fire for group children | ✓ Good |
+| ListBox.insert(row,0) for RP refresh | Preserves ExpanderRow expand/collapse state vs. full reload | ✓ Good |
+| Empty set = inactive filter dimension | Parallel to None/empty string convention in matches_filter | ✓ Good |
+| _rebuilding flag for bulk chip mutations | Prevents spurious filter updates during rebuild/clear | ✓ Good |
+| new_provider_entry takes precedence | Typed value always wins over combo selection | ✓ Good |
+| Volume stored as float 0.0–1.0 | Convert to int only at mpv call site | ✓ Good |
+| Provider as "Name · Provider" (U+00B7) | Clean inline label without extra UI elements | ✓ Good |
+| Volume default 80 not 100 | Avoid blasting on first launch | ✓ Good |
+| CSS on Gtk.Stack container for border-radius | Stack is the clip container — radius not visible on Gtk.Image | ✓ Good |
 
 ## Constraints
 
@@ -123,6 +123,11 @@ Finding and playing a stream should take seconds — the right station should al
 | 4: Cover Art | v1.0 | ✓ Complete | 2026-03-20 |
 | 5: Display Polish | v1.1 | ✓ Complete | 2026-03-21 |
 | 6: Station Management | v1.1 | ✓ Complete | 2026-03-21 |
+| 7: Station List Restructuring | v1.2 | ✓ Complete | 2026-03-22 |
+| 8: Filter Bar Multi-Select | v1.2 | ✓ Complete | 2026-03-22 |
+| 9: Station Editor Improvements | v1.2 | ✓ Complete | 2026-03-23 |
+| 10: Now Playing & Audio | v1.2 | ✓ Complete | 2026-03-24 |
+| 11: UI Polish | v1.2 | ✓ Complete | 2026-03-25 |
 
 ---
 ## Evolution
@@ -143,4 +148,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 after Phase 11 (UI Polish) complete*
+*Last updated: 2026-03-25 after v1.2 milestone*

@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Station UX & Polish
-status: Milestone complete
+status: v1.2 milestone complete
 stopped_at: Completed 11-01-PLAN.md (Phase 11 plan 01 complete)
-last_updated: "2026-03-25T00:28:02.147Z"
+last_updated: "2026-03-25T00:31:50.640Z"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -16,10 +16,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-21)
+See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 11 — ui-polish
+**Current focus:** Planning next milestone (v1.3)
 
 ## Current Position
 

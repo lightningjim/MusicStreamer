@@ -43,16 +43,63 @@
 - Nyquist auditor never invoked — VALIDATION.md files were stubs only
 - Sessions: ~8 across 35 days
 
+## Milestone: v1.2 — Station UX & Polish
+
+**Shipped:** 2026-03-25
+**Phases:** 5 | **Plans:** 10 | **Timeline:** 3 days (2026-03-22 → 2026-03-25)
+
+### What Was Built
+
+- Provider-grouped ExpanderRow station list with dual render modes and recently played section (Phase 7)
+- Multi-select ToggleButton chip strips for provider/genre filters with OR-within/AND-between logic (Phase 8)
+- Station editor upgraded to ComboRow provider picker + tag chip panel with inline creation + YouTube title auto-import (Phase 9)
+- "Name · Provider" label in now-playing; Gtk.Scale volume slider wired to GStreamer + persisted in settings (Phase 10)
+- CSS provider: gradient panel background, rounded art corners, improved spacing throughout (Phase 11)
+
+### What Worked
+
+- **GTK widget archaeology before coding** — Phase 7's ExpanderRow investigation (can't use set_filter_func) saved a false start; researching GTK behaviors upfront prevented mid-phase rewrites
+- **TDD for filter logic** — matches_filter_multi written test-first in Phase 8; OR/AND semantics proven correct before touching GTK
+- **Parallel fetches with independent flags** — Phase 9 split `_fetch_in_progress` into two independent flags; thumbnail and title fetch in parallel without coordination overhead
+- **State machine discipline** — `_rebuilding` guard for chip rebuilds; `_current_station` for ICY suppression; these small guards prevent entire classes of spurious update bugs
+- **user review mid-phase** — Phase 11 caught art border-radius and text spacing issues before close; inline correction took 2 commits
+
+### What Was Inefficient
+
+- Phase 10 ROADMAP not updated after plan completion — `roadmap_complete: false` for Phase 10 despite disk showing 2/2. Minor inconsistency survived into milestone close
+- No milestone audit run before completion — skipped in yolo mode; all requirements were clean but audit would have caught ROADMAP inconsistency above
+
+### Patterns Established
+
+- `strftime` millisecond precision for timestamps used as sort keys — `datetime('now')` second granularity causes ordering failures
+- `ListBox.insert(row, 0)` for in-place section refresh — preserves expand/collapse state; full reload does not
+- Filter chips use `btn.set_active(False)` to dismiss — fires toggled signal; avoids double callback
+- CSS applied to `Gtk.Stack` container (not `Gtk.Image`) for `border-radius` — Stack is the clip container
+
+### Key Lessons
+
+- ExpanderRow + set_filter_func is incompatible — filter_func cannot see children added via add_row(); must rewrite entire list to filter grouped layouts
+- Row activation in nested ListBoxes: `row-activated` on outer ListBox does not fire for ExpanderRow children; use `activated` signal on each inner row
+- Volume default matters — 100% on first launch feels like an attack; 80% is a sensible default
+
+### Cost Observations
+
+- Model mix: sonnet throughout
+- Sessions: ~3-4 across 3 days
+- Notable: 10 plans in 3 days — fastest multi-phase milestone; GTK research front-loaded in phases 7-8 paid off in 9-11
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 |
-|--------|------|------|
-| Phases | 4 | 2 |
-| Plans | 8 | 4 |
-| Tests | 43 | 58 (+15) |
-| LOC (Python) | 1,409 | 1,782 (+373) |
-| Gap closure plans | 1 | 0 |
-| Days | 35 | 1 |
+| Metric | v1.0 | v1.1 | v1.2 |
+|--------|------|------|------|
+| Phases | 4 | 2 | 5 |
+| Plans | 8 | 4 | 10 |
+| Tests | 43 | 58 (+15) | 85 (+27) |
+| LOC (Python) | 1,409 | 1,782 (+373) | ~17,505 total |
+| Gap closure plans | 1 | 0 | 0 |
+| Days | 35 | 1 | 3 |
 
 ## Milestone: v1.1 — Polish & Station Management
 
