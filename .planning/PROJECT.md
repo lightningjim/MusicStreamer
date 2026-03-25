@@ -19,7 +19,7 @@ Finding and playing a stream should take seconds — the right station should al
 - Volume slider with persistence
 - Rounded corners, subtle gradients, improved spacing
 
-## Current State (v1.1 shipped 2026-03-21)
+## Current State (v1.2 in progress — Phase 11 complete 2026-03-25)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
 - **LOC:** ~1,782 Python | **Tests:** 58 passing
@@ -70,10 +70,10 @@ Finding and playing a stream should take seconds — the right station should al
 - [ ] NP-01: Now Playing panel shows provider name
 - [ ] AUDIO-01: Volume slider controls playback volume
 - [ ] AUDIO-02: Volume persists between sessions
-- [ ] UI-01: Panels use rounded corners
-- [ ] UI-02: Colors softened with subtle gradients
-- [ ] UI-03: Station list rows have more vertical padding
-- [ ] UI-04: Now Playing panel has more internal whitespace
+- ✓ UI-01: Panels use rounded corners — v1.2 Phase 11
+- ✓ UI-02: Colors softened with subtle gradients — v1.2 Phase 11
+- ✓ UI-03: Station list rows have more vertical padding — v1.2 Phase 11
+- ✓ UI-04: Now Playing panel has more internal whitespace — v1.2 Phase 11
 
 ### Out of Scope
 
@@ -143,4 +143,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-21 after v1.2 milestone started*
+*Last updated: 2026-03-25 after Phase 11 (UI Polish) complete*
