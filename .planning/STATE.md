@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Station UX & Polish
-status: Ready to plan
-stopped_at: Completed 09-02-PLAN.md (Phase 9 complete)
-last_updated: "2026-03-23T02:18:18.097Z"
+status: Milestone complete
+stopped_at: Completed 11-01-PLAN.md (Phase 11 plan 01 complete)
+last_updated: "2026-03-25T00:28:02.147Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  completed_phases: 5
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 09 — station-editor-improvements
+**Current focus:** Phase 11 — ui-polish
 
 ## Current Position
 
-Phase: 10
+Phase: 11
 Plan: Not started
 
 ## Performance Metrics
@@ -58,6 +58,9 @@ Plan: Not started
 | Phase 09-station-editor-improvements P01 | 8 | 1 tasks | 1 files |
 | Phase 09 P02 | 5 | 1 tasks | 1 files |
 | Phase 09-station-editor-improvements P02 | 5 | 2 tasks | 1 files |
+| Phase 10 P01 | 1 | 1 tasks | 2 files |
+| Phase 10-now-playing-audio P02 | 4 | 2 tasks | 1 files |
+| Phase 11-ui-polish P01 | 35 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -85,6 +88,12 @@ Recent decisions affecting current work:
 - [Phase 09]: Split _fetch_in_progress into _thumb_fetch_in_progress and _title_fetch_in_progress — thumbnail and title fetches are independent
 - [Phase 09]: Name guard in _on_title_fetched: only auto-populate if current name is blank or New Station
 - [Phase 09]: Strip trailing date/time suffix from yt-dlp stream title output — live streams append YYYY-MM-DD HH:MM and it makes poor station names
+- [Phase 10]: Store _volume as float 0.0-1.0; convert to int at mpv call site only
+- [Phase 10]: mpv volume applied only at launch via --volume arg; no live IPC adjustment needed
+- [Phase 10-now-playing-audio]: provider_name shown inline as 'Name · Provider' in station_name_label using U+00B7 middle dot
+- [Phase 10-now-playing-audio]: volume slider default 80 (not 100) to avoid blasting on first launch; no debounce needed for local GStreamer property write
+- [Phase 11-ui-polish]: 5px border-radius on now-playing-art (logo_stack, cover_stack) — slight rounding per user feedback
+- [Phase 11-ui-polish]: CSS applied to Gtk.Stack container (not Gtk.Image) — Stack is the clip container that makes border-radius visible
 
 ### Pending Todos
 
@@ -101,6 +110,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-23T02:15:07.451Z
-Stopped at: Completed 09-02-PLAN.md (Phase 9 complete)
+Last session: 2026-03-24T23:42:00.762Z
+Stopped at: Completed 11-01-PLAN.md (Phase 11 plan 01 complete)
 Resume file: None

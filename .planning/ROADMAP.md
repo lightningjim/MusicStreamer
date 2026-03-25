@@ -38,7 +38,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] **Phase 8: Filter Bar Multi-Select** — Replace dropdowns with multi-select provider/genre filters (completed 2026-03-22)
 - [x] **Phase 9: Station Editor Improvements** — Structured provider/genre selectors with inline creation and YouTube title import (completed 2026-03-23)
 - [ ] **Phase 10: Now Playing & Audio** — Provider name in now-playing panel, volume slider with persistence
-- [ ] **Phase 11: UI Polish** — Rounded corners, softened colors, improved spacing throughout
+- [x] **Phase 11: UI Polish** — Rounded corners, softened colors, improved spacing throughout (completed 2026-03-25)
 
 ## Phase Details
 
@@ -111,7 +111,7 @@ Plans:
   2. Background and surface colors use subtle gradients rather than flat fills
   3. Station list rows have noticeably more vertical padding (station names and logos are not cramped)
   4. Now Playing panel has increased internal whitespace around its content areas
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 11-01-PLAN.md — CSS provider with gradient+rounded panel, increased margins, station row padding bump
@@ -130,4 +130,4 @@ Plans:
 | 8. Filter Bar Multi-Select | v1.2 | 2/2 | Complete   | 2026-03-22 |
 | 9. Station Editor Improvements | v1.2 | 2/2 | Complete   | 2026-03-23 |
 | 10. Now Playing & Audio | v1.2 | 1/2 | In Progress|  |
-| 11. UI Polish | v1.2 | 0/1 | Not started | - |
+| 11. UI Polish | v1.2 | 0/1 | Complete    | 2026-03-25 |
