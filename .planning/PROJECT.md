@@ -8,13 +8,13 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current State (shipped v1.2 — 2026-03-25)
+## Current State (v1.2 fully complete — 2026-03-27)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
 - **LOC:** ~17,505 Python total | **Tests:** 85 passing
 - **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API)
 - **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
-- **Now-playing:** Three-column panel — logo | "Name · Provider" / track title / Stop | cover art; volume slider with GStreamer + persistence
+- **Now-playing:** Three-column panel — logo | "Name · Provider" / track title / Stop | cover art; volume slider with GStreamer + persistence; panel has rounded corners + gradient; station art has 5px rounded corners (GTK4: set_overflow(HIDDEN) required)
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback
 - **Station management:** ComboRow provider picker, tag chip panel (inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch
 
