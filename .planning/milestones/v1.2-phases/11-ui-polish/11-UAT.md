@@ -3,7 +3,7 @@ status: complete
 phase: 11-ui-polish
 source: [11-01-SUMMARY.md]
 started: 2026-03-26T00:00:00.000Z
-updated: 2026-03-26T00:00:00.000Z
+updated: 2026-03-27T00:00:00.000Z
 ---
 
 ## Current Test
@@ -22,9 +22,8 @@ result: pass
 
 ### 3. Station Art Border Radius
 expected: The station logo and cover art image in the now-playing panel have slightly rounded corners (5px) — subtle rounding, not fully round.
-result: issue
-reported: "Arts are still square — no rounded corners visible at all"
-severity: major
+result: pass
+reported: "Yes, just enough rounding"
 
 ### 4. Text Spacing from Art
 expected: The station name and ICY metadata text in the now-playing panel are visibly separated from the station logo on the left — roughly 20px gap, noticeably more than before.
@@ -37,17 +36,15 @@ result: pass
 ## Summary
 
 total: 5
-passed: 4
-issues: 1
+passed: 5
+issues: 0
 pending: 0
 skipped: 0
 
 ## Gaps
 
 - truth: "Station logo and cover art in the now-playing panel have 5px border-radius (slightly rounded corners)"
-  status: failed
-  reason: "User reported: Can both arts have slightly rounded corners as well?"
-  severity: major
-  test: 3
-  artifacts: []
-  missing: []
+  status: resolved
+  reason: "User reported: Arts are still square — no rounded corners visible at all"
+  resolution: "Added background-color:transparent + overflow:hidden to CSS; also required set_overflow(Gtk.Overflow.HIDDEN) on Gtk.Stack widgets — CSS alone insufficient in GTK4"
+  resolved: 2026-03-27
