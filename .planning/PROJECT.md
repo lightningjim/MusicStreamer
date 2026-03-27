@@ -14,7 +14,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Target features:**
 - Favorite songs: star ICY track titles, DB storage with station + provider context, inline list view toggling with station list
-- AudioAddict import: all properties (DI.fm, ZenRadio, JazzRadio, RockRadio) via API key + PLS, quality selection
+- AudioAddict import: all AudioAddict networks via API key + PLS, quality selection (exact network list verified at implementation time)
 - YouTube playlist import: paste any public playlist URL → imports live streams as stations via yt-dlp
 - Radio-Browser.info: live browse/search view + save any station to library
 
@@ -79,7 +79,7 @@ Finding and playing a stream should take seconds — the right station should al
 - DISC-01: User can browse and search Radio-Browser.info stations live in-app
 - DISC-02: User can play a Radio-Browser.info station directly without importing
 - DISC-03: User can save a Radio-Browser.info station to their library
-- DISC-04: User can import AudioAddict channels (all properties: DI.fm, ZenRadio, JazzRadio, RockRadio) via API key
+- DISC-04: User can import AudioAddict channels (all networks, list verified at implementation) via API key
 - DISC-05: User can select import quality (hi/med/low) for AudioAddict channels
 - DISC-06: User can paste a YouTube public playlist URL to import live streams as stations
 
