@@ -29,6 +29,8 @@ _APP_CSS = """
 
 .now-playing-art {
     border-radius: 5px;
+    background-color: transparent;
+    overflow: hidden;
 }
 """
 
@@ -53,6 +55,10 @@ class App(Adw.Application):
         win.present()
 
 
-if __name__ == "__main__":
+def main():
     app = App()
     app.run(sys.argv)
+
+
+if __name__ == "__main__":
+    main()
