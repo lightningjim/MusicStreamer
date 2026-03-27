@@ -55,23 +55,23 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FAVES-01 | — | Pending |
-| FAVES-02 | — | Pending |
-| FAVES-03 | — | Pending |
-| FAVES-04 | — | Pending |
-| DISC-01 | — | Pending |
-| DISC-02 | — | Pending |
-| DISC-03 | — | Pending |
-| DISC-04 | — | Pending |
-| IMPORT-01 | — | Pending |
-| IMPORT-02 | — | Pending |
-| IMPORT-03 | — | Pending |
+| FAVES-01 | Phase 12 | Pending |
+| FAVES-02 | Phase 12 | Pending |
+| FAVES-03 | Phase 12 | Pending |
+| FAVES-04 | Phase 12 | Pending |
+| DISC-01 | Phase 13 | Pending |
+| DISC-02 | Phase 13 | Pending |
+| DISC-03 | Phase 13 | Pending |
+| DISC-04 | Phase 13 | Pending |
+| IMPORT-01 | Phase 14 | Pending |
+| IMPORT-02 | Phase 15 | Pending |
+| IMPORT-03 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 11 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 11 ⚠️
+- Mapped to phases: 11
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after initial definition*
+*Last updated: 2026-03-27 — traceability mapped after roadmap creation*
