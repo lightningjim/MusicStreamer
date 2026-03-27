@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-03-27T21:25:17.191Z",
+  "phase": "12",
+  "phase_name": "Favorites",
+  "phase_dir": null,
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "v1.3 milestone initialized", "status": "done", "commit": "82e17f3"},
+    {"id": 2, "name": "Requirements defined (11 requirements, 4 categories)", "status": "done", "commit": "e8ff7fc"},
+    {"id": 3, "name": "Research completed (4 parallel agents + synthesis)", "status": "done", "commit": "b05d00f"},
+    {"id": 4, "name": "Roadmap created (Phases 12–15)", "status": "done", "commit": "82e17f3"}
+  ],
+  "remaining_tasks": [
+    {"id": 5, "name": "Plan Phase 12 (Favorites)", "status": "not_started"},
+    {"id": 6, "name": "Execute Phase 12", "status": "not_started"},
+    {"id": 7, "name": "Plan + execute Phase 13 (Radio-Browser Discovery)", "status": "not_started"},
+    {"id": 8, "name": "Plan + execute Phase 14 (YouTube Playlist Import)", "status": "not_started"},
+    {"id": 9, "name": "Plan + execute Phase 15 (AudioAddict Import)", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [
+    {
+      "action": "Before Phase 15: verify AudioAddict API endpoint, network identifiers, and PLS auth pattern using a live DI.fm account",
+      "context": "Unofficial API — network identifiers (di vs difm, zen vs radiotunes) and PLS URL auth (query param vs path) are unconfirmed",
+      "blocking": false
+    }
+  ],
+  "decisions": [
+    {"decision": "Build order: Favorites → Radio-Browser → YouTube → AudioAddict", "rationale": "Risk-ascending: pure DB/UI first, then public REST, then existing yt-dlp, then unofficial API last", "phase": "12"},
+    {"decision": "AudioAddict network count deferred to research", "rationale": "User confirmed there are more than 6 networks; exact list to be verified at Phase 15 start against live account", "phase": "15"},
+    {"decision": "is_junk_title to be moved from cover_art.py to filter_utils.py in Phase 12", "rationale": "Favorites star button must share the same junk-title gate as cover art — avoid duplicating logic", "phase": "12"},
+    {"decision": "Transient Station(id=-1) pattern for Radio-Browser preview play", "rationale": "Player currently assumes playing station is always a DB row; preview play must not write to DB", "phase": "13"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Run /gsd:plan-phase 12 to plan the Favorites phase",
+  "context_notes": "v1.3 milestone fully initialized. All research artifacts in .planning/research/. Phase 12 is pure DB + UI (no network) — lowest risk, fastest value. Star button in now-playing panel, FAVES DB table with UNIQUE constraint, inline Stations/Favorites toggle."
+}
