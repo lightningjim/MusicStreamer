@@ -63,6 +63,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.logo_stack.add_named(self.logo_image, "logo")
         self.logo_stack.set_visible_child_name("fallback")
         self.logo_stack.add_css_class("now-playing-art")
+        self.logo_stack.set_overflow(Gtk.Overflow.HIDDEN)
 
         panel.append(self.logo_stack)
 
@@ -126,6 +127,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cover_stack.add_named(self.cover_image, "art")
         self.cover_stack.set_visible_child_name("fallback")
         self.cover_stack.add_css_class("now-playing-art")
+        self.cover_stack.set_overflow(Gtk.Overflow.HIDDEN)
 
         panel.append(self.cover_stack)
 
