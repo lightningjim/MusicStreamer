@@ -8,6 +8,16 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
+## Current Milestone: v1.3 Discovery & Favorites
+
+**Goal:** Add station discovery (Radio-Browser.info, AudioAddict, YouTube playlists) and a favorites system for saving ICY track titles.
+
+**Target features:**
+- Favorite songs: star ICY track titles, DB storage with station + provider context, inline list view toggling with station list
+- AudioAddict import: all properties (DI.fm, ZenRadio, JazzRadio, RockRadio) via API key + PLS, quality selection
+- YouTube playlist import: paste any public playlist URL → imports live streams as stations via yt-dlp
+- Radio-Browser.info: live browse/search view + save any station to library
+
 ## Current State (v1.2 fully complete — 2026-03-27)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
@@ -62,7 +72,16 @@ Finding and playing a stream should take seconds — the right station should al
 
 ### Active (v1.3)
 
-(none defined yet — run `/gsd:new-milestone` to define next milestone)
+- FAVES-01: User can star the currently playing ICY track title
+- FAVES-02: Favorites stored in DB with station name, provider, and track title
+- FAVES-03: Favorites view replaces station list inline (toggle between Stations / Favorites)
+- FAVES-04: User can remove a favorite from the Favorites view
+- DISC-01: User can browse and search Radio-Browser.info stations live in-app
+- DISC-02: User can play a Radio-Browser.info station directly without importing
+- DISC-03: User can save a Radio-Browser.info station to their library
+- DISC-04: User can import AudioAddict channels (all properties: DI.fm, ZenRadio, JazzRadio, RockRadio) via API key
+- DISC-05: User can select import quality (hi/med/low) for AudioAddict channels
+- DISC-06: User can paste a YouTube public playlist URL to import live streams as stations
 
 ### Out of Scope
 
@@ -148,4 +167,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 after v1.2 milestone*
+*Last updated: 2026-03-27 — v1.3 milestone started*
