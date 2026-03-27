@@ -58,4 +58,4 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 | 8. Filter Bar Multi-Select | v1.2 | 2/2 | Complete | 2026-03-22 |
 | 9. Station Editor Improvements | v1.2 | 2/2 | Complete | 2026-03-23 |
 | 10. Now Playing & Audio | v1.2 | 2/2 | Complete | 2026-03-24 |
-| 11. UI Polish | v1.2 | 1/1 | Complete | 2026-03-25 |
+| 11. UI Polish | v1.2 | 1/1 | Complete    | 2026-03-27 |
