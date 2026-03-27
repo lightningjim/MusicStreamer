@@ -1,8 +1,8 @@
 # Milestones
 
-## v1.2 Station UX & Polish (Shipped: 2026-03-25)
+## v1.2 Station UX & Polish (Shipped: 2026-03-27)
 
-**Phases completed:** 5 phases, 10 plans, 13 tasks
+**Phases completed:** 5 phases, 12 plans, 13 tasks
 
 **Key accomplishments:**
 
@@ -15,7 +15,7 @@
 - YouTube URL focus-out now fetches stream title via yt-dlp and auto-populates empty name field, running in parallel with the existing thumbnail fetch using independent flags
 - Player.set_volume clamps float to [0.0, 1.0], writes GStreamer pipeline volume property, stores for mpv subprocess launch — 4 TDD tests pass, 85-test suite green
 - Provider name shown inline as "Name · Provider" in now-playing label; Gtk.Scale volume slider wired to GStreamer and persisted via settings — 85 tests green
-- Rounded corners and gradient panel via CSS provider, with art border-radius and text spacing fixes from user review
+- Rounded panel gradient, station art 5px border-radius (GTK4: set_overflow(HIDDEN) required on Gtk.Stack — CSS overflow alone insufficient), improved spacing throughout
 
 ---
 

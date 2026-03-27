@@ -45,8 +45,8 @@
 
 ## Milestone: v1.2 — Station UX & Polish
 
-**Shipped:** 2026-03-25
-**Phases:** 5 | **Plans:** 10 | **Timeline:** 3 days (2026-03-22 → 2026-03-25)
+**Shipped:** 2026-03-27 (gap closure)
+**Phases:** 5 | **Plans:** 12 | **Timeline:** 5 days (2026-03-22 → 2026-03-27)
 
 ### What Was Built
 
@@ -62,7 +62,7 @@
 - **TDD for filter logic** — matches_filter_multi written test-first in Phase 8; OR/AND semantics proven correct before touching GTK
 - **Parallel fetches with independent flags** — Phase 9 split `_fetch_in_progress` into two independent flags; thumbnail and title fetch in parallel without coordination overhead
 - **State machine discipline** — `_rebuilding` guard for chip rebuilds; `_current_station` for ICY suppression; these small guards prevent entire classes of spurious update bugs
-- **user review mid-phase** — Phase 11 caught art border-radius and text spacing issues before close; inline correction took 2 commits
+- **user review mid-phase** — Phase 11 caught art border-radius (UAT) and text spacing issues before close; gap closure (11-02) confirmed GTK4 CSS overflow is insufficient alone
 
 ### What Was Inefficient
 
@@ -74,7 +74,7 @@
 - `strftime` millisecond precision for timestamps used as sort keys — `datetime('now')` second granularity causes ordering failures
 - `ListBox.insert(row, 0)` for in-place section refresh — preserves expand/collapse state; full reload does not
 - Filter chips use `btn.set_active(False)` to dismiss — fires toggled signal; avoids double callback
-- CSS applied to `Gtk.Stack` container (not `Gtk.Image`) for `border-radius` — Stack is the clip container
+- GTK4 `border-radius` clipping: CSS `overflow: hidden` alone does not clip child Gtk.Image paint nodes — must call `set_overflow(Gtk.Overflow.HIDDEN)` at the widget API level on the Gtk.Stack container
 
 ### Key Lessons
 
@@ -86,7 +86,7 @@
 
 - Model mix: sonnet throughout
 - Sessions: ~3-4 across 3 days
-- Notable: 10 plans in 3 days — fastest multi-phase milestone; GTK research front-loaded in phases 7-8 paid off in 9-11
+- Notable: 12 plans in 5 days; gap closure added 2 plans after UAT; GTK research front-loaded in phases 7-8 paid off in 9-11
 
 ---
 
@@ -95,7 +95,7 @@
 | Metric | v1.0 | v1.1 | v1.2 |
 |--------|------|------|------|
 | Phases | 4 | 2 | 5 |
-| Plans | 8 | 4 | 10 |
+| Plans | 8 | 4 | 12 |
 | Tests | 43 | 58 (+15) | 85 (+27) |
 | LOC (Python) | 1,409 | 1,782 (+373) | ~17,505 total |
 | Gap closure plans | 1 | 0 | 0 |

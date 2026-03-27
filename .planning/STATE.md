@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Milestone complete
-stopped_at: Completed 11-01-PLAN.md (Phase 11 plan 01 complete)
-last_updated: "2026-03-27T16:46:16.143Z"
+stopped_at: Completed 11-02-PLAN.md (Phase 11 gap closure complete — v1.2 fully shipped)
+last_updated: "2026-03-27T00:00:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 6
@@ -16,15 +16,15 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-25)
+See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 11 — ui-polish
+**Current focus:** v1.2 complete — planning next milestone
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 11 (complete)
+Plan: All complete (2/2)
 
 ## Performance Metrics
 
@@ -93,7 +93,7 @@ Recent decisions affecting current work:
 - [Phase 10-now-playing-audio]: provider_name shown inline as 'Name · Provider' in station_name_label using U+00B7 middle dot
 - [Phase 10-now-playing-audio]: volume slider default 80 (not 100) to avoid blasting on first launch; no debounce needed for local GStreamer property write
 - [Phase 11-ui-polish]: 5px border-radius on now-playing-art (logo_stack, cover_stack) — slight rounding per user feedback
-- [Phase 11-ui-polish]: CSS applied to Gtk.Stack container (not Gtk.Image) — Stack is the clip container that makes border-radius visible
+- [Phase 11-ui-polish]: GTK4 border-radius clipping requires set_overflow(Gtk.Overflow.HIDDEN) on the Gtk.Stack widget — CSS overflow:hidden alone does not clip child Gtk.Image paint nodes
 
 ### Pending Todos
 
