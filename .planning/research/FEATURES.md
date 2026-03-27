@@ -1,154 +1,242 @@
-# Feature Landscape
+# Feature Research
 
-**Domain:** Personal GNOME desktop internet radio / stream player
-**Researched:** 2026-03-18
-**Confidence note:** Web access was unavailable during this session. Findings draw on
-training knowledge of GNOME HIG, Shortwave, Rhythmbox, Lollypop, RadioDroid, and
-general desktop streaming app patterns (knowledge cutoff Aug 2025). Confidence levels
-reflect this; architecture-stable patterns are marked HIGH, nuanced UX specifics MEDIUM.
+**Domain:** Personal GNOME desktop internet radio — v1.3 Discovery & Favorites
+**Researched:** 2026-03-27
+**Confidence note:** Web access unavailable. Findings draw on training knowledge of
+Radio-Browser.info API (stable, well-documented), AudioAddict PLS auth pattern
+(publicly documented), yt-dlp playlist extraction (well-established CLI), and UX
+patterns from Shortwave, RadioDroid, and general GNOME media apps (knowledge cutoff
+Aug 2025). Confidence levels noted per claim.
 
 ---
 
-## Table Stakes
+## Scope Boundary
 
-Features users expect from any desktop streaming app. Missing = product feels unfinished
-or frustrating.
+This file covers ONLY the four v1.3 feature groups. Existing v1.2 features are not
+re-analyzed. Anti-features from v1.0 research that now apply here are explicitly
+re-evaluated.
+
+---
+
+## Feature Landscape
+
+### Table Stakes (Users Expect These)
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Station list with inline art | Every modern media app (Rhythmbox, Shortwave, Lollypop) shows an icon per row. Text-only lists feel bare and make scanning harder at 50+ items. | Low | Already partially implemented (48 px prefix picture in `Adw.ActionRow`). Needs reliability pass. |
-| Name search (live filter) | Standard in every list-heavy GNOME app. Users reaching 50+ stations expect it immediately. Absence causes real frustration at 100+ stations. | Low | `Gtk.SearchBar` + `Gtk.SearchEntry` + `ListBox.set_filter_func`. No DB round-trip needed — filter in-memory. |
-| Provider/source filter dropdown | Stations are explicitly grouped by provider in the schema. Users mental model mirrors this (e.g. "I want a Soma.FM station"). | Low–Med | `Gtk.DropDown` or `Adw.ComboRow`. Requires syncing dropdown items with live provider list. |
-| Genre/tag filter dropdown | Tags column already exists in schema and edit UI. Users expect to narrow by genre (e.g. "Jazz", "Ambient"). | Low–Med | Same pattern as provider filter. Tags are comma-separated today — split on display. |
-| Composed filters (AND semantics) | Search + provider + genre must compose. Selecting a genre while having a search term active should intersect, not replace. | Med | `ListBox.set_filter_func` evaluates all active criteria on each row. State must be kept in sync across all three inputs. |
-| Now-playing track title | Every internet radio app (RadioBrowser, Shortwave, Rhythmbox with radio plugin) prominently shows the current track title from ICY metadata. Users explicitly switch stations when they do not like the current track — they need to know what it is. | Low–Med | GStreamer `TAG` bus messages already arrive. Need to connect `bus.add_signal_watch()` handler → update a label in the now-playing bar. |
-| Visual loading / buffering state | Users need feedback between clicking Play and audio starting. Without it, they click again or assume the app is broken. | Low | Toggle play button to a spinner or insensitive state during `GST_STATE_CHANGE_ASYNC`. |
-| Play / stop toggle per station | Clicking an already-playing station should stop it. Rows with no visual "playing" indicator cause double-play confusion. | Low | Track `current_station_id`; update row appearance (e.g. playing icon) on state change. |
-| Graceful error display | Network failures, dead streams, yt-dlp errors surface as user-visible inline messages, not silent failures or console-only errors. | Low | `Adw.Toast` or an in-row subtitle update covers most cases. |
+| Radio-Browser.info: search by name | Every discovery tool (Shortwave, RadioDroid, iHeartRadio) supports name search. Without it, browsing 30k stations is unusable. | LOW | GET `/json/stations/search?name=...&limit=50`. No auth. Returns JSON array. |
+| Radio-Browser.info: preview/play before saving | Users expect to audition before committing to library. Any radio directory app does this. | LOW | Same GStreamer pipeline — just pass `url` without inserting DB row. Need a transient "preview" state distinct from "library station playing". |
+| Radio-Browser.info: save to library | Only reason to open a directory is to keep stations. If you can browse but not save, it's a dead end. | LOW | Map RB station fields → local `Station` model. Provider = source hostname or network name. |
+| AudioAddict import: all four properties | DI.fm, ZenRadio, JazzRadio, RockRadio share the same API/PLS format. Users expect a single flow to import from all. | MEDIUM | Four base URLs, same auth pattern. One dialog handles all. |
+| AudioAddict: quality selection | AudioAddict offers hi/med/low streams. Users with metered connections need control. PLS URL encodes quality. | LOW | Radio button or dropdown in import dialog. Three variants per channel in the PLS. |
+| Favorite songs: star current ICY track | Core affordance of any music app with track metadata. Users who discover songs via radio want to save them. | LOW | Star button in now-playing panel, active only when ICY track title is non-empty. |
+| Favorite songs: stored with context | Context (station name, provider) is what makes the favorite meaningful — you know where you heard it. The user note explicitly requires this. | LOW | DB table: `id`, `title`, `station_name`, `provider`, `starred_at`. No foreign key needed — stations can be deleted. |
+| Favorite songs: inline list view | Toggle between Stations and Favorites in the same panel space. Standard tabbed/segmented pattern in media apps. | LOW–MED | Gtk.Stack swap between station list widget and favorites list widget. Segmented button or toggle at top. |
+| Favorite songs: remove from favorites | Every favorites list needs a delete path. Without it, bad favorites accumulate forever. | LOW | Swipe-to-delete or context menu item. `Adw.ActionRow` supports swipe via `Adw.SwipeActionRow` or a row-level delete button. |
+| YouTube playlist import: paste URL | The only reasonable input method for a public playlist — users copy from browser. | LOW | Single text entry dialog. Pass to yt-dlp `--flat-playlist --dump-json`. |
+| YouTube playlist import: live streams only | YT playlists can mix VOD and live. User only wants live streams as radio stations. | MED | Filter yt-dlp output: `is_live == true` or `was_live == false` heuristic on returned metadata. |
 
 ---
 
-## Differentiators
-
-Features that set the app apart from a basic player. Not universally expected at this
-scope, but highly valued once present.
+### Differentiators (Competitive Advantage)
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Cover art from ICY metadata (external lookup) | Turns a radio player into something that feels alive. Shortwave does this; most minimal players do not. Visual context improves dwell time and reduces "what is playing?" mental load. | Med | Parse `artist` + `title` from ICY TAG messages → query iTunes Search API (`itunes.apple.com/search?term=...&entity=song`) or MusicBrainz Cover Art Archive. Cache results keyed on `artist+title` to avoid redundant lookups. Fallback to station album art. No API key required for either service. |
-| Animated cover art transition | Crossfade between previous and new cover art on track change. Shortwave-style. Makes the app feel polished vs utilitarian. | Med | `Gtk.Stack` with `Gtk.StackTransitionType.CROSSFADE` between two `Gtk.Picture` widgets, alternating which is shown. |
-| Now-playing bar (distinct from header) | A dedicated bottom (or top) strip with: cover art thumbnail, artist, track title, station name, play/stop. Feels like a real music app rather than a hacked label in the header bar. | Med | `Adw.ToolbarView` supports a bottom bar via `add_bottom_bar`. Persistent across station list scrolling. |
-| Filter chip / active-filter summary | A small row of dismissible chips showing which filters are active ("Soma.FM ×", "Ambient ×"). Reduces "why am I only seeing three stations?" confusion. | Med | `Gtk.FlowBox` with pill-shaped labels. Each chip emits a signal to clear its filter. |
-| Keyboard navigation parity | Full keyboard control: `Ctrl+F` focuses search, arrow keys navigate list, `Enter` plays, `Escape` stops. Power users and GNOME HIG both require it. | Low | `Gtk.ShortcutController` + action wiring. SearchBar has built-in `key-capture-widget` support. |
+| Radio-Browser.info: filter by tag/genre | Name search gets you to known stations. Tag filter gets you to discovery ("find me ambient stations"). Shortwave supports tag filtering; many simple apps don't. | MEDIUM | `/json/tags` for tag list, `/json/stations/search?tag=...`. Combine with name search. |
+| Radio-Browser.info: filter by country | Useful for non-English radio listeners. Country filter is a standard RB feature. | LOW | `/json/countrycodes` → dropdown. Adds one param to search query. |
+| AudioAddict import: incremental (add missing only) | Re-running import shouldn't duplicate stations. Smart merge (match on URL or channel slug) is better than "delete all and reimport". | MEDIUM | Check existing station URLs before insert. Skip if URL already exists. Optional: update name/art if changed. |
+| Favorite songs: iTunes metadata on star | When starring a track, pull genre/artwork from iTunes if available. Enriches the favorite record at no extra cost since iTunes is already queried for cover art. | LOW | Reuse existing iTunes fetch. Store `genre` and `artwork_url` in favorites table if returned. |
+| YouTube playlist import: auto-title from metadata | yt-dlp returns `title`, `uploader`, `thumbnail` per entry. Pre-populate station name and art rather than generic URL. | LOW | Already done for single-station YT import — extend to batch. `title` → station name, `thumbnail` → station art URL. |
 
 ---
 
-## Anti-Features
+### Anti-Features
 
-Features to deliberately NOT build for this project.
-
-| Anti-Feature | Why Avoid | What to Do Instead |
+| Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| In-app station discovery / radio directory browser | RadioBrowser API integration sounds appealing but dramatically changes the app's scope from a curated personal library to a discovery tool. The project's stated value prop is "the right station is one or two clicks away" — a 30,000-station directory undermines that. | Maintain the curated library model. Add/edit via the dialog. |
-| Scrobbling (Last.fm / ListenBrainz) | PROJECT.md explicitly defers this. The ICY metadata plumbing needed is a prerequisite anyway — do that first. Adding scrobbling before metadata display is solid inverts the dependency. | Leave for a future milestone after metadata display is stable. |
-| Podcast support | Completely different feed model (RSS, episodic, seeking), different UX, different storage. A distraction from streaming. | Out of scope per PROJECT.md. |
-| Equalizer / audio effects | GStreamer can do this but it adds significant UI complexity and is not in the app's value proposition. | Out of scope. |
-| Playlist / queue management | Internet radio is stateless (you play one station at a time). A queue model is a music-library concept. | The "play a station" model is correct for this domain. |
-| Tag autocomplete with a picker UI | Comma-separated free-text tags in the edit dialog are sufficient for a personal 50–200 station library. A full tag management UI (rename, merge, autocomplete) is over-engineering for this scale. | Keep tags as free text. Filter dropdown reads distinct tag values at query time. |
-| Waveform / visualizer | Eye candy that adds no utility and has meaningful render cost. | Not worth building. |
+| Radio-Browser.info: full "discover" tab replacing station list | 30k stations visible at once destroys the app's core value ("right station in 2 clicks"). The directory is a tool for populating your library, not your primary UI. | Keep discovery as a modal/sheet opened from a button. Search results are a temporary view, not a persistent state. |
+| AudioAddict: import with no quality choice | Silently importing hi-fi for a user on a slow connection is a silent failure they'll notice as stuttering. | Always present quality selection before import. Default to medium. |
+| Favorites: social sharing or export | Scope creep. This is a single-user local app. | Not applicable. Store locally only. |
+| YouTube playlist import: VOD as "stations" | VOD YouTube videos are not streams — they'll behave unpredictably with GStreamer + yt-dlp in stream mode. | Filter to `is_live=true` during import. Show a count of skipped non-live entries. |
+| Radio-Browser.info: auto-refresh / sync | Polling the RB API periodically to update saved stations adds background complexity with minimal value. Users manage their library. | Import once, user manages manually. |
+| Favorites: playback history (all played tracks) | Different feature from favorites. Auto-history is invisible, gets large fast, and needs separate UI. | Keep favorites as intentional, user-starred saves only. |
+
+---
+
+## API Behavior Documentation
+
+### Radio-Browser.info API
+
+**Confidence: HIGH** — Stable public API, unchanged for years, widely used by Shortwave and RadioDroid.
+
+- **Base URL:** DNS-round-robined via `all.api.radio-browser.info`. Client should resolve SRV records or use `all.api.radio-browser.info` directly.
+- **Auth:** None. Public API, no key required.
+- **Rate limit:** No official hard limit. Reasonable desktop usage (search on keypress with 300ms debounce) is fine.
+- **User-Agent:** Best practice to set a descriptive User-Agent (`MusicStreamer/1.3 ...`). Not enforced but good citizenship.
+- **Key endpoints:**
+  - `GET /json/stations/search?name={query}&limit=50&hidebroken=true` — name search
+  - `GET /json/stations/search?tag={tag}&limit=100&hidebroken=true` — tag filter
+  - `GET /json/tags?limit=100&order=stationcount&reverse=true` — popular tags
+  - `GET /json/countrycodes` — country list
+  - `POST /json/url/{stationuuid}` — click tracking (optional, good citizen call when playing)
+- **Station fields returned:**
+  - `stationuuid` — stable UUID
+  - `name` — station name
+  - `url` — direct stream URL (may redirect)
+  - `url_resolved` — pre-resolved stream URL (prefer this)
+  - `homepage` — website
+  - `favicon` — logo URL (may be empty or broken)
+  - `tags` — comma-separated tags
+  - `country`, `countrycode`, `language`
+  - `codec`, `bitrate`
+  - `votes`, `clickcount`, `clicktrend` — popularity signals
+- **Mapping to local Station model:** `name` → name, `url_resolved` (fallback `url`) → stream_url, tags → tags, `favicon` → art source.
+- **`hidebroken=true`:** Always pass this. Filters stations with confirmed dead streams.
+
+### AudioAddict PLS Auth Pattern
+
+**Confidence: MEDIUM** — Based on training knowledge of public DI.fm documentation and community sources. No live verification.
+
+- **Auth mechanism:** API key embedded in the PLS playlist URL, not in HTTP headers.
+- **PLS URL format:** `https://listen.di.fm/premium_high/{channel}.pls?listen_key={api_key}`
+- **Quality tiers:** `premium_high` / `premium_medium` / `premium_low` in the URL path. Some sources show `public3` (mp3 128k) as a free tier.
+- **Channel list endpoint:** `https://api.audioaddict.com/v1/{network}/channels` where `{network}` is one of: `difm` (DI.fm), `zenradio`, `jazzradio`, `rockradio`.
+- **Response fields:** `key` (channel slug), `name`, `description`, `asset_url` (logo), `channel_filters` (genre tags).
+- **PLS content:** Standard PLS format — `File1=`, `Title1=`, `Length1=-1`. Parse with Python's `configparser` (PLS is INI-compatible).
+- **Import flow:**
+  1. User enters API key once (store in app config / keyring).
+  2. Fetch channel list per network via channels endpoint.
+  3. For each channel, construct PLS URL with quality + key.
+  4. Fetch PLS, extract stream URL from `File1=`.
+  5. Create Station: name from channel `name`, provider from network name, stream_url from PLS, art from `asset_url`, tags from `channel_filters`.
+- **Caveat:** AudioAddict may have changed their API since training data. Key structure and PLS URL format have been stable for years but should be verified against a live account before phase implementation.
+
+### YouTube Playlist Import (yt-dlp)
+
+**Confidence: HIGH** — yt-dlp is already used in the app; playlist extraction is a core yt-dlp feature.
+
+- **Command:** `yt-dlp --flat-playlist --dump-json "{playlist_url}"` — prints one JSON object per entry, no download.
+- **Live stream detection:** Entry metadata includes `"is_live": true` for active live streams. Also check `"live_status": "is_live"` (more reliable in newer yt-dlp).
+- **Fields per entry:** `id`, `title`, `url` (watch URL), `uploader`, `thumbnail`, `duration` (null for live), `is_live`, `live_status`.
+- **Getting stream URL:** For each live entry, a second yt-dlp call is needed to resolve the actual stream URL: `yt-dlp -g "{watch_url}"`. Or: store the watch URL and resolve at play time (lazy resolution — already how single-station YT works in the app).
+- **Recommendation:** Store watch URLs at import time, resolve at play time. Avoids N extra yt-dlp calls during import and handles URL expiry (YT stream URLs expire ~6h).
+- **Async requirement:** `--flat-playlist` on a large playlist (100+ items) can take 10–30s. Must run in a daemon thread. Progress feedback is important.
 
 ---
 
 ## Feature Dependencies
 
 ```
-Name search            →  (none — in-memory filter on loaded list)
-Provider filter        →  Provider list loaded from DB on startup
-Genre/tag filter       →  Tags parsed from station model at filter time
-Composed filters       →  Name search + Provider filter + Genre/tag filter
-                          (all three must exist before composition is meaningful)
+FAVES-01 (star track)
+    requires existing: ICY metadata display (already built in v1.2)
+    requires existing: now-playing panel (already built)
 
-ICY metadata display   →  GStreamer TAG bus message wiring
-                          (prerequisite: bus.add_signal_watch() connected)
+FAVES-02 (DB storage)
+    requires: FAVES-01 (star action)
+    requires: new DB migration (favorites table)
 
-Cover art lookup       →  ICY metadata display
-                          (artist+title from ICY TAG messages are the lookup key)
+FAVES-03 (favorites view)
+    requires: FAVES-02 (data to show)
+    requires: Gtk.Stack toggle in sidebar
 
-Animated art transition → Cover art lookup
-                          (nothing to transition without art)
+FAVES-04 (remove favorite)
+    requires: FAVES-03 (view to remove from)
 
-Now-playing bar        →  ICY metadata display  (track title)
-                       →  Cover art lookup       (art thumbnail)
-                          (bar is technically buildable before both, but looks empty)
+DISC-01 (RB browse/search)
+    requires: nothing existing — new panel/sheet
+    async network I/O: yes (urllib or http.client)
 
-Filter chips           →  Provider filter + Genre/tag filter
-                          (chips reflect active filter state — needs filters first)
+DISC-02 (play RB station without saving)
+    requires: DISC-01 (station selected from results)
+    requires: transient "preview" player state (no DB write)
+    NOTE: must not clobber currently-playing library station state
+
+DISC-03 (save RB station)
+    requires: DISC-01 (station selected from results)
+    requires: existing station repo insert path
+
+DISC-04 (AudioAddict import)
+    requires: new import dialog
+    requires: API key storage (config file or libsecret)
+    requires: http fetch + PLS parsing (configparser)
+    requires: existing station repo bulk insert
+
+DISC-05 (quality selection)
+    requires: DISC-04 flow (part of same dialog)
+
+DISC-06 (YouTube playlist import)
+    requires: existing yt-dlp integration
+    requires: async thread + GLib.idle_add progress pattern (already established)
+    NOTE: play-time URL resolution already works — reuse same path
 ```
 
----
+### Dependency Notes
 
-## MVP Recommendation
-
-The milestone goal is search+filter UI + ICY metadata display + cover art from metadata.
-That maps cleanly to two sequential tracks:
-
-**Track A — Filtering (no external I/O, lower risk):**
-1. Search box (live name filter)
-2. Provider dropdown filter
-3. Genre/tag dropdown filter
-4. Composed AND semantics across all three
-
-**Track B — Now Playing (external I/O, higher risk):**
-1. GStreamer TAG bus message handler → ICY track title label
-2. iTunes Search API (or MusicBrainz) cover art lookup + disk cache
-3. Fallback chain: fetched art → station album art → station logo → generic placeholder
-
-Build Track A first. It has zero external dependencies and delivers immediate value.
-Track B has network I/O and async state management — do it after filtering is stable.
-
-**Defer:**
-- Animated cover art transition: nice but not in milestone scope
-- Now-playing bar redesign: current header label is sufficient for this milestone
-- Filter chips: useful but not blocking; add if time permits
+- **DISC-02 (preview without saving):** This is the trickiest dependency. The player currently assumes the playing station is always in the DB. A preview state requires either a nullable station reference or a transient Station object that never touches the DB. Needs design thought before implementation.
+- **FAVES-03 and station list:** The toggle between Stations and Favorites shares the same sidebar panel. Use `Gtk.Stack` child swap — this is the established pattern in the app (already used for art slots and now-playing).
+- **AudioAddict API key storage:** Simplest approach is the existing JSON config file at `~/.local/share/musicstreamer/config.json`. libsecret/keyring adds a dependency. Config file is fine for a personal app.
 
 ---
 
-## Cover Art Lookup — Technical Notes
+## MVP Definition for v1.3
 
-Confidence: MEDIUM (based on documented public APIs, no live verification possible)
+### Launch With (all four feature groups are the scope)
 
-**iTunes Search API** (recommended first choice):
-- Endpoint: `https://itunes.apple.com/search?term={artist}+{title}&entity=song&limit=1`
-- Returns JSON with `artworkUrl100` (100 px). Replace `100x100` with `600x600` in the
-  URL for higher resolution.
-- No API key. Rate limit undocumented but generous for single-user desktop use.
-- Response latency: typically 200–600 ms.
+- [ ] FAVES-01–04: Star ICY track, store with context, view in sidebar, remove — **essential, low risk**
+- [ ] DISC-01–03: Radio-Browser.info browse/search/preview/save — **core discovery**
+- [ ] DISC-04–05: AudioAddict import with quality selection — **medium complexity, well-defined API**
+- [ ] DISC-06: YouTube playlist import — **reuses existing yt-dlp path, mostly plumbing**
 
-**MusicBrainz + Cover Art Archive** (fallback):
-- Step 1: `https://musicbrainz.org/ws/2/recording/?query=artist:{artist}+recording:{title}&fmt=json`
-  → extract release MBID
-- Step 2: `https://coverartarchive.org/release/{mbid}/front-500`
-- Two round trips; slower. Better for niche/non-commercial music.
-- MusicBrainz requires a `User-Agent` header identifying the app.
+### Phase Ordering Recommendation
 
-**Caching strategy:**
-- Key: `sha1(artist.lower() + "|" + title.lower())`
-- Store in `~/.local/share/musicstreamer/cover_cache/{key}.jpg`
-- Cache indefinitely (track titles do not retroactively change).
-- On cache hit: load from disk, no network call.
+Build in risk-ascending order:
 
-**Async requirement:**
-- Cover art lookup MUST be async (GLib.idle_add / threading.Thread) — blocking the
-  GTK main loop on a network call will freeze the UI.
+1. **Favorites** (FAVES-01–04) — Zero new network I/O. Pure DB + UI. Lowest risk, fast win.
+2. **Radio-Browser.info** (DISC-01–03) — New panel + network, but clean REST API. Medium risk.
+3. **YouTube playlist import** (DISC-06) — Reuses existing yt-dlp pattern. Low-medium risk.
+4. **AudioAddict import** (DISC-04–05) — External API with uncertain current state. Highest risk of API changes. Do last.
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Favorite songs (all 4 sub-features) | HIGH | LOW | P1 |
+| Radio-Browser.info browse + search | HIGH | MEDIUM | P1 |
+| Radio-Browser.info play preview | HIGH | MEDIUM | P1 |
+| Radio-Browser.info save to library | HIGH | LOW | P1 |
+| Radio-Browser.info tag/country filter | MEDIUM | LOW | P2 |
+| AudioAddict import (all 4 networks) | HIGH | MEDIUM | P1 |
+| AudioAddict quality selection | MEDIUM | LOW | P1 |
+| YouTube playlist import | HIGH | MEDIUM | P1 |
+| YouTube playlist: progress feedback | MEDIUM | LOW | P2 |
+| AudioAddict incremental import (dedup) | MEDIUM | MEDIUM | P2 |
+| Favorites: iTunes metadata on star | LOW | LOW | P2 |
+
+---
+
+## Re-evaluation of v1.0 Anti-Feature
+
+The v1.0 FEATURES.md listed "In-app station discovery / radio directory browser" as an
+anti-feature. That was correct for v1.0–1.2 scope. For v1.3 it is explicitly in scope.
+
+The anti-feature concern was valid: a full "browse mode" as the primary UI undermines the
+curated library model. The correct resolution (and what v1.3 should build) is a **modal
+or sidebar panel** for discovery — distinct from the station list — that feeds back into
+the library rather than replacing it. Discovery is a population tool, not the primary UX.
 
 ---
 
 ## Sources
 
-- Training knowledge of Shortwave (GNOME radio app, GitLab.gnome.org/World/Shortwave) — MEDIUM confidence
-- Training knowledge of Rhythmbox radio plugin UX — MEDIUM confidence
-- GNOME HIG principles for search, filtering, list views — HIGH confidence (stable spec)
-- iTunes Search API documentation (public, no auth) — MEDIUM confidence (no live verification)
-- MusicBrainz web service documentation — MEDIUM confidence (no live verification)
-- GStreamer TAG bus message behavior with ICY streams — HIGH confidence (GStreamer docs, stable API)
-- Existing `main.py` codebase analysis — HIGH confidence (direct inspection)
+- Radio-Browser.info API: training knowledge of public REST API (`api.radio-browser.info`) — HIGH confidence (stable, widely documented)
+- AudioAddict/DI.fm PLS auth pattern: training knowledge of public community documentation — MEDIUM confidence (verify against live account)
+- yt-dlp flat-playlist behavior: training knowledge + existing app usage — HIGH confidence
+- Shortwave (GNOME radio app) UX patterns: training knowledge — MEDIUM confidence
+- User note: `.planning/notes/2026-03-22-favorite-songs-from-icy.md` — HIGH confidence (direct source)
+- PROJECT.md v1.3 requirements: `.planning/PROJECT.md` — HIGH confidence (direct source)
+
+---
+*Feature research for: MusicStreamer v1.3 Discovery & Favorites*
+*Researched: 2026-03-27*

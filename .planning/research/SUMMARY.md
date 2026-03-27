@@ -1,183 +1,164 @@
 # Project Research Summary
 
-**Project:** MusicStreamer — milestone additions
-**Domain:** GNOME desktop internet radio / stream player (GTK4/Python/GStreamer)
-**Researched:** 2026-03-18
-**Confidence:** HIGH (stack and architecture); MEDIUM (external API specifics)
+**Project:** MusicStreamer v1.3 — Discovery & Favorites
+**Domain:** GTK4/Python personal desktop internet radio player
+**Researched:** 2026-03-27
+**Confidence:** HIGH (stack/architecture/favorites); MEDIUM (AudioAddict API)
 
 ## Executive Summary
 
-MusicStreamer is an existing GTK4/Libadwaita/Python/GStreamer internet radio app. The milestone adds three well-scoped features to a working but monolithic ~512-line codebase: live search and filter UI for the station list, ICY metadata display (track title from stream), and cover art lookup from that metadata. Each feature maps directly onto established GTK4 and GStreamer patterns — no new dependencies are needed, and all three can be implemented with the existing system bindings plus Python stdlib.
+MusicStreamer v1.3 adds four discrete feature groups to a well-established GTK4/GStreamer codebase: Favorites (star ICY tracks), Radio-Browser.info discovery, AudioAddict import, and YouTube playlist import. All research converges on the same conclusion: zero new dependencies are required. Every capability maps directly onto existing patterns — urllib for REST calls, yt-dlp for playlist extraction, SQLite for favorites storage, and the daemon-thread + GLib.idle_add pattern for all async network I/O.
 
-The recommended approach is to build in two sequential tracks. Track A (filtering) is entirely in-memory with no network I/O and should come first: implement `Gtk.ListBox.set_filter_func` with composed AND logic across a search entry, a provider dropdown (`Gtk.DropDown`), and a tag dropdown — all state held in a single struct, never re-querying SQLite on keystrokes. Track B (now-playing) follows: wire the GStreamer bus to receive `TAG` messages from ICY streams (the data is already flowing; it just has no listener), display the track title, then launch async iTunes Search API requests for cover art, delivering results to the UI via `GLib.idle_add`.
+The recommended build order is risk-ascending: Favorites first (pure DB + UI, no network), Radio-Browser second (clean public REST API), YouTube playlist third (extends existing yt-dlp integration), AudioAddict last (unofficial API, highest external uncertainty). Architecture research identifies clear module boundaries — importer modules are GTK-free, returning plain dicts/lists; dialogs own the GLib wiring; FavoritesRepo shares `repo.con` to avoid SQLite write-lock contention.
 
-The primary risks are threading correctness (GTK widget updates from a cover-art worker thread will crash or corrupt state), API hammering (ICY TAG messages fire every few seconds, so cover art lookups must debounce on `(artist, title)` pair changes), and encoding edge cases (ICY streams often send Latin-1 bytes that need heuristic re-encoding). All three are well-understood and preventable with established patterns. The module structure refactor from a single `main.py` into discrete modules (`player.py`, `cover_art.py`, `ui/filter_bar.py`, etc.) is recommended to give each new component a clean home, but it can be done incrementally without a rewrite.
-
----
+The primary risk is the AudioAddict unofficial API. URL construction patterns and PLS format have been stable for years across community implementations, but cannot be verified without a live account. Build this phase last and treat empirical API verification as the first step of that phase. All other risks are implementation hygiene: threading discipline, result limits on Radio-Browser queries, ICY junk-title gating, and DB migration idempotency.
 
 ## Key Findings
 
 ### Recommended Stack
 
-All three features are buildable entirely within the existing technology stack. No new pip dependencies are required or recommended. ICY metadata arrives via GStreamer's `icydemux` element (auto-inserted by `playbin` for ICY streams) as `Gst.MessageType.TAG` bus messages — the correct listener pattern is `bus.add_signal_watch()` + `bus.connect("message::tag", handler)`. Cover art lookup uses the iTunes Search API via `urllib.request` (stdlib), with MusicBrainz Cover Art Archive as a fallback. Filtering uses `Gtk.SearchBar`, `Gtk.SearchEntry`, `Gtk.DropDown` with `Gtk.StringList`, and `Gtk.ListBox.set_filter_func` — all stable GTK 4.0 APIs. Cross-thread dispatch for cover art uses the established `threading.Thread` + `GLib.idle_add` pattern.
+No new pip dependencies for any v1.3 feature. The existing stack (GTK4/Libadwaita, GStreamer, PyGObject, SQLite3, yt-dlp, urllib, threading/GLib.idle_add) covers all requirements. Radio-Browser.info uses urllib with DNS-discovered server selection (`all.api.radio-browser.info`). AudioAddict uses urllib + configparser (stdlib) for PLS parsing. YouTube playlist import uses the existing yt-dlp Python API with `extract_flat=True`. Favorites storage is a new `favorites` table in the existing SQLite DB, added via `CREATE TABLE IF NOT EXISTS` in `db_init()`.
 
 **Core technologies:**
-- `Gst.Bus` + `add_signal_watch()`: TAG message listener — enables ICY metadata without polling
-- `urllib.request` (stdlib): cover art HTTP fetches — no added pip dependency
-- `threading.Thread` + `GLib.idle_add`: async HTTP → safe UI delivery — GTK threading contract
-- `Gtk.ListBox.set_filter_func` + `invalidate_filter()`: live filtering — avoids list rebuild on each keystroke
-- `Gtk.DropDown` + `Gtk.StringList`: provider/tag dropdowns — correct GTK4 widget (ComboBoxText is deprecated)
-- `Gtk.SearchBar` + `Gtk.SearchEntry`: search bar with toggle — standard GNOME pattern with built-in Escape handling
+- `urllib.request` (stdlib): Radio-Browser + AudioAddict API calls — already used for iTunes, identical pattern
+- `yt_dlp` (existing): YouTube playlist flat extraction — direct extension of single-video usage
+- `sqlite3` (stdlib): favorites table — `CREATE TABLE IF NOT EXISTS` migration in existing `db_init()`
+- `threading` + `GLib.idle_add` (existing): all async network I/O — established pattern, no new primitives
+- `configparser` (stdlib): AudioAddict PLS parsing — INI-compatible format, no parsing library needed
 
 ### Expected Features
 
 **Must have (table stakes):**
-- Live name search (filter as you type) — expected in any list-heavy GNOME app at 50+ stations
-- Provider/source filter dropdown — stations are organized by provider; users think in those terms
-- Genre/tag filter dropdown — tags column and edit UI already exist; users expect genre filtering
-- Composed AND semantics across all three filters — partial filters that don't intersect feel broken
-- Now-playing track title from ICY metadata — every radio app surfaces this; absence is a UX failure
-- Visual loading/buffering state — users need feedback between clicking Play and audio starting
-- Graceful error display for network/stream failures — silent failures erode trust
+- Star current ICY track — core affordance of any music app with track metadata
+- Favorites stored with station context (name, provider) — denormalized for station-deletion resilience
+- Favorites inline list view with Stations/Favorites toggle in sidebar
+- Remove from favorites — required; bad favorites accumulate without it
+- Radio-Browser.info search by name — unusable without it given 30k+ stations
+- Radio-Browser.info preview (play without saving) — audition before committing to library
+- Radio-Browser.info save to library — the only reason to open a directory
+- AudioAddict import across all four networks with quality selection
+- YouTube playlist import filtered to live streams only
 
-**Should have (differentiators):**
-- Cover art from ICY metadata via external lookup — makes the app feel alive, not just utilitarian
-- Animated cover art crossfade on track change — Shortwave-style polish
-- Now-playing bar (distinct from header) — feels like a real music app
-- Filter chips showing active filters — reduces "why am I only seeing 3 stations?" confusion
-- Full keyboard navigation parity (Ctrl+F, arrow keys, Enter, Escape) — GNOME HIG expectation
+**Should have (competitive):**
+- Radio-Browser.info tag/country filter — discovery vs. just finding known stations
+- AudioAddict incremental import (skip existing by URL) — no duplicates on re-run
+- Favorites: iTunes genre metadata on star — enriches record at zero extra cost (iTunes already queried)
+- YouTube import: progress feedback (spinner, count of imported/skipped)
 
 **Defer (v2+):**
-- Scrobbling (Last.fm/ListenBrainz) — ICY metadata plumbing is a prerequisite; build that first
-- Animated cover art transition — nice but outside milestone scope
-- Now-playing bar redesign — current header label is sufficient for this milestone
-- Filter chips — useful but not blocking for the milestone
-- In-app station discovery / RadioBrowser directory — changes the app's scope entirely
-- Podcast support, equalizer, playlist/queue — out of scope per project goals
+- Social sharing or export of favorites
+- Full persistent "browse mode" as primary UI (anti-feature — undermines curated library model)
+- Auto-refresh of saved Radio-Browser stations
+- Playback history distinct from intentional favorites
 
 ### Architecture Approach
 
-The existing `main.py` monolith has four logical layers (domain models, repository, business logic, UI) that are not yet separated. The recommended approach is an incremental module extraction that gives each new feature a clean home: `models.py`, `repo.py`, `assets.py`, `player.py`, `cover_art.py`, and a `ui/` package containing `filter_bar.py`, `station_list.py`, `now_playing.py`, `main_window.py`, and `edit_dialog.py`. Each step is independently testable before the next begins, and the migration is additive — no rewrites, only extraction and wiring.
+The v1.3 architecture is purely additive. Three new `importers/` modules (radio_browser, audioaddict, youtube), one new `favorites_repo.py`, three new UI files (favorites_view, discovery_dialog, import_dialog), and targeted additions to main_window.py and models.py. Existing modules (repo, player, cover_art, assets, filter_utils) are untouched except extending the cover_art callback to `(path, genre_or_None)`. Phases A (Favorites) and B (Radio-Browser) are fully independent; C (AudioAddict) and D (YouTube) share the ImportDialog shell.
 
 **Major components:**
-1. `Player` — owns GStreamer pipeline and bus; emits `track_changed(artist, title)` callback; no GTK imports
-2. `FilterBar` — owns filter state as a single struct; provides `matches(station) -> bool`; calls `invalidate_filter()` on the ListBox
-3. `StationList` — owns `Gtk.ListBox` with `Station` objects attached to rows at build time; never rebuilds on filter changes
-4. `CoverArtFetcher` — background service; queries iTunes Search API on a worker thread; delivers pixbuf via `GLib.idle_add`
-5. `NowPlayingBar` — purely reactive widget; updated by `Player.track_changed` and `CoverArtFetcher` callbacks
+1. `importers/radio_browser.py` — DNS server discovery + REST search, returns plain dicts; zero GTK imports
+2. `importers/audioaddict.py` — channel list fetch + PLS parse, returns station dicts; zero GTK imports
+3. `importers/youtube.py` — yt-dlp extract_flat + live filter, returns station dicts; zero GTK imports
+4. `favorites_repo.py` — CRUD for favorites table; shares `repo.con` (no second connection)
+5. `ui/favorites_view.py` — ListBox of favorited tracks with inline delete per row
+6. `ui/discovery_dialog.py` — Radio-Browser search/preview/save modal
+7. `ui/import_dialog.py` — tabbed AudioAddict + YouTube import with progress bar
 
 ### Critical Pitfalls
 
-1. **GStreamer bus watch not wired** — `playbin` emits TAG messages but they are silently discarded if `bus.add_signal_watch()` and `bus.connect("message::tag", ...)` are never called. The current codebase has neither. Wire both in `__init__`, not in `_play_station`. Confirm by temporarily logging all bus message types.
-
-2. **GTK widget updated from background thread** — cover art must be fetched off the main thread, but GTK is not thread-safe. Any widget mutation (label text, picture paintable) called from the worker thread will corrupt state or crash. All widget updates must go through `GLib.idle_add(callback, result)`, never called directly from the thread.
-
-3. **Rebuilding the entire ListBox on every filter change** — calling `reload_list()` per keystroke destroys and recreates all rows, causes visible lag at 50+ stations, and reloads images from disk. Use `set_filter_func` + `invalidate_filter()`: build once, filter in-memory.
-
-4. **Cover art requested on every TAG message** — ICY streams fire TAG messages every few seconds, not just on track change. Unthrottled HTTP requests will hit API rate limits. Debounce by comparing `(artist, title)` to the last seen pair; only fetch on change.
-
-5. **ICY metadata encoding is Latin-1, not UTF-8** — GStreamer delivers the raw ICY string, which may be Latin-1 encoded. Without heuristic re-encoding, accented characters in artist/track names display as mojibake. Apply `.encode('latin-1', errors='replace').decode('utf-8', errors='replace')` defensively; test against Soma.FM stations.
-
----
+1. **Radio-Browser sync HTTP on GTK main thread** — all urllib calls go to daemon threads; debounce search-changed by 300ms via `GLib.timeout_add` to avoid a thread per keystroke
+2. **YouTube yt-dlp blocking main thread** — always run `extract_info` in a daemon thread; show spinner during import; window freezes 10–30s otherwise
+3. **Favorites duplicates from missing UNIQUE constraint** — use `INSERT OR IGNORE` with `UNIQUE(station_id, track_title)` in DDL; add in `db_init` executescript from day one
+4. **Star button active during junk/ad ICY titles** — move `is_junk_title` from cover_art.py to filter_utils.py; gate star button on `not is_junk_title(current_title)`
+5. **favorites table missing on existing installs** — `CREATE TABLE IF NOT EXISTS favorites` in `db_init` executescript (not ALTER TABLE); must be in Phase 1, not an afterthought
+6. **AudioAddict PLS quality-tier URL construction by subdomain substitution** — never do this; re-fetch the PLS for each quality tier; DI.fm rotates subdomains without notice
+7. **Radio-Browser unbounded result set** — always pass `limit=100` query param; broad queries like "jazz" return thousands of rows and freeze the UI without it
 
 ## Implications for Roadmap
 
-Based on the research, four phases emerge naturally from the feature dependency graph and the two-track recommendation in FEATURES.md.
+All research agrees on a four-phase build in risk-ascending order. Phases A and B are fully independent and could be parallelized; C and D must be sequential (they share ImportDialog).
 
-### Phase 1: Module Extraction and Structure
-
-**Rationale:** The codebase is a 512-line monolith. All three incoming features need clean homes that are not `MainWindow`. Extracting `models.py`, `repo.py`, `assets.py`, and a stub `Player` class before adding features prevents tangled wiring and makes each subsequent phase independently testable. This phase delivers no user-visible change but is the lowest-risk first step.
-**Delivers:** `models.py`, `repo.py`, `assets.py`, `player.py` (stub), app runs identically after import rewiring
-**Addresses:** Architecture component boundaries from ARCHITECTURE.md
-**Avoids:** Growing the monolith further (makes all future pitfalls harder to fix)
+### Phase 1: Favorites (FAVES-01–04)
+**Rationale:** Zero new network I/O; pure DB + UI. Fastest value delivery. Establishes the Stations/Favorites sidebar toggle and the `is_junk_title` refactor that later phases depend on.
+**Delivers:** Star button in now-playing (gated on non-junk ICY title), favorites table with UNIQUE constraint, FavoritesView with inline delete, Stations/Favorites toggle, cover_art callback extended to `(path, genre_or_None)`.
+**Addresses:** FAVES-01 (star), FAVES-02 (DB migration + UNIQUE constraint), FAVES-03 (view), FAVES-04 (delete)
+**Avoids:** Pitfalls 3 (duplicate detection), 4 (junk title guard), 5 (DB migration idempotency)
 **Research flag:** Standard patterns — skip `research-phase`
 
-### Phase 2: Search and Filter UI
-
-**Rationale:** Track A from FEATURES.md — zero external I/O, lower risk, immediate user value. All APIs are stable and well-documented. Filter state must be established before any UI can demonstrate composed filtering. This phase is independent of GStreamer bus work.
-**Delivers:** Live name search, provider dropdown filter, genre/tag dropdown filter, composed AND semantics across all three
-**Uses:** `Gtk.SearchBar`, `Gtk.SearchEntry`, `Gtk.DropDown`, `Gtk.StringList`, `Gtk.ListBox.set_filter_func`, `invalidate_filter()`
-**Implements:** `FilterBar` and `StationList` components
-**Avoids:** Pitfall 3 (rebuild on keystroke), Pitfall 6 (non-composing filters), Pitfall 11 (tag whitespace), Pitfall 8 (playing indicator lost on reload)
+### Phase 2: Radio-Browser Discovery (DISC-01–03)
+**Rationale:** Clean, well-documented public REST API with no auth. Introduces the importer module pattern (GTK-free dicts, GLib wiring in dialog) that AudioAddict and YouTube phases reuse. Medium complexity, low risk.
+**Delivers:** DiscoveryDialog with search/browse/preview/save; RadioBrowserClient with DNS server selection; "Discover" button in toolbar.
+**Addresses:** DISC-01 (browse/search), DISC-02 (preview without saving — transient `Station(id=-1, ...)`), DISC-03 (save to library)
+**Avoids:** Pitfalls 1 (DNS round-robin, not hardcoded server), 2 (sync HTTP), 3 (result limits + pagination), 7 (click-count endpoint only on play/save)
 **Research flag:** Standard patterns — skip `research-phase`
 
-### Phase 3: ICY Metadata Display
+### Phase 3: YouTube Playlist Import (DISC-06)
+**Rationale:** Directly extends existing yt-dlp integration. Lower risk than AudioAddict since yt-dlp is an already-verified dependency. Introduces ImportDialog shell that Phase 4 extends with an AudioAddict tab.
+**Delivers:** ImportDialog (YouTube tab), YouTubeImporter, live-stream filter with imported/skipped count feedback.
+**Addresses:** DISC-06 (playlist import), live-only filter, progress indication
+**Avoids:** Pitfalls 1 (blocking main loop), 2 (non-live videos as stations)
+**Research flag:** Validate `is_live` field presence in yt-dlp flat playlist mode against a real mixed playlist before writing filter logic — see Gaps
 
-**Rationale:** Track B starts here. Wiring the GStreamer bus is the prerequisite for both track title display and cover art lookup (which needs artist+title as its lookup key). This phase is the highest-risk step in isolation because the existing codebase has no bus listener at all, and getting it wrong wastes time diagnosing apparent feature absence. Must be done before Phase 4.
-**Delivers:** Now-playing track title label updated live from ICY stream; `Player` class extracted and emitting `track_changed` callback
-**Uses:** `Gst.Bus.add_signal_watch()`, `bus.connect("message::tag")`, `Gst.TagList.get_string()`, `GLib.idle_add`
-**Implements:** `Player` component with `track_changed` callback
-**Avoids:** Pitfall 1 (bus watch not wired), Pitfall 4 (Latin-1 encoding), Pitfall 9 (TAG arrives before PLAYING state)
-**Research flag:** Standard patterns — skip `research-phase` (GStreamer TAG bus is well-documented)
-
-### Phase 4: Cover Art Lookup
-
-**Rationale:** Depends on Phase 3 (`artist` + `title` from ICY TAG messages are the lookup keys). Requires async HTTP, debouncing, caching, and a fallback chain. More moving parts than the previous phases, but all components are well-defined. iTunes Search API is the primary source; MusicBrainz is the fallback for obscure tracks.
-**Delivers:** Cover art image in now-playing area, updating on track change, cached in `~/.local/share/musicstreamer/cover_cache/`
-**Uses:** `urllib.request`, `threading.Thread`, `GLib.idle_add`, iTunes Search API, optional MusicBrainz CAA fallback
-**Implements:** `CoverArtFetcher` and `NowPlayingBar` components
-**Avoids:** Pitfall 2 (widget update from thread), Pitfall 5 (API hammering), Pitfall 10 (MusicBrainz User-Agent)
-**Research flag:** Worth a focused check on iTunes Search API response structure before implementing — the `artworkUrl100` → `600x600` URL substitution pattern has HIGH confidence but no live verification in this session.
+### Phase 4: AudioAddict Import (DISC-04–05)
+**Rationale:** Highest external uncertainty (unofficial API). Building last ensures ImportDialog shell is in place (Phase 3) and the app is otherwise feature-complete. Empirical API verification is the first task of this phase.
+**Delivers:** AudioAddict tab in ImportDialog, AudioAddictImporter with PLS-per-quality-tier fetch, quality selection (hi/med/low), API key stored masked.
+**Addresses:** DISC-04 (import all four networks), DISC-05 (quality selection)
+**Avoids:** Pitfalls 4 (API key security — masked in UI, never logged), 5 (PLS re-fetch per tier, no subdomain substitution)
+**Research flag:** Verify API endpoint network identifiers and PLS URL auth pattern against a live DI.fm account before writing any import code
 
 ### Phase Ordering Rationale
 
-- Phase 1 before anything: extraction now costs ~1 hour and saves debugging time across all subsequent phases; doing it after adding features would require untangling more state.
-- Phase 2 before Phase 3: filter UI has zero external dependencies and validates the new component structure before introducing GStreamer complexity. Delivers user-visible value early.
-- Phase 3 before Phase 4: cover art lookup requires `(artist, title)` from ICY TAG messages; the Player's `track_changed` signal is Phase 4's input. The dependency is hard.
-- Phases 2 and 3 are technically independent of each other and could run in parallel if two people are working, but sequencing them avoids merging complexity in a solo context.
+- Favorites is independent of all discovery work; doing it first proves the sidebar toggle and DB migration patterns without network risk
+- Radio-Browser before AudioAddict: public vs. unofficial API; establish the importer module pattern on a safe surface first
+- YouTube before AudioAddict: reuses existing yt-dlp dependency with known behavior; creates the ImportDialog shell Phase 4 extends
+- AudioAddict last: only phase requiring live-account verification; isolated scope means failure doesn't block the rest of v1.3
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 4 (Cover Art):** Validate iTunes Search API response structure (`artworkUrl100` field, URL substitution pattern) with a live test request before building the fetcher. Also confirm MusicBrainz two-step query syntax if the fallback is implemented.
+Phases needing deeper research or empirical validation during implementation:
+- **Phase 3 (YouTube):** Validate `is_live` field presence in yt-dlp `extract_flat` mode against a real mixed playlist (live + VOD) before writing the filter. If the flag is unreliable in flat mode, a secondary lightweight per-video fetch strategy is needed.
+- **Phase 4 (AudioAddict):** Unofficial API — verify `api.audioaddict.com/v1/{network}/channels` endpoint and exact network identifiers (`di` vs. `difm`, `zen` vs. `radiotunes`) against a live account before writing any code. Also confirm whether PLS auth is query param (`?listen_key={key}`) or embedded in the URL path.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Module Extraction):** Pure refactor, no new APIs.
-- **Phase 2 (Filtering):** `set_filter_func`, `Gtk.DropDown`, `Gtk.SearchBar` are stable GTK 4.0 APIs with HIGH confidence.
-- **Phase 3 (ICY Metadata):** GStreamer TAG bus pattern is canonical and well-documented; HIGH confidence across all sources.
-
----
+Phases with standard patterns (skip `research-phase`):
+- **Phase 1 (Favorites):** Pure SQLite + GTK — established patterns, well-understood
+- **Phase 2 (Radio-Browser):** Public REST API, stable for years, widely used by Shortwave and RadioDroid
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All APIs verified: GStreamer TAG bus, GTK4 filter/search widgets, `GLib.idle_add`. iTunes Search API confirmed keyless with `artworkUrl100` field via official Apple docs. Only MusicBrainz query syntax is MEDIUM. |
-| Features | MEDIUM | Table stakes and feature dependencies derived from codebase inspection (HIGH) and training knowledge of comparable GNOME apps (MEDIUM). No live user research. |
-| Architecture | HIGH | Component boundaries, data flow, and module split are well-reasoned from direct codebase inspection. Threading model for GTK is a settled, documented contract. |
-| Pitfalls | MEDIUM | Critical pitfalls 1–4 are HIGH confidence (GTK/GStreamer fundamentals). ICY encoding behavior (Pitfall 4) is LOW confidence — stream-source dependent, must validate against real streams. iTunes rate limits (Pitfall 5) are LOW confidence — undocumented, empirically validate. |
+| Stack | HIGH | No new dependencies; all patterns proven in existing codebase; stdlib-only additions |
+| Features | HIGH | Table stakes, anti-features, and phase ordering are well-reasoned; AudioAddict feature set is MEDIUM pending live verification |
+| Architecture | HIGH | Existing codebase is ground truth; module boundaries are explicit and consistent across all research files |
+| Pitfalls | HIGH (GTK/SQLite), MEDIUM (AudioAddict/YT) | GTK threading and SQLite pitfalls are settled; yt-dlp `is_live` flat-playlist reliability and AudioAddict subdomain rotation need empirical validation |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **iTunes Search API rate limits:** Documented as ~20 req/min in STACK.md but flagged as LOW confidence in PITFALLS.md (undocumented). The app's use pattern (one lookup per track change) is unlikely to breach any reasonable limit, but validate empirically during Phase 4 development.
-- **ICY encoding behavior:** Latin-1 vs UTF-8 ambiguity is stream-dependent and cannot be fully resolved without testing against real stations (Soma.FM, AudioAddict). Implement the heuristic re-encoding in Phase 3 and log raw bytes during development.
-- **MusicBrainz Lucene query field names:** MEDIUM confidence — confirmed API exists and rate limits are documented, but exact query field names (`recording:`, `artist:`) are from training data, not live verification. Treat MusicBrainz as a true fallback and test it independently before relying on it.
-- **`station.tags` data quality:** Comma-separated tags in existing DB may have inconsistent whitespace. Normalize on write and on comparison in Phase 2; consider a data migration script if existing station data is large.
-
----
+- **AudioAddict network identifiers:** Research shows both `di`/`zen` and `difm`/`radiotunes` as possible values. Verify against `api.audioaddict.com` before Phase 4 implementation.
+- **yt-dlp `is_live` in flat playlist:** The flag may not be reliably populated in `extract_flat` mode without a full per-video metadata fetch. Test against a real mixed playlist early in Phase 3.
+- **AudioAddict PLS URL auth mechanism:** Research shows API key as query param (`?listen_key={key}`) but also as direct URL component. Confirm before implementing PLS fetch logic.
+- **`is_junk_title` refactor scope:** Function is currently in `cover_art.py`; must be moved to `filter_utils.py` in Phase 1 to avoid duplicating junk detection logic in favorites. This is a pure refactor but needs care to not break existing cover art behavior.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Apple iTunes Search API official docs (fetched 2026-03-18) — `artworkUrl100` field, no API key required, ~20 req/min
-- GTK4 API: `Gtk.ListBox.set_filter_func`, `Gtk.SearchBar`, `Gtk.SearchEntry`, `Gtk.DropDown` — stable since GTK 4.0
-- GStreamer `playbin` + `icydemux` + TAG bus message pattern — GStreamer application development guide, canonical
-- `GLib.idle_add` cross-thread dispatch — PyGObject documentation, GTK threading contract
-- Existing codebase (`main.py`, 512 lines, inspected 2026-03-18) — direct inspection, HIGH confidence
+- Existing codebase `musicstreamer/` — architecture, threading patterns, DB migration approach
+- Radio-Browser.info REST API (training knowledge + community documentation) — endpoints, field names, DNS round-robin pattern
+- yt-dlp Python API `extract_flat=True` (existing codebase usage + yt-dlp documentation) — playlist extraction, `is_live` field
+- SQLite `INSERT OR IGNORE` + `UNIQUE` constraint behavior — standard SQLite semantics
+- GTK4 `GLib.idle_add` + daemon thread cross-thread pattern — proven in this codebase for cover art and YT thumbnails
 
 ### Secondary (MEDIUM confidence)
-- GNOME HIG: search, filtering, list view patterns — stable spec, no live verification needed
-- MusicBrainz Web Service: rate limits (1 req/sec), User-Agent requirement — documented policy; Lucene query syntax from training data
-- Shortwave and Rhythmbox radio plugin UX patterns — training knowledge of comparable GNOME radio apps
-- GStreamer TAG bus behavior with ICY streams — confirmed by GStreamer PyGObject tutorials
+- AudioAddict/DI.fm API — `github.com/DannyBen/audio_addict` and project memory note (2026-03-21) — channel list endpoint, stream URL pattern, network identifiers
+- Shortwave (GNOME radio app) UX patterns — discovery-as-modal-not-primary-view recommendation
+- iTunes `primaryGenreName` field — present in most API responses but not guaranteed
 
-### Tertiary (LOW confidence)
-- ICY stream encoding behavior (Latin-1 vs UTF-8) — stream-source dependent; requires empirical validation against real stations
-- iTunes Search API undocumented rate limits — treat as best-effort; validate empirically in Phase 4
+### Tertiary (needs live validation)
+- AudioAddict PLS URL quality subdomains (`prem1`/`prem2`/`prem4`) — rotation risk noted; verify at Phase 4 start
+- yt-dlp flat playlist `is_live` reliability — validate against a real mixed playlist before Phase 3 filter implementation
 
 ---
-
-*Research completed: 2026-03-18*
+*Research completed: 2026-03-27*
 *Ready for roadmap: yes*

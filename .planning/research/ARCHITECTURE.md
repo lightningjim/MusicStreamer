@@ -1,334 +1,326 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** GNOME desktop music streaming app
-**Researched:** 2026-03-18
-**Scope:** ICY metadata, cover art fetching, and station list filtering — integration into existing GTK4/GStreamer monolith
+**Domain:** GTK4/Python desktop radio player — v1.3 Discovery & Favorites integration
+**Researched:** 2026-03-27
+**Confidence:** HIGH (existing codebase is the ground truth; external API patterns are well-established)
 
----
-
-## Context: What Exists Today
-
-The app is a single file (`main.py`, 512 lines) with four logical layers that are not yet separated into modules:
-
-| Layer | Location | What It Does |
-|-------|----------|--------------|
-| Domain models | lines 70–86 | `Station` and `Provider` dataclasses |
-| Repository | lines 88–180 | All SQLite access via `Repo` class |
-| Business logic | scattered | DB init, asset copying, yt-dlp URL resolution |
-| UI | lines 200–493 | `MainWindow` + `EditStationDialog` |
-
-**Critical gap for new features:** `MainWindow` owns the GStreamer `playbin` element directly. There is no GStreamer bus listener — TAG messages from ICY streams are never read. There is no filter state — `Gtk.ListBox` is populated once and reloaded wholesale on edit. Cover art is static (user-supplied files only); no dynamic fetch exists.
-
----
-
-## Recommended Architecture
-
-The three incoming features — ICY metadata, cover art, and filtering — each need a clear home that is not `MainWindow`. The recommended split is:
+## Current Architecture (v1.2 baseline)
 
 ```
-App
- └─ MainWindow
-     ├─ FilterBar  (new UI component)
-     │    ├─ provider dropdown  → filter state
-     │    ├─ tag dropdown       → filter state
-     │    └─ search entry       → filter state
-     │
-     ├─ StationList  (extracted from MainWindow)
-     │    ├─ Gtk.ListBox with set_filter_func
-     │    └─ reads filter state from FilterBar
-     │
-     ├─ Player  (extracted from MainWindow)
-     │    ├─ GStreamer playbin element
-     │    ├─ GStreamer bus watcher (TAG messages → callbacks)
-     │    └─ emits: track_changed(artist, title)
-     │
-     └─ NowPlayingBar  (new UI component)
-          ├─ track title label  (fed by Player.track_changed)
-          └─ cover art image    (fed by CoverArtFetcher)
-
-CoverArtFetcher  (new background service)
-     ├─ receives (artist, title) from Player.track_changed
-     ├─ queries iTunes Search API or MusicBrainz
-     ├─ fetches image bytes on background thread
-     └─ delivers pixbuf to NowPlayingBar via GLib.idle_add
+musicstreamer/
+├── constants.py        — DATA_DIR, DB_PATH, ASSETS_DIR
+├── models.py           — Station, Provider dataclasses
+├── repo.py             — Repo class: all SQLite read/write
+├── player.py           — Player: GStreamer pipeline + mpv subprocess
+├── cover_art.py        — iTunes Search API fetch (daemon thread + callback)
+├── assets.py           — Station art persistence
+├── filter_utils.py     — normalize_tags, matches_filter_multi
+└── ui/
+    ├── main_window.py  — MainWindow: all layout, state, playback wiring
+    ├── station_row.py  — StationRow (ListBoxRow wrapping ActionRow)
+    └── edit_dialog.py  — EditStationDialog
 ```
 
----
+State is held in `MainWindow`. `Repo` is stateless (connection-holding) and called synchronously from the GTK main thread. All background work (cover art, YT thumbnail) uses `threading.Thread(daemon=True)` + `GLib.idle_add` to return results to the GTK thread.
 
-## Component Boundaries
+## v1.3 Target Structure
 
-### Player (extracted from `MainWindow`)
+### New modules (pure additions)
 
-**Responsibility:** Owns the GStreamer pipeline. Translates pipeline events into Python signals/callbacks. Has no GTK widget imports.
+```
+musicstreamer/
+├── favorites_repo.py        — FavoritesRepo: DB CRUD for favorites table
+├── importers/
+│   ├── __init__.py
+│   ├── radio_browser.py     — RadioBrowserClient: DNS server discovery + REST search
+│   ├── audioaddict.py       — AudioAddictImporter: channel list + PLS fetch/parse
+│   └── youtube.py           — YouTubeImporter: yt-dlp extract_info, live filter
+└── ui/
+    ├── favorites_view.py    — FavoritesView: ListBox of favorited tracks + delete
+    ├── discovery_dialog.py  — DiscoveryDialog: Radio-Browser browse/search/play/save
+    └── import_dialog.py     — ImportDialog: AudioAddict + YouTube import (tabbed)
+```
 
-**Communicates with:**
-- `MainWindow` — receives play/stop commands
-- `NowPlayingBar` — emits `track_changed(artist: str, title: str)` callback
-- `CoverArtFetcher` — feeds (artist, title) pairs for lookup
+### Modified modules
 
-**Key implementation detail:** GStreamer TAG messages arrive on the GStreamer bus, not the GTK main loop. The correct pattern is:
+| Module | What changes |
+|--------|-------------|
+| `repo.py` | `db_init` migration adds `favorites` table. No method changes — favorites CRUD lives in `FavoritesRepo`. |
+| `models.py` | Add `Favorite` dataclass. `Station` unchanged. |
+| `cover_art.py` | Extend callback signature from `(path)` to `(path, genre_or_None)` so genre can be stored in favorites. |
+| `main_window.py` | Add: star button in now-playing panel; Stations/Favorites toggle; "Discover" and "Import" buttons; track `_current_icy_title`. |
+
+`station_row.py` and `edit_dialog.py` are untouched.
+
+## Component Responsibilities
+
+| Component | Responsibility | Communicates With |
+|-----------|---------------|-------------------|
+| `favorites_repo.py` | CRUD for `favorites` table (add, list, delete) | Shares `repo.con` — no separate connection |
+| `importers/radio_browser.py` | DNS-discover server, HTTP search/browse, map result to dict | `discovery_dialog.py` via callback |
+| `importers/audioaddict.py` | Fetch channel list JSON, fetch PLS per channel, parse 2-server URLs | `import_dialog.py` |
+| `importers/youtube.py` | Run yt-dlp `extract_info(flat)`, filter `is_live`, return station dicts | `import_dialog.py` |
+| `ui/favorites_view.py` | Render favorited tracks, inline delete button per row | `main_window.py` |
+| `ui/discovery_dialog.py` | Search UI, result list, Play preview, Save to library | `radio_browser.py`, `repo.py`, `player.py` (via callback) |
+| `ui/import_dialog.py` | Two-tab import UI, progress feedback, bulk station creation | `audioaddict.py`, `youtube.py`, `repo.py` |
+
+## Data Model Changes
+
+### New table: `favorites`
+
+```sql
+CREATE TABLE IF NOT EXISTS favorites (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  track_title   TEXT NOT NULL,
+  station_id    INTEGER,
+  station_name  TEXT NOT NULL,    -- denormalized: station may be deleted later
+  provider_name TEXT,             -- denormalized for same reason
+  itunes_genre  TEXT,             -- from iTunes API response if available
+  created_at    TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE SET NULL
+);
+```
+
+Denormalize `station_name` and `provider_name` at insert time. The station may be deleted after favoriting, but the user still needs display data. `station_id` remains as a nullable FK for potential cross-reference.
+
+### New model
 
 ```python
-bus = self.player.get_bus()
-bus.add_signal_watch()
-bus.connect("message::tag", self._on_tag_message)
-
-def _on_tag_message(self, bus, message):
-    taglist = message.parse_tag()
-    title = taglist.get_string("title")[1]      # ICY StreamTitle
-    artist = taglist.get_string("artist")[1]    # sometimes present
-    # GLib.idle_add ensures UI update runs on main thread
-    GLib.idle_add(self._notify_track_changed, artist, title)
+@dataclass
+class Favorite:
+    id: int
+    track_title: str
+    station_id: Optional[int]
+    station_name: str
+    provider_name: Optional[str]
+    itunes_genre: Optional[str]
+    created_at: str
 ```
-
-`bus.add_signal_watch()` routes bus messages into the GLib main loop, so `_on_tag_message` fires on the GTK main thread — no explicit threading needed for the TAG callback itself.
-
-Confidence: HIGH — this is the standard PyGObject GStreamer bus pattern; `message::tag` is documented signal syntax.
-
----
-
-### FilterBar (new widget)
-
-**Responsibility:** Owns filter state. Provides a `matches(station: Station) -> bool` method that `StationList` uses as its `set_filter_func` predicate. Emits a `filters_changed` signal (or calls a callback) when state updates.
-
-**Communicates with:**
-- `StationList` — pushes filter changes via callback
-- `Repo` — reads provider list once at construction to populate dropdown
-
-**Key implementation detail:** `Gtk.ListBox.set_filter_func(func, user_data)` is the correct GTK4 API. The function signature is `func(row, user_data) -> bool`. To re-evaluate, call `self.listbox.invalidate_filter()`. This does not reload data from SQLite — it only re-applies the predicate in-memory.
-
-```python
-def _filter_func(self, row, _data):
-    st = row.station   # Station object attached to row at build time
-    if self._provider_id and st.provider_id != self._provider_id:
-        return False
-    if self._tag and self._tag not in (st.tags or "").split(","):
-        return False
-    if self._search:
-        return self._search.lower() in st.name.lower()
-    return True
-```
-
-Tags are stored as comma-separated strings in the current schema. Splitting on `,` and stripping whitespace is sufficient for filtering at the 50–200 station scale. A junction table migration is correct long-term but not required for this milestone.
-
-Confidence: HIGH — `set_filter_func` / `invalidate_filter` are stable GTK4 ListBox APIs.
-
----
-
-### StationList (extracted from `MainWindow.reload_list`)
-
-**Responsibility:** Builds and owns the `Gtk.ListBox`. Attaches `Station` objects to rows at build time. Delegates filter decisions to `FilterBar`.
-
-**Communicates with:**
-- `Repo` — reads station list on `reload()`
-- `FilterBar` — registers as listener; calls `invalidate_filter()` on filter change
-- `MainWindow` — emits station activation events (row-activated)
-
-**Key implementation detail:** Attach the full `Station` dataclass to each `Gtk.ListBoxRow` as a Python attribute (the existing code already does `listrow.station_id = st.id`; extend this to `listrow.station = st` so the filter function can inspect all fields without a DB round-trip).
-
----
-
-### NowPlayingBar (new widget)
-
-**Responsibility:** Displays current track title and cover art. Purely reactive — only updated by incoming callbacks; owns no playback logic.
-
-**Communicates with:**
-- `Player` — receives `track_changed(artist, title)` callback
-- `CoverArtFetcher` — receives `cover_ready(pixbuf)` callback
-
-**Key implementation detail:** Use `Adw.ActionRow` or a custom `Gtk.Box` with a `Gtk.Picture` for the art and a `Gtk.Label` for the title. Keep a "loading" state (spinner or placeholder) between a track change and when cover art arrives.
-
----
-
-### CoverArtFetcher (new background service)
-
-**Responsibility:** Given (artist, title), return a cover art image. Runs HTTP requests off the GTK main thread. Delivers results safely back via `GLib.idle_add`.
-
-**Communicates with:**
-- `Player` / `NowPlayingBar` — triggered by `track_changed`, delivers `cover_ready`
-
-**Recommended API:** iTunes Search API — no key required, returns JSON with `artworkUrl100`.
-
-```
-GET https://itunes.apple.com/search?term={artist}+{title}&entity=song&limit=1
-→ results[0].artworkUrl100  (replace "100x100" with "600x600" in URL for higher res)
-```
-
-MusicBrainz is more complete but has stricter rate limits (1 req/sec) and requires a two-step lookup (search → release → cover art). iTunes Search is faster for the common case.
-
-**Threading pattern:**
-
-```python
-import threading
-
-def fetch(self, artist: str, title: str, on_ready):
-    def _worker():
-        pixbuf = self._do_http_fetch(artist, title)
-        if pixbuf:
-            GLib.idle_add(on_ready, pixbuf)
-    threading.Thread(target=_worker, daemon=True).start()
-```
-
-Use `urllib.request` or `requests` for the HTTP call. Do not use `GLib.idle_add` inside the worker except to deliver the final result — all GTK/GLib calls must be on the main thread.
-
-Confidence: MEDIUM — iTunes Search API behavior confirmed via training data and prior research; no official SLA. MusicBrainz rate limits documented at musicbrainz.org.
-
----
 
 ## Data Flow
 
-### ICY Metadata Flow
+### Favorites: star current ICY track
 
 ```
-GStreamer pipeline (audio thread)
-  → TAG bus message
-  → bus.add_signal_watch() routes to GLib main loop
-  → Player._on_tag_message() called on main thread
-  → Player calls track_changed_callback(artist, title)
-  → NowPlayingBar updates title label
-  → CoverArtFetcher.fetch(artist, title, on_ready=NowPlayingBar.set_cover)
-       └─ background thread: HTTP request to iTunes Search
-            └─ GLib.idle_add(NowPlayingBar.set_cover, pixbuf)  [back on main thread]
+ICY TAG arrives → Player._on_gst_tag → GLib.idle_add(_on_title, title)
+    ↓
+MainWindow._on_title(title):
+    - self._current_icy_title = title
+    - title_label.set_text(title)
+    - star_btn.set_sensitive(True)  [non-junk title]
+
+User clicks star button
+    ↓
+MainWindow._on_star():
+    - reads self._current_station, self._current_icy_title, self._last_itunes_genre
+    - FavoritesRepo.add_favorite(track_title, station, genre)
+    - star_btn.add_css_class("accent")  [filled appearance]
 ```
 
-### Filter Flow
+### Favorites: view and delete
 
 ```
-User changes FilterBar dropdown or search entry
-  → FilterBar updates internal state (_provider_id, _tag, _search)
-  → FilterBar calls registered callback
-  → StationList.invalidate_filter()
-  → GTK calls _filter_func(row, _) for each row
-  → _filter_func reads row.station (in-memory Station object)
-  → Rows show/hide without DB query
+User clicks "Favorites" toggle
+    ↓
+MainWindow._show_favorites_view():
+    - shell.set_content(favorites_scroller)   [same swap pattern as empty_page]
+    - FavoritesView.load() → FavoritesRepo.list_favorites()
+    - chip strip + search hidden/insensitive
+
+User clicks delete on a row
+    ↓ FavoritesRepo.delete_favorite(id) → FavoritesView.load()
+
+User clicks "Stations" toggle
+    ↓ shell.set_content(scroller) → chip strip re-enabled
 ```
 
-### Playback Flow (unchanged core, but Player is now a separate object)
+### Radio-Browser: browse, play preview, save
 
 ```
-User activates StationList row
-  → MainWindow._play_station(station)
-  → Player.play(station)
-       ├─ YouTube: yt-dlp resolution (background thread) → Player.set_uri()
-       └─ Direct URL: Player.set_uri() immediately
-  → Player sets GStreamer state PLAYING
-  → TAG messages flow once stream connects (see ICY metadata flow above)
+User clicks "Discover" button
+    ↓
+DiscoveryDialog.present()
+    ↓ on first show: daemon thread → RadioBrowserClient.get_server()
+      DNS: all.api.radio-browser.info → random server URL
+    ↓ GLib.idle_add → enable search entry
+
+User types query or selects tag
+    ↓ daemon thread:
+      GET https://{server}/json/stations/search
+          ?name={q}&limit=50&hidebroken=true&order=votes
+    ↓ GLib.idle_add → populate result ListBox (Adw.ActionRow per result)
+
+User clicks Play on result
+    ↓ construct throwaway Station(id=-1, name=..., url=...)
+    ↓ Player.play(transient_station)  [no DB write; guard update_last_played against id<0]
+
+User clicks Save
+    ↓ Repo.create_station() + Repo.update_station() with result fields
+    ↓ GLib.idle_add → show "Saved" toast; Save button becomes "Saved" (greyed)
+    ↓ on dialog close → MainWindow.reload_list()
 ```
 
----
+### AudioAddict import
 
-## Module Boundaries for File Split
+```
+User opens Import dialog → AudioAddict tab → enters API key → clicks Fetch Channels
+    ↓ daemon thread:
+      GET https://api.audioaddict.com/v1/di/channels
+      GET https://api.audioaddict.com/v1/radiotunes/channels
+      GET https://api.audioaddict.com/v1/jazzradio/channels
+      GET https://api.audioaddict.com/v1/rockradio/channels
+    ↓ GLib.idle_add → populate channel checklist
 
-When splitting `main.py`, the natural module boundaries are:
+User selects quality (hi/med/low) → selects channels → clicks Import
+    ↓ daemon thread:
+      for each selected channel:
+        GET http://listen.di.fm/premium_{quality}/{slug}.pls?api_key={key}
+        parse .pls → extract File1= (primary), File2= (failover)
+        append both URLs; primary used as station URL
+      Repo.upsert_station({name, url, provider, tags})
+    ↓ GLib.idle_add → progress bar increment
+    ↓ on complete → MainWindow.reload_list()
+```
 
-| Module | Contents | Depends On |
-|--------|----------|------------|
-| `models.py` | `Station`, `Provider` dataclasses | nothing |
-| `repo.py` | `Repo` class, `db_connect`, `db_init` | `models.py`, `sqlite3` |
-| `assets.py` | `copy_asset_for_station`, `ensure_dirs` | `models.py`, `os`, `shutil` |
-| `player.py` | `Player` class, GStreamer pipeline, TAG bus | `models.py`, `gi.Gst`, `GLib`, `threading` |
-| `cover_art.py` | `CoverArtFetcher` | `urllib`, `threading`, `GLib` |
-| `ui/filter_bar.py` | `FilterBar` widget | `models.py`, `gi.Gtk` |
-| `ui/station_list.py` | `StationList` widget | `models.py`, `repo.py`, `gi.Gtk` |
-| `ui/now_playing.py` | `NowPlayingBar` widget | `gi.Gtk`, `gi.Adw` |
-| `ui/main_window.py` | `MainWindow` | all ui/ modules, `player.py` |
-| `ui/edit_dialog.py` | `EditStationDialog` | `repo.py`, `assets.py`, `gi.Gtk` |
-| `app.py` | `App` entry point | `repo.py`, `ui/main_window.py` |
+### YouTube playlist import
 
-This split is additive — `main.py` can be migrated incrementally. Nothing in the existing architecture requires a rewrite; the changes are extraction and wiring.
+```
+User opens Import dialog → YouTube tab → pastes playlist URL → clicks Import
+    ↓ daemon thread:
+      yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True})
+        .extract_info(url, download=False)
+      filter entries: is_live == True OR live_status == 'is_live'
+    ↓ GLib.idle_add → show found count
+    ↓ for each live entry:
+      Repo.create_station() + Repo.update_station({name, url, provider='YouTube'})
+    ↓ on complete → MainWindow.reload_list()
+```
 
----
+## Cross-Thread Pattern
 
-## Suggested Build Order
+All new network operations extend the established pattern from `cover_art.py`:
 
-Dependencies determine this order. Each step is independently testable before the next begins.
+```python
+def _on_some_action(self):
+    def _worker():
+        result = blocking_network_call()
+        GLib.idle_add(self._update_ui, result)
+    threading.Thread(target=_worker, daemon=True).start()
+```
 
-**Step 1: Module extraction (no new features)**
-- Extract `models.py`, `repo.py`, `assets.py` — pure logic, no GTK, unit-testable
-- Verify app still runs with imports rewired
+No new threading primitives needed. Radio-Browser search, AudioAddict fetch, and YouTube import all use this exact pattern. For multi-step imports with progress, `GLib.idle_add` is called once per station inserted.
 
-**Step 2: Player extraction + GStreamer bus**
-- Extract `Player` class to `player.py`
-- Wire `bus.add_signal_watch()` + `message::tag` handler
-- Emit `track_changed` callback when TAG arrives
-- Update `now_label` in `MainWindow` from callback (existing behavior, now wired correctly)
+## UI Integration Points in `main_window.py`
 
-**Step 3: Filtering**
-- Extract `StationList` with `station` object attached to each row
-- Add `FilterBar` widget with provider + tag dropdowns + search entry
-- Wire `set_filter_func` / `invalidate_filter` loop
-- Requires Step 1 (Station in-memory) but not Step 2
+### 1. Star button in now-playing panel
 
-**Step 4: Cover art fetching**
-- Add `CoverArtFetcher` with iTunes Search API
-- Add `NowPlayingBar` widget with art + title
-- Wire `Player.track_changed` → `CoverArtFetcher.fetch` → `NowPlayingBar.set_cover`
-- Requires Step 2 (Player emitting track_changed)
+Add `Gtk.Button` with `starred-symbolic` icon to the center column of the now-playing panel (between track title label and stop button). Sensitive only when `self._current_icy_title` is set and non-junk. `_on_title` callback must store `self._current_icy_title = title` on each call.
 
-Steps 3 and 4 are independent of each other and can be built in parallel if needed.
+### 2. Stations / Favorites toggle
 
----
+Add two `Gtk.ToggleButton` forming a `Gtk.ToggleGroup` (or exclusive manual wiring) in the filter bar. "Stations" active by default. Switching to "Favorites" calls `shell.set_content(favorites_scroller)` and hides the chip strip. Switching back restores `shell.set_content(scroller)`.
+
+### 3. Discover and Import buttons in toolbar
+
+Append to `filter_box` alongside Add Station / Edit. "Discover" → `DiscoveryDialog.present()`; "Import" → `ImportDialog.present()`. Keep `set_hexpand(False)`.
+
+### 4. Genre capture from cover_art.py
+
+`_on_cover_art` in `main_window.py` currently discards the iTunes response after extracting artwork URL. Change `cover_art.py::_worker` to also parse `primaryGenreName` from the JSON result. Change callback signature to `callback(path_or_None, genre_or_None)`. Store genre as `self._last_itunes_genre` for use when the user stars a track.
+
+## Module Boundary Rules
+
+- `importers/*` modules have zero GTK imports. They return plain Python dicts/lists. All `GLib.idle_add` wiring lives in the dialog layer.
+- `FavoritesRepo` shares `repo.con`. Construct as `FavoritesRepo(repo.con)` in `MainWindow.__init__`. Do NOT open a second SQLite connection.
+- `DiscoveryDialog` receives a `Repo` reference and calls `repo.create_station()` + `repo.update_station()` on save. It does not have its own repo.
+- Transient (unsaved) Radio-Browser playback uses `Station(id=-1, ...)`. Guard `Repo.update_last_played` and `_refresh_recently_played` against `station.id < 0`.
+
+## Recommended Build Order
+
+```
+Phase A: Favorites (DB + UI)
+  Dependencies: none
+  1. models.py: add Favorite dataclass
+  2. repo.py: db_init migration (favorites table)
+  3. favorites_repo.py: add_favorite, list_favorites, delete_favorite
+  4. cover_art.py: extend callback to (path, genre_or_None)
+  5. ui/favorites_view.py: FavoritesView widget
+  6. main_window.py: _current_icy_title tracking, star button,
+     Stations/Favorites toggle, wire FavoritesRepo
+
+Phase B: Radio-Browser Discovery
+  Dependencies: none (independent of Phase A)
+  1. importers/radio_browser.py: RadioBrowserClient
+  2. ui/discovery_dialog.py: DiscoveryDialog
+  3. main_window.py: Discover button
+
+Phase C: AudioAddict Import
+  Dependencies: Phase B (shares ImportDialog shell; or standalone if dialog is separate)
+  1. importers/audioaddict.py: AudioAddictImporter
+  2. ui/import_dialog.py: ImportDialog with AudioAddict tab
+  3. main_window.py: Import button
+
+Phase D: YouTube Playlist Import
+  Dependencies: Phase C (adds tab to existing ImportDialog)
+  1. importers/youtube.py: YouTubeImporter
+  2. ui/import_dialog.py: add YouTube tab
+```
+
+Phases A and B are fully independent. If parallelizing work, those are the natural split. C and D must be sequential since they share `ImportDialog`.
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Fetching Cover Art on the GTK Main Thread
+### Separate SQLite connection per feature
 
-**What:** Calling `urllib.request.urlopen()` or `requests.get()` directly in a GTK signal handler or `GLib.idle_add` callback.
+RadioBrowserClient, AudioAddictImporter, or FavoritesRepo opening their own `sqlite3.connect(DB_PATH)` creates write-lock contention when the main Repo is mid-transaction. Share `repo.con` by passing it at construction.
 
-**Why bad:** HTTP calls can take 200ms–5s. GTK main loop is single-threaded. Any blocking call freezes the entire UI including audio controls and the filter bar.
+### Blocking the GTK main thread with network calls
 
-**Instead:** Always run HTTP in `threading.Thread(daemon=True)`, deliver result back via `GLib.idle_add(callback, result)`.
+Any `urllib.request.urlopen`, `yt_dlp.YoutubeDL().extract_info`, or PLS fetch that runs synchronously in a GTK signal handler will freeze the UI. All network calls go to daemon threads.
 
----
+### Inserting a DB row just to preview a Radio-Browser station
 
-### Anti-Pattern 2: Calling `reload_list()` on Every Filter Change
+Playback requires a `Station` object but not a saved DB row. Construct `Station(id=-1, name=..., url=..., provider_id=None, provider_name=None, tags='', station_art_path=None, album_fallback_path=None)` for transient playback. Guard `update_last_played` and `_refresh_recently_played` against `id < 0`.
 
-**What:** Re-querying SQLite and rebuilding all `Gtk.ListBoxRow` widgets every time the user types a character in the search box.
+### Storing only station_id in favorites
 
-**Why bad:** Rebuilding the list destroys and recreates every widget — this is expensive at 200 stations and causes visible flicker. It also makes smooth incremental search impossible.
+Station can be deleted after favoriting. Denormalize `station_name` and `provider_name` into the `favorites` row at insert time.
 
-**Instead:** Build the list once (or on station edits only). Use `Gtk.ListBox.set_filter_func` + `invalidate_filter()` which re-evaluates the predicate in-memory without touching the DOM.
+### Calling `reload_list()` after every individual imported station
 
----
+Bulk imports (AudioAddict can bring in 30+ channels) should batch all `Repo` writes first, then call `reload_list()` once at the end. Call `GLib.idle_add` with a progress callback per station, but defer the list rebuild until the thread finishes.
 
-### Anti-Pattern 3: Polling GStreamer for TAG Messages
+## Integration Points
 
-**What:** Using `GLib.timeout_add` to periodically query `player.get_bus().poll()` for new TAG messages.
+### External Services
 
-**Why bad:** Introduces latency proportional to poll interval. Misses rapid message bursts. `bus.add_signal_watch()` already integrates the GStreamer bus into the GLib main loop — polling is unnecessary.
+| Service | Integration Pattern | Key Fields |
+|---------|---------------------|------------|
+| Radio-Browser.info | DNS `all.api.radio-browser.info` → random server → `GET /json/stations/search?name=&limit=50&hidebroken=true` | `name`, `url`, `favicon`, `tags`, `country`, `bitrate`, `codec`, `votes` |
+| AudioAddict channel API | `GET https://api.audioaddict.com/v1/{network}/channels` → JSON array | `key` (slug), `name`, `description` |
+| AudioAddict PLS | `GET http://listen.di.fm/premium_{quality}/{slug}.pls?api_key={key}` | `File1=` primary URL, `File2=` failover |
+| yt-dlp Python API | `YoutubeDL({'extract_flat': True}).extract_info(url, download=False)` | `entries[].is_live`, `entries[].url`, `entries[].title` |
+| iTunes Search API | Existing `cover_art.py` — extend to parse `primaryGenreName` | `primaryGenreName` alongside `artworkUrl100` |
 
-**Instead:** Use `bus.add_signal_watch()` + `bus.connect("message::tag", handler)`.
+### Internal Boundaries
 
----
-
-### Anti-Pattern 4: Fetching Cover Art on Every TAG Message
-
-**What:** Launching an HTTP request for every ICY TAG message received.
-
-**Why bad:** ICY streams send TAG messages every 8–32 KB of audio (i.e., every few seconds). Unthrottled fetching will hammer the iTunes API and create a backlog of inflight requests.
-
-**Instead:** Cache the last (artist, title) pair. Only fetch when the pair changes. Cancel or ignore in-flight requests if the track changes again before the previous fetch completes.
-
----
-
-## Scalability Considerations
-
-These features are designed for 50–200 stations. Scaling implications are minimal:
-
-| Concern | At 50–200 stations | At 1000+ stations |
-|---------|-------------------|-------------------|
-| Filter performance | `invalidate_filter` over in-memory rows is instantaneous | Still fine; GTK row recycling handles long lists |
-| Cover art cache | One image in memory at a time; no cache needed | Add an LRU cache of ~20 images if browsing history matters |
-| ICY metadata | One active stream; one TAG listener | No change; per-stream not per-station |
-| iTunes Search | ~1 request per track change; well within rate limits | Rate limit concern only if batch-fetching many stations |
-
----
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `main_window` ↔ `FavoritesRepo` | Direct call, GTK main thread | Share `repo.con` |
+| `main_window` ↔ importer dialogs | Callback on completion (`reload_list`) | Dialog owns thread lifecycle |
+| `discovery_dialog` ↔ `radio_browser` | daemon thread + `GLib.idle_add` | Dialog drives search; client is stateless |
+| `import_dialog` ↔ `audioaddict`/`youtube` | daemon thread + `GLib.idle_add` progress | Dialog shows `Gtk.ProgressBar` |
+| `cover_art` ↔ `main_window` | callback `(path, genre)` from daemon thread | Existing pattern extended |
 
 ## Sources
 
-- GTK4 `Gtk.ListBox.set_filter_func` / `invalidate_filter`: GTK4 API documentation — HIGH confidence
-- GStreamer bus `add_signal_watch` + `message::tag` signal pattern: GStreamer Python tutorials, PyGObject docs — HIGH confidence
-- ICY metadata via GStreamer TAG messages: established pattern in GStreamer-based radio players — HIGH confidence
-- iTunes Search API (no key, `artworkUrl100`): publicly documented at developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/iTuneSearchAPI — MEDIUM confidence (no official SLA; treat as best-effort)
-- MusicBrainz rate limits (1 req/sec): musicbrainz.org/doc/MusicBrainz_API — HIGH confidence
-- `GLib.idle_add` for cross-thread GTK updates: PyGObject documentation — HIGH confidence
+- Existing codebase `musicstreamer/` — PRIMARY, HIGH confidence
+- Radio-Browser.info REST API — stable public API, DNS-based server discovery pattern is standard across open-source radio clients; HIGH confidence
+- AudioAddict PLS URL pattern: `http://listen.di.fm/premium_{quality}/{slug}.pls?api_key={key}` — MEDIUM confidence; verify at implementation time whether auth is query param or header
+- yt-dlp Python API `extract_flat=True` + `is_live` field — HIGH confidence; stable feature in current yt-dlp
+- GTK4 `GLib.idle_add` cross-thread pattern — HIGH confidence; proven in existing code
+- iTunes `primaryGenreName` field — MEDIUM confidence; present in most results but not guaranteed
+
+---
+*Architecture research for: MusicStreamer v1.3 Discovery & Favorites*
+*Researched: 2026-03-27*

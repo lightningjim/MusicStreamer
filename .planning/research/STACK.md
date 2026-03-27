@@ -1,233 +1,234 @@
 # Technology Stack
 
-**Project:** MusicStreamer — milestone additions
-**Researched:** 2026-03-18
-**Scope:** Three specific additions to an existing GTK4/Libadwaita/Python/GStreamer app:
-  1. ICY metadata reading from mp3/aac streams
-  2. Cover art lookup from track metadata
-  3. Filtering/search UI in GTK4/Libadwaita
+**Project:** MusicStreamer v1.3 — Discovery & Favorites additions
+**Researched:** 2026-03-27
+**Scope:** New capabilities only. Existing stack (GTK4/Libadwaita, GStreamer, SQLite, yt-dlp, urllib, threading/GLib.idle_add) is validated and unchanged.
 
 ---
 
 ## Existing Stack (Do Not Change)
 
-| Technology | Version | Role |
-|------------|---------|------|
-| Python | 3.x | Application language |
-| GTK | 4.0 | GUI framework |
-| Libadwaita (Adw) | 1 | GNOME design widgets |
-| GStreamer | 1.0 (`playbin`) | Streaming playback engine |
-| PyGObject (`gi`) | system | GObject introspection bindings |
-| SQLite3 | built-in | Persistence |
-| yt-dlp | latest | YouTube URL resolution |
-
-All of the above are already in place. No changes to these are needed or recommended.
+| Technology | Role |
+|------------|------|
+| Python 3.x | Application language |
+| GTK 4.0 / Libadwaita 1 | GUI framework |
+| GStreamer 1.0 (`playbin`) | Streaming playback |
+| PyGObject (`gi`) | GObject introspection bindings |
+| SQLite3 (stdlib) | Persistence |
+| yt-dlp (latest) | YouTube URL resolution |
+| urllib (stdlib) | HTTP GET (iTunes API) |
+| threading + GLib.idle_add | Cross-thread UI dispatch |
 
 ---
 
-## New Stack: ICY Metadata
+## New Stack: Radio-Browser.info Integration
 
-### Approach: GStreamer Bus Watch + TAG Message Handling
+### Approach: Direct REST API via urllib (no new library)
 
-**No new libraries required.** ICY metadata from ShoutCast/Icecast mp3/aac streams is delivered by GStreamer's `icydemux` element (auto-inserted by `playbin` when the stream is detected as ICY) as `Gst.MessageType.TAG` messages on the pipeline bus.
+Radio-Browser.info exposes a public JSON REST API with no authentication required. The API is accessed via one of several mirror servers; the recommended approach is DNS-based server discovery.
 
-| Component | Version | Purpose | Why |
-|-----------|---------|---------|-----|
-| `Gst.Bus.add_watch()` | GStreamer 1.0 (existing) | Poll bus messages on GLib main loop | Integrates with GTK main loop; no threading needed |
-| `Gst.Message.parse_tag()` | GStreamer 1.0 (existing) | Extract TagList from a TAG message | Standard GStreamer API for reading stream tags |
-| `Gst.TagList.get_string()` | GStreamer 1.0 (existing) | Read individual tag values | Returns `(success: bool, value: str)` tuple |
+**No new libraries required.** `urllib.request` already handles JSON GETs.
 
-**Tag constants to use (GStreamer standard tag names):**
+| Component | Purpose | Notes |
+|-----------|---------|-------|
+| `urllib.request` (stdlib) | All API calls | Already used for iTunes; identical pattern |
+| DNS lookup for server selection | Discover mirror: `all.api.radio-browser.info` → picks a live server | Use `socket.getaddrinfo("all.api.radio-browser.info", 80)` or hardcode `de1.api.radio-browser.info` for simplicity |
 
-| Constant | String value | Maps to ICY field |
-|----------|-------------|-------------------|
-| `Gst.TAG_TITLE` | `"title"` | Stream title (often "Artist - Title" from Icecast) |
-| `Gst.TAG_ARTIST` | `"artist"` | Artist name (when split by demuxer) |
-| `Gst.TAG_ALBUM` | `"album"` | Album name |
-| `Gst.TAG_ORGANIZATION` | `"organization"` | Station name (ICY name field) |
+**Endpoints used:**
 
-**Implementation pattern:**
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /json/stations/search?name={q}&limit=50&order=votes&reverse=true` | Browse/search stations |
+| `GET /json/stations/byuuid/{uuid}` | Single station lookup (for save-to-library) |
+| `POST /json/url/{stationuuid}` | Click counter (optional — community courtesy) |
 
-```python
-# In _play_station(), after setting pipeline to PLAYING:
-bus = self.player.get_bus()
-bus.add_watch(GLib.PRIORITY_DEFAULT, self._on_bus_message)
+**Response fields needed per station:**
 
-def _on_bus_message(self, bus, message):
-    if message.type == Gst.MessageType.TAG:
-        taglist = message.parse_tag()
-        ok, title = taglist.get_string(Gst.TAG_TITLE)
-        if ok and title:
-            # title is often "Artist - Title" for ICY streams
-            GLib.idle_add(self._update_now_playing, title)
-    elif message.type == Gst.MessageType.ERROR:
-        err, _ = message.parse_error()
-        GLib.idle_add(self._handle_error, err)
-    return True  # keep watch active
-```
+| Field | Maps to |
+|-------|---------|
+| `stationuuid` | External ID (store for dedup) |
+| `name` | Station name |
+| `url_resolved` | Actual stream URL (prefer over `url`) |
+| `favicon` | Station art URL (download + save to assets) |
+| `tags` | Comma-separated genre tags |
+| `country` | Optional context |
+| `votes` | Sort order for results |
 
-**ICY stream specifics:** ShoutCast/Icecast streams deliver the `StreamTitle` metadata field. `icydemux` maps this to `GST_TAG_TITLE`. The value is typically the raw "Artist - Title" string without splitting. `Gst.TAG_ARTIST` may be empty for many stations — plan for title-only parsing.
+**Base URL:** `https://de1.api.radio-browser.info` (hardcode this mirror; it's a primary EU server, reliable). No auth headers needed. Set `User-Agent: MusicStreamer/1.3` as a courtesy.
 
-**Confidence:** HIGH — GStreamer TAG messages are a stable, well-documented API. `playbin` + `icydemux` auto-negotiation for ICY streams is the canonical approach. The bus watch pattern integrates cleanly with the existing `playbin` in `main.py`.
+**Rate limits:** No documented hard limit; pagination recommended for large queries. `limit=50` per page is sufficient for interactive browse.
+
+**Confidence:** HIGH — Radio-Browser.info is a well-established community API (active since ~2015), JSON endpoints and field names are stable and widely used by open source radio players (Rhythmbox plugin, etc.). `url_resolved` over `url` is the documented recommendation for direct playback.
 
 **What NOT to use:**
-- Do not poll `get_state()` in a timer loop to detect metadata changes — wasteful
-- Do not use `Gst.Bus.pop()` in a manual loop — misses messages and blocks the main thread
-- Do not attempt to parse raw HTTP headers for ICY metadata manually — unnecessary, GStreamer handles it
+- `pyradios` pip package — thin wrapper around the same API; adds a dependency for zero benefit when urllib is already in use
+- `url` field directly — may be a redirect or PLS URL; `url_resolved` is the pre-resolved direct stream URL
 
 ---
 
-## New Stack: Cover Art Lookup
+## New Stack: AudioAddict Import
 
-### Approach: iTunes Search API (primary) + MusicBrainz CAA (fallback, optional)
+### Approach: Unofficial REST API + PLS parsing (stdlib only)
 
-**No new libraries beyond `urllib` (stdlib).** Both APIs are free and require no API keys. HTTP requests must be dispatched off the GTK main thread using `threading.Thread` + `GLib.idle_add` for UI updates.
+AudioAddict exposes an unofficial but stable REST API used by their own web/mobile clients. The API key from the user's DI.fm account authenticates channel access; stream URLs follow a documented pattern.
 
-### Primary: iTunes Search API
+**No new libraries required.** urllib handles the API calls; PLS is a simple INI-like text format parseable with `configparser` (stdlib) or plain string splitting.
 
-| Component | Purpose | Why |
-|-----------|---------|-----|
-| `https://itunes.apple.com/search` | Artwork URL lookup by artist+title | Free, no key, returns `artworkUrl100` directly in JSON, well-suited to track-level queries |
-| `urllib.request` (stdlib) | HTTP GET | No extra dependency; sufficient for simple JSON fetches |
-| `threading.Thread` (stdlib) | Off-thread HTTP | Keep GTK main loop unblocked |
-| `GLib.idle_add()` | Marshal result back to UI thread | Required for GTK widget updates from threads |
-| `urllib.parse.urlencode` (stdlib) | Build query string | Encode "Artist - Title" term |
+| Component | Purpose | Notes |
+|-----------|---------|-------|
+| `urllib.request` (stdlib) | Fetch channel list JSON | Same pattern as iTunes/Radio-Browser calls |
+| `configparser` (stdlib) | Parse `.pls` playlist files | PLS is INI-format; `configparser.RawConfigParser` reads it cleanly |
 
-**Query pattern:**
+**API endpoints:**
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET https://api.audioaddict.com/v1/{network}/channels` | Full channel list for a property |
+| `GET https://listen.di.fm/premium_{quality}/{channel_key}?{api_key}` | Direct stream URL pattern |
+
+**Network identifiers:**
+
+| Property | Network value |
+|----------|--------------|
+| DI.fm | `di` |
+| ZenRadio | `zen` |
+| JazzRadio | `jazzradio` |
+| RockRadio | `rockradio` |
+
+**Quality suffixes:**
+
+| Quality | Suffix | Bitrate |
+|---------|--------|---------|
+| High | `_hi` | 320 kbps mp3 |
+| Medium | `_premium` | 128 kbps aac |
+| Low | `_premium_low` | 64 kbps aac |
+
+**Channel list response fields needed:**
+
+| Field | Maps to |
+|-------|---------|
+| `key` | Stream slug (used in URL construction) |
+| `name` | Station display name |
+| `images.default` | Station art URL |
+| `description` | Optional — can populate as tag |
+
+**Stream URL construction (no PLS needed):**
 ```
-GET https://itunes.apple.com/search?term={artist}+{title}&media=music&entity=musicTrack&limit=1
+https://listen.di.fm/premium_{quality}/{channel_key}?{api_key}
 ```
-Response field: `results[0].artworkUrl100` — replace `100x100` with `600x600` for better resolution:
-`artworkUrl100.replace("100x100", "600x600")`
+This is a direct stream URL GStreamer can play. PLS files are the alternative (dual-server failover) but constructing direct URLs is simpler and sufficient.
 
-**Rate limit:** ~20 requests/minute (confirmed from official Apple docs). For this app's use case (one lookup per track change on a stream), this is never a concern.
+**API key storage:** Store as a plain string in the `settings` table (key: `audioaddict_api_key`). The existing `settings` table in `repo.py` handles this.
 
-**Confidence:** HIGH — API behavior and `artworkUrl100` field confirmed via official Apple iTunes Search API documentation (no key required, ~20 calls/min limit).
-
-### Fallback: MusicBrainz Cover Art Archive
-
-Use only if iTunes returns no results (e.g., for obscure artists or stations with unusual metadata).
-
-| Component | Purpose | Why |
-|-----------|---------|-----|
-| `https://musicbrainz.org/ws/2/recording/` | Recording search by artist+title | Returns release MBIDs needed for CAA lookup |
-| `https://coverartarchive.org/release/{mbid}/front` | Cover art image | Free, no key, redirects to actual image file |
-
-**Two-step lookup:**
-1. `GET https://musicbrainz.org/ws/2/recording/?query=recording:"{title}" AND artist:"{artist}"&fmt=json` → extract `releases[0].id`
-2. `GET https://coverartarchive.org/release/{mbid}/front-250` → image bytes
-
-**Rate limit:** MusicBrainz requires 1 request/second and a descriptive `User-Agent` header (e.g., `MusicStreamer/1.0 (user@host)`). Violating this causes 503 throttling.
-
-**Confidence:** MEDIUM — MusicBrainz API structure is well-established but the query syntax details (Lucene query format, field names) rely on training data knowledge rather than verified docs in this session.
+**Confidence:** MEDIUM — AudioAddict's API is unofficial/reverse-engineered. The channel list endpoint and stream URL pattern are well-documented in community projects (e.g., `https://github.com/DannyBen/audio_addict`, confirmed in project memory). Endpoint stability is not guaranteed by AudioAddict but has been stable for years. The `api.audioaddict.com/v1/{network}/channels` pattern is confirmed by multiple community implementations.
 
 **What NOT to use:**
-- `requests` library — unnecessary added dependency; `urllib` covers this completely
-- Last.fm API — requires an API key
-- Spotify API — requires OAuth, not suitable for a no-auth desktop app
-- Deezer API — technically keyless but less reliable artwork coverage and undocumented rate limits
-- `musicbrainzngs` Python library — correct tool for heavy MusicBrainz use, but overkill for two endpoints; adds a pip dependency when urllib suffices
+- PLS parsing as primary approach — direct URL construction is simpler and equivalent for single-stream use; PLS dual-server failover is unnecessary complexity for this app
+- `mutagen` or audio metadata libs — not needed; we're constructing URLs, not reading files
+- Storing the API key in a dotfile or separate config — `settings` table already exists and handles persistence
 
 ---
 
-## New Stack: Filtering and Search UI
+## New Stack: YouTube Playlist Import
 
-### Approach: GTK4 native filter widgets + ListBox.set_filter_func
+### Approach: yt-dlp (already installed) — flat playlist extraction
 
-**No new libraries required.** All needed widgets are in GTK 4.0 and Libadwaita 1.
+yt-dlp handles YouTube playlist extraction natively. No new library needed.
 
-| Component | Version | Purpose | Why |
-|-----------|---------|---------|-----|
-| `Gtk.SearchBar` | GTK 4.0 | Collapsible search bar container | Standard GTK4 pattern for search toggle; handles Escape key dismissal automatically |
-| `Gtk.SearchEntry` | GTK 4.0 | Text input with search icon and clear button | Emits `search-changed` signal on debounced input; `activate` for Enter key |
-| `Gtk.DropDown` | GTK 4.0 | Provider filter dropdown | GTK4's replacement for `Gtk.ComboBoxText`; uses `Gtk.StringList` as model |
-| `Gtk.StringList` | GTK 4.0 | Model for DropDown options | Simple string list model, no boilerplate |
-| `Gtk.ListBox.set_filter_func()` | GTK 4.0 | Row visibility predicate | Efficient — GTK calls it per-row on `invalidate_filter()`; no manual row management |
-| `Gtk.ListBox.invalidate_filter()` | GTK 4.0 | Trigger re-evaluation of all rows | Call this whenever filter state changes |
+| Component | Purpose | Notes |
+|-----------|---------|-------|
+| `yt-dlp` (existing) | Extract playlist entries as flat list | Already used for single video URL resolution |
+| `threading.Thread` (stdlib) | Run yt-dlp off GTK main thread | Same pattern as YT thumbnail fetch in v1.1 |
 
-**Implementation pattern:**
+**yt-dlp invocation for playlist:**
 
 ```python
-# Filter state on MainWindow
-self._search_text = ""
-self._active_provider = None  # None = "All"
-self._active_tag = None       # None = "All"
+import yt_dlp
 
-# Connect signals
-self.search_entry.connect("search-changed", self._on_search_changed)
-self.provider_dropdown.connect("notify::selected-item", self._on_provider_changed)
-self.tag_dropdown.connect("notify::selected-item", self._on_tag_changed)
-
-# Register filter function once
-self.listbox.set_filter_func(self._filter_row)
-
-def _filter_row(self, row) -> bool:
-    st = row.station  # attach Station dataclass to row at build time
-    if self._search_text and self._search_text not in st.name.lower():
-        return False
-    if self._active_provider and st.provider_name != self._active_provider:
-        return False
-    if self._active_tag and self._active_tag not in (st.tags or "").split(","):
-        return False
-    return True
-
-def _on_search_changed(self, entry):
-    self._search_text = entry.get_text().lower().strip()
-    self.listbox.invalidate_filter()
+opts = {
+    "quiet": True,
+    "extract_flat": True,   # don't resolve each entry — just get metadata
+    "playlist_items": "1-50",  # limit to first 50 entries
+}
+with yt_dlp.YoutubeDL(opts) as ydl:
+    info = ydl.extract_info(playlist_url, download=False)
+    entries = info.get("entries", [])
 ```
 
-**SearchBar toggle pattern (standard GNOME pattern):**
-```python
-search_btn = Gtk.ToggleButton(icon_name="system-search-symbolic")
-search_bar = Gtk.SearchBar()
-search_bar.connect_entry(self.search_entry)
-search_bar.bind_property("search-mode-enabled", search_btn, "active",
-                          GObject.BindingFlags.BIDIRECTIONAL)
-```
+**Fields per entry (from `extract_flat`):**
 
-**DropDown construction:**
-```python
-providers = ["All"] + [p.name for p in self.repo.list_providers()]
-model = Gtk.StringList.new(providers)
-dropdown = Gtk.DropDown(model=model)
-```
+| Field | Maps to |
+|-------|---------|
+| `url` | YouTube video URL (use as station URL — yt-dlp resolves at play time) |
+| `title` | Station name |
+| `thumbnails[-1].url` | Station art (download async, same pattern as single-station YT thumbnail) |
 
-**Confidence:** HIGH — `Gtk.ListBox.set_filter_func`, `Gtk.SearchBar`, `Gtk.SearchEntry`, and `Gtk.DropDown` are stable GTK 4.0 APIs. `Gtk.DropDown` replaced `Gtk.ComboBox`/`Gtk.ComboBoxText` in GTK4 — this is the correct current widget. The filter_func pattern is the canonical GTK4 approach for in-memory list filtering.
+**Filtering entries:** `extract_flat` returns all playlist items including non-live videos. Filter by `entry.get("live_status") == "is_live"` or accept all and let the player handle non-live entries gracefully (current behavior).
+
+**Confidence:** HIGH — `extract_flat=True` is the documented yt-dlp option for playlist metadata without full resolution. The existing codebase already imports `yt_dlp` and uses the same `YoutubeDL` context manager pattern. This is a direct extension of existing usage.
 
 **What NOT to use:**
-- `Gtk.ComboBox` or `Gtk.ComboBoxText` — deprecated in GTK4, use `Gtk.DropDown`
-- `Gtk.SearchBar.connect_entry()` with a plain `Gtk.Entry` — use `Gtk.SearchEntry` specifically (adds search icon, clear button, and correct signal semantics)
-- Manual show/hide of rows by calling `row.set_visible(False)` — fragile, breaks when reloading the list; `set_filter_func` is authoritative
-- `Adw.SearchBar` — there is no such widget in Libadwaita 1; `Gtk.SearchBar` is the correct widget even in Adwaita-styled apps
+- YouTube Data API v3 — requires an API key and quota management; yt-dlp achieves the same result without credentials
+- `pytube` — separate library, unnecessary when yt-dlp is already present and more capable
 
 ---
 
-## Threading Model for Network Calls
+## New Stack: Favorites DB Schema
 
-Cover art lookups are the only network calls not handled by GStreamer. These must be off-thread.
+### Approach: New `favorites` table in existing SQLite DB
 
-| Component | Purpose | Why |
-|-----------|---------|-----|
-| `threading.Thread` (stdlib) | Run HTTP fetch off GTK main thread | GTK main loop blocks on synchronous I/O |
-| `GLib.idle_add(callback, data)` | Marshal UI update back to main thread | Only safe way to update GTK widgets from a non-main thread |
-| In-memory cache (`dict`) | Avoid redundant lookups for the same artist+title | ICY metadata fires repeatedly; cache prevents API hammering |
+No new library. Schema addition via `ALTER TABLE` / `CREATE TABLE IF NOT EXISTS` pattern already established in `db_init()`.
 
-**Pattern:**
-```python
-self._art_cache: dict[str, Optional[str]] = {}  # "Artist - Title" -> image URL or None
+**New table:**
 
-def _fetch_art_async(self, track_title: str):
-    if track_title in self._art_cache:
-        GLib.idle_add(self._set_cover_art, self._art_cache[track_title])
-        return
-    def worker():
-        url = self._lookup_art_url(track_title)  # blocking HTTP
-        self._art_cache[track_title] = url
-        GLib.idle_add(self._set_cover_art, url)
-    threading.Thread(target=worker, daemon=True).start()
+```sql
+CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    track_title TEXT NOT NULL,
+    station_id INTEGER,
+    station_name TEXT NOT NULL,
+    provider_name TEXT,
+    favorited_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+    FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE SET NULL
+);
 ```
 
-**Confidence:** HIGH — `GLib.idle_add` for cross-thread UI dispatch is the established GTK/GLib pattern, well-documented and stable.
+**Design notes:**
+- `station_id` nullable FK — station may be deleted after favoriting; `station_name` + `provider_name` are denormalized for display without JOIN
+- `track_title` is the raw ICY title string (same value shown in now-playing)
+- `strftime('%Y-%m-%dT%H:%M:%f', 'now')` matches the ms-precision pattern already used for `last_played_at` (logged in KEY DECISIONS — second-level granularity caused ordering failures)
+- No dedup constraint — user may favorite the same song from different stations; uniqueness on `(track_title, station_id)` would prevent that
+
+**New `Favorite` dataclass (models.py):**
+
+```python
+@dataclass
+class Favorite:
+    id: int
+    track_title: str
+    station_id: Optional[int]
+    station_name: str
+    provider_name: Optional[str]
+    favorited_at: Optional[str]
+```
+
+**Confidence:** HIGH — direct extension of existing SQLite schema patterns in the codebase.
+
+---
+
+## Installation
+
+No new pip dependencies for any v1.3 feature. All capabilities are covered by:
+- `urllib.request` (stdlib) — Radio-Browser.info + AudioAddict API calls
+- `configparser` (stdlib) — PLS parsing if needed
+- `socket` (stdlib) — optional DNS mirror discovery for Radio-Browser
+- `yt_dlp` (existing) — YouTube playlist import
+- `sqlite3` (stdlib) — favorites schema
+- `threading` + `GLib.idle_add` (existing pattern) — async API calls
+
+```bash
+# No new dependencies — existing uv.lock unchanged
+```
 
 ---
 
@@ -235,24 +236,21 @@ def _fetch_art_async(self, track_title: str):
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Cover art API | iTunes Search API | Last.fm API | Requires API key |
-| Cover art API | iTunes Search API | Spotify Web API | Requires OAuth2, not suitable for keyless desktop app |
-| Cover art API | iTunes Search API | MusicBrainz CAA | Two-step lookup (slower); MusicBrainz rate limits need careful handling; iTunes is simpler and faster for this use case |
-| Cover art HTTP | `urllib` (stdlib) | `requests` | Adds pip dependency; `urllib` handles simple JSON GETs without issues |
-| List filter | `Gtk.ListBox.set_filter_func` | Manual row `.set_visible()` | Breaks on list reload; not composable |
-| Dropdowns | `Gtk.DropDown` | `Gtk.ComboBoxText` | `Gtk.ComboBoxText` is deprecated in GTK4 |
-| ICY metadata | GStreamer TAG bus watch | Manual HTTP ICY header parsing | GStreamer already parses ICY via `icydemux`; duplicating this is unnecessary |
+| Radio-Browser API client | urllib (stdlib) | `pyradios` pip package | Thin wrapper around same endpoints; adds pip dep for zero functional benefit |
+| AudioAddict stream URLs | Direct URL construction | PLS file parsing | PLS dual-server failover not needed; direct URL is simpler and GStreamer handles stream failures |
+| YouTube playlist | yt-dlp `extract_flat` | YouTube Data API v3 | Requires API key + quota; yt-dlp is already a dependency |
+| Favorites storage | SQLite `favorites` table | Separate file (JSON/CSV) | SQLite already used; keeps all persistence in one place with FK relationships |
 
 ---
 
-## No New pip Dependencies Required
+## What NOT to Add
 
-All three features can be implemented with:
-- Existing system GObject/GStreamer bindings (already present)
-- Python stdlib (`urllib.request`, `threading`, `json`)
-- No new `pip install` needed
-
-This is deliberate — the project has no `requirements.txt` or `pyproject.toml`, and adding a pip dependency for simple HTTP calls would be disproportionate.
+| Avoid | Why |
+|-------|-----|
+| `requests` library | urllib covers all HTTP needs; requests adds a dependency with no benefit at this scale |
+| `pyradios` | Wrapper for Radio-Browser API; stdlib urllib is sufficient |
+| YouTube Data API | Requires API key; yt-dlp covers the use case without credentials |
+| `mutagen` | Audio metadata parsing library; not needed — we're constructing URLs and reading ICY via GStreamer |
 
 ---
 
@@ -260,12 +258,12 @@ This is deliberate — the project has no `requirements.txt` or `pyproject.toml`
 
 | Source | Confidence | Notes |
 |--------|------------|-------|
-| Apple iTunes Search API official docs (fetched 2026-03-18) | HIGH | Confirmed: no API key, ~20 calls/min, `artworkUrl100` field in response |
-| GStreamer `playbin` + `icydemux` TAG message behavior | HIGH | Based on GStreamer application development guide patterns; `Gst.TAG_TITLE` for ICY StreamTitle is canonical |
-| GTK4 `Gtk.ListBox.set_filter_func` + `Gtk.SearchBar` + `Gtk.DropDown` | HIGH | Stable GTK 4.0 API since GTK 4.0 release; no deprecations affecting these widgets |
-| MusicBrainz API Lucene query syntax details | MEDIUM | Confirmed keyless, confirmed rate limit (1 req/sec); query field names from training data, not verified against current docs in this session |
-| `GLib.idle_add` cross-thread dispatch pattern | HIGH | Fundamental GLib/GTK threading contract, unchanged |
+| Radio-Browser.info API docs (training data + community usage) | HIGH | JSON REST API structure, `url_resolved` recommendation, no-auth model are stable and widely documented |
+| AudioAddict API — `github.com/DannyBen/audio_addict` (project memory, 2026-03-21) | MEDIUM | Unofficial reverse-engineered API; URL pattern confirmed in memory note; network identifiers from community docs |
+| yt-dlp `extract_flat` option (existing codebase usage) | HIGH | Already in use in this codebase; `extract_flat=True` is documented yt-dlp behavior |
+| SQLite schema patterns (existing repo.py) | HIGH | Direct extension of established db_init() migration pattern |
 
 ---
 
-*Research: 2026-03-18*
+*Stack research for: MusicStreamer v1.3 Discovery & Favorites*
+*Researched: 2026-03-27*
