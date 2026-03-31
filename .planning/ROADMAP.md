@@ -65,7 +65,10 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
   3. User can toggle between the Stations list and the Favorites list via a control in the sidebar without leaving the main window
   4. User can remove a track from the Favorites view and it disappears immediately
   5. Favorites survive app restart (stored in SQLite with UNIQUE constraint preventing duplicates)
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 12-01-PLAN.md — Favorite dataclass, DB schema, repo CRUD methods, iTunes genre parser, unit tests
+- [ ] 12-02-PLAN.md — Star button, Adw.ToggleGroup view toggle, favorites list with trash removal, CSS
 **UI hint**: yes
 
 ### Phase 13: Radio-Browser Discovery
@@ -119,7 +122,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 | 9. Station Editor Improvements | v1.2 | 2/2 | Complete | 2026-03-23 |
 | 10. Now Playing & Audio | v1.2 | 2/2 | Complete | 2026-03-24 |
 | 11. UI Polish | v1.2 | 2/2 | Complete | 2026-03-27 |
-| 12. Favorites | v1.3 | 0/? | Not started | - |
+| 12. Favorites | v1.3 | 0/2 | Planning | - |
 | 13. Radio-Browser Discovery | v1.3 | 0/? | Not started | - |
 | 14. YouTube Playlist Import | v1.3 | 0/? | Not started | - |
 | 15. AudioAddict Import | v1.3 | 0/? | Not started | - |
