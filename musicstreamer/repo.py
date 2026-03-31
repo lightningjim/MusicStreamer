@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Optional, List
 
-from musicstreamer.models import Station, Provider
+from musicstreamer.models import Station, Provider, Favorite
 from musicstreamer.constants import DB_PATH
 
 
@@ -38,6 +38,16 @@ def db_init(con: sqlite3.Connection):
         BEGIN
           UPDATE stations SET updated_at = datetime('now') WHERE id = NEW.id;
         END;
+
+        CREATE TABLE IF NOT EXISTS favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            station_name TEXT NOT NULL,
+            provider_name TEXT NOT NULL DEFAULT '',
+            track_title TEXT NOT NULL,
+            genre TEXT NOT NULL DEFAULT '',
+            created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
+            UNIQUE(station_name, track_title)
+        );
         """
     )
     con.commit()
@@ -212,3 +222,43 @@ class Repo:
             (key, value),
         )
         self.con.commit()
+
+    def add_favorite(self, station_name: str, provider_name: str,
+                     track_title: str, genre: str) -> None:
+        self.con.execute(
+            "INSERT OR IGNORE INTO favorites(station_name, provider_name, track_title, genre) "
+            "VALUES (?, ?, ?, ?)",
+            (station_name, provider_name or "", track_title, genre or ""),
+        )
+        self.con.commit()
+
+    def remove_favorite(self, station_name: str, track_title: str) -> None:
+        self.con.execute(
+            "DELETE FROM favorites WHERE station_name = ? AND track_title = ?",
+            (station_name, track_title),
+        )
+        self.con.commit()
+
+    def list_favorites(self) -> list[Favorite]:
+        rows = self.con.execute(
+            "SELECT id, station_name, provider_name, track_title, genre, created_at "
+            "FROM favorites ORDER BY created_at DESC"
+        ).fetchall()
+        return [
+            Favorite(
+                id=r["id"],
+                station_name=r["station_name"],
+                provider_name=r["provider_name"],
+                track_title=r["track_title"],
+                genre=r["genre"],
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    def is_favorited(self, station_name: str, track_title: str) -> bool:
+        row = self.con.execute(
+            "SELECT 1 FROM favorites WHERE station_name = ? AND track_title = ?",
+            (station_name, track_title),
+        ).fetchone()
+        return row is not None

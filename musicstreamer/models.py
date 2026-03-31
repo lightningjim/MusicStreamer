@@ -20,3 +20,13 @@ class Station:
     album_fallback_path: Optional[str]
     icy_disabled: bool = False
     last_played_at: Optional[str] = None
+
+
+@dataclass
+class Favorite:
+    id: int
+    station_name: str
+    provider_name: str
+    track_title: str
+    genre: str
+    created_at: Optional[str] = None

@@ -34,6 +34,22 @@ def _build_itunes_query(icy_string: str) -> str:
     return f"https://itunes.apple.com/search?{params}"
 
 
+last_itunes_result: dict = {"artwork_url": None, "genre": ""}
+
+
+def _parse_itunes_result(json_bytes: bytes) -> dict:
+    """Return {'artwork_url': str|None, 'genre': str} from iTunes JSON."""
+    data = json.loads(json_bytes)
+    if not data.get("resultCount", 0) or not data.get("results"):
+        return {"artwork_url": None, "genre": ""}
+    result = data["results"][0]
+    artwork_url = result.get("artworkUrl100")
+    if artwork_url:
+        artwork_url = artwork_url.replace("100x100", "160x160")
+    genre = result.get("primaryGenreName", "")
+    return {"artwork_url": artwork_url, "genre": genre}
+
+
 def _parse_artwork_url(json_bytes: bytes) -> str | None:
     """Parse iTunes Search API JSON and return the 160x160 artwork URL, or None."""
     data = json.loads(json_bytes)
@@ -63,10 +79,13 @@ def fetch_cover_art(icy_string: str, callback: callable) -> None:
     query_url = _build_itunes_query(icy_string)
 
     def _worker():
+        import musicstreamer.cover_art as _self_module
         try:
             with urllib.request.urlopen(query_url, timeout=5) as resp:
                 json_bytes = resp.read()
-            artwork_url = _parse_artwork_url(json_bytes)
+            result_dict = _parse_itunes_result(json_bytes)
+            _self_module.last_itunes_result = result_dict
+            artwork_url = result_dict["artwork_url"]
             if artwork_url is None:
                 callback(None)
                 return
