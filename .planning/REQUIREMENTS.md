@@ -8,7 +8,7 @@
 ### Favorites
 
 - [ ] **FAVES-01**: User can star the currently playing ICY track title (star button in now-playing, gated on non-junk title)
-- [ ] **FAVES-02**: Favorited track is stored in DB with station name, provider name, track title, and iTunes genre (denormalized for station-deletion resilience)
+- [x] **FAVES-02**: Favorited track is stored in DB with station name, provider name, track title, and iTunes genre (denormalized for station-deletion resilience)
 - [ ] **FAVES-03**: User can toggle between Stations and Favorites inline list view in the sidebar
 - [ ] **FAVES-04**: User can remove a track from the Favorites view
 
@@ -56,7 +56,7 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FAVES-01 | Phase 12 | Pending |
-| FAVES-02 | Phase 12 | Pending |
+| FAVES-02 | Phase 12 | Complete |
 | FAVES-03 | Phase 12 | Pending |
 | FAVES-04 | Phase 12 | Pending |
 | DISC-01 | Phase 13 | Pending |

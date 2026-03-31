@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Discovery & Favorites
-status: planning
-stopped_at: Phase 12 plans ready — 2 plans in 2 waves
-last_updated: "2026-03-31T01:17:09.215Z"
-last_activity: 2026-03-27 — v1.3 roadmap created (Phases 12–15)
+status: executing
+stopped_at: Completed 12-favorites-01 PLAN.md
+last_updated: "2026-03-31T03:08:33.528Z"
+last_activity: 2026-03-31
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 2
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 12 — Favorites
+**Current focus:** Phase 12 — favorites
 
 ## Current Position
 
-Phase: 12 of 15 (Favorites)
-Plan: — of —
-Status: Ready to plan
-Last activity: 2026-03-27 — v1.3 roadmap created (Phases 12–15)
+Phase: 12 (favorites) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0% (v1.3)
 
@@ -57,6 +57,8 @@ Recent decisions affecting v1.3:
 - [Phase 11]: GTK4 border-radius clipping requires set_overflow(HIDDEN) on Gtk.Stack — CSS alone does not clip child paint nodes
 - [Phase 09]: Split _fetch_in_progress into _thumb_fetch_in_progress and _title_fetch_in_progress for independent fetch state
 - [Phase 07]: strftime millisecond precision for last_played_at — datetime('now') second-level granularity caused ordering failures
+- [Phase 12-favorites]: strftime ms precision for favorites created_at — datetime('now') second granularity caused ordering test failure
+- [Phase 12-favorites]: last_itunes_result module-level dict stores full iTunes result so genre is available without a second API call
 
 ### Research Flags (v1.3)
 
@@ -76,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-31T01:17:09.213Z
-Stopped at: Phase 12 plans ready — 2 plans in 2 waves
-Resume file: .planning/phases/12-favorites/12-01-PLAN.md
+Last session: 2026-03-31T03:08:33.525Z
+Stopped at: Completed 12-favorites-01 PLAN.md
+Resume file: None
