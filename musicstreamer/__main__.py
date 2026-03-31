@@ -32,6 +32,11 @@ _APP_CSS = """
     background-color: transparent;
     overflow: hidden;
 }
+
+.favorites-list-row {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
 """
 
 

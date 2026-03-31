@@ -7,8 +7,9 @@ gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import Gtk, Adw, Pango, GdkPixbuf, GLib
 from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.repo import Repo
-from musicstreamer.models import Station
+from musicstreamer.models import Station, Favorite
 from musicstreamer.player import Player
+import musicstreamer.cover_art as cover_art_mod
 from musicstreamer.ui.station_row import StationRow
 from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
@@ -86,6 +87,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.station_name_label.set_visible(False)
         center.append(self.station_name_label)
 
+        self.star_btn = Gtk.Button()
+        self.star_btn.set_icon_name("non-starred-symbolic")
+        self.star_btn.set_halign(Gtk.Align.START)
+        self.star_btn.set_visible(False)  # hidden until non-junk ICY title (D-07)
+        self.star_btn.set_tooltip_text("Add to favorites")
+        self.star_btn.connect("clicked", self._on_star_clicked)
+        center.append(self.star_btn)
+
         self.stop_btn = Gtk.Button(label="Stop")
         self.stop_btn.add_css_class("suggested-action")
         self.stop_btn.set_sensitive(False)
@@ -134,11 +143,11 @@ class MainWindow(Adw.ApplicationWindow):
         shell.add_top_bar(panel)
 
         # --- Filter strip ---
-        filter_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        filter_box.set_margin_top(4)
-        filter_box.set_margin_bottom(4)
-        filter_box.set_margin_start(8)
-        filter_box.set_margin_end(8)
+        self.filter_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.filter_box.set_margin_top(4)
+        self.filter_box.set_margin_bottom(4)
+        self.filter_box.set_margin_start(8)
+        self.filter_box.set_margin_end(8)
 
         add_btn = Gtk.Button(label="Add Station")
         add_btn.connect("clicked", self._add_station)
@@ -176,11 +185,29 @@ class MainWindow(Adw.ApplicationWindow):
         self.clear_btn.set_visible(False)
         self.clear_btn.connect("clicked", self._on_clear)
 
-        filter_box.append(add_btn)
-        filter_box.append(edit_btn)
-        filter_box.append(chip_container)
-        filter_box.append(self.clear_btn)
-        shell.add_top_bar(filter_box)
+        self.filter_box.append(add_btn)
+        self.filter_box.append(edit_btn)
+        self.filter_box.append(chip_container)
+        self.filter_box.append(self.clear_btn)
+        shell.add_top_bar(self.filter_box)
+
+        # View toggle (D-01, D-02)
+        self.view_toggle = Adw.ToggleGroup()
+        stations_toggle = Adw.Toggle(label="Stations", name="stations")
+        favorites_toggle = Adw.Toggle(label="Favorites", name="favorites")
+        self.view_toggle.add(stations_toggle)
+        self.view_toggle.add(favorites_toggle)
+        self.view_toggle.set_active_name("stations")
+
+        toggle_box = Gtk.Box()
+        toggle_box.set_halign(Gtk.Align.CENTER)
+        toggle_box.set_margin_top(8)
+        toggle_box.set_margin_bottom(8)
+        toggle_box.append(self.view_toggle)
+        shell.add_top_bar(toggle_box)
+
+        # Connect AFTER setting default to avoid premature handler fire (Pitfall 3)
+        self.view_toggle.connect("notify::active-name", self._on_view_toggled)
 
         # --- Station list ---
         self.listbox = Gtk.ListBox()
@@ -212,6 +239,12 @@ class MainWindow(Adw.ApplicationWindow):
         self._selected_tags: set[str] = set()
         self._provider_chip_btns: list[Gtk.ToggleButton] = []
         self._tag_chip_btns: list[Gtk.ToggleButton] = []
+        self._view_mode: str = "stations"  # "stations" | "favorites"
+
+        # Favorites empty state
+        self.favorites_empty = Adw.StatusPage()
+        self.favorites_empty.set_title("No favorites yet")
+        self.favorites_empty.set_description("Star a track while it\u2019s playing to save it here.")
 
         shell.set_content(scroller)
         self.set_content(shell)
@@ -228,6 +261,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_filter_changed(self, *_):
         if self._rebuilding:
+            return
+        if self._view_mode != "stations":
             return
         self._render_list()
         self._update_clear_button()
@@ -353,6 +388,8 @@ class MainWindow(Adw.ApplicationWindow):
             child = nxt
 
     def _render_list(self):
+        if self._view_mode != "stations":
+            return
         stations = self.repo.list_stations()
         search_text = self.search_entry.get_text().strip()
         tag_set = {t.casefold() for t in self._selected_tags}
@@ -502,6 +539,8 @@ class MainWindow(Adw.ApplicationWindow):
         Preserves ExpanderRow expand/collapse state (Pitfall 3).
         Only operates in grouped mode (RP is hidden in flat mode).
         """
+        if self._view_mode != "stations":
+            return
         # If any filter is active, RP is hidden — nothing to refresh
         if self._any_filter_active():
             return
@@ -573,6 +612,18 @@ class MainWindow(Adw.ApplicationWindow):
                             os.unlink(temp_path)
                         except OSError:
                             pass
+                # Update star button visibility and state
+                if self._current_station and self._last_cover_icy:
+                    if not is_junk_title(self._last_cover_icy):
+                        self.star_btn.set_visible(True)
+                        if self.repo.is_favorited(self._current_station.name, self._last_cover_icy):
+                            self.star_btn.set_icon_name("starred-symbolic")
+                            self.star_btn.set_tooltip_text("Remove from favorites")
+                        else:
+                            self.star_btn.set_icon_name("non-starred-symbolic")
+                            self.star_btn.set_tooltip_text("Add to favorites")
+                    else:
+                        self.star_btn.set_visible(False)
                 return False  # GLib.idle_add: do not repeat
             GLib.idle_add(_update_ui)
 
@@ -593,6 +644,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._last_cover_icy = None
         self._current_station = None
         self.stop_btn.set_sensitive(False)
+        self.star_btn.set_visible(False)
 
     def _on_volume_changed(self, slider):
         val = int(slider.get_value())
@@ -661,6 +713,84 @@ class MainWindow(Adw.ApplicationWindow):
             self.title_label.set_text(title)
             self._on_cover_art(title)  # pass RAW title to cover art (iTunes needs real chars)
         self.player.play(st, on_title=_on_title)
+
+    # ------------------------------------------------------------------ #
+    # Favorites
+    # ------------------------------------------------------------------ #
+
+    def _on_star_clicked(self, _btn):
+        if not self._current_station or not self._last_cover_icy:
+            return
+        title = self._last_cover_icy
+        station = self._current_station
+        if self.repo.is_favorited(station.name, title):
+            self.repo.remove_favorite(station.name, title)
+            self.star_btn.set_icon_name("non-starred-symbolic")
+            self.star_btn.set_tooltip_text("Add to favorites")
+        else:
+            genre = cover_art_mod.last_itunes_result.get("genre", "")
+            self.repo.add_favorite(
+                station.name,
+                station.provider_name or "",
+                title,
+                genre,
+            )
+            self.star_btn.set_icon_name("starred-symbolic")
+            self.star_btn.set_tooltip_text("Remove from favorites")
+        # If currently viewing favorites, refresh the list
+        if self._view_mode == "favorites":
+            self._render_favorites()
+
+    def _on_view_toggled(self, group, _pspec):
+        name = group.get_active_name()
+        if self._view_mode == name:
+            return  # guard against duplicate fires
+        self._view_mode = name
+        if name == "favorites":
+            self.filter_box.set_visible(False)  # D-04
+            self._render_favorites()
+        else:
+            self.filter_box.set_visible(True)
+            self._render_list()
+
+    def _render_favorites(self):
+        self._clear_listbox()
+        favorites = self.repo.list_favorites()
+        if not favorites:
+            self.shell.set_content(self.favorites_empty)
+            return
+        self.shell.set_content(self.scroller)
+        for fav in favorites:
+            row = Adw.ActionRow(
+                title=GLib.markup_escape_text(fav.track_title, -1),
+                subtitle=GLib.markup_escape_text(
+                    f"{fav.station_name} \u00b7 {fav.provider_name}", -1
+                ),
+            )
+            row.set_activatable(False)
+            row.add_css_class("favorites-list-row")
+
+            trash_btn = Gtk.Button()
+            trash_btn.set_icon_name("user-trash-symbolic")
+            trash_btn.add_css_class("destructive-action")
+            trash_btn.add_css_class("flat")
+            trash_btn.set_valign(Gtk.Align.CENTER)
+            trash_btn.connect(
+                "clicked",
+                lambda _, sn=fav.station_name, tt=fav.track_title: self._remove_favorite(sn, tt),
+            )
+            row.add_suffix(trash_btn)
+            self.listbox.append(row)
+
+    def _remove_favorite(self, station_name: str, track_title: str):
+        self.repo.remove_favorite(station_name, track_title)
+        self._render_favorites()
+        # Update star button if currently playing this track
+        if (self._current_station and self._last_cover_icy
+                and self._current_station.name == station_name
+                and self._last_cover_icy == track_title):
+            self.star_btn.set_icon_name("non-starred-symbolic")
+            self.star_btn.set_tooltip_text("Add to favorites")
 
     # ------------------------------------------------------------------ #
     # Station list
