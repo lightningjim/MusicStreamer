@@ -72,13 +72,13 @@ Finding and playing a stream should take seconds — the right station should al
 
 ### Active (v1.3)
 
-- FAVES-01: User can star the currently playing ICY track title
-- FAVES-02: Favorites stored in DB with station name, provider, and track title
-- FAVES-03: Favorites view replaces station list inline (toggle between Stations / Favorites)
-- FAVES-04: User can remove a favorite from the Favorites view
-- DISC-01: User can browse and search Radio-Browser.info stations live in-app
-- DISC-02: User can play a Radio-Browser.info station directly without importing
-- DISC-03: User can save a Radio-Browser.info station to their library
+- ✓ FAVES-01: User can star the currently playing ICY track title — v1.3 Phase 12
+- ✓ FAVES-02: Favorites stored in DB with station name, provider, and track title — v1.3 Phase 12
+- ✓ FAVES-03: Favorites view replaces station list inline (toggle between Stations / Favorites) — v1.3 Phase 12
+- ✓ FAVES-04: User can remove a favorite from the Favorites view — v1.3 Phase 12
+- ✓ DISC-01: User can browse and search Radio-Browser.info stations live in-app — v1.3 Phase 13
+- ✓ DISC-02: User can play a Radio-Browser.info station directly without importing — v1.3 Phase 13
+- ✓ DISC-03: User can save a Radio-Browser.info station to their library — v1.3 Phase 13
 - DISC-04: User can import AudioAddict channels (all networks, list verified at implementation) via API key
 - DISC-05: User can select import quality (hi/med/low) for AudioAddict channels
 - DISC-06: User can paste a YouTube public playlist URL to import live streams as stations
