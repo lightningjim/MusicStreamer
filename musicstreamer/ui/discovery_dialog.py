@@ -1,4 +1,6 @@
+import re
 import threading
+import urllib.request
 from urllib.parse import urlparse
 import gi
 gi.require_version("Gtk", "4.0")
@@ -7,6 +9,29 @@ from gi.repository import Gtk, Adw, GLib
 from musicstreamer.repo import Repo
 from musicstreamer.models import Station
 import musicstreamer.radio_browser as radio_browser
+
+
+def _resolve_stream_url(url: str) -> str:
+    """If url points to a .pls or .m3u playlist, extract the first stream URL."""
+    lower = url.lower()
+    if lower.endswith(".pls") or "listen.pls" in lower:
+        try:
+            data = urllib.request.urlopen(url, timeout=5).read().decode("utf-8", errors="replace")
+            match = re.search(r"^File\d*=(.+)$", data, re.MULTILINE)
+            if match:
+                return match.group(1).strip()
+        except Exception:
+            pass
+    elif lower.endswith(".m3u") or lower.endswith(".m3u8"):
+        try:
+            data = urllib.request.urlopen(url, timeout=5).read().decode("utf-8", errors="replace")
+            for line in data.splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    return line
+        except Exception:
+            pass
+    return url
 
 
 class DiscoveryDialog(Adw.Window):
@@ -22,6 +47,7 @@ class DiscoveryDialog(Adw.Window):
         self._debounce_id = None
         self._cancelled = False
         self._preview_station = None
+        self._active_play_btn = None
         self._prior_station = main_window._current_station
         self._saved_urls = set()
         self._current_results = []
@@ -51,7 +77,7 @@ class DiscoveryDialog(Adw.Window):
         self._tag_model = Gtk.StringList()
         self._tag_model.append("Any genre")
         self._tag_dropdown = Gtk.DropDown(model=self._tag_model)
-        self._tag_dropdown.set_width_request(140)
+        self._tag_dropdown.set_size_request(140, -1)
         self._tag_dropdown.connect("notify::selected", self._on_filter_changed)
         search_row.append(self._tag_dropdown)
 
@@ -59,7 +85,7 @@ class DiscoveryDialog(Adw.Window):
         self._country_model = Gtk.StringList()
         self._country_model.append("Any country")
         self._country_dropdown = Gtk.DropDown(model=self._country_model)
-        self._country_dropdown.set_width_request(140)
+        self._country_dropdown.set_size_request(140, -1)
         self._country_dropdown.connect("notify::selected", self._on_filter_changed)
         search_row.append(self._country_dropdown)
 
@@ -224,8 +250,8 @@ class DiscoveryDialog(Adw.Window):
 
         for s in results:
             row = Adw.ActionRow()
-            row.set_title(s.get("name", ""))
-            row.set_subtitle(self._make_subtitle(s))
+            row.set_title(GLib.markup_escape_text(s.get("name", "")))
+            row.set_subtitle(GLib.markup_escape_text(self._make_subtitle(s)))
 
             prefix = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
             prefix.set_pixel_size(32)
@@ -277,11 +303,16 @@ class DiscoveryDialog(Adw.Window):
     # Preview playback
     # ------------------------------------------------------------------
 
+    def _get_stream_url(self, station_dict: dict) -> str:
+        raw = station_dict.get("url_resolved") or station_dict.get("url", "")
+        return _resolve_stream_url(raw)
+
     def _on_preview_clicked(self, btn, station_dict: dict, play_btn: Gtk.Button):
+        stream_url = self._get_stream_url(station_dict)
         station = Station(
             id=0,
             name=station_dict.get("name", ""),
-            url=station_dict.get("url", ""),
+            url=stream_url,
             provider_id=None,
             provider_name=self._extract_provider(station_dict),
             tags=station_dict.get("tags", ""),
@@ -291,18 +322,22 @@ class DiscoveryDialog(Adw.Window):
         )
 
         # Toggle off if same station
-        if self._preview_station and self._preview_station.url == station_dict.get("url", ""):
+        if self._preview_station and self._preview_station.url == stream_url:
             self.main_window.player.stop()
             self._preview_station = None
+            self._active_play_btn = None
             play_btn.set_icon_name("media-playback-start-symbolic")
             play_btn.set_tooltip_text("Preview")
             return
 
-        # Stop any current preview and reset all play buttons
+        # Stop any current preview and reset the previous play button
         self.main_window.player.stop()
-        self._reset_play_buttons()
+        if self._active_play_btn is not None:
+            self._active_play_btn.set_icon_name("media-playback-start-symbolic")
+            self._active_play_btn.set_tooltip_text("Preview")
 
         self._preview_station = station
+        self._active_play_btn = play_btn
         self.main_window.player.play(station, on_title=lambda t: None)
         play_btn.set_icon_name("media-playback-stop-symbolic")
         play_btn.set_tooltip_text("Stop preview")
@@ -330,7 +365,7 @@ class DiscoveryDialog(Adw.Window):
     # ------------------------------------------------------------------
 
     def _on_save_clicked(self, btn, station_dict: dict, save_btn: Gtk.Button):
-        url = station_dict.get("url", "")
+        url = self._get_stream_url(station_dict)
 
         if self.repo.station_exists_by_url(url):
             dlg = Adw.MessageDialog(
@@ -346,8 +381,6 @@ class DiscoveryDialog(Adw.Window):
 
         provider_name = self._extract_provider(station_dict)
         tags = station_dict.get("tags", "").replace(",", ", ")
-        # Normalize multiple spaces in tags
-        import re
         tags = re.sub(r",\s*", ", ", tags).strip(", ")
 
         self.repo.insert_station(station_dict.get("name", ""), url, provider_name, tags)
