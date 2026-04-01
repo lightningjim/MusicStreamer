@@ -16,7 +16,7 @@
 
 - [x] **DISC-01**: User can search Radio-Browser.info stations by name or provider name from an in-app discovery dialog
 - [x] **DISC-02**: User can filter Radio-Browser.info search results by tag (genre) or country
-- [ ] **DISC-03**: User can play a Radio-Browser.info station as a preview without saving it to the library
+- [x] **DISC-03**: User can play a Radio-Browser.info station as a preview without saving it to the library
 - [x] **DISC-04**: User can save a Radio-Browser.info station to their library from the discovery dialog
 
 ### Import (YouTube)
@@ -61,7 +61,7 @@
 | FAVES-04 | Phase 12 | Pending |
 | DISC-01 | Phase 13 | Complete |
 | DISC-02 | Phase 13 | Complete |
-| DISC-03 | Phase 13 | Pending |
+| DISC-03 | Phase 13 | Complete |
 | DISC-04 | Phase 13 | Complete |
 | IMPORT-01 | Phase 14 | Pending |
 | IMPORT-02 | Phase 15 | Pending |

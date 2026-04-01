@@ -49,7 +49,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 **Milestone Goal:** Add station discovery and a favorites system — users can star ICY track titles, browse Radio-Browser.info, and bulk-import AudioAddict and YouTube stations.
 
 - [x] **Phase 12: Favorites** (2/2 plans) — completed 2026-03-31
-- [ ] **Phase 13: Radio-Browser Discovery** — Browse, preview, and save Radio-Browser.info stations in-app
+- [x] **Phase 13: Radio-Browser Discovery** — Browse, preview, and save Radio-Browser.info stations in-app (completed 2026-04-01)
 - [ ] **Phase 14: YouTube Playlist Import** — Paste a public playlist URL to import live streams as stations
 - [ ] **Phase 15: AudioAddict Import** — Import all AudioAddict network channels via API key with quality selection
 
@@ -80,10 +80,10 @@ Plans:
   2. User can narrow results by tag (genre) or country from within the dialog
   3. User can play a Radio-Browser.info station as a live preview without it being added to the library
   4. User can save a Radio-Browser.info station to their library and it appears in the station list
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 13-01-PLAN.md — Radio-Browser API client, repo URL-check + insert methods, unit tests
-- [ ] 13-02-PLAN.md — DiscoveryDialog UI (search, filters, preview, save), main window wiring
+- [x] 13-02-PLAN.md — DiscoveryDialog UI (search, filters, preview, save), main window wiring
 **UI hint**: yes
 
 ### Phase 14: YouTube Playlist Import
@@ -126,6 +126,6 @@ Plans:
 | 10. Now Playing & Audio | v1.2 | 2/2 | Complete | 2026-03-24 |
 | 11. UI Polish | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 12. Favorites | v1.3 | 1/2 | In Progress|  |
-| 13. Radio-Browser Discovery | v1.3 | 1/2 | In Progress|  |
+| 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete    | 2026-04-01 |
 | 14. YouTube Playlist Import | v1.3 | 0/? | Not started | - |
 | 15. AudioAddict Import | v1.3 | 0/? | Not started | - |
