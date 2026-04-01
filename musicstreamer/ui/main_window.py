@@ -34,6 +34,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.search_entry.connect("search-changed", self._on_filter_changed)
         header.set_title_widget(self.search_entry)
 
+        discover_btn = Gtk.Button(label="Discover")
+        discover_btn.connect("clicked", self._open_discovery)
+        header.pack_end(discover_btn)
+
         shell.add_top_bar(header)
 
         # --- Now-playing panel ---
@@ -812,6 +816,11 @@ class MainWindow(Adw.ApplicationWindow):
         row = self.listbox.get_selected_row()
         if row and hasattr(row, 'station_id'):
             self._open_editor(row.station_id)
+
+    def _open_discovery(self, *_):
+        from musicstreamer.ui.discovery_dialog import DiscoveryDialog
+        dlg = DiscoveryDialog(self.get_application(), self.repo, self)
+        dlg.present()
 
     def _open_editor(self, station_id: int):
         dlg = EditStationDialog(
