@@ -262,3 +262,18 @@ class Repo:
             (station_name, track_title),
         ).fetchone()
         return row is not None
+
+    def station_exists_by_url(self, url: str) -> bool:
+        row = self.con.execute(
+            "SELECT 1 FROM stations WHERE url = ?", (url,)
+        ).fetchone()
+        return row is not None
+
+    def insert_station(self, name: str, url: str, provider_name: str, tags: str) -> int:
+        provider_id = self.ensure_provider(provider_name) if provider_name else None
+        cur = self.con.execute(
+            "INSERT INTO stations(name, url, provider_id, tags) VALUES (?, ?, ?, ?)",
+            (name, url, provider_id, tags or ""),
+        )
+        self.con.commit()
+        return int(cur.lastrowid)

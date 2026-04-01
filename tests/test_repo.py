@@ -167,3 +167,46 @@ def test_settings_overwrite(repo):
     repo.set_setting("k", "a")
     repo.set_setting("k", "b")
     assert repo.get_setting("k", "x") == "b"
+
+
+# --- station_exists_by_url and insert_station tests ---
+
+def test_station_exists_by_url_false_on_empty(repo):
+    assert repo.station_exists_by_url("http://example.com/stream") is False
+
+
+def test_station_exists_by_url_true_after_insert(repo):
+    repo.insert_station("Test Station", "http://example.com/stream", "", "")
+    assert repo.station_exists_by_url("http://example.com/stream") is True
+
+
+def test_station_exists_by_url_false_for_different_url(repo):
+    repo.insert_station("Test Station", "http://example.com/stream", "", "")
+    assert repo.station_exists_by_url("http://other.com/stream") is False
+
+
+def test_insert_station_returns_id(repo):
+    row_id = repo.insert_station("Jazz FM", "http://jazz.fm/stream", "Jazz Network", "jazz, blues")
+    assert isinstance(row_id, int)
+    assert row_id > 0
+
+
+def test_insert_station_with_provider(repo):
+    repo.insert_station("Jazz FM", "http://jazz.fm/stream", "Jazz Network", "jazz")
+    stations = repo.list_stations()
+    assert len(stations) == 1
+    assert stations[0].provider_name == "Jazz Network"
+
+
+def test_insert_station_no_provider(repo):
+    row_id = repo.insert_station("No Provider FM", "http://noprovider.com/stream", "", "ambient")
+    st = repo.get_station(row_id)
+    assert st.provider_id is None
+
+
+def test_insert_station_persists_fields(repo):
+    row_id = repo.insert_station("My Station", "http://my.station/stream", "My Network", "jazz,blues")
+    st = repo.get_station(row_id)
+    assert st.name == "My Station"
+    assert st.url == "http://my.station/stream"
+    assert st.tags == "jazz,blues"
