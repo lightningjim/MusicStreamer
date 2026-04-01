@@ -95,7 +95,7 @@ All values are multiples of 4 (8-point grid, GTK pixel values).
 | 2xl | 48px | Not used in this dialog |
 | 3xl | 64px | Not used in this dialog |
 
-Exceptions: none.
+Exceptions: 12px (`md`) — project-established dialog margin, inherited from EditStationDialog.
 
 **Established project spacings preserved** (from `main_window.py` / `edit_dialog.py`):
 - Panel margins: 16px top/bottom, 24px start/end (now-playing panel — not used in dialog)
@@ -137,7 +137,7 @@ Play/Stop preview button is neutral (no accent class) — it is a transient cont
 commitment action.
 
 **Duplicate URL error:** Shown as `Adw.MessageDialog` with heading "Station Already in Library"
-and body "[station name] is already saved. No changes were made." Single "OK" response.
+and body "[station name] is already saved. No changes were made." Single "Got It" response.
 Source: CONTEXT.md D-09 — block with error message, not silent skip.
 
 ---
@@ -189,9 +189,10 @@ Source: CONTEXT.md D-09 — block with error message, not silent skip.
 | Loading state | Gtk.Spinner only — no text label |
 | Error state heading | "Could not reach Radio-Browser" |
 | Error state body | "Check your internet connection and try again." |
-| Error state action | "Retry" button (neutral, no accent class) |
+| Error state action | "Retry Search" button (neutral, no accent class) |
 | Duplicate save error heading | "Station Already in Library" |
 | Duplicate save error body | "[station name] is already saved. No changes were made." |
+| Duplicate save error response | "Got It" |
 | Save button post-save tooltip | "Saved" |
 | Preview play tooltip | "Preview" |
 | Preview stop tooltip | "Stop preview" |
