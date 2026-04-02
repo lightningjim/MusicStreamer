@@ -36,7 +36,6 @@ All values in pixels. Existing codebase uses these consistently — match them.
 |-------|-------|-------|
 | xs | 4px | Tight vertical padding (`.station-list-row` top/bottom) |
 | sm | 8px | Box spacing, filter margins, horizontal row gaps |
-| md | 12px | Dialog content margins (all four sides — matches DiscoveryDialog) |
 | lg | 16px | Now-playing panel top/bottom margins |
 | xl | 24px | Now-playing panel start/end margins |
 | 2xl | 32px | Not used in dialogs; layout gaps only |
@@ -45,7 +44,6 @@ All values in pixels. Existing codebase uses these consistently — match them.
 Exceptions:
 - Dialog default size: 700 × 560 (matches DiscoveryDialog — source: `discovery_dialog.py:43`)
 - Spinner size: 32 × 32px (matches existing loading states)
-- Section label margins in list: top 8px, bottom 4px, start 12px (matches main_window.py:428–431)
 
 ---
 
@@ -75,7 +73,7 @@ libadwaita manages the color palette via named tokens. Do not hardcode hex value
 | Accent (10%) | `@accent_color` / `.suggested-action` CSS class | "Import Selected" button only |
 | Destructive | `@destructive_color` / `.destructive-action` CSS class | Not used in this phase |
 
-Accent reserved for: **the "Import Selected" commit button only.** The "Scan" button uses the default style (no accent class). Checkboxes use system active state — no manual accent override needed.
+Accent reserved for: **the "Import Selected" commit button only.** The "Scan Playlist" button uses the default style (no accent class). Checkboxes use system active state — no manual accent override needed.
 
 Source: existing pattern — `discovery_dialog.py:271` uses `.suggested-action` only on the save/action button.
 
@@ -91,18 +89,18 @@ New components to build for this phase:
 - Size: 700 × 560 (matches DiscoveryDialog)
 - Modal: yes — `set_transient_for(main_window)`, `set_modal(True)`
 - Structure: `Adw.ToolbarView` > `Adw.HeaderBar` + content `Gtk.Box`
-- Content box margins: 12px all sides, spacing 8px
+- Content box margins: 12px all sides (codebase-inherited constant — matches DiscoveryDialog), spacing 8px
 
 **Stage 1 — URL Entry:**
 
 - `Gtk.Entry` for URL paste input
   - Placeholder: "Paste YouTube playlist URL…"
   - `set_hexpand(True)`
-- `Gtk.Button` label "Scan"
+- `Gtk.Button` label "Scan Playlist"
   - Default style (no `.suggested-action`)
   - Disabled while scan is in progress
 - `Gtk.Stack` with named pages:
-  - `"prompt"` — `Adw.StatusPage`: title "Paste a playlist URL", description "Enter a public YouTube playlist URL above and tap Scan."
+  - `"prompt"` — `Adw.StatusPage`: title "Paste a playlist URL", description "Enter a public YouTube playlist URL above and tap Scan Playlist."
   - `"scanning"` — spinner box (32×32 `Gtk.Spinner`, centered, `spinner.start()` called)
   - `"error"` — `Adw.StatusPage`: title + description set dynamically (see Copywriting)
   - `"checklist"` — scrolled checklist (Stage 2)
@@ -123,7 +121,7 @@ New components to build for this phase:
 **Import in progress (Stage 2 → commit):**
 
 - "Import Selected" button becomes insensitive while running
-- "Scan" entry + button become insensitive
+- "Scan Playlist" entry + button become insensitive
 - Progress label updates: "3 imported, 1 skipped" — `GLib.idle_add` from worker thread
 - On completion: progress label shows final count; button label changes to "Done" and closes dialog when clicked
 
@@ -138,12 +136,12 @@ New components to build for this phase:
 
 | State | Trigger | UI Response |
 |-------|---------|-------------|
-| Idle / prompt | Dialog opens | Stack shows "prompt" page; Scan button disabled (no URL) |
-| Scan enabled | URL entry non-empty | Scan button becomes sensitive |
-| Scanning | Scan clicked | Stack → "scanning" spinner; URL entry + Scan button insensitive |
+| Idle / prompt | Dialog opens | Stack shows "prompt" page; Scan Playlist button disabled (no URL) |
+| Scan enabled | URL entry non-empty | Scan Playlist button becomes sensitive |
+| Scanning | Scan Playlist clicked | Stack → "scanning" spinner; URL entry + Scan Playlist button insensitive |
 | Scan success | Worker returns live streams | Stack → "checklist"; count label populated; "Import Selected" sensitive |
 | Scan success (0 streams) | Worker returns empty list | Stack → "error" with "No live streams found" copy |
-| Scan error | yt-dlp fails / bad URL | Stack → "error" with appropriate copy; URL entry + Scan re-enabled |
+| Scan error | yt-dlp fails / bad URL | Stack → "error" with appropriate copy; URL entry + Scan Playlist re-enabled |
 | Import running | "Import Selected" clicked | All inputs insensitive; progress label updates per item |
 | Import complete | Worker thread finishes | Progress label shows final count; button → "Done"; closes dialog on click; `main_window.reload_list()` called |
 
@@ -155,10 +153,10 @@ New components to build for this phase:
 |---------|------|
 | Dialog title | "Import YouTube Playlist" |
 | URL entry placeholder | "Paste YouTube playlist URL…" |
-| Scan button label | "Scan" |
+| Scan button label | "Scan Playlist" |
 | Import CTA label | "Import Selected" |
 | Prompt state title | "Paste a playlist URL" |
-| Prompt state body | "Enter a public YouTube playlist URL above and tap Scan." |
+| Prompt state body | "Enter a public YouTube playlist URL above and tap Scan Playlist." |
 | Scanning state label | (spinner only, no text needed) |
 | Checklist count label | "{N} live stream found" / "{N} live streams found" (pluralize) |
 | Progress label (running) | "{imported} imported, {skipped} skipped" |
@@ -189,11 +187,12 @@ Not applicable. This project uses GTK4/libadwaita (Python desktop app). No shadc
 These are not design decisions — they are constraints extracted from upstream artifacts to prevent re-research.
 
 1. **Pattern to copy:** `DiscoveryDialog` in `musicstreamer/ui/discovery_dialog.py` — same Adw.Window subclass structure, same threading model, same `GLib.idle_add` callback pattern.
-2. **yt-dlp invocation:** Use `subprocess.run(["yt-dlp", ...])` or `subprocess.Popen()` — same as `fetch_yt_thumbnail()` / `fetch_yt_title()` in `edit_dialog.py`. Executor must validate `is_live` field availability in `extract_flat` mode (see STATE.md research flag) before finalizing the filter logic.
-3. **Station persistence:** Call `repo.create_station()` for each selected live stream. Provider name from yt-dlp playlist channel metadata. Station name from yt-dlp video title as-is (D-05).
-4. **Duplicate handling:** `repo.station_exists_by_url(url)` before insert — silently count as skipped (D-06).
-5. **After import:** Call `main_window.reload_list()` to refresh the station list.
-6. **Header bar wiring:** `header.pack_end(import_btn)` — see `main_window.py:37–39` for the Discover button pattern.
+2. **Dialog content margins:** 12px all sides — codebase-inherited constant matching DiscoveryDialog (not a design token; not on the spacing scale). Section label start margin of 12px in list (matches `main_window.py:428–431`) is likewise a codebase constant.
+3. **yt-dlp invocation:** Use `subprocess.run(["yt-dlp", ...])` or `subprocess.Popen()` — same as `fetch_yt_thumbnail()` / `fetch_yt_title()` in `edit_dialog.py`. Executor must validate `is_live` field availability in `extract_flat` mode (see STATE.md research flag) before finalizing the filter logic.
+4. **Station persistence:** Call `repo.create_station()` for each selected live stream. Provider name from yt-dlp playlist channel metadata. Station name from yt-dlp video title as-is (D-05).
+5. **Duplicate handling:** `repo.station_exists_by_url(url)` before insert — silently count as skipped (D-06).
+6. **After import:** Call `main_window.reload_list()` to refresh the station list.
+7. **Header bar wiring:** `header.pack_end(import_btn)` — see `main_window.py:37–39` for the Discover button pattern.
 
 ---
 
