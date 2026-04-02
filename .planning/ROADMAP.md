@@ -130,5 +130,5 @@ Plans:
 | 11. UI Polish | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 12. Favorites | v1.3 | 1/2 | In Progress|  |
 | 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete    | 2026-04-01 |
-| 14. YouTube Playlist Import | v1.3 | 2/2 | Complete   | 2026-04-02 |
+| 14. YouTube Playlist Import | v1.3 | 2/2 | Complete    | 2026-04-02 |
 | 15. AudioAddict Import | v1.3 | 0/? | Not started | - |
