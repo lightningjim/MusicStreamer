@@ -38,6 +38,10 @@ class MainWindow(Adw.ApplicationWindow):
         discover_btn.connect("clicked", self._open_discovery)
         header.pack_end(discover_btn)
 
+        import_btn = Gtk.Button(label="Import")
+        import_btn.connect("clicked", self._open_import)
+        header.pack_end(import_btn)
+
         shell.add_top_bar(header)
 
         # --- Now-playing panel ---
@@ -820,6 +824,11 @@ class MainWindow(Adw.ApplicationWindow):
     def _open_discovery(self, *_):
         from musicstreamer.ui.discovery_dialog import DiscoveryDialog
         dlg = DiscoveryDialog(self.get_application(), self.repo, self)
+        dlg.present()
+
+    def _open_import(self, *_):
+        from musicstreamer.ui.import_dialog import ImportDialog
+        dlg = ImportDialog(self.get_application(), self.repo, self)
         dlg.present()
 
     def _open_editor(self, station_id: int):
