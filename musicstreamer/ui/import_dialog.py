@@ -4,7 +4,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, GLib
-from musicstreamer.repo import Repo
+from musicstreamer.repo import Repo, db_connect
 from musicstreamer.yt_import import scan_playlist, import_stations, is_yt_playlist_url
 
 
@@ -209,7 +209,12 @@ class ImportDialog(Adw.Window):
     def _import_worker(self, selected: list[dict]):
         def on_progress(imp: int, skip: int):
             GLib.idle_add(self._update_progress, imp, skip)
-        imported, skipped = import_stations(selected, self.repo, on_progress=on_progress)
+        con = db_connect()
+        try:
+            thread_repo = Repo(con)
+            imported, skipped = import_stations(selected, thread_repo, on_progress=on_progress)
+        finally:
+            con.close()
         GLib.idle_add(self._on_import_done, imported, skipped)
 
     def _update_progress(self, imported: int, skipped: int):

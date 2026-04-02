@@ -95,20 +95,23 @@ class MainWindow(Adw.ApplicationWindow):
         self.station_name_label.set_visible(False)
         center.append(self.station_name_label)
 
+        controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        controls_box.set_halign(Gtk.Align.END)
+
         self.star_btn = Gtk.Button()
         self.star_btn.set_icon_name("non-starred-symbolic")
-        self.star_btn.set_halign(Gtk.Align.START)
         self.star_btn.set_visible(False)  # hidden until non-junk ICY title (D-07)
         self.star_btn.set_tooltip_text("Add to favorites")
         self.star_btn.connect("clicked", self._on_star_clicked)
-        center.append(self.star_btn)
+        controls_box.append(self.star_btn)
 
         self.stop_btn = Gtk.Button(label="Stop")
         self.stop_btn.add_css_class("suggested-action")
         self.stop_btn.set_sensitive(False)
-        self.stop_btn.set_halign(Gtk.Align.START)
         self.stop_btn.connect("clicked", lambda *_: self._stop())
-        center.append(self.stop_btn)
+        controls_box.append(self.stop_btn)
+
+        center.append(controls_box)
 
         # Volume slider (AUDIO-01, per D-03: inline near play/stop)
         self.volume_slider = Gtk.Scale.new_with_range(

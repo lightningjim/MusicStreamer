@@ -1,7 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=MusicStreamer
-Exec=python3 -m musicstreamer
-Icon=audio-x-generic
-Categories=Audio;Music;
-Comment=Internet radio stream player
