@@ -50,7 +50,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 
 - [x] **Phase 12: Favorites** (2/2 plans) — completed 2026-03-31
 - [x] **Phase 13: Radio-Browser Discovery** — Browse, preview, and save Radio-Browser.info stations in-app (completed 2026-04-01)
-- [ ] **Phase 14: YouTube Playlist Import** — Paste a public playlist URL to import live streams as stations
+- [x] **Phase 14: YouTube Playlist Import** — Paste a public playlist URL to import live streams as stations (completed 2026-04-02)
 - [ ] **Phase 15: AudioAddict Import** — Import all AudioAddict network channels via API key with quality selection
 
 ## Phase Details
@@ -95,10 +95,10 @@ Plans:
   2. Import shows a spinner and a running count of imported vs. skipped items while processing
   3. Only live streams from the playlist are imported; non-live videos are silently skipped
   4. Imported stations appear in the station list under the appropriate provider after import completes
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 14-01-PLAN.md — Backend scan/import logic (yt_import.py) + unit tests
-- [ ] 14-02-PLAN.md — ImportDialog UI + header bar wiring + human verification
+- [x] 14-02-PLAN.md — ImportDialog UI + header bar wiring + human verification
 **UI hint**: yes
 
 ### Phase 15: AudioAddict Import
@@ -130,5 +130,5 @@ Plans:
 | 11. UI Polish | v1.2 | 2/2 | Complete | 2026-03-27 |
 | 12. Favorites | v1.3 | 1/2 | In Progress|  |
 | 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete    | 2026-04-01 |
-| 14. YouTube Playlist Import | v1.3 | 1/2 | In Progress|  |
+| 14. YouTube Playlist Import | v1.3 | 2/2 | Complete   | 2026-04-02 |
 | 15. AudioAddict Import | v1.3 | 0/? | Not started | - |

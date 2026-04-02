@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Discovery & Favorites
 status: Ready to plan
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-04-02T01:57:32.527Z"
+stopped_at: "Completed 14-02-PLAN.md — awaiting checkpoint:human-verify for Task 3"
+last_updated: "2026-04-02T02:01:50.925Z"
 last_activity: 2026-04-01
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 25
 ---
 
@@ -61,6 +61,7 @@ Recent decisions affecting v1.3:
 - [Phase 12-favorites]: last_itunes_result module-level dict stores full iTunes result so genre is available without a second API call
 - [Phase 14-youtube-playlist-import]: entry.get('is_live') is True strict identity check — non-live returns None not False in flat-playlist mode
 - [Phase 14-youtube-playlist-import]: import_stations takes on_progress callback for thread-safe UI progress updates without GTK coupling
+- [Phase 14-youtube-playlist-import]: Track import button handler ID to safely disconnect on import complete and reconnect as Done
 
 ### Research Flags (v1.3)
 
@@ -80,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-02T01:57:32.524Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-04-02T02:01:47.369Z
+Stopped at: Completed 14-02-PLAN.md — awaiting checkpoint:human-verify for Task 3
 Resume file: None
