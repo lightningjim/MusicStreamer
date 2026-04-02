@@ -21,7 +21,7 @@
 
 ### Import (YouTube)
 
-- [ ] **IMPORT-01**: User can paste a public YouTube playlist URL and import its live streams as stations, with progress feedback (spinner + imported/skipped count)
+- [x] **IMPORT-01**: User can paste a public YouTube playlist URL and import its live streams as stations, with progress feedback (spinner + imported/skipped count)
 
 ### Import (AudioAddict)
 
@@ -63,7 +63,7 @@
 | DISC-02 | Phase 13 | Complete |
 | DISC-03 | Phase 13 | Complete |
 | DISC-04 | Phase 13 | Complete |
-| IMPORT-01 | Phase 14 | Pending |
+| IMPORT-01 | Phase 14 | Complete |
 | IMPORT-02 | Phase 15 | Pending |
 | IMPORT-03 | Phase 15 | Pending |
 
