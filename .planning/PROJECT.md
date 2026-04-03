@@ -18,7 +18,7 @@ Finding and playing a stream should take seconds — the right station should al
 - YouTube thumbnail 16:9 — display full 16:9 in now-playing instead of center-cropped 1:1
 - Accent color — custom highlight color with presets + hex input, persisted in SQLite settings
 
-## Current State (v1.3 fully complete — 2026-04-03)
+## Current State (Phase 17 complete — 2026-04-03)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py)
 - **LOC:** ~3,150 Python source | ~1,468 test LOC | **Tests:** 127 passing
@@ -87,7 +87,7 @@ Finding and playing a stream should take seconds — the right station should al
 ### Active (v1.4)
 
 - [ ] STREAM-01: GStreamer buffer size/duration tuned to eliminate audible drop-outs on ShoutCast/HTTP streams
-- [ ] ART-01: AudioAddict channel logos fetched from AA API at import time and stored as station art
+- ✓ ART-01: AudioAddict channel logos fetched from AA API at import time and stored as station art — Validated in Phase 17: audioaddict-station-art
 - [ ] ART-02: YouTube thumbnails displayed as full 16:9 in the now-playing panel (not center-cropped to 1:1)
 - [ ] ACCENT-01: User can set a custom highlight/accent color via preset swatches or hex input, persisted across sessions
 
@@ -192,4 +192,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-03 — v1.4 milestone started*
+*Last updated: 2026-04-03 — Phase 17 complete (AA station art)*
