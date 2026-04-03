@@ -19,7 +19,7 @@ informational content and interactive controls more obvious at a glance.
 ## When to Surface
 
 **Trigger:** any milestone that includes UI layout, player controls, or visual polish phases
-
+ 
 This seed should be presented during `/gsd:new-milestone` when the milestone
 scope matches any of these conditions:
 - Milestone includes a UI polish or layout phase

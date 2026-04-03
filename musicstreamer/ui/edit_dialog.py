@@ -10,11 +10,78 @@ from gi.repository import Gtk, Adw, GLib
 from musicstreamer.repo import Repo
 from musicstreamer.assets import copy_asset_for_station
 from musicstreamer.constants import DATA_DIR
+from musicstreamer.aa_import import NETWORKS, _fetch_image_map, _normalize_aa_image_url
+import os
 
 
 def _is_youtube_url(url: str) -> bool:
     """Return True if url is a YouTube URL."""
     return "youtube.com" in url or "youtu.be" in url
+
+
+# AA stream domain patterns for URL detection (D-06)
+_AA_STREAM_DOMAINS = {
+    "di.fm", "radiotunes.com", "jazzradio.com",
+    "rockradio.com", "classicalradio.com", "zenradio.com",
+}
+
+
+def _is_aa_url(url: str) -> bool:
+    """Return True if url is an AudioAddict stream URL (matches any of the 6 AA network domains)."""
+    url_lower = url.lower()
+    return any(domain in url_lower for domain in _AA_STREAM_DOMAINS)
+
+
+def _aa_channel_key_from_url(url: str) -> str | None:
+    """Extract channel key from an AudioAddict stream URL path segment.
+
+    e.g. 'http://prem2.di.fm:80/di_house?listen_key=...' -> 'di_house'
+    Returns None if the URL has no non-empty path segment.
+    """
+    import urllib.parse
+    try:
+        parsed = urllib.parse.urlparse(url)
+        # path is like '/di_house' — strip leading slash, take first segment
+        path = parsed.path.lstrip("/")
+        if not path:
+            return None
+        return path.split("/")[0] or None
+    except Exception:
+        return None
+
+
+def _aa_slug_from_url(url: str) -> str | None:
+    """Determine the AA network slug from a stream URL domain.
+
+    e.g. 'http://prem2.di.fm:80/di_house' -> 'di'
+    """
+    url_lower = url.lower()
+    for net in NETWORKS:
+        # Match the domain part (e.g. di.fm matches prem2.di.fm)
+        domain_base = net["domain"].replace("listen.", "")  # "di.fm"
+        if domain_base in url_lower:
+            return net["slug"]
+    return None
+
+
+def fetch_aa_logo(slug: str, channel_key: str, callback: callable) -> None:
+    """Fetch AA channel logo in a daemon thread. callback(temp_path|None)."""
+    def _worker():
+        try:
+            img_map = _fetch_image_map(slug)
+            image_url = img_map.get(channel_key)
+            if not image_url:
+                GLib.idle_add(callback, None)
+                return
+            with urllib.request.urlopen(image_url, timeout=10) as resp:
+                data = resp.read()
+            ext = os.path.splitext(image_url.split("?")[0])[1] or ".png"
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                tmp.write(data)
+                GLib.idle_add(callback, tmp.name)
+        except Exception:
+            GLib.idle_add(callback, None)
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 def fetch_yt_thumbnail(url: str, callback: callable) -> None:
@@ -189,6 +256,37 @@ class EditStationDialog(Adw.Window):
 
         fetch_btn = Gtk.Button(label="Fetch from URL")
         fetch_btn.connect("clicked", self._on_fetch_clicked)
+        self._fetch_btn = fetch_btn
+
+        # AA API key popover (D-07) — shown when no stored key and AA URL detected
+        self._aa_key_popover = Gtk.Popover()
+        popover_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        popover_box.set_margin_top(8)
+        popover_box.set_margin_bottom(8)
+        popover_box.set_margin_start(8)
+        popover_box.set_margin_end(8)
+
+        popover_heading = Gtk.Label(label="API Key Required")
+        popover_heading.set_xalign(0)
+        popover_heading.add_css_class("heading")
+        popover_box.append(popover_heading)
+
+        popover_body = Gtk.Label(label="Enter your AudioAddict API key to fetch station art.")
+        popover_body.set_xalign(0)
+        popover_body.set_wrap(True)
+        popover_box.append(popover_body)
+
+        self._aa_key_entry_popover = Gtk.Entry()
+        self._aa_key_entry_popover.set_placeholder_text("AudioAddict API key\u2026")
+        popover_box.append(self._aa_key_entry_popover)
+
+        confirm_btn = Gtk.Button(label="Fetch")
+        confirm_btn.add_css_class("suggested-action")
+        confirm_btn.connect("clicked", self._on_aa_key_confirmed)
+        popover_box.append(confirm_btn)
+
+        self._aa_key_popover.set_child(popover_box)
+        self._aa_key_popover.set_parent(fetch_btn)
 
         album_art_btn = Gtk.Button(label="Choose Default Album Art…")
         album_art_btn.connect("clicked", self._choose_album_art)
@@ -298,11 +396,22 @@ class EditStationDialog(Adw.Window):
         if _is_youtube_url(url):
             self._start_thumbnail_fetch(url)
             self._start_title_fetch(url)
+        elif _is_aa_url(url):
+            # Auto-fetch logo if API key is already stored (D-07)
+            stored_key = self.repo.get_setting("audioaddict_listen_key", "")
+            if stored_key:
+                self._start_aa_logo_fetch(url)
 
     def _on_fetch_clicked(self, *_):
         url = self.url_entry.get_text().strip()
         if _is_youtube_url(url):
             self._start_thumbnail_fetch(url)
+        elif _is_aa_url(url):
+            stored_key = self.repo.get_setting("audioaddict_listen_key", "")
+            if stored_key:
+                self._start_aa_logo_fetch(url)
+            else:
+                self._aa_key_popover.popup()
 
     def _start_thumbnail_fetch(self, url: str):
         if self._thumb_fetch_in_progress:
@@ -331,7 +440,31 @@ class EditStationDialog(Adw.Window):
 
     def _on_close_request(self, *_):
         self._fetch_cancelled = True
+        if hasattr(self, '_aa_key_popover'):
+            self._aa_key_popover.unparent()
         return False  # allow close to proceed
+
+    def _start_aa_logo_fetch(self, url: str):
+        if self._thumb_fetch_in_progress:
+            return
+        slug = _aa_slug_from_url(url)
+        channel_key = _aa_channel_key_from_url(url)
+        if not slug or not channel_key:
+            return
+        self._thumb_fetch_in_progress = True
+        self._art_stack.set_visible_child_name("spinner")
+        self._art_spinner.start()
+        fetch_aa_logo(slug, channel_key, self._on_thumbnail_fetched)
+
+    def _on_aa_key_confirmed(self, *_):
+        key = self._aa_key_entry_popover.get_text().strip()
+        if not key:
+            return
+        self.repo.set_setting("audioaddict_listen_key", key)
+        self._aa_key_popover.popdown()
+        url = self.url_entry.get_text().strip()
+        if _is_aa_url(url):
+            self._start_aa_logo_fetch(url)
 
     def _start_title_fetch(self, url: str):
         if self._title_fetch_in_progress:
