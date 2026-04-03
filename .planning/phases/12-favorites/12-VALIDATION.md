@@ -1,10 +1,11 @@
 ---
 phase: 12
 slug: favorites
-status: draft
+status: audited
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-03-30
+audited: 2026-04-03
 ---
 
 # Phase 12 — Validation Strategy
@@ -38,13 +39,13 @@ created: 2026-03-30
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 12-01-01 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_add_favorite -xq` | ❌ W0 | ⬜ pending |
-| 12-01-02 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_duplicate_ignored -xq` | ❌ W0 | ⬜ pending |
-| 12-01-03 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_remove_favorite -xq` | ❌ W0 | ⬜ pending |
-| 12-01-04 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_list_favorites -xq` | ❌ W0 | ⬜ pending |
-| 12-02-01 | 02 | 2 | FAVES-01 | manual | — | n/a | ⬜ pending |
-| 12-02-02 | 02 | 2 | FAVES-03 | manual | — | n/a | ⬜ pending |
-| 12-02-03 | 02 | 2 | FAVES-04 | manual | — | n/a | ⬜ pending |
+| 12-01-01 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_add_favorite -xq` | ✅ | ✅ green |
+| 12-01-02 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_duplicate_ignored -xq` | ✅ | ✅ green |
+| 12-01-03 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_remove_favorite -xq` | ✅ | ✅ green |
+| 12-01-04 | 01 | 1 | FAVES-02 | unit | `uv run --with pytest pytest tests/test_favorites.py::test_list_favorites_order -xq` | ✅ | ✅ green |
+| 12-02-01 | 02 | 2 | FAVES-01 | manual | — | n/a | ✅ manual-ok |
+| 12-02-02 | 02 | 2 | FAVES-03 | manual | — | n/a | ✅ manual-ok |
+| 12-02-03 | 02 | 2 | FAVES-04 | manual | — | n/a | ✅ manual-ok |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -52,9 +53,9 @@ created: 2026-03-30
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_favorites.py` — stubs for FAVES-01 through FAVES-04 (repo layer tests)
+- [x] `tests/test_favorites.py` — 9 unit tests covering FAVES-02 repo layer and iTunes genre parser
 
-*Existing infrastructure (pytest + uv) covers framework needs — Wave 0 only adds test stubs.*
+*Completed in Plan 01 execution (commit 98f3eff). All 9 tests green.*
 
 ---
 
@@ -72,11 +73,22 @@ created: 2026-03-30
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 10s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or manual-only justification
+- [x] Wave 0 complete — tests/test_favorites.py exists with 9 passing tests
+- [x] No watch-mode flags
+- [x] Feedback latency < 10s (0.13s observed)
+- [ ] Sampling continuity: 3 consecutive manual tasks at end (UI layer — GTK requires live app, no automated alternative)
+- [ ] `nyquist_compliant: true` — not set; 3 manual-only UI tasks prevent full compliance
 
-**Approval:** pending
+**Approval:** partial — 4/7 automated (57%), 3/7 manual-only (UI/GTK)
+
+---
+
+## Validation Audit 2026-04-03
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Automated tests verified green | 4 |
+| Manual-only (justified) | 3 |
+| Tests generated | 0 (all existed) |
