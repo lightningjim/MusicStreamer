@@ -3,6 +3,7 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst, GLib
 from musicstreamer.models import Station
+from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
 
 
 def _fix_icy_encoding(s: str) -> str:
@@ -22,6 +23,8 @@ class Player:
         audio_sink = Gst.ElementFactory.make("pulsesink", "audio-output")
         if audio_sink:
             self._pipeline.set_property("audio-sink", audio_sink)
+        self._pipeline.set_property("buffer-duration", BUFFER_DURATION_S * Gst.SECOND)
+        self._pipeline.set_property("buffer-size", BUFFER_SIZE_BYTES)
         bus = self._pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message::error", self._on_gst_error)
