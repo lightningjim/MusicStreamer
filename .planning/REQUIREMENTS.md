@@ -7,10 +7,10 @@
 
 ### Favorites
 
-- [ ] **FAVES-01**: User can star the currently playing ICY track title (star button in now-playing, gated on non-junk title)
+- [x] **FAVES-01**: User can star the currently playing ICY track title (star button in now-playing, gated on non-junk title)
 - [x] **FAVES-02**: Favorited track is stored in DB with station name, provider name, track title, and iTunes genre (denormalized for station-deletion resilience)
-- [ ] **FAVES-03**: User can toggle between Stations and Favorites inline list view in the sidebar
-- [ ] **FAVES-04**: User can remove a track from the Favorites view
+- [x] **FAVES-03**: User can toggle between Stations and Favorites inline list view in the sidebar
+- [x] **FAVES-04**: User can remove a track from the Favorites view
 
 ### Discovery (Radio-Browser.info)
 
@@ -55,10 +55,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FAVES-01 | Phase 12 | Pending |
+| FAVES-01 | Phase 12 | Complete |
 | FAVES-02 | Phase 12 | Complete |
-| FAVES-03 | Phase 12 | Pending |
-| FAVES-04 | Phase 12 | Pending |
+| FAVES-03 | Phase 12 | Complete |
+| FAVES-04 | Phase 12 | Complete |
 | DISC-01 | Phase 13 | Complete |
 | DISC-02 | Phase 13 | Complete |
 | DISC-03 | Phase 13 | Complete |
