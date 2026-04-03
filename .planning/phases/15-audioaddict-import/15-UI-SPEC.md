@@ -35,11 +35,12 @@ All values align to the 4-point grid already in use in the codebase.
 |-------|-------|-------|
 | xs | 4px | Row padding top/bottom (`.station-list-row`, `.favorites-list-row`) |
 | sm | 8px | Default `spacing=` in Gtk.Box, margin-start/end on filter bars |
-| md | 12px | Dialog content margin (all four sides — matches `import_dialog.py`) |
-| lg | 16px | Panel margin-top/bottom (now-playing panel) |
-| xl | 24px | Panel margin-start/end (now-playing panel) |
+| md | 16px | Panel margin-top/bottom (now-playing panel) |
+| lg | 24px | Panel margin-start/end (now-playing panel) |
+| xl | 32px | Reserved — large section gaps |
 
 Exceptions:
+- **12px dialog content margin** — used as `margin=12` on the ImportDialog content box; matches existing `import_dialog.py` Phase 14 code; preserved for code consistency, not a new design decision.
 - Dialog default size: 700 × 560 px — matches existing `ImportDialog.set_default_size(700, 560)`
 - Spinner size: 32 × 32 px — matches existing scanning spinner in `import_dialog.py`
 - Tab strip: use `Gtk.Notebook` or `Adw.ViewSwitcherBar` native sizing — no manual override
@@ -72,7 +73,9 @@ All colors are resolved at runtime from the Adwaita named palette. No hardcoded 
 | Accent (10%) | `@accent_color` | Primary action button (`suggested-action` CSS class) only |
 | Destructive | `@destructive_color` | Not used in this phase — no destructive actions |
 
-Accent reserved for: the single primary CTA button only ("Import" button with `add_css_class("suggested-action")`). All other interactive elements use default Adwaita styling.
+Accent reserved for: the single primary CTA button only ("Import Stations" button with `add_css_class("suggested-action")`). All other interactive elements use default Adwaita styling.
+
+Primary focal point: Import Stations button (`suggested-action`) in dialog footer.
 
 Now-playing panel gradient uses the existing `.now-playing-panel` CSS rule (`shade(@card_bg_color)`) — no change to this rule in Phase 15.
 
@@ -88,7 +91,7 @@ These are the specific GTK/Adw widgets the executor must use. No new widget clas
 | Tab switcher | `Gtk.Notebook` with tab labels "YouTube Playlist" / "AudioAddict" | Each tab hosts its own content `Gtk.Box`; stack pages remain per-tab |
 | API key entry | `Gtk.Entry` | `set_placeholder_text("Paste AudioAddict API key…")` |
 | Quality selector | `Adw.ToggleGroup` with 3 buttons: "Hi" / "Med" / "Low" | Default active: "Hi". Matches Stations/Favorites toggle pattern |
-| Import trigger | `Gtk.Button(label="Import")` with `add_css_class("suggested-action")` | Disabled until API key is non-empty |
+| Import trigger | `Gtk.Button(label="Import Stations")` with `add_css_class("suggested-action")` | Disabled until API key is non-empty |
 | Progress label | `Gtk.Label` | Hidden until import starts; text: "{n} imported, {n} skipped" |
 | Spinner | `Gtk.Spinner` with `set_size_request(32, 32)` | Visible during API fetch phase |
 | Status page (prompt) | `Adw.StatusPage` | Shown before import starts |
@@ -103,10 +106,10 @@ These are the specific GTK/Adw widgets the executor must use. No new widget clas
 
 | State | Trigger | UI |
 |-------|---------|-----|
-| `prompt` | Tab open, no key saved | StatusPage: "Enter your AudioAddict API key", Import button disabled |
-| `prompt-filled` | Key present (pre-filled or typed) | Import button enabled, quality toggle active |
-| `importing` | Import button clicked | Spinner visible, progress label updating, Import button + entry disabled |
-| `done` | Import worker completes | Progress label shows final count, Import button becomes "Done" |
+| `prompt` | Tab open, no key saved | StatusPage: "Enter your AudioAddict API key", Import Stations button disabled |
+| `prompt-filled` | Key present (pre-filled or typed) | Import Stations button enabled, quality toggle active |
+| `importing` | Import Stations button clicked | Spinner visible, progress label updating, Import Stations button + entry disabled |
+| `done` | Import worker completes | Progress label shows final count, Import Stations button becomes "Done" |
 | `error-invalid-key` | API returns 401/403 | Inline error label below entry: "Invalid or expired API key. Check your key and try again." |
 | `error-network` | Network failure | StatusPage: title + description (see Copywriting) |
 
@@ -121,11 +124,11 @@ These are the specific GTK/Adw widgets the executor must use. No new widget clas
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | "Import" |
+| Primary CTA | "Import Stations" |
 | Tab label — YouTube | "YouTube Playlist" |
 | Tab label — AudioAddict | "AudioAddict" |
 | Prompt status title | "Enter your API key" |
-| Prompt status description | "Paste your AudioAddict API key and select a stream quality, then tap Import." |
+| Prompt status description | "Paste your AudioAddict API key and select a stream quality, then tap Import Stations." |
 | Progress label (live) | "{n} imported, {n} skipped" |
 | Done button label | "Done" |
 | Inline error — invalid key | "Invalid or expired API key. Check your key and try again." |
@@ -134,7 +137,7 @@ These are the specific GTK/Adw widgets the executor must use. No new widget clas
 | Error status title — no channels | "No Channels Found" |
 | Error status description — no channels | "No channels were returned for this key. Verify your account is active." |
 | Quality toggle labels | "Hi" / "Med" / "Low" |
-| API key entry placeholder | "Paste AudioAddict API key\u2026" |
+| API key entry placeholder | "Paste AudioAddict API key…" |
 
 No destructive actions in this phase. No confirmation dialogs required.
 
@@ -161,7 +164,7 @@ Adw.Window (700 × 560)
               page "error" → Adw.StatusPage
             Gtk.Box (horizontal, spacing=8)  [footer]
               Gtk.Label  [progress label, hexpand=True, xalign=0]
-              Gtk.Button [Import / Done, suggested-action]
+              Gtk.Button [Import Stations / Done, suggested-action]
 ```
 
 ---
