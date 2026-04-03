@@ -29,17 +29,23 @@ def test_is_aa_url_false_youtube():
 def test_is_aa_url_false_generic():
     assert _is_aa_url("http://example.com/stream") is False
 
-def test_channel_key_extraction_with_query():
-    # Stream URL path is 'di_house'; slug 'di' prefix is stripped -> 'house'
-    assert _aa_channel_key_from_url("http://prem2.di.fm:80/di_house?listen_key=abc", "di") == "house"
+def test_channel_key_strips_quality_suffix():
+    # DI.fm/RadioTunes stream URLs append _hi quality tier — must be stripped
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/ambient_hi?listen_key=abc", "di") == "ambient"
 
-def test_channel_key_extraction_no_prefix():
-    # Some networks don't prefix; without slug arg key is returned as-is
-    assert _aa_channel_key_from_url("http://prem1.di.fm:80/ambient") == "ambient"
+def test_channel_key_strips_med_suffix():
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/trance_med?listen_key=abc", "di") == "trance"
 
-def test_channel_key_extraction_no_query():
-    # Bare key with no network prefix (e.g. ambient has no 'di_' prefix)
-    assert _aa_channel_key_from_url("http://prem1.di.fm:80/ambient", "di") == "ambient"
+def test_channel_key_strips_low_suffix():
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/house_low", "di") == "house"
+
+def test_channel_key_strips_zenradio_prefix():
+    # ZenRadio stream URLs use 'zr' prefix — must be stripped to match API key
+    assert _aa_channel_key_from_url("http://prem1.zenradio.com:80/zrambient", "zenradio") == "ambient"
+
+def test_channel_key_no_transform_needed():
+    # JazzRadio/RockRadio/ClassicalRadio use bare keys matching the API directly
+    assert _aa_channel_key_from_url("http://prem1.jazzradio.com:80/afrojazz", "jazzradio") == "afrojazz"
 
 def test_channel_key_extraction_no_path():
     assert _aa_channel_key_from_url("http://di.fm") is None

@@ -20,11 +20,11 @@ def make_player():
 
 
 def test_buffer_duration_constant():
-    assert BUFFER_DURATION_S == 5
+    assert BUFFER_DURATION_S == 10
 
 
 def test_buffer_size_constant():
-    assert BUFFER_SIZE_BYTES == 5 * 1024 * 1024
+    assert BUFFER_SIZE_BYTES == 10 * 1024 * 1024
 
 
 def test_init_sets_buffer_duration():
