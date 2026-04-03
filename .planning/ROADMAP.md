@@ -61,7 +61,7 @@ Full details: `.planning/milestones/v1.3-ROADMAP.md`
 
 **Milestone Goal:** Improve stream reliability, station art quality, display fidelity, and add basic UI personalization.
 
-- [ ] **Phase 16: GStreamer Buffer Tuning** — Tune playbin3 buffer properties to eliminate ShoutCast/HTTP drop-outs
+- [x] **Phase 16: GStreamer Buffer Tuning** — Tune playbin3 buffer properties to eliminate ShoutCast/HTTP drop-outs (completed 2026-04-03)
 - [ ] **Phase 17: AudioAddict Station Art** — Fetch AA channel logos at import time and auto-fetch in the station editor
 - [ ] **Phase 18: YouTube Thumbnail 16:9** — Display full 16:9 YouTube thumbnails in now-playing without distorting square art
 - [ ] **Phase 19: Custom Accent Color** — Add preset/hex accent color picker persisted in SQLite settings
@@ -79,7 +79,7 @@ Full details: `.planning/milestones/v1.3-ROADMAP.md`
 **Plans**: 1 plan
 
 Plans:
-- [ ] 16-01: Set buffer-duration and buffer-size on playbin3 pipeline; validate ICY TAG latency
+- [x] 16-01: Set buffer-duration and buffer-size on playbin3 pipeline; validate ICY TAG latency
 
 ### Phase 17: AudioAddict Station Art
 **Goal**: AudioAddict stations display channel logos fetched from the AA API
@@ -147,7 +147,7 @@ Plans:
 | 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete | 2026-04-01 |
 | 14. YouTube Playlist Import | v1.3 | 2/2 | Complete | 2026-04-02 |
 | 15. AudioAddict Import | v1.3 | 2/2 | Complete | 2026-04-03 |
-| 16. GStreamer Buffer Tuning | v1.4 | 0/1 | Not started | - |
+| 16. GStreamer Buffer Tuning | v1.4 | 1/1 | Complete   | 2026-04-03 |
 | 17. AudioAddict Station Art | v1.4 | 0/2 | Not started | - |
 | 18. YouTube Thumbnail 16:9 | v1.4 | 0/1 | Not started | - |
 | 19. Custom Accent Color | v1.4 | 0/2 | Not started | - |

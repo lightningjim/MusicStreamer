@@ -7,7 +7,7 @@
 
 ### Stream Reliability
 
-- [ ] **STREAM-01**: ShoutCast/HTTP streams play without audible drop-outs after GStreamer buffer-duration and buffer-size are tuned; ICY track title latency is not noticeably increased
+- [x] **STREAM-01**: ShoutCast/HTTP streams play without audible drop-outs after GStreamer buffer-duration and buffer-size are tuned; ICY track title latency is not noticeably increased
 
 ### Station Art
 
@@ -43,7 +43,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STREAM-01 | Phase 16 | Pending |
+| STREAM-01 | Phase 16 | Complete |
 | ART-01 | Phase 17 | Pending |
 | ART-02 | Phase 17 | Pending |
 | ART-03 | Phase 18 | Pending |

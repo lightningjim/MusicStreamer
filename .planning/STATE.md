@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Media & Art Polish
-status: Ready to plan
-stopped_at: Roadmap created — ready for plan-phase 16
-last_updated: "2026-04-03"
+status: verifying
+stopped_at: Completed 16-01-PLAN.md — GStreamer buffer tuning
+last_updated: "2026-04-03T19:01:09.808Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 6
-  completed_plans: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 16 — GStreamer Buffer Tuning
+**Current focus:** Phase 16 — gstreamer-buffer-tuning
 
 ## Current Position
 
-Phase: 16 of 19 (GStreamer Buffer Tuning)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-04-03 — v1.4 roadmap created (4 phases, 6 plans)
+Phase: 16 (gstreamer-buffer-tuning) — EXECUTING
+Plan: 1 of 1
+Status: Phase complete — ready for verification
+Last activity: 2026-04-03
 
 Progress: [░░░░░░░░░░] 0% (0/6 plans)
 
@@ -54,10 +54,12 @@ Progress: [░░░░░░░░░░] 0% (0/6 plans)
 Decisions are logged in PROJECT.md Key Decisions table.
 
 Key decisions relevant to v1.4:
+
 - [Research]: AA `channel_images.default` field name unverified — inspect live /v1/di/channels before coding ART-01
 - [Research]: `@define-color` vs `--accent-bg-color` CSS mechanism inconsistent in docs — resolve at Phase 19 start
 - [Research]: AA logo fetch must be async/decoupled from insert loop to avoid 5-min import regression
 - [Research]: Use `ContentFit.CONTAIN` in existing 160×160 slot for 16:9 — do not widen slot unconditionally
+- [Phase 16]: Buffer constants in constants.py (not inlined): consistent with project pattern, allows future tuning
 
 ### Pending Todos
 
@@ -78,6 +80,6 @@ Key decisions relevant to v1.4:
 
 ## Session Continuity
 
-Last session: 2026-04-03
-Stopped at: Roadmap created — v1.4 phases 16–19 defined
+Last session: 2026-04-03T19:01:09.805Z
+Stopped at: Completed 16-01-PLAN.md — GStreamer buffer tuning
 Resume file: None
