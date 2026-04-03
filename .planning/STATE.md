@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Media & Art Polish
 status: verifying
-stopped_at: Completed 17-01-PLAN.md — AudioAddict logo fetch
-last_updated: "2026-04-03T22:17:53.370Z"
+stopped_at: Completed 17-02-PLAN.md — AA URL detection and editor logo fetch (awaiting human verify checkpoint)
+last_updated: "2026-04-03T22:23:16.747Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -62,6 +62,7 @@ Key decisions relevant to v1.4:
 - [Phase 16]: Buffer constants in constants.py (not inlined): consistent with project pattern, allows future tuning
 - [Phase 17-audioaddict-station-art]: on_logo_progress(0, total) emitted before downloads start so UI can transition label immediately
 - [Phase 17-audioaddict-station-art]: Thread-local Repo(db_connect()) in each logo worker — no shared SQLite connection across threads
+- [Phase 17-audioaddict-station-art]: _aa_channel_key_from_url uses urllib.parse.urlparse (not regex) to correctly reject domain-only URLs
 
 ### Pending Todos
 
@@ -82,6 +83,6 @@ Key decisions relevant to v1.4:
 
 ## Session Continuity
 
-Last session: 2026-04-03T22:17:53.367Z
-Stopped at: Completed 17-01-PLAN.md — AudioAddict logo fetch
+Last session: 2026-04-03T22:23:16.744Z
+Stopped at: Completed 17-02-PLAN.md — AA URL detection and editor logo fetch (awaiting human verify checkpoint)
 Resume file: None
