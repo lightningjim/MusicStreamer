@@ -19,28 +19,26 @@ decisions:
   - "_aa_channel_key_from_url uses urllib.parse.urlparse (not regex) to correctly reject domain-only URLs with no path"
   - "fetch_aa_logo reuses _on_thumbnail_fetched callback — identical copy/refresh flow as YouTube thumbnail"
   - "_aa_key_popover.unparent() on close-request avoids GTK reference warnings when dialog destroyed mid-state"
+  - "_aa_channel_key_from_url strips network slug prefix (e.g. 'di_house' -> 'house') — stream URL paths are slug-prefixed but AA API keys images by bare channel name"
+requirements-completed: [ART-02]
 metrics:
-  duration_seconds: 420
+  duration_seconds: 2100
   completed_date: "2026-04-03"
-  tasks_completed: 1
+  tasks_completed: 2
   files_modified: 2
 ---
 
 # Phase 17 Plan 02: AudioAddict URL Detection and Editor Logo Fetch Summary
 
-**One-liner:** AA URL detection for all 6 network domains wired into station editor with daemon-thread logo fetch and API key popover using urllib.parse for correct path extraction.
+**AA URL detection for all 6 network domains wired into station editor with daemon-thread logo fetch and API key popover; slug-prefix bug fixed during verification, 153 tests passing**
 
 ## Tasks Completed
 
 | Task | Name | Commit | Files |
 |------|------|--------|-------|
 | 1 | Tests + AA URL helpers + fetch_aa_logo + editor wiring + API key popover | 436862a | musicstreamer/ui/edit_dialog.py, tests/test_aa_url_detection.py |
-
-## Checkpoint Pending
-
-| Task | Name | Status |
-|------|------|--------|
-| 2 | Visual verification of AA logo import and editor fetch | Awaiting human verification |
+| fix | Strip slug prefix from channel key in _aa_channel_key_from_url | 84742f5 | musicstreamer/ui/edit_dialog.py |
+| 2 | Visual verification of AA logo import and editor fetch | — | Checkpoint approved |
 
 ## What Was Built
 
@@ -65,7 +63,7 @@ metrics:
 
 ## Test Coverage
 
-14 new tests; full suite: 152 passing (up from 138 after Plan 01).
+14 new tests; full suite: 153 passing after slug-prefix bug fix (up from 138 after Plan 01).
 
 ## Deviations from Plan
 
@@ -77,6 +75,18 @@ metrics:
 - **Fix:** Replaced regex with `urllib.parse.urlparse(url).path` — strips leading slash, returns None if path is empty after stripping.
 - **Files modified:** musicstreamer/ui/edit_dialog.py
 - **Commit:** 436862a (included in task commit)
+
+**2. [Rule 1 - Bug] Fixed _aa_channel_key_from_url returning slug-prefixed key causing logo lookup failure**
+- **Found during:** Task 2 visual verification
+- **Issue:** Stream URLs at prem2.di.fm use paths like `/di_house` (network slug + channel name), but `_fetch_image_map` keys images by bare channel name `house`. Returned key `di_house` was not found in image map so no logos loaded.
+- **Fix:** Added slug-stripping logic — detects network slug prefix in path segment and removes it before returning the key.
+- **Files modified:** musicstreamer/ui/edit_dialog.py
+- **Commit:** 84742f5
+
+---
+
+**Total deviations:** 2 auto-fixed (Rule 1 - bug x2)
+**Impact on plan:** Both fixes essential for correctness. No scope creep.
 
 ## Known Stubs
 

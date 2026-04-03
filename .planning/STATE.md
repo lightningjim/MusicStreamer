@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Media & Art Polish
 status: verifying
-stopped_at: Completed 17-02-PLAN.md — AA URL detection and editor logo fetch (awaiting human verify checkpoint)
-last_updated: "2026-04-03T22:23:16.747Z"
+stopped_at: Completed 17-02-PLAN.md — AA editor logo fetch with slug-prefix bug fix
+last_updated: "2026-04-03T23:07:03.184Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 4
@@ -63,6 +63,7 @@ Key decisions relevant to v1.4:
 - [Phase 17-audioaddict-station-art]: on_logo_progress(0, total) emitted before downloads start so UI can transition label immediately
 - [Phase 17-audioaddict-station-art]: Thread-local Repo(db_connect()) in each logo worker — no shared SQLite connection across threads
 - [Phase 17-audioaddict-station-art]: _aa_channel_key_from_url uses urllib.parse.urlparse (not regex) to correctly reject domain-only URLs
+- [Phase 17]: _aa_channel_key_from_url strips network slug prefix (e.g. di_house -> house) — stream URL paths are slug-prefixed but AA API keys images by bare channel name
 
 ### Pending Todos
 
@@ -83,6 +84,6 @@ Key decisions relevant to v1.4:
 
 ## Session Continuity
 
-Last session: 2026-04-03T22:23:16.744Z
-Stopped at: Completed 17-02-PLAN.md — AA URL detection and editor logo fetch (awaiting human verify checkpoint)
+Last session: 2026-04-03T23:06:58.275Z
+Stopped at: Completed 17-02-PLAN.md — AA editor logo fetch with slug-prefix bug fix
 Resume file: None
