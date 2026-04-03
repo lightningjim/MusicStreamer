@@ -94,7 +94,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 17-01: AA art fetch backend — live API field inspection, fetch logic in aa_import.py, async image download, tests
+- [x] 17-01: AA art fetch backend — live API field inspection, fetch logic in aa_import.py, async image download, tests
 - [ ] 17-02: Editor auto-fetch UI — _on_url_focus_out wiring in edit_dialog.py for AA URLs, same UX as YT thumbnail
 
 ### Phase 18: YouTube Thumbnail 16:9
@@ -148,6 +148,6 @@ Plans:
 | 14. YouTube Playlist Import | v1.3 | 2/2 | Complete | 2026-04-02 |
 | 15. AudioAddict Import | v1.3 | 2/2 | Complete | 2026-04-03 |
 | 16. GStreamer Buffer Tuning | v1.4 | 1/1 | Complete   | 2026-04-03 |
-| 17. AudioAddict Station Art | v1.4 | 0/2 | Not started | - |
+| 17. AudioAddict Station Art | v1.4 | 1/2 | In Progress|  |
 | 18. YouTube Thumbnail 16:9 | v1.4 | 0/1 | Not started | - |
 | 19. Custom Accent Color | v1.4 | 0/2 | Not started | - |

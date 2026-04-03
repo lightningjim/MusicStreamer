@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Media & Art Polish
-status: active
-stopped_at: Phase 16 complete — GStreamer buffer tuning verified 2026-04-03
-last_updated: "2026-04-03T19:01:09.808Z"
+status: verifying
+stopped_at: Completed 17-01-PLAN.md — AudioAddict logo fetch
+last_updated: "2026-04-03T22:17:53.370Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 3
+  completed_plans: 2
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
 
 Phase: 16 (gstreamer-buffer-tuning) — COMPLETE ✓
 Plan: 1 of 1
-Status: Verified 2026-04-03 — advancing to Phase 17
+Status: Phase complete — ready for verification
 Last activity: 2026-04-03
 
 Progress: [░░░░░░░░░░] 0% (0/6 plans)
@@ -60,6 +60,8 @@ Key decisions relevant to v1.4:
 - [Research]: AA logo fetch must be async/decoupled from insert loop to avoid 5-min import regression
 - [Research]: Use `ContentFit.CONTAIN` in existing 160×160 slot for 16:9 — do not widen slot unconditionally
 - [Phase 16]: Buffer constants in constants.py (not inlined): consistent with project pattern, allows future tuning
+- [Phase 17-audioaddict-station-art]: on_logo_progress(0, total) emitted before downloads start so UI can transition label immediately
+- [Phase 17-audioaddict-station-art]: Thread-local Repo(db_connect()) in each logo worker — no shared SQLite connection across threads
 
 ### Pending Todos
 
@@ -80,6 +82,6 @@ Key decisions relevant to v1.4:
 
 ## Session Continuity
 
-Last session: 2026-04-03T19:01:09.805Z
-Stopped at: Completed 16-01-PLAN.md — GStreamer buffer tuning
+Last session: 2026-04-03T22:17:53.367Z
+Stopped at: Completed 17-01-PLAN.md — AudioAddict logo fetch
 Resume file: None
