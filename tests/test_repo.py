@@ -210,3 +210,12 @@ def test_insert_station_persists_fields(repo):
     assert st.name == "My Station"
     assert st.url == "http://my.station/stream"
     assert st.tags == "jazz,blues"
+
+
+# --- update_station_art tests ---
+
+def test_update_station_art(repo):
+    sid = repo.create_station()
+    repo.update_station_art(sid, "assets/1/station_art.png")
+    st = repo.get_station(sid)
+    assert st.station_art_path == "assets/1/station_art.png"

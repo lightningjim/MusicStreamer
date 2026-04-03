@@ -277,3 +277,10 @@ class Repo:
         )
         self.con.commit()
         return int(cur.lastrowid)
+
+    def update_station_art(self, station_id: int, art_path: str) -> None:
+        self.con.execute(
+            "UPDATE stations SET station_art_path = ? WHERE id = ?",
+            (art_path, station_id),
+        )
+        self.con.commit()
