@@ -148,6 +148,6 @@ Plans:
 | 14. YouTube Playlist Import | v1.3 | 2/2 | Complete | 2026-04-02 |
 | 15. AudioAddict Import | v1.3 | 2/2 | Complete | 2026-04-03 |
 | 16. GStreamer Buffer Tuning | v1.4 | 1/1 | Complete   | 2026-04-03 |
-| 17. AudioAddict Station Art | v1.4 | 2/2 | Complete   | 2026-04-03 |
+| 17. AudioAddict Station Art | v1.4 | 2/2 | Complete    | 2026-04-03 |
 | 18. YouTube Thumbnail 16:9 | v1.4 | 0/1 | Not started | - |
 | 19. Custom Accent Color | v1.4 | 0/2 | Not started | - |
