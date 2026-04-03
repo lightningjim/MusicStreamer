@@ -291,7 +291,9 @@ def test_import_stations_calls_update_art():
     assert imported == 1
     assert skipped == 0
     mock_thread_repo.update_station_art.assert_called_once()
-    assert logo_progress_calls == [(1, 1)]
+    # (0, total) is emitted before downloads start, then (1, 1) after first completes
+    assert (0, 1) in logo_progress_calls
+    assert (1, 1) in logo_progress_calls
 
 
 def test_import_stations_logo_failure_silent():

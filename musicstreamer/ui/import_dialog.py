@@ -400,23 +400,35 @@ class ImportDialog(Adw.Window):
             GLib.idle_add(self._on_aa_error_network, str(e))
             return
 
+        total = len(channels)
+
         def on_progress(imp, skip):
-            GLib.idle_add(self._update_aa_progress, imp, skip)
+            GLib.idle_add(self._update_aa_station_progress, imp, skip, total)
+
+        def on_logo_progress(done, logo_total):
+            GLib.idle_add(self._update_aa_logo_phase)
 
         con = db_connect()
         try:
             thread_repo = Repo(con)
-            imported, skipped = aa_import.import_stations(channels, thread_repo, on_progress=on_progress)
+            imported, skipped = aa_import.import_stations(
+                channels, thread_repo,
+                on_progress=on_progress,
+                on_logo_progress=on_logo_progress,
+            )
         finally:
             con.close()
         GLib.idle_add(self._on_aa_import_done, imported, skipped)
 
-    def _update_aa_progress(self, imported: int, skipped: int):
-        self._aa_progress_label.set_text(f"{imported} imported, {skipped} skipped")
+    def _update_aa_station_progress(self, imported: int, skipped: int, total: int):
+        self._aa_progress_label.set_text(f"Importing stations\u2026 ({imported + skipped}/{total})")
+
+    def _update_aa_logo_phase(self):
+        self._aa_progress_label.set_text("Fetching logos\u2026")
 
     def _on_aa_import_done(self, imported: int, skipped: int):
         self._aa_spinner.stop()
-        self._update_aa_progress(imported, skipped)
+        self._aa_progress_label.set_text(f"Done \u2014 {imported} imported, {skipped} skipped")
         self._aa_stack.set_visible_child_name("prompt")
         if self._aa_import_handler_id is not None:
             self._aa_import_btn.disconnect(self._aa_import_handler_id)

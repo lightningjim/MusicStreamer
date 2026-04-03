@@ -139,6 +139,9 @@ def import_stations(channels: list[dict], repo, on_progress=None, on_logo_progre
 
     # Phase 2: download logos in parallel
     if logo_targets:
+        if on_logo_progress:
+            on_logo_progress(0, len(logo_targets))
+
         def _download_logo(station_id: int, image_url: str) -> None:
             try:
                 with urllib.request.urlopen(image_url, timeout=15) as resp:
