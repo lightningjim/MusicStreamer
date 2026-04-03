@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Media & Art Polish
-status: Defining requirements
-stopped_at: v1.4 milestone started
+status: Ready to plan
+stopped_at: Roadmap created — ready for plan-phase 16
 last_updated: "2026-04-03"
 last_activity: 2026-04-03
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 ---
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Planning next milestone (v1.4)
+**Current focus:** Phase 16 — GStreamer Buffer Tuning
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 16 of 19 (GStreamer Buffer Tuning)
 Plan: —
-Next: Define requirements, create roadmap, then `/gsd:plan-phase 16`
-Last activity: 2026-04-03 — Milestone v1.4 started
+Status: Ready to plan
+Last activity: 2026-04-03 — v1.4 roadmap created (4 phases, 6 plans)
 
-Progress: v1.4 in planning
+Progress: [░░░░░░░░░░] 0% (0/6 plans)
 
 ## Performance Metrics
 
@@ -53,15 +53,11 @@ Progress: v1.4 in planning
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-Key decisions added in v1.3:
-- [Phase 12]: `last_itunes_result` module-level dict caches genre for favorites without a second API call
-- [Phase 12]: `Adw.ToggleGroup` with `notify::active-name` for native Adwaita view switching
-- [Phase 13]: `url_resolved` preferred over `url` from Radio-Browser API (url is often PLS/M3U)
-- [Phase 14]: `is_live is True` strict identity check — non-live yt-dlp entries return None not False
-- [Phase 14]: Thread-local `db_connect()` in import workers — SQLite connections not shareable across threads
-- [Phase 15]: `ch['key']` not `ch['name']` for AudioAddict PLS URL slug
-- [Phase 15]: `ValueError('no_channels')` sentinel for expired API keys returning 200+empty
-- [Phase 15]: Resolve PLS to direct URL in `aa_import.fetch_channels` — GStreamer cannot play PLS playlists
+Key decisions relevant to v1.4:
+- [Research]: AA `channel_images.default` field name unverified — inspect live /v1/di/channels before coding ART-01
+- [Research]: `@define-color` vs `--accent-bg-color` CSS mechanism inconsistent in docs — resolve at Phase 19 start
+- [Research]: AA logo fetch must be async/decoupled from insert loop to avoid 5-min import regression
+- [Research]: Use `ContentFit.CONTAIN` in existing 160×160 slot for 16:9 — do not widen slot unconditionally
 
 ### Pending Todos
 
@@ -72,16 +68,16 @@ Key decisions added in v1.3:
 
 ### Blockers/Concerns
 
-None.
+- Phase 17: AA `channel_images` field name needs live API inspection before production code is written
 
 ### Known Tech Debt (v1.3)
 
-- DISC-03 cosmetic: stale now-playing state after preview close when nothing was previously playing; fix: call `main_window._stop()` instead of `player.stop()` directly in `discovery_dialog.py _on_close_request`
-- `cover_art._parse_artwork_url` (lines 53–64) — dead code; superseded by `_parse_itunes_result` (Phase 12). Safe to delete.
+- DISC-03 cosmetic: stale now-playing state after preview close; fix: call `main_window._stop()` in discovery_dialog.py `_on_close_request`
+- `cover_art._parse_artwork_url` (lines 53–64) — dead code; safe to delete
 - Nyquist compliance partial for phases 13–15 — VALIDATION.md files exist but wave_0 incomplete
 
 ## Session Continuity
 
 Last session: 2026-04-03
-Stopped at: v1.3 milestone archived
+Stopped at: Roadmap created — v1.4 phases 16–19 defined
 Resume file: None
