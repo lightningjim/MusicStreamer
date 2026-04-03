@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.3 Discovery & Favorites (Shipped: 2026-04-03)
+
+**Phases completed:** 4 phases (12–15), 8 plans | **Stats:** 127 tests | 3,150 source + 1,468 test Python LOC | 59 commits | 8 days
+
+**Delivered:** Added favorites (star ICY tracks, Favorites list), Radio-Browser.info discovery dialog, YouTube playlist importer, and AudioAddict bulk importer with tabbed ImportDialog.
+
+**Key accomplishments:**
+
+- `Favorite` dataclass, SQLite table with UNIQUE(station_name, track_title) dedup, repo CRUD — `INSERT OR IGNORE` for silent dedup; `cover_art.last_itunes_result` caches genre for favorites without a second API call
+- Star button in now-playing panel (gated on non-junk ICY title), `Adw.ToggleGroup` Stations/Favorites view switcher, favorites list with trash removal and empty state
+- `radio_browser.py` API client (`search_stations`, `fetch_tags`, `fetch_countries`) using urllib + daemon threads; `repo.station_exists_by_url` and `repo.insert_station` for discovery save
+- `DiscoveryDialog` modal: live search, tag/country dropdowns, per-row play buttons with prior-station resume, save to library — `url_resolved` preferred over `url` (avoids PLS/M3U)
+- `yt_import.py` backend with `scan_playlist`/`import_stations`; `ImportDialog` two-stage scan→checklist flow with spinner, progress count, and per-item selection; thread-local SQLite for import worker
+- `aa_import.py` backend: `fetch_channels`/`import_stations` across all AudioAddict networks, PLS→direct URL resolution at fetch time, quality tier selection; `ImportDialog` refactored to `Gtk.Notebook` tabs (YouTube + AudioAddict)
+
+---
+
 ## v1.2 Station UX & Polish (Shipped: 2026-03-27)
 
 **Phases completed:** 5 phases, 12 plans, 13 tasks

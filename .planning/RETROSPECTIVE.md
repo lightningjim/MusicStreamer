@@ -88,18 +88,65 @@
 - Sessions: ~3-4 across 3 days
 - Notable: 12 plans in 5 days; gap closure added 2 plans after UAT; GTK research front-loaded in phases 7-8 paid off in 9-11
 
+## Milestone: v1.3 — Discovery & Favorites
+
+**Shipped:** 2026-04-03
+**Phases:** 4 (12–15) | **Plans:** 8 | **Timeline:** 8 days (2026-03-27 → 2026-04-03)
+
+### What Was Built
+
+- Favorites system: `Favorite` dataclass, SQLite table with UNIQUE dedup, star button gated on non-junk ICY title, Adw.ToggleGroup view switcher, trash removal, empty state (Phase 12)
+- Radio-Browser.info API client + `DiscoveryDialog`: search, tag/country filters, per-row preview with prior-station resume, save to library (Phase 13)
+- `yt_import.py` backend + `ImportDialog` two-stage scan→checklist flow with spinner and per-item selection; live-streams-only filter via `is_live is True` strict check (Phase 14)
+- `aa_import.py` backend with PLS resolution at fetch time; `ImportDialog` refactored to `Gtk.Notebook` tabs for YouTube + AudioAddict; quality selector, per-network error skip (Phase 15)
+
+### What Worked
+
+- **Backend-first phase split** — each phase built pure-function backend module (plan 01) before GTK UI (plan 02); backends fully testable without display
+- **Thread-local SQLite pattern** — established in Phase 14 for import worker; reused identically in Phase 15; prevented cross-thread SQLite errors
+- **PLS resolution at import time** — catching the GStreamer/PLS incompatibility in aa_import.fetch_channels rather than at playback was the right place; silent failure at play time would have been confusing
+- **Dedup consistency** — all three import paths (discovery save, yt_import, aa_import) independently call `repo.station_exists_by_url` before insert; no shared coordinator needed
+- **Milestone audit before close** — caught Phase 12 VERIFICATION.md missing and stale REQUIREMENTS.md checkboxes; resolved before tagging
+
+### What Was Inefficient
+
+- Phase 12 REQUIREMENTS.md checkboxes not updated after Plan 02 completed — surfaced in audit; minor but required a correction commit
+- DISC-03 cosmetic bug (stale now-playing after preview close when nothing was previously playing) deferred to tech debt — straightforward fix (`_stop()` instead of `player.stop()`) but not caught until integration check
+- Nyquist compliance partial for phases 13–15 — VALIDATION.md files exist but wave_0 incomplete; overhead without payoff at this project scale
+
+### Patterns Established
+
+- `module-level result dict` (`last_itunes_result`) for caching cross-function state without extra HTTP calls
+- `Adw.ToggleGroup` with `notify::active-name` for native Adwaita segmented control view switching
+- `url_resolved` preferred over `url` from Radio-Browser API (url is often a PLS/M3U)
+- `ch['key']` not `ch['name']` for URL slug construction — names have spaces, keys are lowercase slugs
+- `ValueError('no_channels')` sentinel for detecting expired API keys that return 200+empty
+
+### Key Lessons
+
+- AudioAddict API key validation is implicit — a 200 response with empty channel lists is an expired key, not a network error
+- Radio-Browser station URLs frequently resolve to PLS/M3U; always prefer `url_resolved`
+- GTK `Gtk.Notebook` is the right tool for tabbed dialogs when content is completely independent between tabs
+- SQLite cross-thread errors surface at runtime, not import time — always open a thread-local connection in worker threads
+
+### Cost Observations
+
+- Model mix: sonnet throughout
+- Sessions: ~5-6 across 8 days
+- Notable: 4 phases with clear API-backend + GTK-UI split made each phase predictable; research phases paid for themselves
+
 ---
 
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 |
-|--------|------|------|------|
-| Phases | 4 | 2 | 5 |
-| Plans | 8 | 4 | 12 |
-| Tests | 43 | 58 (+15) | 85 (+27) |
-| LOC (Python) | 1,409 | 1,782 (+373) | ~17,505 total |
-| Gap closure plans | 1 | 0 | 0 |
-| Days | 35 | 1 | 3 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 |
+|--------|------|------|------|------|
+| Phases | 4 | 2 | 5 | 4 |
+| Plans | 8 | 4 | 12 | 8 |
+| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) |
+| LOC source (Python) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) |
+| Gap closure plans | 1 | 0 | 0 | 0 |
+| Days | 35 | 1 | 3 | 8 |
 
 ## Milestone: v1.1 — Polish & Station Management
 

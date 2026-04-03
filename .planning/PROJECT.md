@@ -2,31 +2,24 @@
 
 ## What This Is
 
-A personal GNOME desktop app for listening to curated internet radio and live streams. Supports ShoutCast-style streams (AudioAddict, Soma.FM, etc.) and YouTube live streams (e.g., Lofi Girl). Designed for a personal library of 50–200 stations organized by provider with multi-select filtering, recently played, live track title display, cover art from iTunes, volume control, and full per-station management.
+A personal GNOME desktop app for listening to curated internet radio and live streams. Supports ShoutCast-style streams (AudioAddict, Soma.FM, etc.) and YouTube live streams (e.g., Lofi Girl). Designed for a personal library of 50–200 stations organized by provider with multi-select filtering, recently played, live track title display, cover art from iTunes, volume control, favorites (star ICY tracks), in-app Radio-Browser.info discovery, and bulk import from YouTube playlists or AudioAddict networks.
 
 ## Core Value
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v1.3 Discovery & Favorites
+## Current State (v1.3 fully complete — 2026-04-03)
 
-**Goal:** Add station discovery (Radio-Browser.info, AudioAddict, YouTube playlists) and a favorites system for saving ICY track titles.
-
-**Target features:**
-- Favorite songs: star ICY track titles, DB storage with station + provider context, inline list view toggling with station list
-- AudioAddict import: all AudioAddict networks via API key + PLS, quality selection (exact network list verified at implementation time)
-- YouTube playlist import: paste any public playlist URL → imports live streams as stations via yt-dlp
-- Radio-Browser.info: live browse/search view + save any station to library
-
-## Current State (v1.2 fully complete — 2026-03-27)
-
-- **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/)
-- **LOC:** ~17,505 Python total | **Tests:** 85 passing
-- **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API)
+- **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py)
+- **LOC:** ~3,150 Python source | ~1,468 test LOC | **Tests:** 127 passing
+- **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API, Radio-Browser API, AudioAddict API)
 - **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
-- **Now-playing:** Three-column panel — logo | "Name · Provider" / track title / Stop | cover art; volume slider with GStreamer + persistence; panel has rounded corners + gradient; station art has 5px rounded corners (GTK4: set_overflow(HIDDEN) required)
-- **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback
+- **Now-playing:** Three-column panel — logo | "Name · Provider" / track title / Star+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites (gated on non-junk title)
+- **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
 - **Station management:** ComboRow provider picker, tag chip panel (inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch
+- **Favorites:** Star ICY track titles, store in SQLite with station/provider/genre context, toggle Favorites/Stations view inline via Adw.ToggleGroup, remove with trash button
+- **Discovery:** DiscoveryDialog — search Radio-Browser.info by name, filter by tag/country, preview live, save to library; resolves PLS/M3U to direct stream URL
+- **Import:** ImportDialog (tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress feedback); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution)
 
 ## Requirements
 
@@ -69,24 +62,30 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ UI-02: Colors softened with subtle gradients — v1.2 Phase 11
 - ✓ UI-03: Station list rows have more vertical padding — v1.2 Phase 11
 - ✓ UI-04: Now Playing panel has more internal whitespace — v1.2 Phase 11
-
-### Active (v1.3)
-
 - ✓ FAVES-01: User can star the currently playing ICY track title — v1.3 Phase 12
 - ✓ FAVES-02: Favorites stored in DB with station name, provider, and track title — v1.3 Phase 12
 - ✓ FAVES-03: Favorites view replaces station list inline (toggle between Stations / Favorites) — v1.3 Phase 12
 - ✓ FAVES-04: User can remove a favorite from the Favorites view — v1.3 Phase 12
-- ✓ DISC-01: User can browse and search Radio-Browser.info stations live in-app — v1.3 Phase 13
-- ✓ DISC-02: User can play a Radio-Browser.info station directly without importing — v1.3 Phase 13
-- ✓ DISC-03: User can save a Radio-Browser.info station to their library — v1.3 Phase 13
-- DISC-04: User can import AudioAddict channels (all networks, list verified at implementation) via API key
-- DISC-05: User can select import quality (hi/med/low) for AudioAddict channels
-- DISC-06: User can paste a YouTube public playlist URL to import live streams as stations
+- ✓ DISC-01: User can search Radio-Browser.info stations by name/provider from in-app discovery dialog — v1.3 Phase 13
+- ✓ DISC-02: User can filter Radio-Browser.info results by tag (genre) or country — v1.3 Phase 13
+- ✓ DISC-03: User can play a Radio-Browser.info station as a preview without saving to library — v1.3 Phase 13
+- ✓ DISC-04: User can save a Radio-Browser.info station to their library — v1.3 Phase 13
+- ✓ IMPORT-01: User can paste a YouTube playlist URL and import live streams as stations with progress feedback — v1.3 Phase 14
+- ✓ IMPORT-02: User can enter an AudioAddict API key to import all network channels, skipping duplicates — v1.3 Phase 15
+- ✓ IMPORT-03: User can select stream quality (hi / med / low) before importing AudioAddict channels — v1.3 Phase 15
+
+### Active (v1.4+)
+
+(To be defined in next milestone planning session)
 
 ### Out of Scope
 
 | Feature | Reason |
 |---------|--------|
+| Radio-Browser.info as primary browse mode | Anti-feature — undermines curated library model; discovery is modal/import flow only |
+| Playback history distinct from favorites | Different use case; favorites are intentional stars, not automatic history |
+| Auto-refresh saved Radio-Browser stations | Stations in library are managed manually; auto-refresh adds complexity for unclear benefit |
+| Social sharing / export of favorites | Single-user desktop app |
 | MusicBrainz cover art fallback | iTunes sufficient; revisit if gaps found |
 | Twitch stream support | yt-dlp supports it; revisit if user adds Twitch stations |
 | Local music library / file playback | Streaming app only |
@@ -112,7 +111,6 @@ Finding and playing a stream should take seconds — the right station should al
 | Adw.SwitchRow for ICY toggle | Native Adwaita toggle, integrates with form layout | ✓ Good — consistent with Adwaita HIG |
 | daemon thread + GLib.idle_add for YT thumbnail | yt-dlp subprocess must not block GTK main loop | ✓ Good — established cross-thread pattern |
 | Gtk.Stack (pic/spinner) in arts grid | Avoids re-parenting station_pic during fetch | ✓ Good — no flicker during thumbnail load |
-| Twitch deferred | Requires stations in library to validate | — Pending |
 | strftime ms precision for last_played_at | datetime('now') second-level granularity caused ordering failures | ✓ Good |
 | Drop set_filter_func for grouped list | filter_func cannot inspect ExpanderRow children added via add_row() | ✓ Good |
 | ExpanderRow activated signal for play | row-activated on outer ListBox does not fire for group children | ✓ Good |
@@ -124,12 +122,22 @@ Finding and playing a stream should take seconds — the right station should al
 | Provider as "Name · Provider" (U+00B7) | Clean inline label without extra UI elements | ✓ Good |
 | Volume default 80 not 100 | Avoid blasting on first launch | ✓ Good |
 | CSS on Gtk.Stack container for border-radius | Stack is the clip container — radius not visible on Gtk.Image | ✓ Good |
+| INSERT OR IGNORE for favorites dedup | UNIQUE(station_name, track_title) constraint; silent no-op on repeat star | ✓ Good |
+| last_itunes_result module-level dict | Caches full iTunes result so genre is available for favorites without a second API call | ✓ Good |
+| Adw.ToggleGroup for Stations/Favorites switcher | Native Adwaita segmented control, HIG-compliant | ✓ Good |
+| url_resolved preferred over url (Radio-Browser) | url is often a PLS/M3U playlist, url_resolved is the direct stream | ✓ Good |
+| is_live is True strict identity check (yt-dlp) | Non-live entries return None not False in flat-playlist extract mode | ✓ Good |
+| Thread-local db_connect() in import workers | SQLite connections cannot be shared across threads | ✓ Good |
+| ch['key'] not ch['name'] for AudioAddict PLS slug | Channel names have spaces; keys are lowercase slugs used in URL paths | ✓ Good |
+| ValueError('no_channels') for empty AudioAddict response | Catches expired API keys returning 200+empty instead of 401 | ✓ Good |
+| Resolve PLS to direct URL in aa_import.fetch_channels | GStreamer cannot play PLS playlists; resolution must happen at import time | ✓ Good |
+| Twitch deferred | Requires stations in library to validate | — Pending |
 
 ## Constraints
 
 - **Tech stack:** Python + GTK4/Libadwaita — no framework changes
 - **Platform:** Linux GNOME desktop only
-- **No network auth:** No API keys required (iTunes is keyless)
+- **No network auth:** API keys only where required by service (AudioAddict)
 - **Test runner:** pytest via `uv run --with pytest` (no system pip)
 
 ## Phase History
@@ -147,6 +155,10 @@ Finding and playing a stream should take seconds — the right station should al
 | 9: Station Editor Improvements | v1.2 | ✓ Complete | 2026-03-23 |
 | 10: Now Playing & Audio | v1.2 | ✓ Complete | 2026-03-24 |
 | 11: UI Polish | v1.2 | ✓ Complete | 2026-03-25 |
+| 12: Favorites | v1.3 | ✓ Complete | 2026-03-31 |
+| 13: Radio-Browser Discovery | v1.3 | ✓ Complete | 2026-04-01 |
+| 14: YouTube Playlist Import | v1.3 | ✓ Complete | 2026-04-02 |
+| 15: AudioAddict Import | v1.3 | ✓ Complete | 2026-04-03 |
 
 ---
 ## Evolution
@@ -167,4 +179,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 — v1.3 milestone started*
+*Last updated: 2026-04-03 after v1.3 milestone*

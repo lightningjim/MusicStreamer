@@ -1,48 +1,48 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Discovery & Favorites
-status: Milestone complete
-stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-04-03T15:27:35.164Z"
+milestone: v1.4
+milestone_name: TBD
+status: Planning next milestone
+stopped_at: v1.3 milestone complete
+last_updated: "2026-04-03"
 last_activity: 2026-04-03
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
-  percent: 25
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-27)
+See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 15 — audioaddict-import
+**Current focus:** Planning next milestone (v1.4)
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
-Next: Phase 13 (Radio-Browser Discovery)
+Phase: None — milestone complete, planning next milestone
+Plan: N/A
+Next: `/gsd:new-milestone` to define v1.4 requirements and roadmap
 Last activity: 2026-04-03
 
-Progress: [██░░░░░░░░] 25% (v1.3)
+Progress: v1.3 complete ✅
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 22 (v1.0–v1.2)
+- Total plans completed: 30 (v1.0–v1.3)
 - Average duration: ~14 min
-- Total execution time: ~5 hours
+- Total execution time: ~7 hours
 
 **Recent Trend:**
 
-- Last 4 plans (v1.2): 1m, 4m, 35m, 5m
+- Last 8 plans (v1.3): backend+UI splits across 4 phases
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -52,36 +52,36 @@ Progress: [██░░░░░░░░] 25% (v1.3)
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting v1.3:
 
-- [Phase 11]: GTK4 border-radius clipping requires set_overflow(HIDDEN) on Gtk.Stack — CSS alone does not clip child paint nodes
-- [Phase 09]: Split _fetch_in_progress into _thumb_fetch_in_progress and _title_fetch_in_progress for independent fetch state
-- [Phase 07]: strftime millisecond precision for last_played_at — datetime('now') second-level granularity caused ordering failures
-- [Phase 12-favorites]: strftime ms precision for favorites created_at — datetime('now') second granularity caused ordering test failure
-- [Phase 12-favorites]: last_itunes_result module-level dict stores full iTunes result so genre is available without a second API call
-- [Phase 14-youtube-playlist-import]: Open thread-local DB connection in _import_worker — SQLite connections cannot be shared across threads
-- [Phase 15]: Use ch['key'] not ch['name'] for AudioAddict PLS URL slug — channel names have spaces, keys are lowercase slugs
-- [Phase 15]: ValueError('no_channels') when all networks return empty — catches expired keys returning 200+empty instead of 401
-- [Phase 15]: Resolve PLS to direct stream URL in aa_import.fetch_channels so GStreamer can play imported AudioAddict stations directly
-
-### Research Flags (v1.3)
-
-- **Phase 14 (YouTube):** Validate `is_live` field in yt-dlp `extract_flat` mode against a real mixed playlist before writing filter logic
-- **Phase 15 (AudioAddict):** Verify `api.audioaddict.com/v1/{network}/channels` endpoint, exact network identifiers, and PLS auth pattern against a live account before writing any code
+Key decisions added in v1.3:
+- [Phase 12]: `last_itunes_result` module-level dict caches genre for favorites without a second API call
+- [Phase 12]: `Adw.ToggleGroup` with `notify::active-name` for native Adwaita view switching
+- [Phase 13]: `url_resolved` preferred over `url` from Radio-Browser API (url is often PLS/M3U)
+- [Phase 14]: `is_live is True` strict identity check — non-live yt-dlp entries return None not False
+- [Phase 14]: Thread-local `db_connect()` in import workers — SQLite connections not shareable across threads
+- [Phase 15]: `ch['key']` not `ch['name']` for AudioAddict PLS URL slug
+- [Phase 15]: `ValueError('no_channels')` sentinel for expired API keys returning 200+empty
+- [Phase 15]: Resolve PLS to direct URL in `aa_import.fetch_channels` — GStreamer cannot play PLS playlists
 
 ### Pending Todos
 
 - .planning/notes/2026-03-21-sdr-live-radio-support.md
 - .planning/notes/2026-03-21-sync-config-between-computers.md
 - .planning/notes/2026-03-20-icy-override-per-station.md
-- .planning/notes/2026-03-22-favorite-songs-from-icy.md
+- .planning/notes/2026-03-22-favorite-songs-from-icy.md (completed in v1.3 — archive this note)
 
 ### Blockers/Concerns
 
 None.
 
+### Known Tech Debt (v1.3)
+
+- DISC-03 cosmetic: stale now-playing state after preview close when nothing was previously playing; fix: call `main_window._stop()` instead of `player.stop()` directly in `discovery_dialog.py _on_close_request`
+- `cover_art._parse_artwork_url` (lines 53–64) — dead code; superseded by `_parse_itunes_result` (Phase 12). Safe to delete.
+- Nyquist compliance partial for phases 13–15 — VALIDATION.md files exist but wave_0 incomplete
+
 ## Session Continuity
 
-Last session: 2026-04-03T15:20:17.547Z
-Stopped at: Completed 15-02-PLAN.md
+Last session: 2026-04-03
+Stopped at: v1.3 milestone archived
 Resume file: None
