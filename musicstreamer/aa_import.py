@@ -10,6 +10,21 @@ import urllib.error
 import urllib.request
 
 
+def _resolve_pls(pls_url: str) -> str:
+    """Fetch a PLS playlist and return the first stream URL (File1 entry).
+
+    Falls back to the PLS URL itself if resolution fails.
+    """
+    try:
+        with urllib.request.urlopen(pls_url, timeout=10) as resp:
+            for line in resp.read().decode().splitlines():
+                if line.startswith("File1="):
+                    return line[len("File1="):].strip()
+    except Exception:
+        pass
+    return pls_url
+
+
 NETWORKS = [
     {"slug": "di",             "domain": "listen.di.fm",              "name": "DI.fm"},
     {"slug": "radiotunes",     "domain": "listen.radiotunes.com",     "name": "RadioTunes"},
@@ -46,7 +61,8 @@ def fetch_channels(listen_key: str, quality: str) -> list[dict]:
                 raise ValueError("invalid_key")
             continue  # skip this network on other HTTP errors (Pitfall 6)
         for ch in data:
-            stream_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
+            pls_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
+            stream_url = _resolve_pls(pls_url)
             results.append({
                 "title": ch["name"],
                 "url": stream_url,

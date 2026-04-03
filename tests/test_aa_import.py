@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from musicstreamer.aa_import import fetch_channels, import_stations
+from musicstreamer.aa_import import _resolve_pls, fetch_channels, import_stations
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +36,8 @@ def test_fetch_channels_returns_list():
     channel_data = _mock_channel_json("Ambient", "ambient")
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen",
-               side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)):
+               side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
         result = fetch_channels("testkey123", "hi")
 
     assert isinstance(result, list)
@@ -78,7 +79,8 @@ def test_fetch_channels_skips_failed_network():
             raise _make_http_error(500)
         return _urlopen_factory(channel_data)
 
-    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=side_effect):
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=side_effect), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
         result = fetch_channels("testkey123", "hi")
 
     # First network failed (500), 5 remaining should succeed
@@ -91,10 +93,32 @@ def test_quality_tier_mapping():
 
     for quality, expected_tier in [("hi", "premium_high"), ("med", "premium"), ("low", "premium_medium")]:
         with patch("musicstreamer.aa_import.urllib.request.urlopen",
-                   side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)):
+                   side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)), \
+             patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
             result = fetch_channels("testkey123", quality)
         for item in result:
             assert expected_tier in item["url"], f"quality={quality!r}: expected {expected_tier!r} in {item['url']!r}"
+
+
+def test_resolve_pls():
+    """_resolve_pls fetches a PLS URL and returns the File1 stream URL."""
+    pls_content = b"[playlist]\nNumberOfEntries=2\nFile1=http://prem1.di.fm:80/ambient_hi?key\nFile2=http://prem4.di.fm:80/ambient_hi?key\n"
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(pls_content)):
+        result = _resolve_pls("https://listen.di.fm/premium_high/ambient.pls?listen_key=key")
+
+    assert result == "http://prem1.di.fm:80/ambient_hi?key"
+
+
+def test_resolve_pls_fallback_on_error():
+    """_resolve_pls returns the original URL if resolution fails."""
+    pls_url = "https://listen.di.fm/premium_high/ambient.pls?listen_key=key"
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=Exception("network error")):
+        result = _resolve_pls(pls_url)
+
+    assert result == pls_url
 
 
 # ---------------------------------------------------------------------------
