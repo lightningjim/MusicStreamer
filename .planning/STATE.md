@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Discovery & Favorites
-status: Ready to execute
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-04-03T14:52:05.768Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-04-03T15:20:17.550Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
   percent: 25
 ---
 
@@ -62,6 +62,7 @@ Recent decisions affecting v1.3:
 - [Phase 14-youtube-playlist-import]: Open thread-local DB connection in _import_worker — SQLite connections cannot be shared across threads
 - [Phase 15]: Use ch['key'] not ch['name'] for AudioAddict PLS URL slug — channel names have spaces, keys are lowercase slugs
 - [Phase 15]: ValueError('no_channels') when all networks return empty — catches expired keys returning 200+empty instead of 401
+- [Phase 15]: Resolve PLS to direct stream URL in aa_import.fetch_channels so GStreamer can play imported AudioAddict stations directly
 
 ### Research Flags (v1.3)
 
@@ -81,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-03T14:52:05.765Z
-Stopped at: Completed 15-01-PLAN.md
+Last session: 2026-04-03T15:20:17.547Z
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None

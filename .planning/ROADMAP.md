@@ -51,7 +51,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 - [x] **Phase 12: Favorites** (2/2 plans) — completed 2026-03-31
 - [x] **Phase 13: Radio-Browser Discovery** — Browse, preview, and save Radio-Browser.info stations in-app (completed 2026-04-01)
 - [x] **Phase 14: YouTube Playlist Import** — Paste a public playlist URL to import live streams as stations (completed 2026-04-02)
-- [ ] **Phase 15: AudioAddict Import** — Import all AudioAddict network channels via API key with quality selection
+- [x] **Phase 15: AudioAddict Import** — Import all AudioAddict network channels via API key with quality selection (completed 2026-04-03)
 
 ## Phase Details
 
@@ -110,10 +110,10 @@ Plans:
   2. User can select stream quality (hi / med / low) before the import runs
   3. Stations already in the library (matched by URL) are skipped on re-import with no duplicates created
   4. Imported stations appear in the station list grouped by AudioAddict provider after import completes
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [x] 15-01-PLAN.md — AudioAddict backend (aa_import.py) + TDD unit tests
-- [ ] 15-02-PLAN.md — Refactor ImportDialog to tabbed layout + AudioAddict tab UI + human verification
+- [x] 15-02-PLAN.md — Refactor ImportDialog to tabbed layout + AudioAddict tab UI + human verification
 **UI hint**: yes
 
 ## Progress
@@ -134,4 +134,4 @@ Plans:
 | 12. Favorites | v1.3 | 1/2 | In Progress|  |
 | 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete    | 2026-04-01 |
 | 14. YouTube Playlist Import | v1.3 | 2/2 | Complete    | 2026-04-02 |
-| 15. AudioAddict Import | v1.3 | 1/2 | In Progress|  |
+| 15. AudioAddict Import | v1.3 | 2/2 | Complete   | 2026-04-03 |
