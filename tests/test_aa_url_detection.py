@@ -30,10 +30,16 @@ def test_is_aa_url_false_generic():
     assert _is_aa_url("http://example.com/stream") is False
 
 def test_channel_key_extraction_with_query():
-    assert _aa_channel_key_from_url("http://prem2.di.fm:80/di_house?listen_key=abc") == "di_house"
+    # Stream URL path is 'di_house'; slug 'di' prefix is stripped -> 'house'
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/di_house?listen_key=abc", "di") == "house"
+
+def test_channel_key_extraction_no_prefix():
+    # Some networks don't prefix; without slug arg key is returned as-is
+    assert _aa_channel_key_from_url("http://prem1.di.fm:80/ambient") == "ambient"
 
 def test_channel_key_extraction_no_query():
-    assert _aa_channel_key_from_url("http://prem1.di.fm:80/ambient") == "ambient"
+    # Bare key with no network prefix (e.g. ambient has no 'di_' prefix)
+    assert _aa_channel_key_from_url("http://prem1.di.fm:80/ambient", "di") == "ambient"
 
 def test_channel_key_extraction_no_path():
     assert _aa_channel_key_from_url("http://di.fm") is None

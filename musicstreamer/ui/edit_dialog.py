@@ -32,20 +32,26 @@ def _is_aa_url(url: str) -> bool:
     return any(domain in url_lower for domain in _AA_STREAM_DOMAINS)
 
 
-def _aa_channel_key_from_url(url: str) -> str | None:
+def _aa_channel_key_from_url(url: str, slug: str | None = None) -> str | None:
     """Extract channel key from an AudioAddict stream URL path segment.
 
-    e.g. 'http://prem2.di.fm:80/di_house?listen_key=...' -> 'di_house'
+    Stream URLs use a network-prefixed path (e.g. '/di_house') but the AA
+    channels API keys the images dict by the bare channel key ('house').
+    Strip the slug prefix when present.
+
+    e.g. 'http://prem2.di.fm:80/di_house?listen_key=...' -> 'house'
     Returns None if the URL has no non-empty path segment.
     """
     import urllib.parse
     try:
         parsed = urllib.parse.urlparse(url)
-        # path is like '/di_house' — strip leading slash, take first segment
         path = parsed.path.lstrip("/")
         if not path:
             return None
-        return path.split("/")[0] or None
+        key = path.split("/")[0] or None
+        if key and slug and key.startswith(slug + "_"):
+            key = key[len(slug) + 1:]
+        return key
     except Exception:
         return None
 
@@ -448,7 +454,7 @@ class EditStationDialog(Adw.Window):
         if self._thumb_fetch_in_progress:
             return
         slug = _aa_slug_from_url(url)
-        channel_key = _aa_channel_key_from_url(url)
+        channel_key = _aa_channel_key_from_url(url, slug)
         if not slug or not channel_key:
             return
         self._thumb_fetch_in_progress = True
