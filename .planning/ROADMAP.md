@@ -134,4 +134,4 @@ Plans:
 | 12. Favorites | v1.3 | 1/2 | In Progress|  |
 | 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete    | 2026-04-01 |
 | 14. YouTube Playlist Import | v1.3 | 2/2 | Complete    | 2026-04-02 |
-| 15. AudioAddict Import | v1.3 | 2/2 | Complete   | 2026-04-03 |
+| 15. AudioAddict Import | v1.3 | 2/2 | Complete    | 2026-04-03 |
