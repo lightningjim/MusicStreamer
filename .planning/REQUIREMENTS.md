@@ -1,0 +1,58 @@
+# Requirements: MusicStreamer v1.4
+
+**Defined:** 2026-04-03
+**Core Value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
+
+## v1.4 Requirements
+
+### Stream Reliability
+
+- [ ] **STREAM-01**: ShoutCast/HTTP streams play without audible drop-outs after GStreamer buffer-duration and buffer-size are tuned; ICY track title latency is not noticeably increased
+
+### Station Art
+
+- [ ] **ART-01**: AudioAddict channel logos are fetched from the AA API at bulk import time and stored as station art; failures (missing image, network error) are silent and do not abort the import
+- [ ] **ART-02**: When a user pastes an AudioAddict stream URL in the station editor, the channel logo is auto-fetched and populated (same UX as YouTube thumbnail auto-fetch); skipped silently if no URL match or no image found
+- [ ] **ART-03**: YouTube thumbnails are displayed as full 16:9 in the now-playing art slot; non-YouTube stations continue to display square art correctly (no distortion)
+
+### Personalization
+
+- [ ] **ACCENT-01**: User can set a custom highlight/accent color from preset swatches or a hex input; color is applied immediately at runtime and persists across sessions
+
+## Future Requirements
+
+### Station Art
+
+- **ART-F01**: Auto-fetch art for generic radio stream URLs (ICY metadata, favicon, or provider logo) — beyond YouTube and AudioAddict
+- **ART-F02**: MusicBrainz cover art fallback when iTunes returns no result
+
+### Personalization
+
+- **ACCENT-F01**: Per-station accent color override
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Multi-stream / quality selection per station (SEED-003/004) | Deferred to v1.5 |
+| Windows port / PyQt6 rewrite | Deferred to v2.0 |
+| GStreamer buffer UI controls exposed to user | Internal tuning only; no user-facing setting needed |
+| Buffering indicator / spinner during initial load | Low value; buffer start is near-instant with tuned values |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| STREAM-01 | Phase 16 | Pending |
+| ART-01 | Phase 17 | Pending |
+| ART-02 | Phase 17 | Pending |
+| ART-03 | Phase 18 | Pending |
+| ACCENT-01 | Phase 19 | Pending |
+
+**Coverage:**
+- v1.4 requirements: 5 total
+- Mapped to phases: 5
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-04-03*
