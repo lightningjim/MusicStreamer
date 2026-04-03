@@ -1,242 +1,381 @@
 # Feature Research
 
-**Domain:** Personal GNOME desktop internet radio — v1.3 Discovery & Favorites
-**Researched:** 2026-03-27
-**Confidence note:** Web access unavailable. Findings draw on training knowledge of
-Radio-Browser.info API (stable, well-documented), AudioAddict PLS auth pattern
-(publicly documented), yt-dlp playlist extraction (well-established CLI), and UX
-patterns from Shortwave, RadioDroid, and general GNOME media apps (knowledge cutoff
-Aug 2025). Confidence levels noted per claim.
+**Domain:** Personal GNOME desktop internet radio — v1.4 Media & Art Polish
+**Researched:** 2026-04-03
+**Overall confidence:** MEDIUM–HIGH (code read + web verification where possible)
 
 ---
 
 ## Scope Boundary
 
-This file covers ONLY the four v1.3 feature groups. Existing v1.2 features are not
-re-analyzed. Anti-features from v1.0 research that now apply here are explicitly
-re-evaluated.
+This file covers the four v1.4 features only. Prior v1.3 feature research is preserved in
+git history. Existing behavior is documented here only where it affects edge-case handling
+or implementation decisions for new features.
 
 ---
 
-## Feature Landscape
+## Feature 1: GStreamer Buffer Tuning (STREAM-01)
 
-### Table Stakes (Users Expect These)
+### What the user experiences
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Radio-Browser.info: search by name | Every discovery tool (Shortwave, RadioDroid, iHeartRadio) supports name search. Without it, browsing 30k stations is unusable. | LOW | GET `/json/stations/search?name=...&limit=50`. No auth. Returns JSON array. |
-| Radio-Browser.info: preview/play before saving | Users expect to audition before committing to library. Any radio directory app does this. | LOW | Same GStreamer pipeline — just pass `url` without inserting DB row. Need a transient "preview" state distinct from "library station playing". |
-| Radio-Browser.info: save to library | Only reason to open a directory is to keep stations. If you can browse but not save, it's a dead end. | LOW | Map RB station fields → local `Station` model. Provider = source hostname or network name. |
-| AudioAddict import: all four properties | DI.fm, ZenRadio, JazzRadio, RockRadio share the same API/PLS format. Users expect a single flow to import from all. | MEDIUM | Four base URLs, same auth pattern. One dialog handles all. |
-| AudioAddict: quality selection | AudioAddict offers hi/med/low streams. Users with metered connections need control. PLS URL encodes quality. | LOW | Radio button or dropdown in import dialog. Three variants per channel in the PLS. |
-| Favorite songs: star current ICY track | Core affordance of any music app with track metadata. Users who discover songs via radio want to save them. | LOW | Star button in now-playing panel, active only when ICY track title is non-empty. |
-| Favorite songs: stored with context | Context (station name, provider) is what makes the favorite meaningful — you know where you heard it. The user note explicitly requires this. | LOW | DB table: `id`, `title`, `station_name`, `provider`, `starred_at`. No foreign key needed — stations can be deleted. |
-| Favorite songs: inline list view | Toggle between Stations and Favorites in the same panel space. Standard tabbed/segmented pattern in media apps. | LOW–MED | Gtk.Stack swap between station list widget and favorites list widget. Segmented button or toggle at top. |
-| Favorite songs: remove from favorites | Every favorites list needs a delete path. Without it, bad favorites accumulate forever. | LOW | Swipe-to-delete or context menu item. `Adw.ActionRow` supports swipe via `Adw.SwipeActionRow` or a row-level delete button. |
-| YouTube playlist import: paste URL | The only reasonable input method for a public playlist — users copy from browser. | LOW | Single text entry dialog. Pass to yt-dlp `--flat-playlist --dump-json`. |
-| YouTube playlist import: live streams only | YT playlists can mix VOD and live. User only wants live streams as radio stations. | MED | Filter yt-dlp output: `is_live == true` or `was_live == false` heuristic on returned metadata. |
+ShoutCast/HTTP streams (AudioAddict, Soma.FM, etc.) occasionally produce a brief audible
+drop-out — a fraction of a second of silence or glitch — when network delivery is momentarily
+slow. This is distinct from a full stream failure (which would produce an error and stop).
+The user hears it as a subtle pop or gap. On good connections it may never happen. On
+congested Wi-Fi or VPN it can happen several times per minute.
+
+### Root cause in the current implementation
+
+`player.py` uses `playbin3` with no explicit buffer configuration. GStreamer's default
+buffer size for HTTP audio streams is very small (typically ~2s or less). When a burst of
+network jitter exceeds that window the queue empties and GStreamer either mutes briefly or
+resets. The fix is to raise `buffer-duration` (and optionally `buffer-size`) so GStreamer
+pre-buffers more before starting and tolerates longer network bursts.
+
+### Table-stakes behavior
+
+| Behavior | Notes |
+|----------|-------|
+| No audible glitches on typical home network streams | The primary requirement |
+| Start-up latency increase is imperceptible (<1s) | A 5s buffer pre-loads quickly at 128–320kbps |
+| Behavior unchanged for YouTube streams | YT uses mpv subprocess — completely separate code path, not affected |
+| No behavior change for the user | Internal-only change; no UI needed |
+
+### Recommended values (MEDIUM confidence — from community sources)
+
+`buffer-duration = 5 * Gst.SECOND` (5,000,000,000 ns) is the most commonly cited value
+in pithos, Mopidy, and GStreamer forum threads for resolving HTTP audio drop-outs. Some
+sources combine it with `buffer-size = 1024 * 1024` (1 MB) as an upper bound. The
+duration approach is preferred because it scales with bitrate; size alone can be too small
+for high-bitrate streams.
+
+`playbin3` (used in the app) exposes the same `buffer-duration` and `buffer-size`
+properties as `playbin`. Both should be set.
+
+### Edge cases
+
+| Case | Expected behavior |
+|------|-------------------|
+| Stream bitrate lower than GStreamer's rate estimate | Buffering takes longer at startup; tolerable |
+| Metered / slow connection where 5s of audio is large | Still correct — larger buffer helps, never hurts |
+| YouTube station played | mpv subprocess handles it; `buffer-duration` setting ignored for that code path |
+| Setting applied mid-stream (not at startup) | Must set before `set_state(PLAYING)`. Already the case in `_set_uri`. |
+| GStreamer can't determine bitrate (rate estimate = 0) | Buffer-duration fallback is buffer-size; set both to be safe |
+
+### Anti-feature
+
+Do NOT expose a buffer-size slider to the user. This is an internal reliability fix. Adding
+UI for it would be scope creep — the only expected outcome is that drop-outs stop happening.
 
 ---
 
-### Differentiators (Competitive Advantage)
+## Feature 2: AudioAddict Station Art (ART-01 + implicit ART-01b)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Radio-Browser.info: filter by tag/genre | Name search gets you to known stations. Tag filter gets you to discovery ("find me ambient stations"). Shortwave supports tag filtering; many simple apps don't. | MEDIUM | `/json/tags` for tag list, `/json/stations/search?tag=...`. Combine with name search. |
-| Radio-Browser.info: filter by country | Useful for non-English radio listeners. Country filter is a standard RB feature. | LOW | `/json/countrycodes` → dropdown. Adds one param to search query. |
-| AudioAddict import: incremental (add missing only) | Re-running import shouldn't duplicate stations. Smart merge (match on URL or channel slug) is better than "delete all and reimport". | MEDIUM | Check existing station URLs before insert. Skip if URL already exists. Optional: update name/art if changed. |
-| Favorite songs: iTunes metadata on star | When starring a track, pull genre/artwork from iTunes if available. Enriches the favorite record at no extra cost since iTunes is already queried for cover art. | LOW | Reuse existing iTunes fetch. Store `genre` and `artwork_url` in favorites table if returned. |
-| YouTube playlist import: auto-title from metadata | yt-dlp returns `title`, `uploader`, `thumbnail` per entry. Pre-populate station name and art rather than generic URL. | LOW | Already done for single-station YT import — extend to batch. `title` → station name, `thumbnail` → station art URL. |
+### Sub-feature A: Fetch logo at bulk import time (ART-01)
+
+**What the user experiences:** After running the AudioAddict import dialog, each imported
+station has its channel logo as station art — the same square logo visible in the station
+list row and now-playing left slot. Without this, all ~200 imported stations show the
+generic audio icon.
+
+**How the AA API provides images:**
+
+The existing `aa_import.py` calls `https://listen.{domain}/{tier}?listen_key={key}` and
+gets a JSON array of channel objects. Each object currently uses only `name` and `key`.
+
+Based on community client code (Plex/Kodi plugins, mopidy-audioaddict) and the archived
+api-rev-5 documentation, the channel objects in this response also contain image-related
+fields. The exact field name is LOW confidence (not verified against a live response) but
+community implementations reference:
+- `asset_url` — a CDN URL to a square channel logo image (noted in v1.3 research)
+- `images` — an object with nested keys like `default`, `compact`, etc. (seen in Kodi plugin)
+- Direct URL construction: `https://cdn-radiotime-logos.tunein.com/` pattern is NOT used
+  by AA; AA uses its own CDN (typically `cdn-images.audioaddict.com` or similar)
+
+**Recommended approach:** Extract whatever image URL field is present in the response and
+download it during `import_stations()`. Store via the existing `copy_asset_for_station()`
+path. If the field is absent or download fails, silently skip (no logo is fine; the import
+should not fail because of missing art).
+
+**Edge cases:**
+
+| Case | Expected behavior |
+|------|-------------------|
+| Channel JSON has no image field | Skip art silently; station imported with no logo |
+| Image URL returns 404 or times out | `try/except` around download; skip art, continue import |
+| Image is not square (e.g., 16:9 banner) | `copy_asset_for_station` + `Gtk.ContentFit.COVER` crops to 1:1 correctly |
+| Re-import of existing station (dedup by URL) | Station is skipped entirely; no art update. User can manually set art if needed. |
+| Image download is slow (N=200 channels) | Must be async or background; cannot block the import progress UI |
+| CDN requires cookies or auth | Extremely unlikely for logo images; if it happens, silently skip |
+| Image MIME is WebP (not PNG/JPEG) | GdkPixbuf supports WebP; `copy_asset_for_station` stores as-is |
+
+**Important implementation constraint:** `import_stations()` runs in a background thread
+(see `aa_import.py` usage in `ImportDialog`). Image downloads must happen on that same
+thread — they cannot call GTK. All SQLite writes must use a thread-local connection (same
+pattern as existing import code: `db_connect()` per-thread).
+
+### Sub-feature B: Auto-fetch logo when user pastes an AudioAddict URL in station editor (ART-01b)
+
+**What the user experiences:** User adds or edits a station and pastes an AudioAddict
+stream URL (e.g., `https://listen.di.fm/premium_high/deephouse.pls?listen_key=...`).
+The station art is auto-populated with the DI.fm channel logo — same UX as the existing
+YouTube thumbnail auto-fetch when a YouTube URL is pasted.
+
+**Trigger:** `_on_url_focus_out` in `edit_dialog.py` already calls `_start_thumbnail_fetch`
+for YouTube URLs. The same hook should detect AA URLs and trigger an AA logo fetch.
+
+**URL detection:** AA stream URLs contain `listen.di.fm`, `listen.radiotunes.com`,
+`listen.jazzradio.com`, `listen.rockradio.com`, `listen.classicalradio.com`, or
+`listen.zenradio.com`. A helper `_is_audioaddict_url(url)` should be added alongside the
+existing `_is_youtube_url()`.
+
+**Channel key extraction:** The stream URL path contains the channel key:
+`/premium_high/deephouse.pls` → key = `deephouse`. The network domain identifies which
+AA network to query.
+
+**Logo retrieval:** Once key + network are known, either:
+1. Call the AA channels API for that network and find the matching channel's image URL, OR
+2. Construct a CDN URL directly if a stable pattern exists (LOW confidence — verify first)
+
+Option 1 is safer but requires the user's API key to be available. If the station editor
+doesn't have access to the stored API key, this sub-feature may need the key to be stored
+in the repo settings table (not just in the import dialog's in-flight state).
+
+**Alternative simpler approach:** If the AA API channel image URL is a predictable pattern
+(e.g., `https://cdn-images.audioaddict.com/.../{key}.jpg`), a direct URL construction
+avoids needing the API key at all. This must be confirmed against a live response.
+
+**Edge cases:**
+
+| Case | Expected behavior |
+|------|-------------------|
+| URL is an AA URL but channel key not found in API | Show spinner, silently revert to spinner→no-image (same as YT fail) |
+| URL is an AA URL, API key not stored | Cannot fetch — silently skip; show no spinner (don't mislead user) |
+| User pastes AA URL then immediately changes it | `_fetch_cancelled` flag (already exists) handles this |
+| URL matches `listen.*.com` but is not actually AA | Detection is best-effort; worst case a fetch attempt fails silently |
+| User pasted a non-PLS direct stream URL from AA | Channel key extraction may fail; fallback: skip logo fetch |
+| Logo already set (station has existing art) | Do NOT overwrite existing art on focus-out. Only auto-populate if `station_art_rel` is currently None/empty |
 
 ---
 
-### Anti-Features
+## Feature 3: YouTube Thumbnail 16:9 Display (ART-02)
+
+### What the user experiences
+
+YouTube live stream stations (e.g., Lofi Girl) have wide 16:9 thumbnails. Currently the
+now-playing right slot is a fixed 160×160 square with `ContentFit.COVER`, which crops
+the thumbnail to its center — cutting off the sides of a 16:9 image, sometimes cropping
+out the subject entirely.
+
+The fix: show the full 16:9 image in the now-playing panel, either by letterboxing it
+within the 160×160 slot or by giving it a wider slot (e.g., 284×160 for 16:9).
+
+### Display options
+
+| Approach | UX | Notes |
+|----------|----|-------|
+| `ContentFit.CONTAIN` in existing 160×160 slot | Full image, letterboxed with bars top/bottom | Simplest code change; image shrinks noticeably |
+| Widen the cover art slot to 284×160 (true 16:9) | Full image, no bars | Panel width increases for YT stations only — layout shifts |
+| Detect aspect ratio; conditionally adjust | Correct for each image type | More complex; covers the mixed-content case |
+| `ContentFit.CONTAIN` in 284×160 slot, constrained | Full image within wider slot; ICY art still 160×160 COVER | Works if the slot is physically wider than for ICY art |
+
+**Recommended approach:** The cleanest approach that fits the existing panel layout is to
+change the `cover_image` widget to use `ContentFit.CONTAIN` and give it a fixed 284×160
+size. For ICY stations, square cover art will have slight side letterboxing — acceptable.
+For YT stations, the full 16:9 shows. No conditional logic needed.
+
+Alternative: keep 160×160 for ICY art (which is always square album art) and only widen
+for YouTube. This requires knowing at display time whether the current station is YouTube.
+That information is available via `_current_station.url` — but adds branching.
+
+**Simplest correct answer:** `ContentFit.CONTAIN` in the existing 160×160 slot. No layout
+change. 16:9 thumbnail will be letterboxed but fully visible. This is table-stakes — just
+show the whole image.
+
+### Table-stakes behavior
+
+| Behavior | Notes |
+|----------|-------|
+| Entire 16:9 thumbnail visible in now-playing | Core requirement |
+| No crash or UI layout break when thumbnail loads | Verify widget size_request is honored |
+| ICY station cover art still displays correctly | Square iTunes art must not be distorted |
+| Transition from station logo → thumbnail works correctly | Same Gtk.Stack swap; content_fit change is on the Gtk.Image inside |
+
+### Edge cases
+
+| Case | Expected behavior |
+|------|-------------------|
+| YT thumbnail is 4:3 or 1:1 (rare but possible) | `ContentFit.CONTAIN` handles all aspect ratios correctly — bars appear as needed |
+| ICY station playing, then YT station selected | Cover stack resets to fallback on play; thumbnail loads when ready |
+| Thumbnail fetch fails | Stack shows fallback icon (existing behavior, unchanged) |
+| Panel height constrained by window resize | `set_size_request` is a minimum — layout already handles this |
+| GdkPixbuf.new_from_file_at_scale called with False (don't preserve aspect) | Currently called this way in `_on_cover_art`. For 16:9, the pixbuf scale should preserve aspect OR the Gtk.Picture/Image content_fit should do it. Don't double-scale. |
+
+**Note on existing code:** `_on_cover_art` currently calls
+`GdkPixbuf.Pixbuf.new_from_file_at_scale(temp_path, 160, 160, False)` (no aspect
+preservation). For 16:9 thumbnails this stretches them to 160×160 before they reach the
+widget. The fix must happen at the pixbuf scale call too: either pass `True` (preserve
+aspect) or use `Gtk.Picture` directly with `set_filename` and let GTK handle scaling.
+The latter is simpler and already done in the station editor (`station_pic` uses
+`Gtk.Picture.set_filename`).
+
+---
+
+## Feature 4: Custom Accent Color (ACCENT-01)
+
+### What the user experiences
+
+A settings panel (or dialog) with:
+- A row of preset color swatches (e.g., 6–8 named colors matching GNOME's system accent
+  palette: Blue, Teal, Green, Yellow, Orange, Red, Pink, Purple, Slate)
+- A hex input field for custom colors
+- Changes apply immediately (live preview)
+- Color persists across app restarts
+
+The accent color affects highlighted widgets: the active chip filters, the "Save" button,
+the Stop button's suggested-action style, the star when active — all the elements that use
+Adwaita's `--accent-bg-color` CSS variable.
+
+### How CSS override works in GTK4/Libadwaita (MEDIUM confidence)
+
+Libadwaita defines `--accent-bg-color` and `--accent-color` as CSS custom properties.
+Applications can override them by loading a `Gtk.CssProvider` with higher priority than
+the default theme. The standard way:
+
+```python
+provider = Gtk.CssProvider()
+provider.load_from_string(":root { --accent-bg-color: #e01b24; --accent-color: #ffffff; }")
+Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+)
+```
+
+`STYLE_PROVIDER_PRIORITY_APPLICATION` (600) overrides the default Adwaita theme (400)
+and user `gtk.css` (500). This is the documented correct priority for app-level overrides.
+
+To update the accent color at runtime: call `provider.load_from_string(new_css)` again
+on the same provider object — GTK4 re-applies automatically without needing to re-add
+the provider.
+
+### Persistence
+
+Store the accent color as a hex string in the existing SQLite settings table (already
+used for `volume` and `recently_played_count`). Key: `"accent_color"`. Load on startup,
+apply before the window is shown to avoid flash of default color. If not set, use the
+system accent (no override applied).
+
+### Deriving `--accent-color` from `--accent-bg-color`
+
+Libadwaita states that standalone accent colors are automatically derived from the
+background color. In practice: when overriding `--accent-bg-color`, also override
+`--accent-color` with either `#ffffff` or `#000000` based on the luminance of the
+background. This ensures text on accent-colored buttons remains readable.
+
+Simple luminance formula: `0.2126*R + 0.7152*G + 0.0722*B > 0.5` → use black text,
+else white text.
+
+### Preset swatch values
+
+Use GNOME 47+ system accent colors for familiarity:
+
+| Name | Hex |
+|------|-----|
+| Blue (default) | `#3584e4` |
+| Teal | `#2190a4` |
+| Green | `#3a944a` |
+| Yellow | `#c88800` |
+| Orange | `#e66100` |
+| Red | `#e01b24` |
+| Pink | `#d56199` |
+| Purple | `#9141ac` |
+| Slate | `#6f8396` |
+
+### Table-stakes behavior
+
+| Behavior | Notes |
+|----------|-------|
+| Preset swatches visually show the color | Color buttons with the actual background color |
+| Hex input accepts valid 6-char hex (with or without `#`) | Validate before applying |
+| Invalid hex input silently rejected (no crash) | Show no visual feedback or show a brief error label |
+| Selected color applied immediately on click/confirm | No "apply" button needed; live preview |
+| Color persists after app restart | Read from `settings` table on init |
+| No color set = system/default Adwaita colors | When no setting stored, do not load a CSS override |
+
+### Edge cases
+
+| Case | Expected behavior |
+|------|-------------------|
+| User enters pure white or pure black hex | Apply it. Edge case but valid. Text contrast may look bad — user's responsibility. |
+| User enters a color that makes text unreadable | Derive fg as described above; best-effort readability |
+| Hex field loses focus mid-typing (partial hex) | Do not apply partial hex. Apply only when length == 6 (or 7 with `#`). |
+| Settings DB migration (new `accent_color` key) | `get_setting` already handles missing keys with a default; no schema change needed (key-value table) |
+| App launched for first time (no stored color) | Libadwaita default accent (blue) used; no override applied |
+| User removes color (reset to default) | Set stored value to empty string or delete the key; do not load a CSS provider |
+| Adwaita version that doesn't support `--accent-bg-color` variable | Older libadwaita (<1.0) doesn't have this variable. Since v1.0+ is required for the app anyway (uses Adw.ToggleGroup, Adw.SwitchRow), this is safe. |
+| Dark mode: accent color readable on dark background | Libadwaita auto-adapts accent saturation for dark mode when using the CSS variable; custom hex may not. This is acceptable. |
+
+---
+
+## Feature Dependencies (v1.4)
+
+```
+STREAM-01 (buffer tuning)
+    requires: player.py (set_property on playbin3 before PLAYING state)
+    no new DB, no UI
+
+ART-01 (AA logo at import time)
+    requires: aa_import.py fetch_channels + import_stations
+    requires: assets.copy_asset_for_station (already exists)
+    requires: urllib.request (already used in aa_import.py)
+    new: image download in background thread at import time
+
+ART-01b (AA logo in station editor)
+    requires: edit_dialog.py _on_url_focus_out (already exists)
+    requires: new _is_audioaddict_url() helper
+    requires: channel key extraction from URL
+    requires: AA API image lookup (may need stored API key from settings)
+    dependency on ART-01: shares the same image URL lookup logic
+
+ART-02 (YT thumbnail 16:9)
+    requires: main_window.py cover_image + _on_cover_art
+    requires: GdkPixbuf scale call change (preserve aspect or remove explicit scaling)
+    no new DB, no new threads
+
+ACCENT-01 (accent color)
+    requires: Gtk.CssProvider + Gtk.StyleContext.add_provider_for_display
+    requires: settings table (already exists)
+    new: color picker UI (new dialog or header popover)
+    new: CSS string generation at runtime
+```
+
+---
+
+## Anti-Features (v1.4 specific)
 
 | Feature | Why Avoid | What to Do Instead |
-|--------------|-----------|-------------------|
-| Radio-Browser.info: full "discover" tab replacing station list | 30k stations visible at once destroys the app's core value ("right station in 2 clicks"). The directory is a tool for populating your library, not your primary UI. | Keep discovery as a modal/sheet opened from a button. Search results are a temporary view, not a persistent state. |
-| AudioAddict: import with no quality choice | Silently importing hi-fi for a user on a slow connection is a silent failure they'll notice as stuttering. | Always present quality selection before import. Default to medium. |
-| Favorites: social sharing or export | Scope creep. This is a single-user local app. | Not applicable. Store locally only. |
-| YouTube playlist import: VOD as "stations" | VOD YouTube videos are not streams — they'll behave unpredictably with GStreamer + yt-dlp in stream mode. | Filter to `is_live=true` during import. Show a count of skipped non-live entries. |
-| Radio-Browser.info: auto-refresh / sync | Polling the RB API periodically to update saved stations adds background complexity with minimal value. Users manage their library. | Import once, user manages manually. |
-| Favorites: playback history (all played tracks) | Different feature from favorites. Auto-history is invisible, gets large fast, and needs separate UI. | Keep favorites as intentional, user-starred saves only. |
-
----
-
-## API Behavior Documentation
-
-### Radio-Browser.info API
-
-**Confidence: HIGH** — Stable public API, unchanged for years, widely used by Shortwave and RadioDroid.
-
-- **Base URL:** DNS-round-robined via `all.api.radio-browser.info`. Client should resolve SRV records or use `all.api.radio-browser.info` directly.
-- **Auth:** None. Public API, no key required.
-- **Rate limit:** No official hard limit. Reasonable desktop usage (search on keypress with 300ms debounce) is fine.
-- **User-Agent:** Best practice to set a descriptive User-Agent (`MusicStreamer/1.3 ...`). Not enforced but good citizenship.
-- **Key endpoints:**
-  - `GET /json/stations/search?name={query}&limit=50&hidebroken=true` — name search
-  - `GET /json/stations/search?tag={tag}&limit=100&hidebroken=true` — tag filter
-  - `GET /json/tags?limit=100&order=stationcount&reverse=true` — popular tags
-  - `GET /json/countrycodes` — country list
-  - `POST /json/url/{stationuuid}` — click tracking (optional, good citizen call when playing)
-- **Station fields returned:**
-  - `stationuuid` — stable UUID
-  - `name` — station name
-  - `url` — direct stream URL (may redirect)
-  - `url_resolved` — pre-resolved stream URL (prefer this)
-  - `homepage` — website
-  - `favicon` — logo URL (may be empty or broken)
-  - `tags` — comma-separated tags
-  - `country`, `countrycode`, `language`
-  - `codec`, `bitrate`
-  - `votes`, `clickcount`, `clicktrend` — popularity signals
-- **Mapping to local Station model:** `name` → name, `url_resolved` (fallback `url`) → stream_url, tags → tags, `favicon` → art source.
-- **`hidebroken=true`:** Always pass this. Filters stations with confirmed dead streams.
-
-### AudioAddict PLS Auth Pattern
-
-**Confidence: MEDIUM** — Based on training knowledge of public DI.fm documentation and community sources. No live verification.
-
-- **Auth mechanism:** API key embedded in the PLS playlist URL, not in HTTP headers.
-- **PLS URL format:** `https://listen.di.fm/premium_high/{channel}.pls?listen_key={api_key}`
-- **Quality tiers:** `premium_high` / `premium_medium` / `premium_low` in the URL path. Some sources show `public3` (mp3 128k) as a free tier.
-- **Channel list endpoint:** `https://api.audioaddict.com/v1/{network}/channels` where `{network}` is one of: `difm` (DI.fm), `zenradio`, `jazzradio`, `rockradio`.
-- **Response fields:** `key` (channel slug), `name`, `description`, `asset_url` (logo), `channel_filters` (genre tags).
-- **PLS content:** Standard PLS format — `File1=`, `Title1=`, `Length1=-1`. Parse with Python's `configparser` (PLS is INI-compatible).
-- **Import flow:**
-  1. User enters API key once (store in app config / keyring).
-  2. Fetch channel list per network via channels endpoint.
-  3. For each channel, construct PLS URL with quality + key.
-  4. Fetch PLS, extract stream URL from `File1=`.
-  5. Create Station: name from channel `name`, provider from network name, stream_url from PLS, art from `asset_url`, tags from `channel_filters`.
-- **Caveat:** AudioAddict may have changed their API since training data. Key structure and PLS URL format have been stable for years but should be verified against a live account before phase implementation.
-
-### YouTube Playlist Import (yt-dlp)
-
-**Confidence: HIGH** — yt-dlp is already used in the app; playlist extraction is a core yt-dlp feature.
-
-- **Command:** `yt-dlp --flat-playlist --dump-json "{playlist_url}"` — prints one JSON object per entry, no download.
-- **Live stream detection:** Entry metadata includes `"is_live": true` for active live streams. Also check `"live_status": "is_live"` (more reliable in newer yt-dlp).
-- **Fields per entry:** `id`, `title`, `url` (watch URL), `uploader`, `thumbnail`, `duration` (null for live), `is_live`, `live_status`.
-- **Getting stream URL:** For each live entry, a second yt-dlp call is needed to resolve the actual stream URL: `yt-dlp -g "{watch_url}"`. Or: store the watch URL and resolve at play time (lazy resolution — already how single-station YT works in the app).
-- **Recommendation:** Store watch URLs at import time, resolve at play time. Avoids N extra yt-dlp calls during import and handles URL expiry (YT stream URLs expire ~6h).
-- **Async requirement:** `--flat-playlist` on a large playlist (100+ items) can take 10–30s. Must run in a daemon thread. Progress feedback is important.
-
----
-
-## Feature Dependencies
-
-```
-FAVES-01 (star track)
-    requires existing: ICY metadata display (already built in v1.2)
-    requires existing: now-playing panel (already built)
-
-FAVES-02 (DB storage)
-    requires: FAVES-01 (star action)
-    requires: new DB migration (favorites table)
-
-FAVES-03 (favorites view)
-    requires: FAVES-02 (data to show)
-    requires: Gtk.Stack toggle in sidebar
-
-FAVES-04 (remove favorite)
-    requires: FAVES-03 (view to remove from)
-
-DISC-01 (RB browse/search)
-    requires: nothing existing — new panel/sheet
-    async network I/O: yes (urllib or http.client)
-
-DISC-02 (play RB station without saving)
-    requires: DISC-01 (station selected from results)
-    requires: transient "preview" player state (no DB write)
-    NOTE: must not clobber currently-playing library station state
-
-DISC-03 (save RB station)
-    requires: DISC-01 (station selected from results)
-    requires: existing station repo insert path
-
-DISC-04 (AudioAddict import)
-    requires: new import dialog
-    requires: API key storage (config file or libsecret)
-    requires: http fetch + PLS parsing (configparser)
-    requires: existing station repo bulk insert
-
-DISC-05 (quality selection)
-    requires: DISC-04 flow (part of same dialog)
-
-DISC-06 (YouTube playlist import)
-    requires: existing yt-dlp integration
-    requires: async thread + GLib.idle_add progress pattern (already established)
-    NOTE: play-time URL resolution already works — reuse same path
-```
-
-### Dependency Notes
-
-- **DISC-02 (preview without saving):** This is the trickiest dependency. The player currently assumes the playing station is always in the DB. A preview state requires either a nullable station reference or a transient Station object that never touches the DB. Needs design thought before implementation.
-- **FAVES-03 and station list:** The toggle between Stations and Favorites shares the same sidebar panel. Use `Gtk.Stack` child swap — this is the established pattern in the app (already used for art slots and now-playing).
-- **AudioAddict API key storage:** Simplest approach is the existing JSON config file at `~/.local/share/musicstreamer/config.json`. libsecret/keyring adds a dependency. Config file is fine for a personal app.
-
----
-
-## MVP Definition for v1.3
-
-### Launch With (all four feature groups are the scope)
-
-- [ ] FAVES-01–04: Star ICY track, store with context, view in sidebar, remove — **essential, low risk**
-- [ ] DISC-01–03: Radio-Browser.info browse/search/preview/save — **core discovery**
-- [ ] DISC-04–05: AudioAddict import with quality selection — **medium complexity, well-defined API**
-- [ ] DISC-06: YouTube playlist import — **reuses existing yt-dlp path, mostly plumbing**
-
-### Phase Ordering Recommendation
-
-Build in risk-ascending order:
-
-1. **Favorites** (FAVES-01–04) — Zero new network I/O. Pure DB + UI. Lowest risk, fast win.
-2. **Radio-Browser.info** (DISC-01–03) — New panel + network, but clean REST API. Medium risk.
-3. **YouTube playlist import** (DISC-06) — Reuses existing yt-dlp pattern. Low-medium risk.
-4. **AudioAddict import** (DISC-04–05) — External API with uncertain current state. Highest risk of API changes. Do last.
-
----
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Favorite songs (all 4 sub-features) | HIGH | LOW | P1 |
-| Radio-Browser.info browse + search | HIGH | MEDIUM | P1 |
-| Radio-Browser.info play preview | HIGH | MEDIUM | P1 |
-| Radio-Browser.info save to library | HIGH | LOW | P1 |
-| Radio-Browser.info tag/country filter | MEDIUM | LOW | P2 |
-| AudioAddict import (all 4 networks) | HIGH | MEDIUM | P1 |
-| AudioAddict quality selection | MEDIUM | LOW | P1 |
-| YouTube playlist import | HIGH | MEDIUM | P1 |
-| YouTube playlist: progress feedback | MEDIUM | LOW | P2 |
-| AudioAddict incremental import (dedup) | MEDIUM | MEDIUM | P2 |
-| Favorites: iTunes metadata on star | LOW | LOW | P2 |
-
----
-
-## Re-evaluation of v1.0 Anti-Feature
-
-The v1.0 FEATURES.md listed "In-app station discovery / radio directory browser" as an
-anti-feature. That was correct for v1.0–1.2 scope. For v1.3 it is explicitly in scope.
-
-The anti-feature concern was valid: a full "browse mode" as the primary UI undermines the
-curated library model. The correct resolution (and what v1.3 should build) is a **modal
-or sidebar panel** for discovery — distinct from the station list — that feeds back into
-the library rather than replacing it. Discovery is a population tool, not the primary UX.
+|---------|-----------|-------------------|
+| Buffer size slider in UI | Internal reliability fix, not a user-facing setting | Hard-code 5s buffer; no UI |
+| Full color theme editor (font size, spacing, etc.) | Scope creep — this is an audio app, not a theming tool | Accent color only |
+| Per-station accent color | Adds significant state complexity for marginal value | Single app-wide color |
+| Overwrite existing station art during AA import re-run | Destructive and unexpected | Skip art if station already exists (already the dedup behavior) |
+| Animated color picker (hue wheel, sliders) | Complex GTK widget for a personal app | Preset swatches + hex input is sufficient |
+| Store accent color as RGB floats in DB | Unnecessary complexity | Hex string is human-readable and sufficient |
 
 ---
 
 ## Sources
 
-- Radio-Browser.info API: training knowledge of public REST API (`api.radio-browser.info`) — HIGH confidence (stable, widely documented)
-- AudioAddict/DI.fm PLS auth pattern: training knowledge of public community documentation — MEDIUM confidence (verify against live account)
-- yt-dlp flat-playlist behavior: training knowledge + existing app usage — HIGH confidence
-- Shortwave (GNOME radio app) UX patterns: training knowledge — MEDIUM confidence
-- User note: `.planning/notes/2026-03-22-favorite-songs-from-icy.md` — HIGH confidence (direct source)
-- PROJECT.md v1.3 requirements: `.planning/PROJECT.md` — HIGH confidence (direct source)
+- `player.py`, `aa_import.py`, `edit_dialog.py`, `main_window.py`: direct code read — HIGH confidence
+- `.planning/PROJECT.md` v1.4 requirements: direct source — HIGH confidence
+- GStreamer buffer-duration: [GStreamer Playback Tutorial 4](https://gstreamer.freedesktop.org/documentation/tutorials/playback/progressive-streaming.html), [pithos issue #393](https://github.com/pithos/pithos/issues/393), [Mopidy discourse](https://discourse.mopidy.com/t/buffer-size-and-buffer-duration-configurable-where-to-post-my-patch/4591) — MEDIUM confidence (community, not official measurement)
+- AudioAddict channel image fields: prior v1.3 research (`asset_url` mention), community Kodi/Plex plugin code — LOW confidence (not verified against live API; must confirm field name before implementation)
+- GTK4 `ContentFit` enum: [GTK4 docs](https://docs.gtk.org/gtk4/enum.ContentFit.html) — HIGH confidence
+- Libadwaita CSS variable override: [Adw CSS Variables](https://gnome.pages.gitlab.gnome.org/libadwaita/doc/1.6/css-variables.html), [GNOME Discourse](https://discourse.gnome.org/t/how-to-get-accent-color-in-gtk-4-10/24489/2) — MEDIUM confidence (API verified; runtime behavior of `load_from_string` update not tested)
+- GNOME accent color hex values: [Adwaita-Accent-Tint](https://github.com/pakovm-git/Adwaita-Accent-Tint) — MEDIUM confidence
 
 ---
-*Feature research for: MusicStreamer v1.3 Discovery & Favorites*
-*Researched: 2026-03-27*
+
+*Feature research for: MusicStreamer v1.4 Media & Art Polish*
+*Researched: 2026-04-03*

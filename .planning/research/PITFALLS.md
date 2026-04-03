@@ -1,293 +1,291 @@
-# Pitfalls Research
+# Domain Pitfalls — MusicStreamer v1.4
 
-**Domain:** GTK4/Python internet radio app — Discovery & Favorites (v1.3)
-**Researched:** 2026-03-27
-**Confidence:** MEDIUM (codebase inspection + training knowledge; external search unavailable)
+**Domain:** GTK4/GStreamer Python internet radio app
+**Researched:** 2026-04-03
+**Scope:** 4 features — GStreamer buffer tuning, AudioAddict logo fetch, YouTube 16:9 art, custom accent color
+**Confidence:** HIGH for GStreamer/GTK4 pitfalls (verified against official docs + codebase); MEDIUM for AA API URL format (undocumented API, inferred from community implementations)
 
 ---
 
 ## Critical Pitfalls
 
----
+### Pitfall 1: Buffer Tuning Delays ICY Metadata Delivery
 
-### Pitfall 1: Radio-Browser.info — Hardcoded Server IP Instead of DNS Round-Robin
+**Feature:** STREAM-01
 
-**What goes wrong:** Radio-Browser.info runs multiple community servers. The recommended access pattern is a DNS lookup against `all.api.radio-browser.info` which round-robins across available servers. Hardcoding a specific server IP or hostname (e.g. `de1.api.radio-browser.info`) means requests fail silently if that node goes down, with no fallback.
+**What goes wrong:** Increasing `buffer-size` or `buffer-duration` on `playbin3` fills the internal queue before emitting TAG bus messages. ICY metadata is interleaved in the HTTP byte stream at fixed intervals (typically every 8–16 KB). When the buffer fills before the first metadata interval passes through the demuxer, users see a stale title or "Nothing playing" for several seconds after audio starts.
 
-**Why it happens:** The DNS-based server-selection pattern is non-obvious. Developers hit the first working URL they find in examples and stop there.
+**Why it happens:** `playbin3` buffers the incoming HTTP stream in a `queue2` element before demuxing. ICY metadata is embedded at byte intervals in the raw HTTP body — the larger the buffer, the more data must pass through `icydemux` before the first TAG message fires. This is a pipeline ordering issue, not a timing fluke.
 
-**How to avoid:** At startup, resolve `all.api.radio-browser.info` via DNS (Python `socket.getaddrinfo`), pick one resolved IP at random, and use it for the session. On connection error, re-resolve and retry once. The API returns JSON from any server — no session affinity needed.
+**Consequences:** Audio plays but `title_label` stays stale. Degrades a core existing feature. Only manifests on first play after a station switch; hard to catch in casual testing.
 
-**Warning signs:** Requests work in development but fail intermittently in production; error logs show connection refused to a specific IP.
+**Prevention:** Set `buffer-duration` in the 2–5 second range, not higher. Avoid setting `buffer-size` above ~64 KB for ShoutCast streams. Prefer `buffer-duration` over `buffer-size` — the former scales with stream bitrate rather than raw bytes. Validate by measuring time from `PLAYING` state to first TAG message when testing buffer values.
 
-**Phase to address:** Radio-Browser discovery phase (DISC-01).
-
----
-
-### Pitfall 2: Radio-Browser.info — Sync HTTP Call Blocks GTK Main Loop
-
-**What goes wrong:** A search query to Radio-Browser.info is a network call (50–500ms). If issued synchronously on the GTK main loop thread (e.g., in a `Gtk.SearchEntry` `search-changed` handler), the UI freezes for every keystroke. This is the same class of bug as blocking yt-dlp, but more likely to slip through because `urllib.request.urlopen` looks synchronous and harmless.
-
-**Why it happens:** The existing cover art and YouTube thumbnail fetches already use `threading.Thread` + `GLib.idle_add`. Developers sometimes forget to apply the same pattern to a new network call, especially for "quick" lookups.
-
-**How to avoid:** All Radio-Browser.info calls must go through a daemon thread. Pattern: `threading.Thread(target=_worker, daemon=True).start()` where `_worker` does the HTTP call and calls `GLib.idle_add(self._apply_results, data)` to update the UI. Debounce search-changed signals by at least 300ms (use `GLib.timeout_add`) to avoid firing a thread per keystroke.
-
-**Warning signs:** UI briefly freezes after typing in the discovery search box; spinning cursor visible between keystrokes.
-
-**Phase to address:** Radio-Browser discovery phase (DISC-01).
+**Codebase note:** `Player._on_gst_tag` dispatches via `GLib.idle_add` — no app-side delay is introduced. The issue is purely pipeline-level.
 
 ---
 
-### Pitfall 3: Radio-Browser.info — Unbounded Response Size
+### Pitfall 2: `souphttpsrc` Properties Not Accessible at Pipeline Construction Time
 
-**What goes wrong:** The `/json/stations/search` endpoint with a broad query (e.g., `name=jazz`) can return thousands of stations. Deserializing and building GTK rows for 5,000+ results in one pass causes multi-second pauses and excessive memory use.
+**Feature:** STREAM-01
 
-**Why it happens:** Developers test with specific queries ("DI.fm", "Soma.FM") that return small result sets. The general-case browse or a common genre search hits the unbounded path.
+**What goes wrong:** The natural approach is to get the `souphttpsrc` element from the pipeline and call `set_property("buffer-time", ...)` directly. With `playbin3`, the source element is created lazily when the URI is set and the state transitions. Calling `pipeline.get_by_name("source")` or accessing the `source` property before the pipeline reaches `READY` state returns `None`.
 
-**How to avoid:** Always pass `limit=100` (or similar) as a query parameter. Display results as a flat scrollable list with a "Load more" button rather than auto-fetching all pages. The API supports `offset` + `limit` pagination.
+**Why it happens:** `playbin3` creates and destroys the source element on each URI change. The element does not exist at `__init__` time or between playback sessions.
 
-**Warning signs:** Memory spikes sharply after a broad search; UI stalls while building the result list.
+**Consequences:** Crash (`AttributeError` on `None`) or silent no-op — the property call is lost and buffering is unchanged.
 
-**Phase to address:** Radio-Browser discovery phase (DISC-01).
+**Prevention:** Connect to the `source-setup` signal on `playbin3`, which fires after the source element is created but before it starts fetching. This is the correct hook:
 
----
+```python
+self._pipeline.connect("source-setup", self._on_source_setup)
 
-### Pitfall 4: AudioAddict — API Key Stored as Plaintext in Settings Table
+def _on_source_setup(self, pipeline, source):
+    if hasattr(source.props, 'buffer_time'):
+        source.set_property("buffer-time", 5_000_000)  # microseconds
+```
 
-**What goes wrong:** The API key gives access to premium streams. If stored carelessly (e.g., as a visible plaintext string in a settings dialog label, or logged to stdout during import), it leaks from the app. For a personal desktop app this is low severity, but the key is tied to the user's DI.fm premium account — leaking it gives others free premium access.
+Alternatively, set `buffer-size` and `buffer-duration` as properties directly on `playbin3` — these proxy to the internal queue and do not require `source-setup`.
 
-**Why it happens:** The natural implementation puts the key in the `settings` table (existing pattern) and displays it in a dialog for editing. This is fine for storage, but developers sometimes log it for debugging or display it fully unmasked in the UI.
-
-**How to avoid:** Store in `settings` table (existing pattern is correct). Never log the key. In the UI, display as a password-style entry (`Gtk.PasswordEntry` or `entry.set_visibility(False)`). Mask in debug output with `key[:4] + "..."`.
-
-**Warning signs:** Key appears in stdout during import; key visible in plain text in editor dialog.
-
-**Phase to address:** AudioAddict import phase (DISC-04).
+**Detection:** Property setter appears to succeed but stream behavior is unchanged. Add a `print(source.get_name())` in `source-setup` to confirm which element you are configuring.
 
 ---
 
-### Pitfall 5: AudioAddict — PLS URL Format Assumptions Break on Quality Tier Change
+### Pitfall 3: AA Logo Fetch Blocks the Import Worker (Unacceptable Wall Time)
 
-**What goes wrong:** AudioAddict streams use URLs like `https://prem2.di.fm/[channel]?[listen_key]` where the subdomain (`prem1`, `prem2`, `prem4`) encodes quality tier. The PLS file for a given quality tier contains the correct subdomain. If quality tier is changed post-import by substituting the subdomain string, the URL may be wrong — DI.fm changes server assignments without notice, and the substitution pattern `prem2 → prem4` is not stable.
+**Feature:** ART-01
 
-**Why it happens:** Developers see the pattern, try to construct quality-variant URLs by string manipulation, and it works until DI.fm rotates their CDN.
+**What goes wrong:** `aa_import.import_stations` is a synchronous loop already called from a daemon thread (import dialog). Adding `urllib.request.urlopen(logo_url)` inside the loop extends per-channel time from ~1ms (DB insert) to ~500ms+ (HTTP fetch). With 300+ AA channels across 6 networks, sequential logo fetching takes 2–5 minutes. The progress bar will advance, but the import appears hung.
 
-**How to avoid:** Re-fetch the PLS file for the selected quality tier at import time rather than constructing variant URLs. The AudioAddict API returns separate PLS URLs per quality level — use the correct one directly. Never string-substitute subdomains.
+**Why it happens:** The import loop is fast because it only does DB inserts. Image fetching is network I/O and is fundamentally different in cost. The existing on-progress callback goes through `GLib.idle_add` so the UI stays alive, but the wall clock time is unacceptable.
 
-**Warning signs:** Imported stations 404 after a quality tier switch; certain streams consistently fail while others at the same quality work.
+**Consequences:** Import runs for 5 minutes instead of 5 seconds. Users force-quit. If the import thread is a daemon, forced app exit kills it mid-write, potentially leaving partial state.
 
-**Phase to address:** AudioAddict import phase (DISC-04, DISC-05).
+**Prevention:** Decouple logo fetch from the import loop. Two viable patterns:
+1. Store the logo URL as a DB field during import (fast), then fetch the image lazily on first station display.
+2. After all stations are inserted, run a separate batch fetch pass using a thread pool with bounded concurrency (3–5 workers max).
 
----
+Do not add `urlopen` inside the `import_stations` loop. Keep that loop at DB-insert speed.
 
-### Pitfall 6: YouTube Playlist Import — yt-dlp Subprocess Blocking GTK Main Loop
-
-**What goes wrong:** `yt-dlp --flat-playlist` on a large YouTube playlist (50+ items) can take 10–30 seconds. If called via `subprocess.run(...)` or `subprocess.Popen(...); proc.wait()` on the main thread, the entire GTK window freezes for the duration. This is the same pattern the existing player already avoids for playback, but import is a one-off action that feels "safe" to do synchronously.
-
-**Why it happens:** Import is triggered by a button click (not a continuous event), so it doesn't feel like it needs debouncing. The subprocess is short enough to feel okay in testing with a 5-item test playlist.
-
-**How to avoid:** Always run `yt-dlp` import in a daemon thread. Pattern: `threading.Thread(target=_import_worker, daemon=True).start()`. Show a spinner (`Gtk.Spinner`) in the import button while running. Apply results via `GLib.idle_add`. The existing YouTube thumbnail fetch (`daemon thread + GLib.idle_add`) in the station editor is the correct template.
-
-**Warning signs:** Window becomes unresponsive after clicking "Import Playlist"; can't resize or scroll during import.
-
-**Phase to address:** YouTube playlist import phase (DISC-06).
+**Codebase note:** The AA channel JSON returned by `fetch_channels` already includes image URL fields. No extra API call is needed to get the URL — only to download the image bytes. The URL is available in the `channels` list; store it, don't fetch it inline.
 
 ---
 
-### Pitfall 7: YouTube Playlist Import — Non-Live Streams Imported as Stations
+### Pitfall 4: AA API Logo URL Format Is Undocumented and Field Names Are Unstable
 
-**What goes wrong:** A YouTube playlist may contain a mix of live streams, past live stream recordings (which become regular videos), and uploaded music videos. Importing everything creates broken stations — regular videos are not streams and GStreamer/mpv can't play them as radio.
+**Feature:** ART-01
 
-**Why it happens:** `yt-dlp --flat-playlist` returns all items without discriminating by live status. The `is_live` flag is only reliably set when fetching full metadata per-video, not in the flat playlist pass.
+**What goes wrong:** The AudioAddict API is unofficial with no current public documentation. The logo URL format in the JSON response may use relative paths, inconsistent domains, CDN token parameters, or sizing suffixes (e.g. `?size=100`). Assuming a simple absolute `https://...jpg` format will fail for some channels silently.
 
-**How to avoid:** During playlist parsing, check `entry.get("is_live")` or `entry.get("live_status") == "is_live"`. Skip any entry where `is_live` is `False` or `None`. If yt-dlp flat playlist doesn't return `is_live` reliably, do a second lightweight fetch (`--no-download --print is_live`) for each candidate. Alternatively, only import items matching a channel allowlist (e.g., known live-stream channels like Lofi Girl).
+**Why it happens:** Community implementations (Plex plugins, CLI tools) suggest the API returns `asset_url`, `images`, or similar fields — but these have varied across API versions. The field may contain a relative path requiring a base domain to be prepended.
 
-Show a count: "Imported 3 live streams, skipped 12 non-live videos."
+**Consequences:** Silent partial failure — some channels get art, others don't, with no visible error. The pattern is hard to notice without inspecting the DB directly.
 
-**Warning signs:** Imported stations fail to play immediately; `mpv` exits with error code; no audio after clicking a playlist-imported station.
+**Prevention:** Log the raw channel JSON during development and inspect the actual image URL structure before writing the fetch logic. Write a normalizer that handles both relative and absolute URLs. Treat a missing or 404 logo as a non-fatal no-op — fall through to no station art without raising.
 
-**Phase to address:** YouTube playlist import phase (DISC-06).
-
----
-
-### Pitfall 8: Favorites — Duplicate Detection Missing for Identical ICY Titles
-
-**What goes wrong:** ICY TAG messages fire continuously and may repeat. If the star button fires `INSERT INTO favorites` without a uniqueness check, the same `(station_id, track_title)` pair accumulates duplicate rows. The favorites view then shows the same song multiple times.
-
-**Why it happens:** The favorites DB write is triggered by a button click, which feels single-fire. But if the user clicks twice, or if the UI allows starring while the same ICY title is playing a second session, duplicates accumulate.
-
-**How to avoid:** Use `INSERT OR IGNORE` with a `UNIQUE(station_id, title)` constraint on the `favorites` table. The constraint enforces deduplication at the DB level regardless of how many times the insert is called. Add the constraint in `db_init` via the `ALTER TABLE ... ADD UNIQUE` try/except migration pattern already used for `icy_disabled` and `last_played_at`.
-
-**Warning signs:** Favorites view shows the same song 2–3x after repeated playback sessions; count badge shows inflated number.
-
-**Phase to address:** Favorites DB + star action phase (FAVES-01, FAVES-02).
+**Detection:** Some stations have art, others don't, with no pattern by provider or network. 404 errors appear in `urllib` exception logs.
 
 ---
 
-### Pitfall 9: Favorites — ICY Title Junk Stored as Favorites
+### Pitfall 5: AA URL Detection in Edit Dialog Produces False Positives/Negatives
 
-**What goes wrong:** Some ICY streams emit junk titles during ads, silence, or buffer events: `"advertisement"`, `"commercial break"`, empty string, `"StreamTitle=;"`. If the star button is active during these moments (e.g., auto-starring recent tracks), junk gets saved to favorites.
+**Feature:** ART-01 — auto-fetch on URL paste in editor
 
-**Why it happens:** The junk detection logic already exists in `cover_art.py` (`is_junk_title`, `JUNK_TITLES` frozenset) but is only applied to cover art lookups. Favorites writes don't go through this path.
+**What goes wrong:** The existing `_on_url_focus_out` handler in `EditStationDialog` auto-fetches YouTube thumbnails via `_is_youtube_url`. Adding AA logo auto-fetch with a naively broad pattern (e.g. checking for `"listen."` or `"di.fm"` substrings) produces false positives on URLs like `listen.soma.fm` (a non-AA station). It can also miss AA stream URLs if the detection pattern doesn't cover all 6 network domains after PLS resolution (the resolved URL may point to a CDN, not the `listen.*` domain).
 
-**How to avoid:** Import and call `is_junk_title(current_icy_title)` before allowing the star action. Disable the star button (set insensitive) whenever the current ICY title is junk or empty. The `JUNK_TITLES` frozenset and `is_junk_title()` function in `cover_art.py` should be moved to a shared utility (e.g., `filter_utils.py` or a new `icy_utils.py`) so favorites and cover art both use the same logic.
+**Why it happens:** AA streams span 6 different `listen.*` domains. After PLS resolution in `aa_import._resolve_pls`, the final URL may be a CDN hostname that contains no recognizable AA marker.
 
-**Warning signs:** Favorites view contains entries like `"advertisement"` or blank titles; star button can be clicked during ads.
+**Consequences:** False positive: fetch fires for non-AA stations, hits the AA API (key required), silently fails. False negative: user pastes an AA URL and no auto-fetch happens.
 
-**Phase to address:** Favorites DB + star action phase (FAVES-01, FAVES-02).
-
----
-
-### Pitfall 10: DB Migration — Missing `favorites` Table on Existing Installs
-
-**What goes wrong:** The `favorites` table doesn't exist on any current install. If v1.3 launches and the table is missing, any code path that queries `favorites` raises `sqlite3.OperationalError: no such table`. This crashes or silently swallows the error depending on error handling.
-
-**Why it happens:** The `db_init` function uses `CREATE TABLE IF NOT EXISTS` for tables that existed at v1.0. New tables added in v1.3 must also use this pattern. The existing `icy_disabled` and `last_played_at` migrations (try/except `ALTER TABLE`) are the correct model for new columns, but an entirely new table needs `CREATE TABLE IF NOT EXISTS` in the main `executescript` or a separate guarded block.
-
-**How to avoid:** Add `CREATE TABLE IF NOT EXISTS favorites (...)` inside `db_init`'s `executescript` block — not as an `ALTER TABLE`. This is idempotent and runs on every startup. Add it alongside the existing station/provider/settings table creation.
-
-**Warning signs:** `sqlite3.OperationalError: no such table: favorites` on first launch after update; favorites view crashes immediately on open.
-
-**Phase to address:** Favorites DB phase (FAVES-02) — must be the first favorites work done.
+**Prevention:** Gate auto-fetch against the explicit domain list from `NETWORKS` in `aa_import.py`. Match before PLS resolution (i.e., match against the URL the user typed, not the resolved URL). Apply the same `_thumb_fetch_in_progress` guard pattern already used for YouTube. Accept that auto-fetch is a convenience, not a requirement — if detection reliability is uncertain, defer it and rely on fetch-at-import-time only.
 
 ---
 
-### Pitfall 11: Radio-Browser.info — Click Count Voting Fired Accidentally
+## Moderate Pitfalls
 
-**What goes wrong:** Radio-Browser.info's API has a `/json/url/{stationuuid}` endpoint that both returns the stream URL AND records a click count vote. If the app calls this endpoint during search result display (e.g., to resolve final stream URLs for all results), it artificially inflates click counts for stations the user never actually played.
+### Pitfall 6: 16:9 Slot Displays Square iTunes Art Incorrectly
 
-**Why it happens:** The endpoint looks like a simple URL resolver. The side-effect (vote recording) is a secondary concern documented in the API but easy to miss.
+**Feature:** ART-02 — YouTube 16:9 in now-playing
 
-**How to avoid:** Only call `/json/url/{stationuuid}` (the click-counting endpoint) when the user actually plays or saves the station. For display in the browse list, use the `url` field already present in the `/json/stations/search` response — no separate URL resolution needed.
+**What goes wrong:** `cover_stack` is currently `160x160`. Changing it to a 16:9 container (e.g. `284x160`) makes the now-playing panel wider. When a non-YouTube station is playing and cover art comes from the iTunes API (square ~160x160), the image will either be center-cropped (if `ContentFit.COVER`) or letterboxed with grey bars (if `ContentFit.CONTAIN`). Both are regressions from current behavior where square art fills the square slot cleanly.
 
-**Warning signs:** Station click counts in Radio-Browser.info inflate for stations never played; network logs show `/json/url/` calls during search.
+**Why it happens:** The slot is now-playing cover art, shared between YouTube stations (16:9 thumbnails) and ShoutCast stations (square iTunes art). The two content types have incompatible aspect ratios. A single fixed-size container cannot display both well.
 
-**Phase to address:** Radio-Browser discovery phase (DISC-01, DISC-02).
+**Consequences:** iTunes cover art looks wrong for the majority of stations (all non-YouTube stations). Center crop cuts off text or subjects; letterbox looks unfinished.
 
----
+**Prevention:** Keep the slot adaptive. Track whether the current station is YouTube-based (`_current_station` is already available on `MainWindow`) and conditionally resize the container, or use `ContentFit.CONTAIN` as the default and accept slight letterboxing for YouTube thumbnails rather than breaking the common case. The simplest safe choice: keep the slot `160x160` and let `ContentFit.CONTAIN` handle 16:9 thumbnails with minimal bars. This degrades gracefully without breaking existing stations.
 
-## Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Hardcode quality tier subdomains for AudioAddict | Avoid PLS re-fetch on quality change | Breaks when DI.fm rotates CDN | Never |
-| Skip `is_live` check in YouTube playlist import | Simpler import code | Broken stations in library | Never |
-| Synchronous yt-dlp subprocess for playlist import | Simpler threading | Frozen UI for large playlists | Never |
-| `INSERT` without uniqueness constraint on favorites | Faster initial implementation | Duplicate favorites, inflated counts | Never |
-| Move `is_junk_title` inline into favorites code | Avoid refactor | Divergent junk detection logic between favorites and cover art | Never |
-| Fetch full Radio-Browser.info results without `limit` | No pagination UI needed | Multi-second freeze on broad queries | Never — always cap at 100–200 |
+**Codebase note:** `cover_stack.set_size_request(160, 160)` is at line 142–143 of `main_window.py`. The `panel.set_size_request(-1, 160)` at line 53 constrains the row height. Changing the slot width will reflow the center column width — test the full panel layout after any change.
 
 ---
 
-## Integration Gotchas
+### Pitfall 7: Changing `cover_stack` Size Breaks `now-playing-panel` Layout
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Radio-Browser.info | Hardcode `de1.api.radio-browser.info` | DNS resolve `all.api.radio-browser.info`, pick random IP |
-| Radio-Browser.info | Call `/json/url/{uuid}` during browse | Only call on play/save; use `url` field for display |
-| Radio-Browser.info | No result limit on search | Always pass `limit=100` + pagination |
-| AudioAddict | Construct quality-variant URL by subdomain substitution | Re-fetch PLS for each quality tier |
-| AudioAddict | Log or display API key in full | Mask in UI (`set_visibility(False)`), truncate in logs |
-| YouTube import | `subprocess.run` on main thread | Daemon thread + `GLib.idle_add` for results |
-| YouTube import | Import all playlist items | Filter to `is_live == True` only |
-| Favorites | `INSERT` without uniqueness | `INSERT OR IGNORE` + `UNIQUE(station_id, title)` constraint |
-| Favorites | Allow starring junk ICY titles | Gate star action on `not is_junk_title(current_title)` |
-| Favorites table | Missing table on existing install | `CREATE TABLE IF NOT EXISTS` in `db_init` executescript |
+**Feature:** ART-02
+
+**What goes wrong:** The now-playing panel is a 3-column `Gtk.Box` (logo | center | cover). The center column has `set_hexpand(True)` and expands to fill remaining space. If `cover_stack` changes from 160px wide to 284px wide, the center column shrinks by 124px, which may compress the `title_label`, `station_name_label`, volume slider, and controls box. On smaller window sizes this causes truncation or widget overlap.
+
+**Prevention:** After changing the art slot size, test at the minimum window size (`900x650`, the current default). Verify that the `title_label` still has enough horizontal space to show a meaningful portion of a long track title. Check that the volume slider doesn't collapse to near-zero width.
 
 ---
 
-## Performance Traps
+### Pitfall 8: CSS Variable Override Scope — `--accent-bg-color` Must Be on `:root`
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Unbounded Radio-Browser search response | Multi-second freeze after broad search, memory spike | `limit=100` query param, pagination | Any query returning >200 stations |
-| Building GTK rows for all search results before displaying | Visible stall before results appear | Build rows incrementally or in batches via `GLib.idle_add` chunks | >50 results |
-| yt-dlp `--flat-playlist` on 100+ item playlist without threading | Full window freeze 10–30 seconds | Daemon thread, progress indication | Any playlist >10 items |
-| No debounce on Radio-Browser search-changed | Thread spawned per keystroke, responses arrive out of order | 300ms `GLib.timeout_add` debounce, cancel previous thread by token | Typing fast (>3 chars/sec) |
+**Feature:** ACCENT-01
 
----
+**What goes wrong:** Setting `--accent-bg-color` in a rule scoped to a widget class (e.g. `.suggested-action { --accent-bg-color: ... }`) only affects descendants of that specific widget. Most accent-colored widgets elsewhere in the app (buttons in other dialogs, focus rings, selection highlights) won't pick it up because GTK CSS custom properties scope to the subtree of the selector.
 
-## Security Mistakes
+**Why it happens:** `Gtk.StyleContext.add_provider_for_display` loads the CSS globally, but the variable's effective scope is still determined by the selector in the CSS string. Adding a scoped rule globally doesn't make it global in scope.
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| AudioAddict API key logged to stdout during import | Key exposed in terminal/journal | Never log key; mask as `key[:4] + "..."` in debug |
-| AudioAddict API key visible in plaintext UI entry | Key visible to shoulder-surfers, screenshots | Use `Gtk.PasswordEntry` or `entry.set_visibility(False)` |
-| Importing arbitrary YouTube playlist URLs without validation | yt-dlp could process malformed URLs causing unexpected subprocess behavior | Validate URL scheme (`https://`) and domain (`youtube.com`, `youtu.be`) before passing to yt-dlp |
+**Consequences:** Accent color changes in some widgets but not others. Partial effect is hard to debug — not an obvious failure.
 
----
+**Prevention:** Declare `--accent-bg-color` on `:root` or `*`:
 
-## UX Pitfalls
+```css
+:root {
+    --accent-bg-color: #ff6a00;
+    --accent-color: #ff6a00;
+    --accent-fg-color: #ffffff;
+}
+```
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No feedback during playlist import (can take 30s) | User thinks app is frozen, clicks again, double-import | Show spinner + "Importing…" status, disable button during import |
-| No feedback during Radio-Browser search (async) | User types, nothing happens, types again | Show spinner in search field while request is in flight |
-| Favorites view replaces station list with no navigation hint | User doesn't know how to get back to stations | Toggle button clearly labeled "Stations / Favorites" with active state |
-| Star button enabled when ICY title is junk/ad | User stars an ad accidentally | Disable star button when `is_junk_title(current_title)` is True |
-| Importing AudioAddict overwrites existing stations of the same name | User loses custom edits (art, tags) | Check by name+provider before insert; skip or confirm on collision |
-| Radio-Browser station saved without provider assignment | Station appears ungrouped in station list | Auto-assign provider from Radio-Browser `country`/`tags` or prompt user |
+Use `Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)` — not per-widget `add_provider`. This priority (600) is higher than Libadwaita's theme provider and wins on conflict.
 
 ---
 
-## "Looks Done But Isn't" Checklist
+### Pitfall 9: Invalid Hex Input Causes Silent No-Op or Strips Existing Styles
 
-- [ ] **Radio-Browser discovery:** Results are shown — but is the click-count endpoint only called on play/save, not on display?
-- [ ] **Radio-Browser discovery:** Search works — but is there a result limit preventing unbounded fetches?
-- [ ] **Radio-Browser server selection:** Requests succeed — but is DNS round-robin used, not a hardcoded server?
-- [ ] **AudioAddict import:** Stations import — but is the API key masked in the UI and never logged?
-- [ ] **AudioAddict import:** Quality tiers work — but is each tier using its own PLS-resolved URL, not a subdomain substitution?
-- [ ] **YouTube import:** Stations appear after import — but are non-live videos filtered out?
-- [ ] **YouTube import:** Import completes — but does the UI stay responsive during it (no main-thread block)?
-- [ ] **Favorites:** Stars save — but is there a `UNIQUE` constraint preventing duplicates?
-- [ ] **Favorites:** Star action works — but is the star button disabled for junk/ad ICY titles?
-- [ ] **Favorites:** View shows correct data — but does it work on a fresh install (table migration in `db_init`)?
+**Feature:** ACCENT-01
 
----
+**What goes wrong:** `Gtk.CssProvider.load_from_string` (or `load_from_data`) silently ignores invalid CSS rules. Passing an invalid hex (`#xyz`, incomplete `#ff0`, empty string) causes the rule to be dropped without raising a Python exception. The `parsing-error` signal fires but only if connected. A structurally malformed CSS string (e.g. missing closing brace) can invalidate the entire stylesheet, stripping previously applied styles including Phase 11 corner radii and panel borders.
 
-## Recovery Strategies
+**Why it happens:** GTK CSS parsing is lenient by design — it skips invalid rules rather than failing hard.
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Hardcoded Radio-Browser server | LOW | Change constant, re-deploy |
-| Click-count endpoint called during browse | LOW | Change call site to play/save only |
-| Duplicate favorites from missing UNIQUE constraint | MEDIUM | Add constraint + `DELETE` duplicates in migration |
-| Junk titles in favorites | LOW | Add `is_junk_title` gate + one-time cleanup query |
-| Missing favorites table on existing install | LOW | Add `CREATE TABLE IF NOT EXISTS` to `db_init`, re-run |
-| Non-live videos imported as stations | MEDIUM | Add `is_live` filter + cleanup pass to delete broken stations |
-| AudioAddict quality URLs from subdomain substitution | LOW | Re-import with PLS fetch per quality tier |
-| Blocking yt-dlp import on main thread | LOW | Wrap in daemon thread |
+**Consequences:** Accent color silently stays at previous value with no user feedback. In the worst case (malformed CSS structure), Phase 11 visual polish is wiped out.
+
+**Prevention:**
+1. Validate the hex string in Python before passing to GTK: `re.fullmatch(r'#[0-9a-fA-F]{6}', value)` — reject 3-char, uppercase-only, or prefixless values.
+2. Derive `--accent-fg-color` (white or black) from luminance rather than hardcoding.
+3. Keep the CSS string minimal — only the variable declarations — to minimize structural parse risk.
+4. During development, connect `provider.connect("parsing-error", lambda p, s, e: print(e.message))` to surface parse errors.
 
 ---
 
-## Pitfall-to-Phase Mapping
+### Pitfall 10: GNOME 47+ System Accent Color Overwrites App-Level Override
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Radio-Browser DNS round-robin (P1) | DISC-01 Radio-Browser browse | DNS resolve confirmed in code; no hardcoded hostname |
-| Radio-Browser sync HTTP on main thread (P2) | DISC-01 Radio-Browser browse | UI stays responsive while search is in flight |
-| Radio-Browser unbounded response (P3) | DISC-01 Radio-Browser browse | `limit=` param present in all search calls |
-| AudioAddict API key security (P4) | DISC-04 AudioAddict import | Key masked in UI; not present in stdout during import |
-| AudioAddict PLS URL per quality tier (P5) | DISC-05 AudioAddict quality | PLS re-fetched per tier; no subdomain substitution in code |
-| YouTube import blocking main loop (P6) | DISC-06 YouTube playlist import | Window remains responsive during 20+ item import |
-| YouTube non-live filter (P7) | DISC-06 YouTube playlist import | Only `is_live=True` items imported; count shown to user |
-| Favorites duplicate detection (P8) | FAVES-02 Favorites DB schema | `UNIQUE(station_id, title)` constraint in table DDL |
-| Favorites junk title guard (P9) | FAVES-01 Star action | Star button insensitive when `is_junk_title` is True |
-| Favorites DB migration (P10) | FAVES-02 Favorites DB schema — first | `CREATE TABLE IF NOT EXISTS favorites` in `db_init`; tested on existing DB |
-| Radio-Browser click-count side effect (P11) | DISC-02 Play without import | `/json/url/` only called at play/save time |
+**Feature:** ACCENT-01
+
+**What goes wrong:** GNOME 47+ introduced system-level accent color via the settings portal. Libadwaita reads this at startup and injects `--accent-bg-color`. If the app loads its CSS provider at a lower priority, or reloads it at the wrong time, the system accent will overwrite the user's custom value.
+
+**Prevention:** Always use `Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION` (600) — this is above Libadwaita's theme provider. Reload the provider on every settings change (re-call `load_from_string` and re-add via `add_provider_for_display`), not just at startup. Test on a GNOME installation with a non-default system accent color active.
+
+---
+
+## Minor Pitfalls
+
+### Pitfall 11: AA Logo Fetch Leaves Temp Files on Import Interruption
+
+**Feature:** ART-01
+
+**What goes wrong:** The existing `fetch_yt_thumbnail` pattern writes to a `NamedTemporaryFile` and calls `os.unlink` after `copy_asset_for_station`. An AA batch logo fetch will follow the same pattern. If the import is cancelled mid-batch or the app is closed, partially downloaded logos leave orphan `/tmp/*.jpg` files.
+
+**Prevention:** Always wrap `os.unlink(temp_path)` in `try/except OSError`. Use a `finally` block to ensure cleanup regardless of whether `copy_asset_for_station` succeeded.
+
+---
+
+### Pitfall 12: AA Logo Fetch Overwrites User-Set Station Art on Re-Import
+
+**Feature:** ART-01
+
+**What goes wrong:** `copy_asset_for_station` writes to `assets/<station_id>/station_art<ext>`. If a new fetch path updates logos for stations already in the DB (e.g. a "refresh logos" action), it silently overwrites art the user manually chose.
+
+**Prevention:** Only write station art during initial import (when `imported += 1`), never during the skipped-duplicate path. Add an explicit guard: only write if `station_art_path` is `None` or empty in the DB.
+
+---
+
+### Pitfall 13: GStreamer State Transition Race More Audible With Larger Buffers
+
+**Feature:** STREAM-01
+
+**What goes wrong:** `Player._set_uri` calls `set_state(NULL)` then immediately sets the URI and calls `set_state(PLAYING)`. With larger buffers, the pipeline may not fully drain to NULL before the new URI is set, leaving buffered audio that plays briefly before the new stream starts. This pre-exists the buffer tuning work but larger buffers make the artifact more audible.
+
+**Prevention:** Do not change the existing state transition pattern unless glitches are observed after tuning. If glitches appear on station switch, flush the pipeline explicitly with `Gst.Event.new_flush_start()` / `flush_stop` before setting the new URI.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Likely Pitfall | Mitigation |
+|-------------|----------------|------------|
+| GStreamer buffer tuning | ICY metadata latency regression (#1) | Measure time to first TAG message; keep buffer-duration ≤5s |
+| GStreamer buffer tuning | `souphttpsrc` property timing (#2) | Use `source-setup` signal; verify which element owns the property |
+| AA logo fetch at import | UI blocking from inline HTTP (#3) | Decouple fetch from import loop |
+| AA logo fetch at import | Undocumented URL format (#4) | Inspect raw JSON in development, normalize URLs |
+| AA logo auto-fetch in editor | URL detection false pos/neg (#5) | Match against explicit `NETWORKS` domain list only |
+| YouTube 16:9 now-playing | Square iTunes art breakage (#6) | Conditional sizing or CONTAIN fallback |
+| YouTube 16:9 now-playing | Panel layout reflow (#7) | Test at min window size after dimension change |
+| Custom accent color | CSS variable scope (#8) | Use `:root` selector, `PRIORITY_APPLICATION` |
+| Custom accent color | Invalid hex silent failure (#9) | Validate hex in Python before passing to GTK |
+| Custom accent color | System accent conflict (#10) | Test on GNOME with non-default system accent |
 
 ---
 
 ## Sources
 
-- Codebase inspection: `musicstreamer/cover_art.py`, `musicstreamer/repo.py`, `musicstreamer/player.py` (2026-03-27)
-- Existing PITFALLS.md v1.2 research (2026-03-18) — GTK4/GStreamer pitfalls
-- Radio-Browser.info API design: training knowledge — MEDIUM confidence (API is stable and community-documented; DNS round-robin is the officially recommended approach)
-- AudioAddict/DI.fm PLS URL structure: training knowledge — MEDIUM confidence (URL pattern observed from public PLS files; subdomain rotation risk is inferred from CDN practices)
-- yt-dlp `is_live` field behavior: training knowledge — MEDIUM confidence (flat playlist `is_live` flag documented in yt-dlp output templates; validate empirically against a real mixed playlist)
-- SQLite `INSERT OR IGNORE` + `UNIQUE` constraint pattern: HIGH confidence (standard SQLite behavior)
-- GLib `idle_add` / daemon thread pattern: HIGH confidence (established GTK cross-thread pattern; already used in this codebase for cover art and YT thumbnails)
+- GStreamer playbin3 docs: https://gstreamer.freedesktop.org/documentation/playback/playbin3.html
+- GStreamer buffering guide: https://gstreamer.freedesktop.org/documentation/application-development/advanced/buffering.html
+- souphttpsrc docs: https://gstreamer.freedesktop.org/documentation/soup/souphttpsrc.html
+- Pithos buffer-size real-world issue: https://github.com/pithos/pithos/issues/393
+- Libadwaita CSS variables: https://gnome.pages.gitlab.gnome.org/libadwaita/doc/1.2/css-variables.html
+- GTK4 CSS overview: https://docs.gtk.org/gtk4/css-overview.html
+- AudioAddict community implementation (phrawzty): https://github.com/phrawzty/AudioAddict.bundle
+- Codebase analysis: `player.py`, `main_window.py`, `edit_dialog.py`, `aa_import.py`, `cover_art.py`, `assets.py`
 
 ---
-*Pitfalls research for: GTK4/Python internet radio — v1.3 Discovery & Favorites*
-*Researched: 2026-03-27*
+
+## Archived — v1.3 Pitfalls (Discovery & Favorites)
+
+The following pitfalls were researched for v1.3 and remain valid as historical reference. They are addressed in Phases 12–15.
+
+<details>
+<summary>Expand v1.3 pitfalls</summary>
+
+### P1: Radio-Browser.info — Hardcoded Server IP
+Use DNS round-robin via `all.api.radio-browser.info`. Do not hardcode `de1.api.radio-browser.info`.
+
+### P2: Radio-Browser.info — Sync HTTP on Main Thread
+All Radio-Browser calls must use daemon thread + `GLib.idle_add`. Debounce search-changed 300ms.
+
+### P3: Radio-Browser.info — Unbounded Response
+Always pass `limit=100` to search endpoint.
+
+### P4: AudioAddict API Key Security
+Store in settings table; mask in UI (`set_visibility(False)`); never log.
+
+### P5: AudioAddict PLS URL Per Quality Tier
+Re-fetch PLS for each quality tier; never substitute subdomains.
+
+### P6: YouTube Import Blocking Main Loop
+Daemon thread + `GLib.idle_add` for results. Spinner while running.
+
+### P7: YouTube Non-Live Filter
+`is_live == True` strict identity check (non-live entries return `None`, not `False`).
+
+### P8: Favorites Duplicate Detection
+`INSERT OR IGNORE` + `UNIQUE(station_id, title)` constraint.
+
+### P9: Favorites Junk Title Guard
+Gate star action on `not is_junk_title(current_title)`.
+
+### P10: Favorites DB Migration
+`CREATE TABLE IF NOT EXISTS favorites` in `db_init` executescript.
+
+### P11: Radio-Browser Click-Count Side Effect
+Only call `/json/url/{uuid}` on play/save, not on browse display.
+
+</details>
+
+---
+
+*Pitfalls research for: GTK4/Python internet radio — v1.4 Media & Art Polish*
+*Researched: 2026-04-03*

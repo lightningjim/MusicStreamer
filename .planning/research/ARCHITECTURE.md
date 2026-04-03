@@ -1,326 +1,316 @@
-# Architecture Research
+# Architecture Patterns
 
-**Domain:** GTK4/Python desktop radio player — v1.3 Discovery & Favorites integration
-**Researched:** 2026-03-27
-**Confidence:** HIGH (existing codebase is the ground truth; external API patterns are well-established)
+**Domain:** GTK4/Python desktop radio player — v1.4 Media & Art Polish
+**Researched:** 2026-04-03
+**Confidence:** HIGH (existing codebase is ground truth; external unknowns flagged explicitly)
 
-## Current Architecture (v1.2 baseline)
+---
+
+## Current Architecture (v1.3 baseline)
 
 ```
 musicstreamer/
 ├── constants.py        — DATA_DIR, DB_PATH, ASSETS_DIR
-├── models.py           — Station, Provider dataclasses
-├── repo.py             — Repo class: all SQLite read/write
-├── player.py           — Player: GStreamer pipeline + mpv subprocess
-├── cover_art.py        — iTunes Search API fetch (daemon thread + callback)
-├── assets.py           — Station art persistence
+├── models.py           — Station, Provider, Favorite dataclasses
+├── repo.py             — Repo: all SQLite reads/writes; get_setting/set_setting
+├── player.py           — Player: GStreamer playbin3 pipeline + mpv subprocess (YT)
+├── cover_art.py        — iTunes Search API fetch (daemon thread + GLib.idle_add callback)
+├── assets.py           — copy_asset_for_station: copies image to DATA_DIR/assets/<id>/
 ├── filter_utils.py     — normalize_tags, matches_filter_multi
+├── aa_import.py        — fetch_channels, import_stations (AudioAddict backend)
+├── yt_import.py        — YouTube playlist import backend
+├── radio_browser.py    — Radio-Browser.info search client
 └── ui/
     ├── main_window.py  — MainWindow: all layout, state, playback wiring
     ├── station_row.py  — StationRow (ListBoxRow wrapping ActionRow)
-    └── edit_dialog.py  — EditStationDialog
+    ├── edit_dialog.py  — EditStationDialog (URL focus-out auto-fetches YT thumbnail)
+    ├── discovery_dialog.py
+    └── import_dialog.py
 ```
 
-State is held in `MainWindow`. `Repo` is stateless (connection-holding) and called synchronously from the GTK main thread. All background work (cover art, YT thumbnail) uses `threading.Thread(daemon=True)` + `GLib.idle_add` to return results to the GTK thread.
+State lives in `MainWindow`. `Repo` is stateless (holds connection). All background work uses
+`threading.Thread(daemon=True)` + `GLib.idle_add` to return results to the GTK thread.
 
-## v1.3 Target Structure
+---
 
-### New modules (pure additions)
+## Feature Integration Map
 
-```
-musicstreamer/
-├── favorites_repo.py        — FavoritesRepo: DB CRUD for favorites table
-├── importers/
-│   ├── __init__.py
-│   ├── radio_browser.py     — RadioBrowserClient: DNS server discovery + REST search
-│   ├── audioaddict.py       — AudioAddictImporter: channel list + PLS fetch/parse
-│   └── youtube.py           — YouTubeImporter: yt-dlp extract_info, live filter
-└── ui/
-    ├── favorites_view.py    — FavoritesView: ListBox of favorited tracks + delete
-    ├── discovery_dialog.py  — DiscoveryDialog: Radio-Browser browse/search/play/save
-    └── import_dialog.py     — ImportDialog: AudioAddict + YouTube import (tabbed)
-```
+### Feature 1: GStreamer Buffer Tuning (STREAM-01)
 
-### Modified modules
+**Files changed:** `player.py` only
 
-| Module | What changes |
-|--------|-------------|
-| `repo.py` | `db_init` migration adds `favorites` table. No method changes — favorites CRUD lives in `FavoritesRepo`. |
-| `models.py` | Add `Favorite` dataclass. `Station` unchanged. |
-| `cover_art.py` | Extend callback signature from `(path)` to `(path, genre_or_None)` so genre can be stored in favorites. |
-| `main_window.py` | Add: star button in now-playing panel; Stations/Favorites toggle; "Discover" and "Import" buttons; track `_current_icy_title`. |
+**Where:** `Player.__init__`, after `self._pipeline = Gst.ElementFactory.make("playbin3", "player")`.
 
-`station_row.py` and `edit_dialog.py` are untouched.
-
-## Component Responsibilities
-
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `favorites_repo.py` | CRUD for `favorites` table (add, list, delete) | Shares `repo.con` — no separate connection |
-| `importers/radio_browser.py` | DNS-discover server, HTTP search/browse, map result to dict | `discovery_dialog.py` via callback |
-| `importers/audioaddict.py` | Fetch channel list JSON, fetch PLS per channel, parse 2-server URLs | `import_dialog.py` |
-| `importers/youtube.py` | Run yt-dlp `extract_info(flat)`, filter `is_live`, return station dicts | `import_dialog.py` |
-| `ui/favorites_view.py` | Render favorited tracks, inline delete button per row | `main_window.py` |
-| `ui/discovery_dialog.py` | Search UI, result list, Play preview, Save to library | `radio_browser.py`, `repo.py`, `player.py` (via callback) |
-| `ui/import_dialog.py` | Two-tab import UI, progress feedback, bulk station creation | `audioaddict.py`, `youtube.py`, `repo.py` |
-
-## Data Model Changes
-
-### New table: `favorites`
-
-```sql
-CREATE TABLE IF NOT EXISTS favorites (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  track_title   TEXT NOT NULL,
-  station_id    INTEGER,
-  station_name  TEXT NOT NULL,    -- denormalized: station may be deleted later
-  provider_name TEXT,             -- denormalized for same reason
-  itunes_genre  TEXT,             -- from iTunes API response if available
-  created_at    TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE SET NULL
-);
-```
-
-Denormalize `station_name` and `provider_name` at insert time. The station may be deleted after favoriting, but the user still needs display data. `station_id` remains as a nullable FK for potential cross-reference.
-
-### New model
+playbin3 exposes buffer-size (bytes) and buffer-duration (nanoseconds) properties directly on
+the playbin3 element. Set both immediately after construction, before any URI is assigned.
 
 ```python
-@dataclass
-class Favorite:
-    id: int
-    track_title: str
-    station_id: Optional[int]
-    station_name: str
-    provider_name: Optional[str]
-    itunes_genre: Optional[str]
-    created_at: str
+# After line 19 (pipeline construction):
+self._pipeline.set_property("buffer-size", 2 * 1024 * 1024)   # 2 MB
+self._pipeline.set_property("buffer-duration", 5 * Gst.SECOND)  # 5 s
 ```
 
-## Data Flow
+These apply only to HTTP/ShoutCast streams. YouTube playback uses the mpv subprocess path
+(`_play_youtube`), which bypasses GStreamer entirely — buffer tuning there is a separate mpv
+concern and out of scope for this feature.
 
-### Favorites: star current ICY track
+**New components:** none
+**Dependencies:** none — fully isolated
 
-```
-ICY TAG arrives → Player._on_gst_tag → GLib.idle_add(_on_title, title)
-    ↓
-MainWindow._on_title(title):
-    - self._current_icy_title = title
-    - title_label.set_text(title)
-    - star_btn.set_sensitive(True)  [non-junk title]
 
-User clicks star button
-    ↓
-MainWindow._on_star():
-    - reads self._current_station, self._current_icy_title, self._last_itunes_genre
-    - FavoritesRepo.add_favorite(track_title, station, genre)
-    - star_btn.add_css_class("accent")  [filled appearance]
-```
+### Feature 2: AudioAddict Station Art (ART-01)
 
-### Favorites: view and delete
+**Files changed:** `aa_import.py` (primary), `edit_dialog.py` (secondary / bonus)
 
-```
-User clicks "Favorites" toggle
-    ↓
-MainWindow._show_favorites_view():
-    - shell.set_content(favorites_scroller)   [same swap pattern as empty_page]
-    - FavoritesView.load() → FavoritesRepo.list_favorites()
-    - chip strip + search hidden/insensitive
+#### 2a. At import time (aa_import.py)
 
-User clicks delete on a row
-    ↓ FavoritesRepo.delete_favorite(id) → FavoritesView.load()
+The current `fetch_channels` loop uses only `ch["name"]` and `ch["key"]`. The AA API channel
+response is known to include image/logo fields but the exact field names must be confirmed from
+a live API response at implementation time.
 
-User clicks "Stations" toggle
-    ↓ shell.set_content(scroller) → chip strip re-enabled
-```
+**Known candidate fields** (from community reverse-engineering of AA API; MEDIUM confidence):
+- `asset_url` — used in some third-party clients for channel artwork
+- `images` — object or array of image variants (seen in newer API versions)
+- A base URL pattern of `https://assets.di.fm/static/images/default_channel_images/<key>.png`
+  is commonly referenced as a fallback even when no explicit image field exists
 
-### Radio-Browser: browse, play preview, save
+**Verification step (required before coding):** Call
+`https://listen.di.fm/premium_high?listen_key=<key>` with a real key and `print(json.dumps(data[0], indent=2))`
+to see the complete first channel object. Identify the image field name, then add extraction to
+`fetch_channels` and pass it through the channel dict.
 
-```
-User clicks "Discover" button
-    ↓
-DiscoveryDialog.present()
-    ↓ on first show: daemon thread → RadioBrowserClient.get_server()
-      DNS: all.api.radio-browser.info → random server URL
-    ↓ GLib.idle_add → enable search entry
+**Change to `fetch_channels`:** Add `"art_url": ch.get("<field_name>", "")` to each result dict.
 
-User types query or selects tag
-    ↓ daemon thread:
-      GET https://{server}/json/stations/search
-          ?name={q}&limit=50&hidebroken=true&order=votes
-    ↓ GLib.idle_add → populate result ListBox (Adw.ActionRow per result)
+**Change to `import_stations`:** When `art_url` is non-empty and the station is newly inserted,
+fetch the image URL in a subprocess/thread, write it to a tempfile, then call
+`copy_asset_for_station(station_id, tmp_path, "station_art")` and
+`repo.update_station(..., station_art_path=rel_path, ...)`.
 
-User clicks Play on result
-    ↓ construct throwaway Station(id=-1, name=..., url=...)
-    ↓ Player.play(transient_station)  [no DB write; guard update_last_played against id<0]
+**Threading note:** `import_stations` runs in an import dialog thread already. Image fetches can
+run inline in that thread (blocking per-channel). Keep `on_progress` call after art fetch to
+avoid confusing progress count.
 
-User clicks Save
-    ↓ Repo.create_station() + Repo.update_station() with result fields
-    ↓ GLib.idle_add → show "Saved" toast; Save button becomes "Saved" (greyed)
-    ↓ on dialog close → MainWindow.reload_list()
-```
+**New components:** none (art download is `urllib.request.urlopen` inline — same pattern as YT
+thumbnail fetch in `edit_dialog.py`)
 
-### AudioAddict import
+#### 2b. Edit dialog AA URL detection (edit_dialog.py) — optional enhancement
 
-```
-User opens Import dialog → AudioAddict tab → enters API key → clicks Fetch Channels
-    ↓ daemon thread:
-      GET https://api.audioaddict.com/v1/di/channels
-      GET https://api.audioaddict.com/v1/radiotunes/channels
-      GET https://api.audioaddict.com/v1/jazzradio/channels
-      GET https://api.audioaddict.com/v1/rockradio/channels
-    ↓ GLib.idle_add → populate channel checklist
+`_on_url_focus_out` currently gates on `_is_youtube_url()`. Add a parallel `_is_aa_url()`
+check: if the URL contains `di.fm`, `radiotunes.com`, `jazzradio.com`, etc., derive the channel
+key from the URL path, construct the logo URL (using the confirmed base pattern), and fetch it.
+This is the same code path as the YT thumbnail fetch — same spinner, same `copy_asset_for_station`.
 
-User selects quality (hi/med/low) → selects channels → clicks Import
-    ↓ daemon thread:
-      for each selected channel:
-        GET http://listen.di.fm/premium_{quality}/{slug}.pls?api_key={key}
-        parse .pls → extract File1= (primary), File2= (failover)
-        append both URLs; primary used as station URL
-      Repo.upsert_station({name, url, provider, tags})
-    ↓ GLib.idle_add → progress bar increment
-    ↓ on complete → MainWindow.reload_list()
-```
+This is a bonus UX path; the import-time fetch (2a) is the requirement.
 
-### YouTube playlist import
+**Dependencies:** Field name discovery must happen before coding. Block Phase 2 on that.
 
-```
-User opens Import dialog → YouTube tab → pastes playlist URL → clicks Import
-    ↓ daemon thread:
-      yt_dlp.YoutubeDL({'quiet': True, 'extract_flat': True})
-        .extract_info(url, download=False)
-      filter entries: is_live == True OR live_status == 'is_live'
-    ↓ GLib.idle_add → show found count
-    ↓ for each live entry:
-      Repo.create_station() + Repo.update_station({name, url, provider='YouTube'})
-    ↓ on complete → MainWindow.reload_list()
-```
 
-## Cross-Thread Pattern
+### Feature 3: YouTube Thumbnail 16:9 (ART-02)
 
-All new network operations extend the established pattern from `cover_art.py`:
+**Files changed:** `main_window.py` only
+
+**Where:** The now-playing panel's right slot (cover_stack) is currently 160×160, square. The
+`cover_image` Gtk.Image is loaded via `GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 160, 160, False)`.
+
+**Change:** Make the right art slot aspect-ratio-aware for YouTube stations:
+
+1. The `cover_stack` and `cover_image` need a wider size_request when a YouTube station is
+   playing. Natural 16:9 at panel height 160px → width 284px.
+2. In `_play_station`, detect `"youtube.com" in st.url or "youtu.be" in st.url`. If true:
+   - `cover_stack.set_size_request(284, 160)`
+   - Load pixbuf with `new_from_file_at_scale(path, 284, 160, False)` (preserve ratio)
+   - `cover_image.set_content_fit(Gtk.ContentFit.FILL)` or use `Gtk.Picture` instead of
+     `Gtk.Image` for better aspect-ratio handling (see note below)
+3. On `_stop()` or when playing a non-YT station, reset to `(160, 160)`.
+
+**Gtk.Image vs Gtk.Picture:** The now-playing slots use `Gtk.Image`, which requires explicit
+pixbuf scaling. Switching `cover_image` to `Gtk.Picture` would let GTK handle aspect-ratio
+fitting natively via `set_content_fit(Gtk.ContentFit.CONTAIN)`. This is a moderate refactor of
+the cover slot only — no change to the logo slot or list rows.
+
+**Panel layout impact:** The panel is a horizontal `Gtk.Box` with `set_size_request(-1, 160)`.
+Widening the right slot shrinks the center column since center has `set_hexpand(True)`. This is
+acceptable: the panel already has defined fixed-size left (160) and right (160) slots; going to
+284 on the right reduces center space by ~124px at 900px window width. Flag for visual review.
+
+**New components:** none
+**Dependencies:** none — independent of other v1.4 features
+
+
+### Feature 4: Custom Accent Color (ACCENT-01)
+
+**Files changed:** `main_window.py` (CSS provider wiring + settings load/save), new
+`ui/accent_dialog.py` (color picker dialog)
+
+**Persistence:** `repo.get_setting("accent_color", "")` / `repo.set_setting("accent_color", value)`.
+The `settings` table already exists via `db_init`. No schema migration needed.
+
+**CSS injection pattern:**
 
 ```python
-def _on_some_action(self):
-    def _worker():
-        result = blocking_network_call()
-        GLib.idle_add(self._update_ui, result)
-    threading.Thread(target=_worker, daemon=True).start()
+# In MainWindow.__init__ (or a helper):
+self._css_provider = Gtk.CssProvider()
+Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    self._css_provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+)
+
+def _apply_accent(self, hex_color: str):
+    if hex_color:
+        css = f":root {{ --accent-color: {hex_color}; }}"
+        # Libadwaita 1.2+ supports accent-color override:
+        css = f"* {{ --accent-bg-color: {hex_color}; }}"
+    else:
+        css = ""
+    self._css_provider.load_from_data(css.encode())
 ```
 
-No new threading primitives needed. Radio-Browser search, AudioAddict fetch, and YouTube import all use this exact pattern. For multi-step imports with progress, `GLib.idle_add` is called once per station inserted.
+**Libadwaita accent color API:** Libadwaita 1.6 (GNOME 47+) introduced
+`Adw.StyleManager.set_accent_color(Adw.AccentColor)` for first-class accent control, but it
+uses a fixed enum of named colors, not arbitrary hex. For arbitrary hex input, CSS injection via
+`--accent-bg-color` custom property remains the correct approach for GTK4/Libadwaita. (MEDIUM
+confidence — verify `Adw.StyleManager` availability at target GNOME version.)
 
-## UI Integration Points in `main_window.py`
+**UI entry point:** Add an "Accent" button or icon button to the header bar in `main_window.py`.
+Opens `AccentColorDialog` (new `Adw.Window` or `Adw.Dialog`).
 
-### 1. Star button in now-playing panel
+**AccentColorDialog contents:**
+- Row of preset color swatches (6–8 named colors as `Gtk.ColorButton` or custom square buttons)
+- `Gtk.Entry` for hex input
+- "Reset to default" option (empty string → remove CSS override)
+- Apply callback → `_apply_accent(hex)` + `repo.set_setting("accent_color", hex)`
 
-Add `Gtk.Button` with `starred-symbolic` icon to the center column of the now-playing panel (between track title label and stop button). Sensitive only when `self._current_icy_title` is set and non-junk. `_on_title` callback must store `self._current_icy_title = title` on each call.
+**Load on startup:** In `MainWindow.__init__`, after CSS provider is registered:
+```python
+saved = self.repo.get_setting("accent_color", "")
+if saved:
+    self._apply_accent(saved)
+```
 
-### 2. Stations / Favorites toggle
+**New components:** `musicstreamer/ui/accent_dialog.py` (new file)
+**Modified:** `main_window.py` — CSS provider setup, accent button, load-on-startup
+**Dependencies:** none — fully independent
 
-Add two `Gtk.ToggleButton` forming a `Gtk.ToggleGroup` (or exclusive manual wiring) in the filter bar. "Stations" active by default. Switching to "Favorites" calls `shell.set_content(favorites_scroller)` and hides the chip strip. Switching back restores `shell.set_content(scroller)`.
+---
 
-### 3. Discover and Import buttons in toolbar
+## Files Changed Per Feature
 
-Append to `filter_box` alongside Add Station / Edit. "Discover" → `DiscoveryDialog.present()`; "Import" → `ImportDialog.present()`. Keep `set_hexpand(False)`.
+| Feature | Files Modified | New Files |
+|---------|---------------|-----------|
+| STREAM-01: Buffer tuning | `player.py` | none |
+| ART-01: AA station art | `aa_import.py` | none |
+| ART-01 bonus: edit dialog | `edit_dialog.py` | none |
+| ART-02: YT thumbnail 16:9 | `main_window.py` | none |
+| ACCENT-01: Accent color | `main_window.py` | `ui/accent_dialog.py` |
 
-### 4. Genre capture from cover_art.py
+No new DB migrations required. No new modules required except `accent_dialog.py`.
 
-`_on_cover_art` in `main_window.py` currently discards the iTunes response after extracting artwork URL. Change `cover_art.py::_worker` to also parse `primaryGenreName` from the JSON result. Change callback signature to `callback(path_or_None, genre_or_None)`. Store genre as `self._last_itunes_genre` for use when the user stars a track.
-
-## Module Boundary Rules
-
-- `importers/*` modules have zero GTK imports. They return plain Python dicts/lists. All `GLib.idle_add` wiring lives in the dialog layer.
-- `FavoritesRepo` shares `repo.con`. Construct as `FavoritesRepo(repo.con)` in `MainWindow.__init__`. Do NOT open a second SQLite connection.
-- `DiscoveryDialog` receives a `Repo` reference and calls `repo.create_station()` + `repo.update_station()` on save. It does not have its own repo.
-- Transient (unsaved) Radio-Browser playback uses `Station(id=-1, ...)`. Guard `Repo.update_last_played` and `_refresh_recently_played` against `station.id < 0`.
+---
 
 ## Recommended Build Order
 
 ```
-Phase A: Favorites (DB + UI)
+Phase 16: GStreamer buffer tuning  (STREAM-01)
+  Scope: player.py only, 2-3 lines
   Dependencies: none
-  1. models.py: add Favorite dataclass
-  2. repo.py: db_init migration (favorites table)
-  3. favorites_repo.py: add_favorite, list_favorites, delete_favorite
-  4. cover_art.py: extend callback to (path, genre_or_None)
-  5. ui/favorites_view.py: FavoritesView widget
-  6. main_window.py: _current_icy_title tracking, star button,
-     Stations/Favorites toggle, wire FavoritesRepo
+  Risk: LOW — property names are GStreamer standard; easy to verify at test time
 
-Phase B: Radio-Browser Discovery
-  Dependencies: none (independent of Phase A)
-  1. importers/radio_browser.py: RadioBrowserClient
-  2. ui/discovery_dialog.py: DiscoveryDialog
-  3. main_window.py: Discover button
+Phase 17: AudioAddict station art  (ART-01)
+  Scope: aa_import.py + optional edit_dialog.py
+  Dependencies: REQUIRES live API response inspection first to identify image field name
+  Risk: MEDIUM — field name unknown, fetch-and-store pattern is established
 
-Phase C: AudioAddict Import
-  Dependencies: Phase B (shares ImportDialog shell; or standalone if dialog is separate)
-  1. importers/audioaddict.py: AudioAddictImporter
-  2. ui/import_dialog.py: ImportDialog with AudioAddict tab
-  3. main_window.py: Import button
+Phase 18: YouTube thumbnail 16:9  (ART-02)
+  Scope: main_window.py cover slot only
+  Dependencies: none
+  Risk: LOW-MEDIUM — layout change needs visual QA; Gtk.Image vs Gtk.Picture decision
 
-Phase D: YouTube Playlist Import
-  Dependencies: Phase C (adds tab to existing ImportDialog)
-  1. importers/youtube.py: YouTubeImporter
-  2. ui/import_dialog.py: add YouTube tab
+Phase 19: Accent color  (ACCENT-01)
+  Scope: main_window.py + new accent_dialog.py
+  Dependencies: none
+  Risk: MEDIUM — Libadwaita CSS injection approach needs version check
 ```
 
-Phases A and B are fully independent. If parallelizing work, those are the natural split. C and D must be sequential since they share `ImportDialog`.
+**Rationale for order:**
+- Phase 16 first: smallest scope, zero risk, immediately improves stream reliability for all testing of subsequent phases.
+- Phase 17 second: blocked on API field discovery, so start the live-response check during Phase 16 build.
+- Phase 18 third: standalone layout change, easy to verify visually before adding UI chrome.
+- Phase 19 last: new dialog + CSS wiring; most surface area, most QA needed.
+
+All four phases are independent and could be built in any order. The order above is risk-ascending.
+
+---
+
+## Integration Notes
+
+### AA Image Field — MUST VERIFY BEFORE CODING
+
+The `aa_import.py` `fetch_channels` function currently extracts only `ch["name"]` and `ch["key"]`
+from the channel JSON. Before writing ART-01, print the full first channel object from a live
+API call to identify the image field. Common candidates seen in third-party clients:
+- `asset_url` (string)
+- `images` (dict with size variants)
+- `channel_director` (unrelated — ignore)
+
+If no image field exists in the quality-tier endpoint (`listen.di.fm/premium_high?listen_key=...`),
+try the channel metadata endpoint `https://api.audioaddict.com/v1/di/channel_filters/0/channels`
+which is a richer response format used by the web player.
+
+### GStreamer buffer-size vs buffer-duration
+
+Set both. `buffer-size` caps memory usage; `buffer-duration` is what controls pre-roll/rebuffer
+behavior on ShoutCast streams. For typical 128–320 kbps streams, 2 MB / 5 s is a reasonable
+default. These can be exposed as `repo.get_setting` values later if user-tuning is wanted.
+
+### CSS Provider Scope
+
+`Gtk.StyleContext.add_provider_for_display` applies CSS globally to the entire display. This is
+correct for accent color (which should affect all widgets). Do not use
+`widget.get_style_context().add_provider()` — that applies only to one widget.
+
+### YT Thumbnail Aspect Ratio in now-playing panel
+
+The panel uses `Gtk.Box` (horizontal) with a fixed height constraint. The cover_stack currently
+has `set_size_request(160, 160)`. For 16:9 display:
+- Change `set_size_request` to `(285, 160)` when YouTube station plays
+- Reset to `(160, 160)` on stop or non-YT station
+- The center column has `set_hexpand(True)` — it will absorb the width change automatically
+
+The `now-playing-art` CSS class has `border-radius` applied at the Stack level (confirmed from
+PROJECT.md decisions). Changing size_request does not break the border-radius.
+
+---
 
 ## Anti-Patterns to Avoid
 
-### Separate SQLite connection per feature
+### Setting GStreamer buffer properties after PLAYING state
+Set buffer-size and buffer-duration on the pipeline while in NULL state (construction time).
+Setting them after `set_state(PLAYING)` may have no effect on the current playback.
 
-RadioBrowserClient, AudioAddictImporter, or FavoritesRepo opening their own `sqlite3.connect(DB_PATH)` creates write-lock contention when the main Repo is mid-transaction. Share `repo.con` by passing it at construction.
+### Fetching AA art on the GTK main thread
+Any `urllib.request.urlopen` for art images must stay in the import thread. The import already
+runs in a daemon thread. Do not use `GLib.idle_add` for the fetch itself — only for UI updates.
 
-### Blocking the GTK main thread with network calls
+### Hardcoding the AA image base URL without verifying
+Multiple community clients use different URL patterns. Confirm the actual field from a live
+response rather than assuming a URL template.
 
-Any `urllib.request.urlopen`, `yt_dlp.YoutubeDL().extract_info`, or PLS fetch that runs synchronously in a GTK signal handler will freeze the UI. All network calls go to daemon threads.
+### Using Adw.StyleManager.set_accent_color for arbitrary hex
+This API only supports a fixed enum (`Adw.AccentColor.BLUE`, etc.), not hex strings. Use
+CSS custom property injection for arbitrary color support.
 
-### Inserting a DB row just to preview a Radio-Browser station
-
-Playback requires a `Station` object but not a saved DB row. Construct `Station(id=-1, name=..., url=..., provider_id=None, provider_name=None, tags='', station_art_path=None, album_fallback_path=None)` for transient playback. Guard `update_last_played` and `_refresh_recently_played` against `id < 0`.
-
-### Storing only station_id in favorites
-
-Station can be deleted after favoriting. Denormalize `station_name` and `provider_name` into the `favorites` row at insert time.
-
-### Calling `reload_list()` after every individual imported station
-
-Bulk imports (AudioAddict can bring in 30+ channels) should batch all `Repo` writes first, then call `reload_list()` once at the end. Call `GLib.idle_add` with a progress callback per station, but defer the list rebuild until the thread finishes.
-
-## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Key Fields |
-|---------|---------------------|------------|
-| Radio-Browser.info | DNS `all.api.radio-browser.info` → random server → `GET /json/stations/search?name=&limit=50&hidebroken=true` | `name`, `url`, `favicon`, `tags`, `country`, `bitrate`, `codec`, `votes` |
-| AudioAddict channel API | `GET https://api.audioaddict.com/v1/{network}/channels` → JSON array | `key` (slug), `name`, `description` |
-| AudioAddict PLS | `GET http://listen.di.fm/premium_{quality}/{slug}.pls?api_key={key}` | `File1=` primary URL, `File2=` failover |
-| yt-dlp Python API | `YoutubeDL({'extract_flat': True}).extract_info(url, download=False)` | `entries[].is_live`, `entries[].url`, `entries[].title` |
-| iTunes Search API | Existing `cover_art.py` — extend to parse `primaryGenreName` | `primaryGenreName` alongside `artworkUrl100` |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| `main_window` ↔ `FavoritesRepo` | Direct call, GTK main thread | Share `repo.con` |
-| `main_window` ↔ importer dialogs | Callback on completion (`reload_list`) | Dialog owns thread lifecycle |
-| `discovery_dialog` ↔ `radio_browser` | daemon thread + `GLib.idle_add` | Dialog drives search; client is stateless |
-| `import_dialog` ↔ `audioaddict`/`youtube` | daemon thread + `GLib.idle_add` progress | Dialog shows `Gtk.ProgressBar` |
-| `cover_art` ↔ `main_window` | callback `(path, genre)` from daemon thread | Existing pattern extended |
+---
 
 ## Sources
 
 - Existing codebase `musicstreamer/` — PRIMARY, HIGH confidence
-- Radio-Browser.info REST API — stable public API, DNS-based server discovery pattern is standard across open-source radio clients; HIGH confidence
-- AudioAddict PLS URL pattern: `http://listen.di.fm/premium_{quality}/{slug}.pls?api_key={key}` — MEDIUM confidence; verify at implementation time whether auth is query param or header
-- yt-dlp Python API `extract_flat=True` + `is_live` field — HIGH confidence; stable feature in current yt-dlp
-- GTK4 `GLib.idle_add` cross-thread pattern — HIGH confidence; proven in existing code
-- iTunes `primaryGenreName` field — MEDIUM confidence; present in most results but not guaranteed
+- GStreamer playbin3 `buffer-size`, `buffer-duration` properties — standard GStreamer 1.x API; HIGH confidence
+- GTK4 `Gtk.StyleContext.add_provider_for_display` — standard GTK4 CSS injection pattern; HIGH confidence
+- Libadwaita `--accent-bg-color` CSS custom property — MEDIUM confidence; verify against installed Adw version
+- AudioAddict channel JSON image field name — LOW confidence; must inspect live API response
+- `copy_asset_for_station` pattern for art persistence — existing codebase, HIGH confidence
 
 ---
-*Architecture research for: MusicStreamer v1.3 Discovery & Favorites*
-*Researched: 2026-03-27*
+*Architecture research for: MusicStreamer v1.4 Media & Art Polish*
+*Researched: 2026-04-03*

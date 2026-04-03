@@ -1,245 +1,211 @@
-# Technology Stack
+# Technology Stack — v1.4 Media & Art Polish
 
-**Project:** MusicStreamer v1.3 — Discovery & Favorites additions
-**Researched:** 2026-03-27
+**Project:** MusicStreamer v1.4
+**Researched:** 2026-04-03
 **Scope:** New capabilities only. Existing stack (GTK4/Libadwaita, GStreamer, SQLite, yt-dlp, urllib, threading/GLib.idle_add) is validated and unchanged.
 
 ---
 
-## Existing Stack (Do Not Change)
+## No New Dependencies Required
 
-| Technology | Role |
-|------------|------|
-| Python 3.x | Application language |
-| GTK 4.0 / Libadwaita 1 | GUI framework |
-| GStreamer 1.0 (`playbin`) | Streaming playback |
-| PyGObject (`gi`) | GObject introspection bindings |
-| SQLite3 (stdlib) | Persistence |
-| yt-dlp (latest) | YouTube URL resolution |
-| urllib (stdlib) | HTTP GET (iTunes API) |
-| threading + GLib.idle_add | Cross-thread UI dispatch |
+All 4 v1.4 features are achievable with the existing stack. No new packages, no pip changes, uv.lock unchanged.
+
+| Feature | Libraries Needed | Status |
+|---------|-----------------|--------|
+| GStreamer buffer tuning | `Gst` — already imported in player.py | Existing |
+| AA channel logos | `urllib.request` + `json` — already in aa_import.py | Existing |
+| GTK4 CSS accent color | `Gtk.CssProvider`, `Gdk.Display` — already used in `__main__.py` | Existing |
+| YouTube 16:9 thumbnail | `GdkPixbuf.Pixbuf` — already imported in main_window.py | Existing |
 
 ---
 
-## New Stack: Radio-Browser.info Integration
+## Feature 1: GStreamer Buffer Tuning (STREAM-01)
 
-### Approach: Direct REST API via urllib (no new library)
+### Integration Point
 
-Radio-Browser.info exposes a public JSON REST API with no authentication required. The API is accessed via one of several mirror servers; the recommended approach is DNS-based server discovery.
+`musicstreamer/player.py` — `Player.__init__()`, immediately after `playbin3` is created and before URI is ever set.
 
-**No new libraries required.** `urllib.request` already handles JSON GETs.
+### Properties on `playbin3`
 
-| Component | Purpose | Notes |
-|-----------|---------|-------|
-| `urllib.request` (stdlib) | All API calls | Already used for iTunes; identical pattern |
-| DNS lookup for server selection | Discover mirror: `all.api.radio-browser.info` → picks a live server | Use `socket.getaddrinfo("all.api.radio-browser.info", 80)` or hardcode `de1.api.radio-browser.info` for simplicity |
+| Property | Type | Recommended Value | Notes |
+|----------|------|------------------|-------|
+| `buffer-duration` | int (nanoseconds) | `5 * Gst.SECOND` = 5,000,000,000 | Primary lever. Playbin uses rate estimate to scale buffered data. Takes effect on next NULL→PLAYING cycle. |
+| `buffer-size` | int (bytes) | `2 * 1024 * 1024` (2 MB) | Fallback when rate estimate unavailable. |
+| `ring-buffer-max-size` | int (bytes) | leave at 0 (default disabled) | Progressive download ring buffer — not applicable to live HTTP/ShoutCast streams. Do not set. |
 
-**Endpoints used:**
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /json/stations/search?name={q}&limit=50&order=votes&reverse=true` | Browse/search stations |
-| `GET /json/stations/byuuid/{uuid}` | Single station lookup (for save-to-library) |
-| `POST /json/url/{stationuuid}` | Click counter (optional — community courtesy) |
-
-**Response fields needed per station:**
-
-| Field | Maps to |
-|-------|---------|
-| `stationuuid` | External ID (store for dedup) |
-| `name` | Station name |
-| `url_resolved` | Actual stream URL (prefer over `url`) |
-| `favicon` | Station art URL (download + save to assets) |
-| `tags` | Comma-separated genre tags |
-| `country` | Optional context |
-| `votes` | Sort order for results |
-
-**Base URL:** `https://de1.api.radio-browser.info` (hardcode this mirror; it's a primary EU server, reliable). No auth headers needed. Set `User-Agent: MusicStreamer/1.3` as a courtesy.
-
-**Rate limits:** No documented hard limit; pagination recommended for large queries. `limit=50` per page is sufficient for interactive browse.
-
-**Confidence:** HIGH — Radio-Browser.info is a well-established community API (active since ~2015), JSON endpoints and field names are stable and widely used by open source radio players (Rhythmbox plugin, etc.). `url_resolved` over `url` is the documented recommendation for direct playback.
-
-**What NOT to use:**
-- `pyradios` pip package — thin wrapper around the same API; adds a dependency for zero benefit when urllib is already in use
-- `url` field directly — may be a redirect or PLS URL; `url_resolved` is the pre-resolved direct stream URL
-
----
-
-## New Stack: AudioAddict Import
-
-### Approach: Unofficial REST API + PLS parsing (stdlib only)
-
-AudioAddict exposes an unofficial but stable REST API used by their own web/mobile clients. The API key from the user's DI.fm account authenticates channel access; stream URLs follow a documented pattern.
-
-**No new libraries required.** urllib handles the API calls; PLS is a simple INI-like text format parseable with `configparser` (stdlib) or plain string splitting.
-
-| Component | Purpose | Notes |
-|-----------|---------|-------|
-| `urllib.request` (stdlib) | Fetch channel list JSON | Same pattern as iTunes/Radio-Browser calls |
-| `configparser` (stdlib) | Parse `.pls` playlist files | PLS is INI-format; `configparser.RawConfigParser` reads it cleanly |
-
-**API endpoints:**
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET https://api.audioaddict.com/v1/{network}/channels` | Full channel list for a property |
-| `GET https://listen.di.fm/premium_{quality}/{channel_key}?{api_key}` | Direct stream URL pattern |
-
-**Network identifiers:**
-
-| Property | Network value |
-|----------|--------------|
-| DI.fm | `di` |
-| ZenRadio | `zen` |
-| JazzRadio | `jazzradio` |
-| RockRadio | `rockradio` |
-
-**Quality suffixes:**
-
-| Quality | Suffix | Bitrate |
-|---------|--------|---------|
-| High | `_hi` | 320 kbps mp3 |
-| Medium | `_premium` | 128 kbps aac |
-| Low | `_premium_low` | 64 kbps aac |
-
-**Channel list response fields needed:**
-
-| Field | Maps to |
-|-------|---------|
-| `key` | Stream slug (used in URL construction) |
-| `name` | Station display name |
-| `images.default` | Station art URL |
-| `description` | Optional — can populate as tag |
-
-**Stream URL construction (no PLS needed):**
-```
-https://listen.di.fm/premium_{quality}/{channel_key}?{api_key}
-```
-This is a direct stream URL GStreamer can play. PLS files are the alternative (dual-server failover) but constructing direct URLs is simpler and sufficient.
-
-**API key storage:** Store as a plain string in the `settings` table (key: `audioaddict_api_key`). The existing `settings` table in `repo.py` handles this.
-
-**Confidence:** MEDIUM — AudioAddict's API is unofficial/reverse-engineered. The channel list endpoint and stream URL pattern are well-documented in community projects (e.g., `https://github.com/DannyBen/audio_addict`, confirmed in project memory). Endpoint stability is not guaranteed by AudioAddict but has been stable for years. The `api.audioaddict.com/v1/{network}/channels` pattern is confirmed by multiple community implementations.
-
-**What NOT to use:**
-- PLS parsing as primary approach — direct URL construction is simpler and equivalent for single-stream use; PLS dual-server failover is unnecessary complexity for this app
-- `mutagen` or audio metadata libs — not needed; we're constructing URLs, not reading files
-- Storing the API key in a dotfile or separate config — `settings` table already exists and handles persistence
-
----
-
-## New Stack: YouTube Playlist Import
-
-### Approach: yt-dlp (already installed) — flat playlist extraction
-
-yt-dlp handles YouTube playlist extraction natively. No new library needed.
-
-| Component | Purpose | Notes |
-|-----------|---------|-------|
-| `yt-dlp` (existing) | Extract playlist entries as flat list | Already used for single video URL resolution |
-| `threading.Thread` (stdlib) | Run yt-dlp off GTK main thread | Same pattern as YT thumbnail fetch in v1.1 |
-
-**yt-dlp invocation for playlist:**
-
+**Call site (in `__init__`, after creating `_pipeline`):**
 ```python
-import yt_dlp
+self._pipeline.set_property("buffer-duration", 5 * Gst.SECOND)
+self._pipeline.set_property("buffer-size", 2 * 1024 * 1024)
+```
 
-opts = {
-    "quiet": True,
-    "extract_flat": True,   # don't resolve each entry — just get metadata
-    "playlist_items": "1-50",  # limit to first 50 entries
+These are set once at construction. They persist across URI changes as long as the pipeline is reused (the current pattern: `set_state(NULL)` → `set_property("uri", ...)` → `set_state(PLAYING)`).
+
+**Confidence:** HIGH — `buffer-size` and `buffer-duration` confirmed in official GStreamer playbin3 docs. `ring-buffer-max-size` confirmed as progressive-download-only (not applicable here).
+
+**Sources:**
+- https://gstreamer.freedesktop.org/documentation/playback/playbin3.html
+- https://gstreamer.freedesktop.org/documentation/application-development/advanced/buffering.html
+
+---
+
+## Feature 2: AudioAddict Channel Logo (ART-01)
+
+### Integration Point
+
+`musicstreamer/aa_import.py` — `fetch_channels()` and `import_stations()`.
+
+### API Endpoint for Images
+
+The existing `fetch_channels()` call hits `https://{net['domain']}/{tier}?listen_key={listen_key}` — this is the stream/PLS listing endpoint and does **not** include image data.
+
+Image data lives on a separate public endpoint (no auth required):
+
+```
+https://api.audioaddict.com/v1/{network_slug}/channels
+```
+
+e.g. `https://api.audioaddict.com/v1/di/channels`
+
+The `network_slug` maps directly to the `slug` field already in the `NETWORKS` list in `aa_import.py` (`"di"`, `"radiotunes"`, `"jazzradio"`, `"rockradio"`, `"classicalradio"`, `"zenradio"`).
+
+### Image Field
+
+The extended channel object from this endpoint includes a `channel_images` dict. Based on third-party plugin analysis (Kodi addon issue trace referencing `KeyError: 'default'` on `channel_images`), the structure is:
+
+```json
+{
+  "key": "ambient",
+  "name": "Ambient",
+  "channel_images": {
+    "default": "https://cdn-radioassets.audioaddict.com/...",
+    "compact": "...",
+    "horizontal_banner": "..."
+  }
 }
-with yt_dlp.YoutubeDL(opts) as ydl:
-    info = ydl.extract_info(playlist_url, download=False)
-    entries = info.get("entries", [])
 ```
 
-**Fields per entry (from `extract_flat`):**
+Access via `ch.get('channel_images', {}).get('default')`.
 
-| Field | Maps to |
-|-------|---------|
-| `url` | YouTube video URL (use as station URL — yt-dlp resolves at play time) |
-| `title` | Station name |
-| `thumbnails[-1].url` | Station art (download async, same pattern as single-station YT thumbnail) |
+**MUST VERIFY at implementation time:** Print raw channel dict from `/v1/di/channels` before writing production code. The `channel_images.default` field name is inferred from plugin error traces, not confirmed against live API response.
 
-**Filtering entries:** `extract_flat` returns all playlist items including non-live videos. Filter by `entry.get("live_status") == "is_live"` or accept all and let the player handle non-live entries gracefully (current behavior).
+### Recommended Implementation
 
-**Confidence:** HIGH — `extract_flat=True` is the documented yt-dlp option for playlist metadata without full resolution. The existing codebase already imports `yt_dlp` and uses the same `YoutubeDL` context manager pattern. This is a direct extension of existing usage.
+1. In `fetch_channels()`, add one request per network to `https://api.audioaddict.com/v1/{slug}/channels` to build a `channel_key → image_url` lookup dict.
+2. When constructing each channel dict, add `"image_url": image_lookup.get(ch['key'])`.
+3. In `import_stations()`, download the image bytes via `urllib.request.urlopen`, save to `DATA_DIR/art/`, and pass the relative path to `repo.insert_station()`.
+4. Check `repo.insert_station()` signature — the `art` or image parameter name needs to match what was wired in v1.1 (station art storage).
 
-**What NOT to use:**
-- YouTube Data API v3 — requires an API key and quota management; yt-dlp achieves the same result without credentials
-- `pytube` — separate library, unnecessary when yt-dlp is already present and more capable
+**Confidence:** MEDIUM — endpoint URL pattern confirmed by multiple community AA clients. `channel_images.default` field inferred from plugin error traces, not from live API response inspection.
 
 ---
 
-## New Stack: Favorites DB Schema
+## Feature 3: GTK4 CSS Accent Color (ACCENT-01)
 
-### Approach: New `favorites` table in existing SQLite DB
+### Integration Point
 
-No new library. Schema addition via `ALTER TABLE` / `CREATE TABLE IF NOT EXISTS` pattern already established in `db_init()`.
+`musicstreamer/__main__.py` — `App.do_activate()`. The exact pattern already exists for `_APP_CSS`.
 
-**New table:**
-
-```sql
-CREATE TABLE IF NOT EXISTS favorites (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    track_title TEXT NOT NULL,
-    station_id INTEGER,
-    station_name TEXT NOT NULL,
-    provider_name TEXT,
-    favorited_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
-    FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE SET NULL
-);
-```
-
-**Design notes:**
-- `station_id` nullable FK — station may be deleted after favoriting; `station_name` + `provider_name` are denormalized for display without JOIN
-- `track_title` is the raw ICY title string (same value shown in now-playing)
-- `strftime('%Y-%m-%dT%H:%M:%f', 'now')` matches the ms-precision pattern already used for `last_played_at` (logged in KEY DECISIONS — second-level granularity caused ordering failures)
-- No dedup constraint — user may favorite the same song from different stations; uniqueness on `(track_title, station_id)` would prevent that
-
-**New `Favorite` dataclass (models.py):**
+### Existing Pattern (already working in codebase)
 
 ```python
-@dataclass
-class Favorite:
-    id: int
-    track_title: str
-    station_id: Optional[int]
-    station_name: str
-    provider_name: Optional[str]
-    favorited_at: Optional[str]
+css_provider = Gtk.CssProvider()
+css_provider.load_from_string(_APP_CSS)
+Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    css_provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+)
 ```
 
-**Confidence:** HIGH — direct extension of existing SQLite schema patterns in the codebase.
+### Accent Color Override
+
+Libadwaita exposes accent color via CSS named colors. Override at runtime with a second provider:
+
+```python
+accent_css = f"@define-color accent_color {hex_color}; @define-color accent_bg_color {hex_color};"
+accent_provider = Gtk.CssProvider()
+accent_provider.load_from_string(accent_css)
+Gtk.StyleContext.add_provider_for_display(
+    Gdk.Display.get_default(),
+    accent_provider,
+    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+)
+```
+
+**CSS variables to override:**
+
+| Variable | Role |
+|----------|------|
+| `accent_color` | Standalone use (accent text on regular background) |
+| `accent_bg_color` | Background for accent-colored widgets (buttons, highlights) |
+| `accent_fg_color` | Foreground over accent background — Libadwaita derives this automatically; leave unset unless contrast issues arise |
+
+**Priority:** `STYLE_PROVIDER_PRIORITY_APPLICATION + 1` ensures accent provider beats the base `_APP_CSS` provider. CSS overrides always win over `AdwStyleManager` — the style manager API returns system color, but visual rendering uses the CSS value.
+
+**Dynamic update:** Hold the `accent_provider` object at module or app level. Call `load_from_string()` again on the same object when the user picks a new color — GTK automatically re-applies all providers after a reload.
+
+**Persistence:** Store hex string in SQLite via `repo.set_setting("accent_color", "#FF5733")`. Load on startup between `Gst.init()` and `win.present()`.
+
+**Preset swatches:** Define a small fixed list of named hex values in `constants.py` (e.g. `ACCENT_PRESETS = {"Blue": "#3584e4", "Teal": "#2190a4", "Green": "#26a269", ...}`). No library needed.
+
+**Confidence:** HIGH — `load_from_string()` is already live in this codebase; `@define-color` override confirmed in Libadwaita CSS variable docs and GTK4 CSS docs.
+
+**Sources:**
+- https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/styles-and-appearance.html
+- https://docs.gtk.org/gtk4/method.CssProvider.load_from_string.html
 
 ---
 
-## Installation
+## Feature 4: YouTube 16:9 Thumbnail Display (ART-02)
 
-No new pip dependencies for any v1.3 feature. All capabilities are covered by:
-- `urllib.request` (stdlib) — Radio-Browser.info + AudioAddict API calls
-- `configparser` (stdlib) — PLS parsing if needed
-- `socket` (stdlib) — optional DNS mirror discovery for Radio-Browser
-- `yt_dlp` (existing) — YouTube playlist import
-- `sqlite3` (stdlib) — favorites schema
-- `threading` + `GLib.idle_add` (existing pattern) — async API calls
+### Integration Point
 
-```bash
-# No new dependencies — existing uv.lock unchanged
+`musicstreamer/ui/main_window.py` — wherever `GdkPixbuf.Pixbuf.new_from_file_at_scale` is called to load cover art into `cover_image`.
+
+### Root Cause of Current Squash
+
+All art loading currently uses:
+```python
+pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 160, 160, False)
 ```
+`preserve_aspect_ratio=False` distorts 16:9 thumbnails (284×160 squashed to 160×160).
+
+### Fix
+
+Change to preserve aspect ratio, scale to height=160:
+
+```python
+pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, -1, 160, True)
+```
+
+- Passing `-1` for width means: scale height to 160, derive width proportionally.
+- A 16:9 thumbnail scales to ~284×160. A square image scales to 160×160. No distortion in either case.
+- `cover_stack` already has `set_overflow(Gtk.Overflow.HIDDEN)` and `set_size_request(160, 160)` — the wider 16:9 image clips horizontally within the 160px slot boundary. This is the intended behavior (show full height, clip excess width).
+- No layout changes required.
+
+**`new_from_file_at_scale` signature:**
+```python
+GdkPixbuf.Pixbuf.new_from_file_at_scale(filename: str, width: int, height: int, preserve_aspect_ratio: bool) -> Pixbuf
+```
+
+**Confidence:** HIGH — passing `-1` for one dimension to force proportional scaling is the documented behavior of `new_from_file_at_scale`. The existing `Gtk.Overflow.HIDDEN` on `cover_stack` provides the clip without additional work.
+
+**Source:** https://docs.gtk.org/gdk-pixbuf/ctor.Pixbuf.new_from_file_at_scale.html
 
 ---
 
-## Alternatives Considered
+## Summary
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Radio-Browser API client | urllib (stdlib) | `pyradios` pip package | Thin wrapper around same endpoints; adds pip dep for zero functional benefit |
-| AudioAddict stream URLs | Direct URL construction | PLS file parsing | PLS dual-server failover not needed; direct URL is simpler and GStreamer handles stream failures |
-| YouTube playlist | yt-dlp `extract_flat` | YouTube Data API v3 | Requires API key + quota; yt-dlp is already a dependency |
-| Favorites storage | SQLite `favorites` table | Separate file (JSON/CSV) | SQLite already used; keeps all persistence in one place with FK relationships |
+| Feature | Key API / Property | File | Confidence |
+|---------|-------------------|------|------------|
+| Buffer tuning | `set_property("buffer-duration", 5 * Gst.SECOND)` | player.py | HIGH |
+| Buffer tuning | `set_property("buffer-size", 2*1024*1024)` | player.py | HIGH |
+| AA logo endpoint | `api.audioaddict.com/v1/{slug}/channels` | aa_import.py | MEDIUM |
+| AA logo field | `ch['channel_images']['default']` | aa_import.py | MEDIUM — verify live |
+| Accent color CSS | `@define-color accent_color {hex}; @define-color accent_bg_color {hex};` | `__main__.py` | HIGH |
+| Accent CSS method | `Gtk.CssProvider.load_from_string()` at priority APPLICATION+1 | `__main__.py` | HIGH |
+| 16:9 pixbuf | `new_from_file_at_scale(path, -1, 160, True)` | main_window.py | HIGH |
 
 ---
 
@@ -247,23 +213,24 @@ No new pip dependencies for any v1.3 feature. All capabilities are covered by:
 
 | Avoid | Why |
 |-------|-----|
-| `requests` library | urllib covers all HTTP needs; requests adds a dependency with no benefit at this scale |
-| `pyradios` | Wrapper for Radio-Browser API; stdlib urllib is sufficient |
-| YouTube Data API | Requires API key; yt-dlp covers the use case without credentials |
-| `mutagen` | Audio metadata parsing library; not needed — we're constructing URLs and reading ICY via GStreamer |
+| `requests` library | urllib covers all HTTP needs for AA image fetch |
+| Any color picker library | Gtk.ColorButton is stdlib GTK4; swatches are plain Gtk.Button with CSS styling |
+| New GStreamer elements | Only properties on existing `playbin3` — no new elements needed |
+| `ring-buffer-max-size` changes | For progressive download only; live streams don't benefit |
 
 ---
 
 ## Sources
 
-| Source | Confidence | Notes |
-|--------|------------|-------|
-| Radio-Browser.info API docs (training data + community usage) | HIGH | JSON REST API structure, `url_resolved` recommendation, no-auth model are stable and widely documented |
-| AudioAddict API — `github.com/DannyBen/audio_addict` (project memory, 2026-03-21) | MEDIUM | Unofficial reverse-engineered API; URL pattern confirmed in memory note; network identifiers from community docs |
-| yt-dlp `extract_flat` option (existing codebase usage) | HIGH | Already in use in this codebase; `extract_flat=True` is documented yt-dlp behavior |
-| SQLite schema patterns (existing repo.py) | HIGH | Direct extension of established db_init() migration pattern |
+| Source | Confidence |
+|--------|------------|
+| GStreamer playbin3 docs — buffer-size, buffer-duration properties | HIGH |
+| GdkPixbuf.new_from_file_at_scale — width=-1 behavior | HIGH |
+| Gtk.CssProvider.load_from_string — GTK4 official docs | HIGH |
+| Libadwaita CSS variables — accent_color, accent_bg_color | HIGH |
+| AA channel_images field — inferred from ssapalski/plugin.audio.addict issue #8 KeyError trace | MEDIUM |
 
 ---
 
-*Stack research for: MusicStreamer v1.3 Discovery & Favorites*
-*Researched: 2026-03-27*
+*Stack research for: MusicStreamer v1.4 Media & Art Polish*
+*Researched: 2026-04-03*
