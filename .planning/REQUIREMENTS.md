@@ -25,8 +25,8 @@
 
 ### Import (AudioAddict)
 
-- [ ] **IMPORT-02**: User can enter an AudioAddict API key to import channels from all AudioAddict networks, skipping stations already in library by URL (exact network list verified at implementation time)
-- [ ] **IMPORT-03**: User can select stream quality (hi / med / low) before importing AudioAddict channels
+- [x] **IMPORT-02**: User can enter an AudioAddict API key to import channels from all AudioAddict networks, skipping stations already in library by URL (exact network list verified at implementation time)
+- [x] **IMPORT-03**: User can select stream quality (hi / med / low) before importing AudioAddict channels
 
 ## Future Requirements
 
@@ -64,8 +64,8 @@
 | DISC-03 | Phase 13 | Complete |
 | DISC-04 | Phase 13 | Complete |
 | IMPORT-01 | Phase 14 | Complete |
-| IMPORT-02 | Phase 15 | Pending |
-| IMPORT-03 | Phase 15 | Pending |
+| IMPORT-02 | Phase 15 | Complete |
+| IMPORT-03 | Phase 15 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 11 total

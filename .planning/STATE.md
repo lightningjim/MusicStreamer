@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Discovery & Favorites
-status: Ready to plan
-stopped_at: Phase 15 plans complete
-last_updated: "2026-04-03T14:38:01.539Z"
-last_activity: 2026-04-02
+status: Ready to execute
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-04-03T14:52:05.768Z"
+last_activity: 2026-04-03
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 25
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 14 — youtube-playlist-import
+**Current focus:** Phase 15 — audioaddict-import
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (audioaddict-import) — EXECUTING
+Plan: 2 of 2
 Next: Phase 13 (Radio-Browser Discovery)
-Last activity: 2026-04-02
+Last activity: 2026-04-03
 
 Progress: [██░░░░░░░░] 25% (v1.3)
 
@@ -60,6 +60,8 @@ Recent decisions affecting v1.3:
 - [Phase 12-favorites]: strftime ms precision for favorites created_at — datetime('now') second granularity caused ordering test failure
 - [Phase 12-favorites]: last_itunes_result module-level dict stores full iTunes result so genre is available without a second API call
 - [Phase 14-youtube-playlist-import]: Open thread-local DB connection in _import_worker — SQLite connections cannot be shared across threads
+- [Phase 15]: Use ch['key'] not ch['name'] for AudioAddict PLS URL slug — channel names have spaces, keys are lowercase slugs
+- [Phase 15]: ValueError('no_channels') when all networks return empty — catches expired keys returning 200+empty instead of 401
 
 ### Research Flags (v1.3)
 
@@ -79,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-04-03T14:38:01.536Z
-Stopped at: Phase 15 plans complete
-Resume file: .planning/phases/15-audioaddict-import/15-01-PLAN.md
+Last session: 2026-04-03T14:52:05.765Z
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None

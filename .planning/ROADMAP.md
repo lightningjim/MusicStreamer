@@ -110,9 +110,9 @@ Plans:
   2. User can select stream quality (hi / med / low) before the import runs
   3. Stations already in the library (matched by URL) are skipped on re-import with no duplicates created
   4. Imported stations appear in the station list grouped by AudioAddict provider after import completes
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
-- [ ] 15-01-PLAN.md — AudioAddict backend (aa_import.py) + TDD unit tests
+- [x] 15-01-PLAN.md — AudioAddict backend (aa_import.py) + TDD unit tests
 - [ ] 15-02-PLAN.md — Refactor ImportDialog to tabbed layout + AudioAddict tab UI + human verification
 **UI hint**: yes
 
@@ -134,4 +134,4 @@ Plans:
 | 12. Favorites | v1.3 | 1/2 | In Progress|  |
 | 13. Radio-Browser Discovery | v1.3 | 2/2 | Complete    | 2026-04-01 |
 | 14. YouTube Playlist Import | v1.3 | 2/2 | Complete    | 2026-04-02 |
-| 15. AudioAddict Import | v1.3 | 0/2 | Not started | - |
+| 15. AudioAddict Import | v1.3 | 1/2 | In Progress|  |
