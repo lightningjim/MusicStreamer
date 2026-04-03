@@ -8,6 +8,16 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
+## Current Milestone: v1.4 Media & Art Polish
+
+**Goal:** Improve stream reliability, station art quality, display fidelity, and add basic UI personalization.
+
+**Target features:**
+- GStreamer buffer tuning — eliminate ShoutCast/HTTP stream drop-outs
+- AudioAddict logos — fetch channel art from AA API at import time, stored as station art
+- YouTube thumbnail 16:9 — display full 16:9 in now-playing instead of center-cropped 1:1
+- Accent color — custom highlight color with presets + hex input, persisted in SQLite settings
+
 ## Current State (v1.3 fully complete — 2026-04-03)
 
 - **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py)
@@ -74,9 +84,12 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ IMPORT-02: User can enter an AudioAddict API key to import all network channels, skipping duplicates — v1.3 Phase 15
 - ✓ IMPORT-03: User can select stream quality (hi / med / low) before importing AudioAddict channels — v1.3 Phase 15
 
-### Active (v1.4+)
+### Active (v1.4)
 
-(To be defined in next milestone planning session)
+- [ ] STREAM-01: GStreamer buffer size/duration tuned to eliminate audible drop-outs on ShoutCast/HTTP streams
+- [ ] ART-01: AudioAddict channel logos fetched from AA API at import time and stored as station art
+- [ ] ART-02: YouTube thumbnails displayed as full 16:9 in the now-playing panel (not center-cropped to 1:1)
+- [ ] ACCENT-01: User can set a custom highlight/accent color via preset swatches or hex input, persisted across sessions
 
 ### Out of Scope
 
@@ -179,4 +192,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-03 after v1.3 milestone*
+*Last updated: 2026-04-03 — v1.4 milestone started*

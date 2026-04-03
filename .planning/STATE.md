@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.4
-milestone_name: TBD
-status: Planning next milestone
-stopped_at: v1.3 milestone complete
+milestone_name: Media & Art Polish
+status: Defining requirements
+stopped_at: v1.4 milestone started
 last_updated: "2026-04-03"
 last_activity: 2026-04-03
 progress:
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
 
 ## Current Position
 
-Phase: None — milestone complete, planning next milestone
-Plan: N/A
-Next: `/gsd:new-milestone` to define v1.4 requirements and roadmap
-Last activity: 2026-04-03
+Phase: Not started (defining requirements)
+Plan: —
+Next: Define requirements, create roadmap, then `/gsd:plan-phase 16`
+Last activity: 2026-04-03 — Milestone v1.4 started
 
-Progress: v1.3 complete ✅
+Progress: v1.4 in planning
 
 ## Performance Metrics
 
