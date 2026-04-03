@@ -6,15 +6,20 @@ gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, GLib
 from musicstreamer.repo import Repo, db_connect
 from musicstreamer.yt_import import scan_playlist, import_stations, is_yt_playlist_url
+from musicstreamer import aa_import
+
+
+_last_tab_index = 0  # Persists across dialog instances
 
 
 class ImportDialog(Adw.Window):
     def __init__(self, app, repo: Repo, main_window):
-        super().__init__(application=app, title="Import YouTube Playlist")
+        super().__init__(application=app, title="Import")
         self.repo = repo
         self.main_window = main_window
         self._checklist_items: list[tuple[Gtk.CheckButton, dict]] = []
         self._import_handler_id = None
+        self._aa_import_handler_id = None
 
         self.set_default_size(700, 560)
         self.set_transient_for(main_window)
@@ -31,6 +36,38 @@ class ImportDialog(Adw.Window):
         content.set_margin_start(12)
         content.set_margin_end(12)
 
+        # Notebook with two tabs
+        self._notebook = Gtk.Notebook()
+
+        yt_box = self._build_yt_tab()
+        self._notebook.append_page(yt_box, Gtk.Label(label="YouTube Playlist"))
+
+        aa_box = self._build_aa_tab()
+        self._notebook.append_page(aa_box, Gtk.Label(label="AudioAddict"))
+
+        self._notebook.set_current_page(_last_tab_index)
+        self._notebook.connect("switch-page", self._on_tab_switched)
+
+        content.append(self._notebook)
+
+        root.set_content(content)
+        self.set_content(root)
+
+    # ------------------------------------------------------------------
+    # Tab persistence
+    # ------------------------------------------------------------------
+
+    def _on_tab_switched(self, notebook, page, page_num):
+        global _last_tab_index
+        _last_tab_index = page_num
+
+    # ------------------------------------------------------------------
+    # YouTube tab
+    # ------------------------------------------------------------------
+
+    def _build_yt_tab(self) -> Gtk.Box:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
         # URL entry row
         url_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
 
@@ -45,7 +82,7 @@ class ImportDialog(Adw.Window):
         self._scan_btn.connect("clicked", self._on_scan_clicked)
         url_row.append(self._scan_btn)
 
-        content.append(url_row)
+        box.append(url_row)
 
         # Stack with 4 named pages
         self._stack = Gtk.Stack()
@@ -101,20 +138,100 @@ class ImportDialog(Adw.Window):
         self._stack.add_named(checklist_box, "checklist")
 
         self._stack.set_visible_child_name("prompt")
-        content.append(self._stack)
+        box.append(self._stack)
 
-        root.set_content(content)
-        self.set_content(root)
+        return box
 
     # ------------------------------------------------------------------
-    # URL entry
+    # AudioAddict tab
+    # ------------------------------------------------------------------
+
+    def _build_aa_tab(self) -> Gtk.Box:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
+        # API key entry row
+        key_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._aa_key_entry = Gtk.Entry()
+        self._aa_key_entry.set_placeholder_text("Paste AudioAddict API key\u2026")
+        self._aa_key_entry.set_hexpand(True)
+        # Pre-fill from saved settings
+        saved_key = self.repo.get_setting("audioaddict_listen_key", "")
+        if saved_key:
+            self._aa_key_entry.set_text(saved_key)
+        self._aa_key_entry.connect("changed", self._on_aa_key_changed)
+        key_row.append(self._aa_key_entry)
+        box.append(key_row)
+
+        # Quality toggle: Adw.ToggleGroup with Hi | Med | Low
+        self._aa_quality_group = Adw.ToggleGroup()
+        self._aa_quality_group.add(Adw.Toggle(name="hi", label="Hi"))
+        self._aa_quality_group.add(Adw.Toggle(name="med", label="Med"))
+        self._aa_quality_group.add(Adw.Toggle(name="low", label="Low"))
+        # Set active AFTER all toggles appended
+        saved_quality = self.repo.get_setting("audioaddict_quality", "hi")
+        self._aa_quality_group.set_active_name(saved_quality)
+        box.append(self._aa_quality_group)
+
+        # Inline error label (hidden by default)
+        self._aa_error_label = Gtk.Label(label="")
+        self._aa_error_label.add_css_class("error")
+        self._aa_error_label.set_visible(False)
+        self._aa_error_label.set_xalign(0)
+        box.append(self._aa_error_label)
+
+        # Stack with prompt / importing / error pages
+        self._aa_stack = Gtk.Stack()
+        self._aa_stack.set_vexpand(True)
+
+        # Page: prompt
+        prompt = Adw.StatusPage(
+            title="Enter your API key",
+            description="Paste your AudioAddict API key and select a stream quality, then tap Import Stations.",
+        )
+        self._aa_stack.add_named(prompt, "prompt")
+
+        # Page: importing (spinner)
+        importing_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        importing_box.set_halign(Gtk.Align.CENTER)
+        importing_box.set_valign(Gtk.Align.CENTER)
+        self._aa_spinner = Gtk.Spinner()
+        self._aa_spinner.set_size_request(32, 32)
+        importing_box.append(self._aa_spinner)
+        self._aa_stack.add_named(importing_box, "importing")
+
+        # Page: error
+        self._aa_error_page = Adw.StatusPage()
+        self._aa_stack.add_named(self._aa_error_page, "error")
+
+        self._aa_stack.set_visible_child_name("prompt")
+        box.append(self._aa_stack)
+
+        # Footer row
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._aa_progress_label = Gtk.Label(label="")
+        self._aa_progress_label.set_hexpand(True)
+        self._aa_progress_label.set_xalign(0)
+        self._aa_progress_label.set_visible(False)
+        footer.append(self._aa_progress_label)
+
+        self._aa_import_btn = Gtk.Button(label="Import Stations")
+        self._aa_import_btn.add_css_class("suggested-action")
+        self._aa_import_btn.set_sensitive(bool(saved_key))
+        self._aa_import_handler_id = self._aa_import_btn.connect("clicked", self._on_aa_import_clicked)
+        footer.append(self._aa_import_btn)
+
+        box.append(footer)
+        return box
+
+    # ------------------------------------------------------------------
+    # URL entry (YouTube)
     # ------------------------------------------------------------------
 
     def _on_url_changed(self, entry):
         self._scan_btn.set_sensitive(bool(entry.get_text().strip()))
 
     # ------------------------------------------------------------------
-    # Scan
+    # Scan (YouTube)
     # ------------------------------------------------------------------
 
     def _on_scan_clicked(self, btn):
@@ -192,7 +309,7 @@ class ImportDialog(Adw.Window):
         self._stack.set_visible_child_name("error")
 
     # ------------------------------------------------------------------
-    # Import
+    # Import (YouTube)
     # ------------------------------------------------------------------
 
     def _on_import_clicked(self, btn):
@@ -233,3 +350,105 @@ class ImportDialog(Adw.Window):
     def _on_done_clicked(self, btn):
         self.main_window.reload_list()
         self.close()
+
+    # ------------------------------------------------------------------
+    # AudioAddict key entry
+    # ------------------------------------------------------------------
+
+    def _on_aa_key_changed(self, entry):
+        has_key = bool(entry.get_text().strip())
+        self._aa_import_btn.set_sensitive(has_key)
+        self._aa_error_label.set_visible(False)  # Clear error on key change
+
+    # ------------------------------------------------------------------
+    # AudioAddict import
+    # ------------------------------------------------------------------
+
+    def _on_aa_import_clicked(self, btn):
+        key = self._aa_key_entry.get_text().strip()
+        quality = self._aa_quality_group.get_active_name()
+
+        # Persist settings
+        self.repo.set_setting("audioaddict_listen_key", key)
+        self.repo.set_setting("audioaddict_quality", quality)
+
+        # Disable UI during import
+        self._aa_import_btn.set_sensitive(False)
+        self._aa_key_entry.set_sensitive(False)
+        self._aa_error_label.set_visible(False)
+        self._aa_progress_label.set_text("0 imported, 0 skipped")
+        self._aa_progress_label.set_visible(True)
+        self._aa_stack.set_visible_child_name("importing")
+        self._aa_spinner.start()
+
+        threading.Thread(
+            target=self._aa_import_worker, args=(key, quality), daemon=True
+        ).start()
+
+    def _aa_import_worker(self, key: str, quality: str):
+        try:
+            channels = aa_import.fetch_channels(key, quality)
+        except ValueError as e:
+            if str(e) == "invalid_key":
+                GLib.idle_add(self._on_aa_error_key)
+            elif str(e) == "no_channels":
+                GLib.idle_add(self._on_aa_error_no_channels)
+            else:
+                GLib.idle_add(self._on_aa_error_network, str(e))
+            return
+        except Exception as e:
+            GLib.idle_add(self._on_aa_error_network, str(e))
+            return
+
+        def on_progress(imp, skip):
+            GLib.idle_add(self._update_aa_progress, imp, skip)
+
+        con = db_connect()
+        try:
+            thread_repo = Repo(con)
+            imported, skipped = aa_import.import_stations(channels, thread_repo, on_progress=on_progress)
+        finally:
+            con.close()
+        GLib.idle_add(self._on_aa_import_done, imported, skipped)
+
+    def _update_aa_progress(self, imported: int, skipped: int):
+        self._aa_progress_label.set_text(f"{imported} imported, {skipped} skipped")
+
+    def _on_aa_import_done(self, imported: int, skipped: int):
+        self._aa_spinner.stop()
+        self._update_aa_progress(imported, skipped)
+        self._aa_stack.set_visible_child_name("prompt")
+        if self._aa_import_handler_id is not None:
+            self._aa_import_btn.disconnect(self._aa_import_handler_id)
+            self._aa_import_handler_id = None
+        self._aa_import_btn.set_label("Done")
+        self._aa_import_btn.set_sensitive(True)
+        self._aa_import_handler_id = self._aa_import_btn.connect("clicked", self._on_aa_done_clicked)
+
+    def _on_aa_done_clicked(self, btn):
+        self.main_window.reload_list()
+        self.close()
+
+    def _on_aa_error_key(self):
+        self._aa_spinner.stop()
+        self._aa_stack.set_visible_child_name("prompt")
+        self._aa_key_entry.set_sensitive(True)
+        self._aa_import_btn.set_sensitive(True)
+        self._aa_error_label.set_text("Invalid or expired API key. Check your key and try again.")
+        self._aa_error_label.set_visible(True)
+
+    def _on_aa_error_no_channels(self):
+        self._aa_spinner.stop()
+        self._aa_error_page.set_title("No Channels Found")
+        self._aa_error_page.set_description("No channels were returned for this key. Verify your account is active.")
+        self._aa_stack.set_visible_child_name("error")
+        self._aa_key_entry.set_sensitive(True)
+        self._aa_import_btn.set_sensitive(True)
+
+    def _on_aa_error_network(self, msg: str):
+        self._aa_spinner.stop()
+        self._aa_error_page.set_title("Could Not Reach AudioAddict")
+        self._aa_error_page.set_description("Check your internet connection and try again.")
+        self._aa_stack.set_visible_child_name("error")
+        self._aa_key_entry.set_sensitive(True)
+        self._aa_import_btn.set_sensitive(True)
