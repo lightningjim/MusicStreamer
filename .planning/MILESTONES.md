@@ -1,5 +1,22 @@
 # Milestones
 
+## v1.4 Media & Art Polish (Shipped: 2026-04-05)
+
+**Phases completed:** 5 phases (16–20), 8 plans | **Stats:** 153 tests | 69 files changed, 8,484 insertions | 2 days
+
+**Delivered:** Tuned GStreamer buffer to eliminate ShoutCast drop-outs, added AudioAddict logo fetch at import + editor, YouTube 16:9 thumbnail display, custom accent color picker, play/pause button, and MPRIS2 OS media key integration.
+
+**Key accomplishments:**
+
+- GStreamer playbin3 `buffer-duration` (10s) and `buffer-size` (10 MB) set via TDD — eliminates ShoutCast/HTTP audible drop-outs; constants live in `constants.py` per project pattern
+- `ThreadPoolExecutor` workers with thread-local `db_connect()` download AA channel logos at bulk import time; two-phase progress in `ImportDialog`; silent failure on fetch error
+- AA URL detection for all 6 network domains in station editor with daemon-thread logo fetch and API key popover; `_aa_channel_key_from_url` uses `urllib.parse` (not regex) to correctly strip network slug prefix
+- YouTube thumbnails displayed as full 16:9 using `ContentFit.CONTAIN` in now-playing logo slot; cover slot stays on fallback to avoid duplication
+- `AccentDialog` with 8 GNOME-preset swatches and hex entry — immediate CSS provider reload at `PRIORITY_USER`, inline error state on invalid hex, persisted via SQLite settings
+- `Player.pause()` (GStreamer NULL state) + play/pause button between star and stop; station stays selected on pause; MPRIS2 D-Bus service wired via `dbus-python` — OS media keys fully functional
+
+---
+
 ## v1.3 Discovery & Favorites (Shipped: 2026-04-03)
 
 **Phases completed:** 4 phases (12–15), 8 plans | **Stats:** 127 tests | 3,150 source + 1,468 test Python LOC | 59 commits | 8 days

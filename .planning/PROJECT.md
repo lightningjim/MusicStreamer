@@ -8,28 +8,20 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v1.4 Media & Art Polish
+## Current State (v1.4 shipped — 2026-04-05)
 
-**Goal:** Improve stream reliability, station art quality, display fidelity, and add basic UI personalization.
-
-**Target features:**
-- GStreamer buffer tuning — eliminate ShoutCast/HTTP stream drop-outs
-- AudioAddict logos — fetch channel art from AA API at import time, stored as station art
-- YouTube thumbnail 16:9 — display full 16:9 in now-playing instead of center-cropped 1:1
-- Accent color — custom highlight color with presets + hex input, persisted in SQLite settings
-
-## Current State (Phase 17 complete — 2026-04-03)
-
-- **Package:** `musicstreamer/` — clean modules (constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py)
-- **LOC:** ~3,150 Python source | ~1,468 test LOC | **Tests:** 127 passing
-- **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + urllib (iTunes API, Radio-Browser API, AudioAddict API)
+- **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
+- **LOC:** ~3,500 Python source | ~1,700 test LOC | **Tests:** 153 passing
+- **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + dbus-python + urllib (iTunes API, Radio-Browser API, AudioAddict API)
 - **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
-- **Now-playing:** Three-column panel — logo | "Name · Provider" / track title / Star+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites (gated on non-junk title)
+- **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Star+Pause+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
-- **Station management:** ComboRow provider picker, tag chip panel (inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch
+- **Station management:** ComboRow provider picker, tag chip panel (inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch, AA logo auto-fetch
 - **Favorites:** Star ICY track titles, store in SQLite with station/provider/genre context, toggle Favorites/Stations view inline via Adw.ToggleGroup, remove with trash button
 - **Discovery:** DiscoveryDialog — search Radio-Browser.info by name, filter by tag/country, preview live, save to library; resolves PLS/M3U to direct stream URL
-- **Import:** ImportDialog (tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress feedback); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution)
+- **Import:** ImportDialog (tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress feedback); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution, logo download)
+- **Playback:** GStreamer buffer tuned (10s/10MB); pause keeps station selected; MPRIS2 D-Bus service for OS media keys
+- **Personalization:** Custom accent color picker (8 presets + hex), CSS provider at PRIORITY_USER, persisted in SQLite
 
 ## Requirements
 
@@ -83,13 +75,17 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ IMPORT-01: User can paste a YouTube playlist URL and import live streams as stations with progress feedback — v1.3 Phase 14
 - ✓ IMPORT-02: User can enter an AudioAddict API key to import all network channels, skipping duplicates — v1.3 Phase 15
 - ✓ IMPORT-03: User can select stream quality (hi / med / low) before importing AudioAddict channels — v1.3 Phase 15
+- ✓ STREAM-01: GStreamer buffer-duration (10s) and buffer-size (10 MB) tuned — ShoutCast/HTTP drop-outs eliminated — v1.4 Phase 16
+- ✓ ART-01: AudioAddict channel logos fetched from AA API at bulk import time via ThreadPoolExecutor workers — v1.4 Phase 17
+- ✓ ART-02: Station editor auto-fetches AA logo on URL paste (same UX as YouTube thumbnail) — v1.4 Phase 17
+- ✓ ART-03: YouTube thumbnails displayed as full 16:9 via ContentFit.CONTAIN; non-YouTube art unaffected — v1.4 Phase 18
+- ✓ ACCENT-01: Custom accent color with 8 presets + hex input, CSS at PRIORITY_USER, persisted in SQLite — v1.4 Phase 19
+- ✓ CTRL-01: Play/pause button between star and stop; pause keeps station selected and now-playing visible — v1.4 Phase 20
+- ✓ CTRL-02: MPRIS2 D-Bus service wired via dbus-python — OS media keys control pause/resume/stop — v1.4 Phase 20
 
-### Active (v1.4)
+### Active (v1.5)
 
-- [ ] STREAM-01: GStreamer buffer size/duration tuned to eliminate audible drop-outs on ShoutCast/HTTP streams
-- ✓ ART-01: AudioAddict channel logos fetched from AA API at import time and stored as station art — Validated in Phase 17: audioaddict-station-art
-- [ ] ART-02: YouTube thumbnails displayed as full 16:9 in the now-playing panel (not center-cropped to 1:1)
-- [ ] ACCENT-01: User can set a custom highlight/accent color via preset swatches or hex input, persisted across sessions
+(None yet — define with `/gsd-new-milestone`)
 
 ### Out of Scope
 
@@ -145,6 +141,15 @@ Finding and playing a stream should take seconds — the right station should al
 | ValueError('no_channels') for empty AudioAddict response | Catches expired API keys returning 200+empty instead of 401 | ✓ Good |
 | Resolve PLS to direct URL in aa_import.fetch_channels | GStreamer cannot play PLS playlists; resolution must happen at import time | ✓ Good |
 | Twitch deferred | Requires stations in library to validate | — Pending |
+| Buffer constants in constants.py (not inlined) | Consistent with project pattern, allows future tuning | ✓ Good |
+| ThreadPoolExecutor for AA logo downloads | Async/decoupled from insert loop — avoids import regression | ✓ Good |
+| Thread-local db_connect() in logo workers | SQLite connections cannot be shared across threads | ✓ Good |
+| _aa_channel_key_from_url strips network slug prefix | Stream URL paths are slug-prefixed; AA API images by bare channel name | ✓ Good |
+| ContentFit.CONTAIN for YouTube 16:9 in 160×160 slot | No slot widening — CONTAIN letterboxes cleanly within existing dimensions | ✓ Good |
+| Cover slot stays on fallback for YouTube stations | Avoids duplicate thumbnail in both logo and cover slots | ✓ Good |
+| CssProvider at PRIORITY_USER for accent color | Overrides app-level theme tokens; PRIORITY_APPLICATION insufficient | ✓ Good |
+| Player.pause() identical to stop() | "Keep station selected" logic lives in main_window, not player | ✓ Good |
+| DBusGMainLoop(set_as_default=True) at module import | Must be called before dbus.service.Object class definition | ✓ Good |
 
 ## Constraints
 
@@ -192,4 +197,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-03 — Phase 17 complete (AA station art)*
+*Last updated: 2026-04-05 after v1.4 milestone*

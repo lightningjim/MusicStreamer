@@ -137,16 +137,66 @@
 
 ---
 
+## Milestone: v1.4 — Media & Art Polish
+
+**Shipped:** 2026-04-05
+**Phases:** 5 (16–20) | **Plans:** 8 | **Timeline:** 2 days (2026-04-03 → 2026-04-05)
+
+### What Was Built
+
+- GStreamer playbin3 buffer-duration/buffer-size tuned via TDD — ShoutCast drop-outs eliminated (Phase 16)
+- AA channel logos downloaded at import time via ThreadPoolExecutor with thread-local DB connections; two-phase ImportDialog progress (Phase 17)
+- Station editor auto-fetches AA logo on URL paste using daemon thread + GLib.idle_add; slug-prefix bug caught during verification (Phase 17)
+- YouTube thumbnails displayed as full 16:9 using ContentFit.CONTAIN in logo slot; cover slot stays on fallback (Phase 18)
+- Custom accent color picker: 8 GNOME presets + hex entry, CssProvider at PRIORITY_USER, persisted in SQLite settings (Phase 19)
+- Player.pause() (GStreamer NULL state) + play/pause button with station-selection preserved on pause (Phase 20)
+- MprisService D-Bus service via dbus-python; OS media keys fully wired to pause/resume/stop (Phase 20)
+
+### What Worked
+
+- **Shortest milestone yet (2 days)** — tight scope (7 requirements, all polish/UX) made planning and execution fast
+- **TDD for hardware-adjacent code** — buffer tuning (Phase 16) and MPRIS2 (Phase 20) both used red→green TDD; unit tests confirmed behavior without needing live hardware at every step
+- **Backend-first split** — Phase 17 (AA logo backend) and Phase 20 (pause backend) cleanly preceded UI plans; no rework between plans
+- **Thread-local DB pattern** — established in v1.3, reused again in Phase 17 logo workers; zero friction
+- **Research.md MPRIS pitfalls** — DBusGMainLoop set_as_default pitfall documented in RESEARCH.md before coding saved a non-obvious runtime error
+
+### What Was Inefficient
+
+- REQUIREMENTS.md checkboxes not updated after phases — ART-01, ART-03, ACCENT-01, CTRL-01, CTRL-02 all shipped complete but stayed `[ ]` until milestone close audit
+- Nyquist VALIDATION.md files remain `nyquist_compliant: false` across all 5 phases — overhead without payoff at this scale; `/gsd-validate-phase` not worth running for this project
+- MILESTONES.md auto-generation from gsd-tools extracted raw YAML field names ("One-liner:", "Task 1 (TDD):") — required manual correction post-archive
+
+### Patterns Established
+
+- `ContentFit.CONTAIN` for aspect-ratio-preserving images in fixed-size slots (letterbox behavior)
+- `dbus.service.Object` subclass + `DBusGMainLoop(set_as_default=True)` at module import (before class definition) — required ordering for dbus-python
+- `PRIORITY_USER` for accent CSS overrides (PRIORITY_APPLICATION is insufficient to override theme tokens)
+- `Player.pause()` as thin wrapper (identical to stop()); "keep station selected" logic lives in the UI layer, not the player
+
+### Key Lessons
+
+- DBusGMainLoop must be called before dbus.service.Object subclass is defined — not just before instantiation
+- CSS `PRIORITY_USER` vs `PRIORITY_APPLICATION` distinction matters when overriding Adwaita theme tokens
+- 2-day milestone velocity is achievable when scope is well-defined polish (no new subsystems)
+
+### Cost Observations
+
+- Model mix: sonnet throughout
+- Sessions: ~3 across 2 days
+- Notable: fastest feature milestone — tight scope + established patterns = minimal research overhead
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 |
-|--------|------|------|------|------|
-| Phases | 4 | 2 | 5 | 4 |
-| Plans | 8 | 4 | 12 | 8 |
-| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) |
-| LOC source (Python) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) |
-| Gap closure plans | 1 | 0 | 0 | 0 |
-| Days | 35 | 1 | 3 | 8 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 |
+|--------|------|------|------|------|------|
+| Phases | 4 | 2 | 5 | 4 | 5 |
+| Plans | 8 | 4 | 12 | 8 | 8 |
+| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) |
+| LOC source (Python) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) |
+| Gap closure plans | 1 | 0 | 0 | 0 | 0 |
+| Days | 35 | 1 | 3 | 8 | 2 |
 
 ## Milestone: v1.1 — Polish & Station Management
 
