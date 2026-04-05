@@ -44,11 +44,13 @@ class AccentDialog(Adw.Window):
         for hex_color in ACCENT_PRESETS:
             btn = Gtk.Button()
             btn.set_size_request(40, 40)
+            btn.set_halign(Gtk.Align.CENTER)
+            btn.set_valign(Gtk.Align.CENTER)
 
             provider = Gtk.CssProvider()
             provider.load_from_string(
                 f"button {{ background: {hex_color}; border-radius: 50%; "
-                f"min-width: 40px; min-height: 40px; }}"
+                f"min-width: 40px; min-height: 40px; padding: 0; }}"
             )
             btn.get_style_context().add_provider(
                 provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
@@ -115,7 +117,12 @@ class AccentDialog(Adw.Window):
 
     def _apply_color(self, hex_value):
         hex_value = hex_value.lower()
+        display = Gdk.Display.get_default()
+        Gtk.StyleContext.remove_provider_for_display(display, self.accent_provider)
         self.accent_provider.load_from_string(build_accent_css(hex_value))
+        Gtk.StyleContext.add_provider_for_display(
+            display, self.accent_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
+        )
         self.repo.set_setting("accent_color", hex_value)
         self._current_hex = hex_value
 
