@@ -684,8 +684,27 @@ class MainWindow(Adw.ApplicationWindow):
         self.title_label.remove_css_class("dim-label")
         self.title_label.add_css_class("title-3")
 
-        # Load station logo scaled to 96x96 to prevent panel from expanding
-        if st.station_art_path:
+        # Detect YouTube stations — use CONTAIN display for 16:9 thumbnails
+        is_youtube = "youtube.com" in st.url or "youtu.be" in st.url
+
+        # Load station logo
+        if is_youtube and st.station_art_path:
+            abs_path = os.path.join(DATA_DIR, st.station_art_path)
+            if os.path.exists(abs_path):
+                try:
+                    existing_yt = self.logo_stack.get_child_by_name("yt")
+                    if existing_yt:
+                        self.logo_stack.remove(existing_yt)
+                    pic = Gtk.Picture.new_for_filename(abs_path)
+                    pic.set_content_fit(Gtk.ContentFit.CONTAIN)
+                    pic.set_size_request(160, 160)
+                    self.logo_stack.add_named(pic, "yt")
+                    self.logo_stack.set_visible_child_name("yt")
+                except Exception:
+                    self.logo_stack.set_visible_child_name("fallback")
+            else:
+                self.logo_stack.set_visible_child_name("fallback")
+        elif st.station_art_path:
             abs_path = os.path.join(DATA_DIR, st.station_art_path)
             if os.path.exists(abs_path):
                 try:
@@ -700,7 +719,23 @@ class MainWindow(Adw.ApplicationWindow):
             self.logo_stack.set_visible_child_name("fallback")
 
         # Default cover art to station logo until ICY-driven art replaces it
-        if st.station_art_path:
+        if is_youtube and st.station_art_path:
+            abs_path = os.path.join(DATA_DIR, st.station_art_path)
+            if os.path.exists(abs_path):
+                try:
+                    existing_yt = self.cover_stack.get_child_by_name("yt")
+                    if existing_yt:
+                        self.cover_stack.remove(existing_yt)
+                    pic = Gtk.Picture.new_for_filename(abs_path)
+                    pic.set_content_fit(Gtk.ContentFit.CONTAIN)
+                    pic.set_size_request(160, 160)
+                    self.cover_stack.add_named(pic, "yt")
+                    self.cover_stack.set_visible_child_name("yt")
+                except Exception:
+                    self.cover_stack.set_visible_child_name("fallback")
+            else:
+                self.cover_stack.set_visible_child_name("fallback")
+        elif st.station_art_path:
             abs_path = os.path.join(DATA_DIR, st.station_art_path)
             if os.path.exists(abs_path):
                 try:
