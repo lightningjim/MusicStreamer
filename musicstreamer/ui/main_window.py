@@ -15,6 +15,7 @@ from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
 from musicstreamer.constants import DATA_DIR
 from musicstreamer.ui.accent_dialog import AccentDialog
+from musicstreamer.mpris import MprisService
 
 
 class MainWindow(Adw.ApplicationWindow):
@@ -28,6 +29,12 @@ class MainWindow(Adw.ApplicationWindow):
 
         # --- Playback engine ---
         self.player = Player()
+
+        # --- MPRIS2 D-Bus service (optional — graceful fallback if D-Bus unavailable) ---
+        try:
+            self.mpris = MprisService(self)
+        except Exception:
+            self.mpris = None
 
         # --- Search entry in header center (only content in HeaderBar) ---
         self.search_entry = Gtk.SearchEntry()
@@ -623,6 +630,17 @@ class MainWindow(Adw.ApplicationWindow):
             return
         self._last_cover_icy = icy_string
 
+        if self.mpris:
+            import dbus
+            self.mpris.emit_properties_changed({
+                "Metadata": dbus.Dictionary({
+                    "mpris:trackid": dbus.ObjectPath("/org/mpris/MediaPlayer2/CurrentTrack"),
+                    "xesam:title": dbus.String(self._current_station.name if self._current_station else ""),
+                    "xesam:artist": dbus.Array([dbus.String(icy_string)], signature="s"),
+                }, signature="sv"),
+                "PlaybackStatus": dbus.String(self._playback_status()),
+            })
+
         def _on_art_fetched(temp_path):
             """Callback from background thread — must use GLib.idle_add."""
             def _update_ui():
@@ -678,6 +696,12 @@ class MainWindow(Adw.ApplicationWindow):
             self.pause_btn.set_icon_name("media-playback-start-symbolic")
             self.pause_btn.set_tooltip_text("Resume")
 
+        if self.mpris:
+            import dbus
+            self.mpris.emit_properties_changed({
+                "PlaybackStatus": dbus.String(self._playback_status()),
+            })
+
     def _playback_status(self) -> str:
         if self._paused:
             return "Paused"
@@ -702,6 +726,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.pause_btn.set_tooltip_text("Pause")
         self.pause_btn.set_sensitive(False)
         self.star_btn.set_visible(False)
+
+        if self.mpris:
+            import dbus
+            self.mpris.emit_properties_changed({
+                "PlaybackStatus": dbus.String("Stopped"),
+                "Metadata": self.mpris._build_metadata(),
+            })
 
     def _on_volume_changed(self, slider):
         val = int(slider.get_value())
@@ -796,6 +827,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.pause_btn.set_tooltip_text("Pause")
         self.pause_btn.set_sensitive(True)
         self.stop_btn.set_sensitive(True)
+
+        if self.mpris:
+            import dbus
+            self.mpris.emit_properties_changed({
+                "PlaybackStatus": dbus.String("Playing"),
+                "Metadata": self.mpris._build_metadata(),
+            })
 
         # Start playback -- on_title callback updates title_label and cover art
         def _on_title(title):
