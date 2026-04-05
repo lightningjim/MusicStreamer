@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Media & Art Polish
-status: executing
-stopped_at: Phase 18 UI-SPEC approved
-last_updated: "2026-04-05T14:14:26.422Z"
-last_activity: 2026-04-05 -- Phase 18 planning complete
+status: completed
+stopped_at: Phase 19 context gathered (discuss mode)
+last_updated: "2026-04-05T17:17:15.815Z"
+last_activity: 2026-04-05 -- Phase 18 verified (human visual check pending), Phase 19 next
 progress:
-  total_phases: 4
-  completed_phases: 2
+  total_phases: 5
+  completed_phases: 3
   total_plans: 4
-  completed_plans: 3
-  percent: 75
+  completed_plans: 4
+  percent: 100
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 16 — gstreamer-buffer-tuning
+**Current focus:** Phase 19 — custom-accent-color
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-04-05 -- Phase 18 planning complete
+Phase: 19 (custom-accent-color) — NOT STARTED
+Plan: 0 of 2
+Status: Phase 18 complete, ready to start Phase 19
+Last activity: 2026-04-05 -- Phase 18 verified (human visual check pending), Phase 19 next
 
-Progress: [░░░░░░░░░░] 0% (0/6 plans)
+Progress: [██████████] 100% (4/4 plans)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 30 (v1.0–v1.3)
+- Total plans completed: 34 (v1.0–v1.4 partial)
 - Average duration: ~14 min
 - Total execution time: ~7 hours
 
@@ -64,6 +64,7 @@ Key decisions relevant to v1.4:
 - [Phase 17-audioaddict-station-art]: Thread-local Repo(db_connect()) in each logo worker — no shared SQLite connection across threads
 - [Phase 17-audioaddict-station-art]: _aa_channel_key_from_url uses urllib.parse.urlparse (not regex) to correctly reject domain-only URLs
 - [Phase 17]: _aa_channel_key_from_url strips network slug prefix (e.g. di_house -> house) — stream URL paths are slug-prefixed but AA API keys images by bare channel name
+- [Phase 18]: Cover slot stays on fallback for YouTube stations — no duplicate thumbnail in both slots (user decision at checkpoint)
 
 ### Pending Todos
 
@@ -74,7 +75,7 @@ Key decisions relevant to v1.4:
 
 ### Blockers/Concerns
 
-- Phase 17: AA `channel_images` field name needs live API inspection before production code is written
+- Phase 18: Human visual verification pending (ContentFit.CONTAIN rendering, non-YouTube art switching, ICY cover art)
 
 ### Known Tech Debt (v1.3)
 
@@ -84,6 +85,6 @@ Key decisions relevant to v1.4:
 
 ## Session Continuity
 
-Last session: 2026-04-05T13:59:43.385Z
-Stopped at: Phase 18 UI-SPEC approved
-Resume file: .planning/phases/18-youtube-thumbnail-16-9/18-UI-SPEC.md
+Last session: 2026-04-05T17:17:15.813Z
+Stopped at: Phase 19 context gathered (discuss mode)
+Resume file: .planning/phases/19-custom-accent-color/19-CONTEXT.md
