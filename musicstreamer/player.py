@@ -63,6 +63,12 @@ class Player:
             self._stop_yt_proc()
             self._set_uri(url, station.name, on_title)
 
+    def pause(self):
+        """Stop audio output without clearing station context (D-04)."""
+        self._on_title = None
+        self._stop_yt_proc()
+        self._pipeline.set_state(Gst.State.NULL)
+
     def stop(self):
         self._on_title = None
         self._stop_yt_proc()
