@@ -64,8 +64,8 @@ Full details: `.planning/milestones/v1.3-ROADMAP.md`
 - [x] **Phase 16: GStreamer Buffer Tuning** — Tune playbin3 buffer properties to eliminate ShoutCast/HTTP drop-outs (completed 2026-04-03)
 - [x] **Phase 17: AudioAddict Station Art** — Fetch AA channel logos at import time and auto-fetch in the station editor (completed 2026-04-03)
 - [x] **Phase 18: YouTube Thumbnail 16:9** — Display full 16:9 YouTube thumbnails in now-playing without distorting square art (completed 2026-04-05)
-- [ ] **Phase 19: Custom Accent Color** — Add preset/hex accent color picker persisted in SQLite settings
-- [ ] **Phase 20: Playback Controls & Media Keys** — Play/pause button (keeps station selected on pause) + MPRIS2 OS media key integration
+- [x] **Phase 19: Custom Accent Color** — Add preset/hex accent color picker persisted in SQLite settings (completed 2026-04-05)
+- [x] **Phase 20: Playback Controls & Media Keys** — Play/pause button (keeps station selected on pause) + MPRIS2 OS media key integration (completed 2026-04-05)
 
 ## Phase Details
 
@@ -126,8 +126,8 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 19-01: CSS provider backend — CssProvider injection, hex validation, settings persistence, tests
-- [ ] 19-02: Accent dialog UI — preset swatches + hex input in accent_dialog.py, header bar trigger in main_window.py
+- [x] 19-01: CSS provider backend — CssProvider injection, hex validation, settings persistence, tests
+- [x] 19-02: Accent dialog UI — preset swatches + hex input in accent_dialog.py, header bar trigger in main_window.py
 
 ### Phase 20: Playback Controls & Media Keys
 **Goal**: Add play/pause button that pauses without deselecting the station, and wire OS media keys via MPRIS2
@@ -142,8 +142,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 20-01: Pause/resume state in player.py + play/pause button in main_window.py controls bar
-- [ ] 20-02: MPRIS2 D-Bus service wired to player pause/resume/stop
+- [x] 20-01: Pause/resume state in player.py + play/pause button in main_window.py controls bar
+- [x] 20-02: MPRIS2 D-Bus service wired to player pause/resume/stop
 
 ## Progress
 
@@ -167,4 +167,4 @@ Plans:
 | 16. GStreamer Buffer Tuning | v1.4 | 1/1 | Complete   | 2026-04-03 |
 | 17. AudioAddict Station Art | v1.4 | 2/2 | Complete    | 2026-04-03 |
 | 18. YouTube Thumbnail 16:9 | v1.4 | 1/1 | Complete   | 2026-04-05 |
-| 19. Custom Accent Color | v1.4 | 0/2 | Not started | - |
+| 19. Custom Accent Color | v1.4 | 2/2 | Complete   | 2026-04-05 |
