@@ -719,22 +719,9 @@ class MainWindow(Adw.ApplicationWindow):
             self.logo_stack.set_visible_child_name("fallback")
 
         # Default cover art to station logo until ICY-driven art replaces it
-        if is_youtube and st.station_art_path:
-            abs_path = os.path.join(DATA_DIR, st.station_art_path)
-            if os.path.exists(abs_path):
-                try:
-                    existing_yt = self.cover_stack.get_child_by_name("yt")
-                    if existing_yt:
-                        self.cover_stack.remove(existing_yt)
-                    pic = Gtk.Picture.new_for_filename(abs_path)
-                    pic.set_content_fit(Gtk.ContentFit.CONTAIN)
-                    pic.set_size_request(160, 160)
-                    self.cover_stack.add_named(pic, "yt")
-                    self.cover_stack.set_visible_child_name("yt")
-                except Exception:
-                    self.cover_stack.set_visible_child_name("fallback")
-            else:
-                self.cover_stack.set_visible_child_name("fallback")
+        # YouTube stations: leave cover slot on fallback (no duplicate art)
+        if is_youtube:
+            self.cover_stack.set_visible_child_name("fallback")
         elif st.station_art_path:
             abs_path = os.path.join(DATA_DIR, st.station_art_path)
             if os.path.exists(abs_path):
