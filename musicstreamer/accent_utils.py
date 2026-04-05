@@ -9,5 +9,13 @@ def _is_valid_hex(value: str) -> bool:
 
 
 def build_accent_css(hex_value: str) -> str:
-    """Return the CSS string that sets the Libadwaita accent color."""
-    return f"@define-color accent_bg_color {hex_value};"
+    """Return CSS that overrides accent-colored widgets with the given hex color."""
+    return (
+        f"button.suggested-action {{\n"
+        f"    background-color: {hex_value};\n"
+        f"    color: white;\n"
+        f"}}\n"
+        f"scale trough highlight {{\n"
+        f"    background-color: {hex_value};\n"
+        f"}}\n"
+    )

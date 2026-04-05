@@ -51,11 +51,15 @@ def test_invalid_hex_too_long():
 # --- CSS builder ---
 
 def test_css_string_format():
-    assert build_accent_css("#3584e4") == "@define-color accent_bg_color #3584e4;"
+    css = build_accent_css("#3584e4")
+    assert "button.suggested-action" in css
+    assert "background-color: #3584e4" in css
+    assert "scale trough highlight" in css
 
 
 def test_css_string_format_other():
-    assert build_accent_css("#e62d42") == "@define-color accent_bg_color #e62d42;"
+    css = build_accent_css("#e62d42")
+    assert "background-color: #e62d42" in css
 
 
 # --- settings roundtrip ---
