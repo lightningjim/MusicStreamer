@@ -63,8 +63,9 @@ Full details: `.planning/milestones/v1.3-ROADMAP.md`
 
 - [x] **Phase 16: GStreamer Buffer Tuning** — Tune playbin3 buffer properties to eliminate ShoutCast/HTTP drop-outs (completed 2026-04-03)
 - [x] **Phase 17: AudioAddict Station Art** — Fetch AA channel logos at import time and auto-fetch in the station editor (completed 2026-04-03)
-- [ ] **Phase 18: YouTube Thumbnail 16:9** — Display full 16:9 YouTube thumbnails in now-playing without distorting square art
+- [x] **Phase 18: YouTube Thumbnail 16:9** — Display full 16:9 YouTube thumbnails in now-playing without distorting square art (completed 2026-04-05)
 - [ ] **Phase 19: Custom Accent Color** — Add preset/hex accent color picker persisted in SQLite settings
+- [ ] **Phase 20: Playback Controls & Media Keys** — Play/pause button (keeps station selected on pause) + MPRIS2 OS media key integration
 
 ## Phase Details
 
@@ -109,7 +110,7 @@ Plans:
 **UI hint**: yes
 
 Plans:
-- [ ] 18-01: GdkPixbuf scale args + ContentFit.CONTAIN in main_window.py; validate both station types visually
+- [x] 18-01: GdkPixbuf scale args + ContentFit.CONTAIN in main_window.py; validate both station types visually
 
 ### Phase 19: Custom Accent Color
 **Goal**: Users can set and persist a custom highlight color for the app UI
@@ -127,6 +128,22 @@ Plans:
 Plans:
 - [ ] 19-01: CSS provider backend — CssProvider injection, hex validation, settings persistence, tests
 - [ ] 19-02: Accent dialog UI — preset swatches + hex input in accent_dialog.py, header bar trigger in main_window.py
+
+### Phase 20: Playback Controls & Media Keys
+**Goal**: Add play/pause button that pauses without deselecting the station, and wire OS media keys via MPRIS2
+**Depends on**: Phase 19
+**Requirements**: CTRL-01, CTRL-02
+**Success Criteria** (what must be TRUE):
+  1. A pause button (between star and stop) stops the stream but keeps the station selected and now-playing panel visible
+  2. Pressing play on a paused station resumes the same stream from scratch (radio streams are not seekable)
+  3. Stop retains existing behavior — clears now-playing, deselects station
+  4. OS play/pause media key toggles pause/resume with same behavior as the in-app button
+  5. OS stop key triggers the existing stop behavior
+**Plans**: 2 plans
+
+Plans:
+- [ ] 20-01: Pause/resume state in player.py + play/pause button in main_window.py controls bar
+- [ ] 20-02: MPRIS2 D-Bus service wired to player pause/resume/stop
 
 ## Progress
 
@@ -149,5 +166,5 @@ Plans:
 | 15. AudioAddict Import | v1.3 | 2/2 | Complete | 2026-04-03 |
 | 16. GStreamer Buffer Tuning | v1.4 | 1/1 | Complete   | 2026-04-03 |
 | 17. AudioAddict Station Art | v1.4 | 2/2 | Complete    | 2026-04-03 |
-| 18. YouTube Thumbnail 16:9 | v1.4 | 0/1 | Not started | - |
+| 18. YouTube Thumbnail 16:9 | v1.4 | 1/1 | Complete   | 2026-04-05 |
 | 19. Custom Accent Color | v1.4 | 0/2 | Not started | - |

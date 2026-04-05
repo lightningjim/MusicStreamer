@@ -12,8 +12,13 @@
 ### Station Art
 
 - [ ] **ART-01**: AudioAddict channel logos are fetched from the AA API at bulk import time and stored as station art; failures (missing image, network error) are silent and do not abort the import
-- [ ] **ART-02**: When a user pastes an AudioAddict stream URL in the station editor, the channel logo is auto-fetched and populated (same UX as YouTube thumbnail auto-fetch); skipped silently if no URL match or no image found
+- [x] **ART-02**: When a user pastes an AudioAddict stream URL in the station editor, the channel logo is auto-fetched and populated (same UX as YouTube thumbnail auto-fetch); skipped silently if no URL match or no image found
 - [ ] **ART-03**: YouTube thumbnails are displayed as full 16:9 in the now-playing art slot; non-YouTube stations continue to display square art correctly (no distortion)
+
+### Playback Controls
+
+- [ ] **CTRL-01**: A play/pause button (icon: `media-playback-pause-symbolic` / `media-playback-start-symbolic`) sits between the favorites star and the stop button. Pause stops the stream but keeps the station selected and the now-playing panel visible; pressing play resumes that station. Stop retains its existing behavior (clears selection and now-playing panel).
+- [ ] **CTRL-02**: OS media keys (play/pause, stop/previous/next where applicable) control playback via MPRIS2 D-Bus interface on Linux; pressing the system play/pause key toggles the same pause/resume behavior as CTRL-01.
 
 ### Personalization
 
@@ -45,13 +50,15 @@
 |-------------|-------|--------|
 | STREAM-01 | Phase 16 | Complete |
 | ART-01 | Phase 17 | Pending |
-| ART-02 | Phase 17 | Pending |
+| ART-02 | Phase 17 | Complete |
 | ART-03 | Phase 18 | Pending |
 | ACCENT-01 | Phase 19 | Pending |
+| CTRL-01 | Phase 20 | Pending |
+| CTRL-02 | Phase 20 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 5 total
-- Mapped to phases: 5
+- v1.4 requirements: 7 total
+- Mapped to phases: 7
 - Unmapped: 0 ✓
 
 ---
