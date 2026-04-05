@@ -105,7 +105,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.star_btn.connect("clicked", self._on_star_clicked)
         controls_box.append(self.star_btn)
 
-        self.stop_btn = Gtk.Button(label="Stop")
+        self.stop_btn = Gtk.Button()
+        self.stop_btn.set_icon_name("media-playback-stop-symbolic")
         self.stop_btn.add_css_class("suggested-action")
         self.stop_btn.set_sensitive(False)
         self.stop_btn.connect("clicked", lambda *_: self._stop())
