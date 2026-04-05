@@ -705,6 +705,10 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 self.logo_stack.set_visible_child_name("fallback")
         elif st.station_art_path:
+            # Remove any leftover "yt" child so it can't influence stack size
+            existing_yt = self.logo_stack.get_child_by_name("yt")
+            if existing_yt:
+                self.logo_stack.remove(existing_yt)
             abs_path = os.path.join(DATA_DIR, st.station_art_path)
             if os.path.exists(abs_path):
                 try:
@@ -716,6 +720,9 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 self.logo_stack.set_visible_child_name("fallback")
         else:
+            existing_yt = self.logo_stack.get_child_by_name("yt")
+            if existing_yt:
+                self.logo_stack.remove(existing_yt)
             self.logo_stack.set_visible_child_name("fallback")
 
         # Default cover art to station logo until ICY-driven art replaces it
