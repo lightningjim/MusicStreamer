@@ -14,6 +14,7 @@ from musicstreamer.ui.station_row import StationRow
 from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
 from musicstreamer.constants import DATA_DIR
+from musicstreamer.ui.accent_dialog import AccentDialog
 
 
 class MainWindow(Adw.ApplicationWindow):
@@ -41,6 +42,12 @@ class MainWindow(Adw.ApplicationWindow):
         import_btn = Gtk.Button(label="Import")
         import_btn.connect("clicked", self._open_import)
         header.pack_end(import_btn)
+
+        accent_btn = Gtk.Button()
+        accent_btn.set_icon_name("color-select-symbolic")
+        accent_btn.set_tooltip_text("Accent color")
+        accent_btn.connect("clicked", self._open_accent_dialog)
+        header.pack_end(accent_btn)
 
         shell.add_top_bar(header)
 
@@ -853,6 +860,11 @@ class MainWindow(Adw.ApplicationWindow):
         row = self.listbox.get_selected_row()
         if row and hasattr(row, 'station_id'):
             self._open_editor(row.station_id)
+
+    def _open_accent_dialog(self, *_):
+        app = self.get_application()
+        dlg = AccentDialog(app, self.repo, app.accent_provider, self)
+        dlg.present()
 
     def _open_discovery(self, *_):
         from musicstreamer.ui.discovery_dialog import DiscoveryDialog
