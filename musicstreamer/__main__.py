@@ -5,7 +5,8 @@ gi.require_version("Adw", "1")
 gi.require_version("Gst", "1.0")
 from gi.repository import Adw, Gst, Gtk, Gdk
 
-from musicstreamer.constants import APP_ID
+from musicstreamer.constants import APP_ID, ACCENT_COLOR_DEFAULT
+from musicstreamer.accent_utils import build_accent_css
 from musicstreamer.repo import db_connect, db_init, Repo
 from musicstreamer.assets import ensure_dirs
 from musicstreamer.ui.main_window import MainWindow
@@ -49,6 +50,7 @@ class App(Adw.Application):
         con = db_connect()
         db_init(con)
         repo = Repo(con)
+        self.repo = repo
         win = MainWindow(self, repo)
         css_provider = Gtk.CssProvider()
         css_provider.load_from_string(_APP_CSS)
@@ -57,6 +59,15 @@ class App(Adw.Application):
             css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
+        accent_provider = Gtk.CssProvider()
+        accent_hex = repo.get_setting("accent_color", ACCENT_COLOR_DEFAULT)
+        accent_provider.load_from_string(build_accent_css(accent_hex))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            accent_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_USER,
+        )
+        self.accent_provider = accent_provider
         win.present()
 
 
