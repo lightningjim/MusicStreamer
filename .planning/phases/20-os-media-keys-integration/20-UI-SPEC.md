@@ -38,12 +38,10 @@ Declared values (multiples of 4):
 | sm | 8px | Filter box spacing, margin top/bottom on filter rows |
 | md | 16px | Panel margin top/bottom |
 | lg | 24px | Panel margin start/end |
-| controls | 6px | `controls_box` horizontal spacing between buttons |
-| label | 12px | Label margin start in station rows |
-
 Exceptions:
-- `controls_box` uses `spacing=6` — not a standard 4-point multiple, matches existing stop/star button gap. The new pause button follows this same 6px gap (no change).
 - Touch target minimum: icon-only buttons inherit GTK4 default minimum 34px; no explicit override needed.
+- `controls_box` uses an existing `spacing=6` (inherited, not introduced by Phase 20 — not declared in spec scale).
+- Station rows use an existing `margin-start=12px` (inherited, not introduced by Phase 20 — not declared in spec scale).
 
 Source: codebase grep on `main_window.py` margin/spacing calls.
 
