@@ -112,6 +112,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.star_btn.connect("clicked", self._on_star_clicked)
         controls_box.append(self.star_btn)
 
+        self.pause_btn = Gtk.Button()
+        self.pause_btn.set_icon_name("media-playback-pause-symbolic")
+        self.pause_btn.add_css_class("suggested-action")
+        self.pause_btn.set_sensitive(False)
+        self.pause_btn.set_tooltip_text("Pause")
+        self.pause_btn.connect("clicked", lambda *_: self._toggle_pause())
+        controls_box.append(self.pause_btn)
+
         self.stop_btn = Gtk.Button()
         self.stop_btn.set_icon_name("media-playback-stop-symbolic")
         self.stop_btn.add_css_class("suggested-action")
@@ -254,6 +262,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._rp_rows: list = []  # recently played row refs (Plan 03 will populate)
         self._last_cover_icy = None
         self._current_station = None
+        self._paused = False
+        self._paused_station = None
         self._selected_providers: set[str] = set()
         self._selected_tags: set[str] = set()
         self._provider_chip_btns: list[Gtk.ToggleButton] = []
@@ -652,6 +662,29 @@ class MainWindow(Adw.ApplicationWindow):
         self.player.stop()
         return False
 
+    def _toggle_pause(self):
+        if self._paused and self._paused_station:
+            # Resume: replay same station
+            self._paused = False
+            self._paused_station = None
+            self.pause_btn.set_icon_name("media-playback-pause-symbolic")
+            self.pause_btn.set_tooltip_text("Pause")
+            self._play_station(self._current_station)
+        elif self._current_station and not self._paused:
+            # Pause: stop audio, keep UI
+            self._paused = True
+            self._paused_station = self._current_station
+            self.player.pause()
+            self.pause_btn.set_icon_name("media-playback-start-symbolic")
+            self.pause_btn.set_tooltip_text("Resume")
+
+    def _playback_status(self) -> str:
+        if self._paused:
+            return "Paused"
+        elif self._current_station:
+            return "Playing"
+        return "Stopped"
+
     def _stop(self):
         self.player.stop()
         self.title_label.set_text("Nothing playing")
@@ -662,7 +695,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.cover_stack.set_visible_child_name("fallback")
         self._last_cover_icy = None
         self._current_station = None
+        self._paused = False
+        self._paused_station = None
         self.stop_btn.set_sensitive(False)
+        self.pause_btn.set_icon_name("media-playback-pause-symbolic")
+        self.pause_btn.set_tooltip_text("Pause")
+        self.pause_btn.set_sensitive(False)
         self.star_btn.set_visible(False)
 
     def _on_volume_changed(self, slider):
@@ -751,7 +789,12 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self.cover_stack.set_visible_child_name("fallback")
 
-        # Enable stop button
+        # Reset pause state and enable playback controls
+        self._paused = False
+        self._paused_station = None
+        self.pause_btn.set_icon_name("media-playback-pause-symbolic")
+        self.pause_btn.set_tooltip_text("Pause")
+        self.pause_btn.set_sensitive(True)
         self.stop_btn.set_sensitive(True)
 
         # Start playback -- on_title callback updates title_label and cover art
