@@ -11,6 +11,15 @@ Requirements for this polish milestone. New items added as issues are discovered
 
 - [ ] **FIX-01**: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
 
+### Cookie Management (Phase 22)
+
+- [ ] **COOKIE-01**: Users can import YouTube cookies via file picker or paste textarea
+- [ ] **COOKIE-02**: Cookies stored at ~/.local/share/musicstreamer/cookies.txt with 0o600 permissions; manual lifecycle with last-imported date display; clear button to remove
+- [ ] **COOKIE-03**: yt-dlp subprocess calls include --cookies flag when cookies.txt exists and always include --no-cookies-from-browser
+- [ ] **COOKIE-04**: mpv subprocess calls include --ytdl-raw-options=cookies=<path> when cookies.txt exists
+- [ ] **COOKIE-05**: Hamburger menu in header bar with "YouTube Cookies..." item opens the cookie dialog
+- [ ] **COOKIE-06**: Google login flow via embedded WebKit2 browser captures YouTube cookies and saves as cookies.txt
+
 ## Future Requirements
 
 ### v2.0 — OS-Agnostic Revamp
@@ -28,12 +37,18 @@ Requirements for this polish milestone. New items added as issues are discovered
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FIX-01 | Phase 21 | Pending |
+| COOKIE-01 | Phase 22 | Pending |
+| COOKIE-02 | Phase 22 | Pending |
+| COOKIE-03 | Phase 22 | Pending |
+| COOKIE-04 | Phase 22 | Pending |
+| COOKIE-05 | Phase 22 | Pending |
+| COOKIE-06 | Phase 22 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 1 total
-- Mapped to phases: 1
-- Unmapped: 0 ✓
+- v1.5 requirements: 7 total
+- Mapped to phases: 7
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-05 after initial definition*
+*Last updated: 2026-04-06 after Phase 22 planning*

@@ -7,7 +7,7 @@
 - ✅ **v1.2 Station UX & Polish** — Phases 7–11 (shipped 2026-03-25)
 - ✅ **v1.3 Discovery & Favorites** — Phases 12–15 (shipped 2026-04-03)
 - ✅ **v1.4 Media & Art Polish** — Phases 16–20 (shipped 2026-04-05)
-- 🚧 **v1.5 Further Polish** — Phase 21 (in progress, deadline 2026-04-19)
+- 🚧 **v1.5 Further Polish** — Phase 21–22 (in progress, deadline 2026-04-19)
 
 ## Phases
 
@@ -76,6 +76,7 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
 **Milestone Goal:** Fix bugs discovered through daily use; close out v1.x before v2.0 revamp.
 
 - [ ] **Phase 21: Panel Layout Fix** - Fix YouTube thumbnail inflating now-playing panel at max/fullscreen
+- [ ] **Phase 22: Import YT Cookies** - Let users import YouTube cookies via file/paste/Google login instead of yt-dlp browser extraction
 
 ## Phase Details
 
@@ -90,6 +91,26 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
   4. Non-YouTube station art and layout are unaffected
 **Plans**: TBD
 **UI hint**: yes
+
+### Phase 22: Import YT Cookies
+**Goal**: Users can import YouTube cookies from file, paste, or Google login; cookies are stored and passed to yt-dlp/mpv on all YouTube operations; GNOME keyring extraction is suppressed
+**Depends on**: Phase 21
+**Requirements**: COOKIE-01, COOKIE-02, COOKIE-03, COOKIE-04, COOKIE-05, COOKIE-06
+**Success Criteria** (what must be TRUE):
+  1. Hamburger menu in header bar contains "YouTube Cookies..." item that opens cookie dialog
+  2. File picker import copies a valid cookies.txt to app data directory
+  3. Paste import writes valid cookie text to app data directory
+  4. Google login via embedded browser captures YouTube cookies and saves as cookies.txt
+  5. yt-dlp calls always include --no-cookies-from-browser and conditionally include --cookies
+  6. mpv calls conditionally include --ytdl-raw-options=cookies=<path>
+  7. Cookie file has 0o600 permissions
+  8. Dialog shows last-imported date; Clear button removes cookies
+**Plans:** 3 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — TDD: COOKIES_PATH constant + yt-dlp/mpv flag injection
+- [ ] 22-02-PLAN.md — CookiesDialog UI (file picker, paste, hamburger menu)
+- [ ] 22-03-PLAN.md — Google login flow via WebKit2
 
 ## Progress
 
@@ -116,3 +137,4 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
 | 19. Custom Accent Color | v1.4 | 2/2 | Complete | 2026-04-05 |
 | 20. Playback Controls & Media Keys | v1.4 | 2/2 | Complete | 2026-04-05 |
 | 21. Panel Layout Fix | v1.5 | 0/? | Not started | - |
+| 22. Import YT Cookies | v1.5 | 0/3 | Planned | - |
