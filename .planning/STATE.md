@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Further Polish
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-04-05"
-last_activity: 2026-04-05
+status: planning
+stopped_at: Phase 22 context gathered
+last_updated: "2026-04-06T20:18:04.148Z"
+last_activity: 2026-04-05 — v1.5 roadmap created
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 0
 ---
 
 # Project State
@@ -60,6 +59,10 @@ Recent decisions affecting current work:
 - .planning/notes/2026-03-21-sync-config-between-computers.md
 - .planning/notes/2026-03-20-icy-override-per-station.md
 
+### Roadmap Evolution
+
+- Phase 22 added: Import YT cookies separately (avoid GNOME desktop cookie extraction issue)
+
 ### Blockers/Concerns
 
 None — FIX-01 is a targeted layout constraint fix.
@@ -72,6 +75,6 @@ None — FIX-01 is a targeted layout constraint fix.
 
 ## Session Continuity
 
-Last session: 2026-04-05
-Stopped at: v1.5 roadmap created; Phase 21 ready to plan
-Resume file: None
+Last session: 2026-04-06T20:18:04.146Z
+Stopped at: Phase 22 context gathered
+Resume file: .planning/phases/22-import-yt-cookies-separately-from-extracting-from-browser-ev/22-CONTEXT.md
