@@ -8,6 +8,16 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
+## Current Milestone: v1.5 Further Polish
+
+**Goal:** Fix bugs and polish issues discovered through 2 weeks of daily use (deadline: 2026-04-19).
+
+**Target features:**
+- Fix: YouTube 16:9 thumbnail inflates now-playing panel when window is maximized/fullscreen
+- Additional fixes TBD as discovered during use
+
+**Next:** If no new issues found by deadline, close out and move to v2.0 (OS-agnostic revamp).
+
 ## Current State (v1.4 shipped — 2026-04-05)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
@@ -85,7 +95,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 ### Active (v1.5)
 
-(None yet — define with `/gsd-new-milestone`)
+- [ ] FIX-01: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
 
 ### Out of Scope
 
@@ -197,4 +207,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-05 after v1.4 milestone*
+*Last updated: 2026-04-05 after v1.5 milestone start*

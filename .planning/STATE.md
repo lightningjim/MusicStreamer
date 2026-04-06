@@ -1,48 +1,46 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Media & Art Polish
-status: executing
-stopped_at: Phase 20 UI-SPEC approved
-last_updated: "2026-04-05T19:51:21.698Z"
+milestone: v1.5
+milestone_name: Further Polish
+status: defining
+stopped_at: null
+last_updated: "2026-04-05"
 last_activity: 2026-04-05
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-03 after v1.3 milestone)
+See: .planning/PROJECT.md (updated 2026-04-05 after v1.5 milestone start)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 20 — os-media-keys-integration
+**Current focus:** Defining requirements
 
 ## Current Position
 
-Phase: 20 (os-media-keys-integration) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 20
-Last activity: 2026-04-05
-
-Progress: [██████████] 100% (4/4 plans)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-05 — Milestone v1.5 started
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 34 (v1.0–v1.4 partial)
+- Total plans completed: 34 (v1.0–v1.4)
 - Average duration: ~14 min
 - Total execution time: ~7 hours
 
 **Recent Trend:**
 
-- Last 8 plans (v1.3): backend+UI splits across 4 phases
+- Last 8 plans (v1.4): backend+UI splits across 5 phases
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -53,29 +51,15 @@ Progress: [██████████] 100% (4/4 plans)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-Key decisions relevant to v1.4:
-
-- [Research]: AA `channel_images.default` field name unverified — inspect live /v1/di/channels before coding ART-01
-- [Research]: `@define-color` vs `--accent-bg-color` CSS mechanism inconsistent in docs — resolve at Phase 19 start
-- [Research]: AA logo fetch must be async/decoupled from insert loop to avoid 5-min import regression
-- [Research]: Use `ContentFit.CONTAIN` in existing 160×160 slot for 16:9 — do not widen slot unconditionally
-- [Phase 16]: Buffer constants in constants.py (not inlined): consistent with project pattern, allows future tuning
-- [Phase 17-audioaddict-station-art]: on_logo_progress(0, total) emitted before downloads start so UI can transition label immediately
-- [Phase 17-audioaddict-station-art]: Thread-local Repo(db_connect()) in each logo worker — no shared SQLite connection across threads
-- [Phase 17-audioaddict-station-art]: _aa_channel_key_from_url uses urllib.parse.urlparse (not regex) to correctly reject domain-only URLs
-- [Phase 17]: _aa_channel_key_from_url strips network slug prefix (e.g. di_house -> house) — stream URL paths are slug-prefixed but AA API keys images by bare channel name
-- [Phase 18]: Cover slot stays on fallback for YouTube stations — no duplicate thumbnail in both slots (user decision at checkpoint)
-
 ### Pending Todos
 
 - .planning/notes/2026-03-21-sdr-live-radio-support.md
 - .planning/notes/2026-03-21-sync-config-between-computers.md
 - .planning/notes/2026-03-20-icy-override-per-station.md
-- .planning/notes/2026-03-22-favorite-songs-from-icy.md (completed in v1.3 — archive this note)
 
 ### Blockers/Concerns
 
-- Phase 18: Human visual verification pending (ContentFit.CONTAIN rendering, non-YouTube art switching, ICY cover art)
+(None)
 
 ### Known Tech Debt (v1.3)
 
@@ -85,6 +69,5 @@ Key decisions relevant to v1.4:
 
 ## Session Continuity
 
-Last session: 2026-04-05T18:37:06.221Z
-Stopped at: Phase 20 UI-SPEC approved
-Resume file: .planning/phases/20-os-media-keys-integration/20-UI-SPEC.md
+Last session: 2026-04-05
+Stopped at: Milestone v1.5 initialization
