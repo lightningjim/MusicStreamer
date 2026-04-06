@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Further Polish
 status: planning
-stopped_at: Phase 22 context gathered
-last_updated: "2026-04-06T20:18:04.148Z"
+stopped_at: Phase 22 UI-SPEC approved
+last_updated: "2026-04-06T20:34:04.512Z"
 last_activity: 2026-04-05 — v1.5 roadmap created
 progress:
   total_phases: 2
@@ -75,6 +75,6 @@ None — FIX-01 is a targeted layout constraint fix.
 
 ## Session Continuity
 
-Last session: 2026-04-06T20:18:04.146Z
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-import-yt-cookies-separately-from-extracting-from-browser-ev/22-CONTEXT.md
+Last session: 2026-04-06T20:34:04.510Z
+Stopped at: Phase 22 UI-SPEC approved
+Resume file: .planning/phases/22-import-yt-cookies-separately-from-extracting-from-browser-ev/22-UI-SPEC.md
