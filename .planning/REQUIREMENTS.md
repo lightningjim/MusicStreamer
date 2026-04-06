@@ -1,65 +1,39 @@
-# Requirements: MusicStreamer v1.4
+# Requirements: MusicStreamer
 
-**Defined:** 2026-04-03
+**Defined:** 2026-04-05
 **Core Value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## v1.4 Requirements
+## v1.5 Requirements
 
-### Stream Reliability
+Requirements for this polish milestone. New items added as issues are discovered (deadline: 2026-04-19).
 
-- [x] **STREAM-01**: ShoutCast/HTTP streams play without audible drop-outs after GStreamer buffer-duration and buffer-size are tuned; ICY track title latency is not noticeably increased
+### Bug Fixes
 
-### Station Art
-
-- [x] **ART-01**: AudioAddict channel logos are fetched from the AA API at bulk import time and stored as station art; failures (missing image, network error) are silent and do not abort the import
-- [x] **ART-02**: When a user pastes an AudioAddict stream URL in the station editor, the channel logo is auto-fetched and populated (same UX as YouTube thumbnail auto-fetch); skipped silently if no URL match or no image found
-- [x] **ART-03**: YouTube thumbnails are displayed as full 16:9 in the now-playing art slot; non-YouTube stations continue to display square art correctly (no distortion)
-
-### Playback Controls
-
-- [x] **CTRL-01**: A play/pause button (icon: `media-playback-pause-symbolic` / `media-playback-start-symbolic`) sits between the favorites star and the stop button. Pause stops the stream but keeps the station selected and the now-playing panel visible; pressing play resumes that station. Stop retains its existing behavior (clears selection and now-playing panel).
-- [x] **CTRL-02**: OS media keys (play/pause, stop/previous/next where applicable) control playback via MPRIS2 D-Bus interface on Linux; pressing the system play/pause key toggles the same pause/resume behavior as CTRL-01.
-
-### Personalization
-
-- [x] **ACCENT-01**: User can set a custom highlight/accent color from preset swatches or a hex input; color is applied immediately at runtime and persists across sessions
+- [ ] **FIX-01**: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
 
 ## Future Requirements
 
-### Station Art
+### v2.0 — OS-Agnostic Revamp
 
-- **ART-F01**: Auto-fetch art for generic radio stream URLs (ICY metadata, favicon, or provider logo) — beyond YouTube and AudioAddict
-- **ART-F02**: MusicBrainz cover art fallback when iTunes returns no result
-
-### Personalization
-
-- **ACCENT-F01**: Per-station accent color override
+- **V2-01**: Cross-platform support (not GNOME-only)
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Multi-stream / quality selection per station (SEED-003/004) | Deferred to v1.5 |
-| Windows port / PyQt6 rewrite | Deferred to v2.0 |
-| GStreamer buffer UI controls exposed to user | Internal tuning only; no user-facing setting needed |
-| Buffering indicator / spinner during initial load | Low value; buffer start is near-instant with tuned values |
+| New features | v1.5 is bug-fix/polish only; new features deferred to v2.0 |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| STREAM-01 | Phase 16 | Complete |
-| ART-01 | Phase 17 | Complete |
-| ART-02 | Phase 17 | Complete |
-| ART-03 | Phase 18 | Complete |
-| ACCENT-01 | Phase 19 | Complete |
-| CTRL-01 | Phase 20 | Complete |
-| CTRL-02 | Phase 20 | Complete |
+| FIX-01 | Phase 21 | Pending |
 
 **Coverage:**
-- v1.4 requirements: 7 total
-- Mapped to phases: 7
+- v1.5 requirements: 1 total
+- Mapped to phases: 1
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-04-03*
+*Requirements defined: 2026-04-05*
+*Last updated: 2026-04-05 after initial definition*
