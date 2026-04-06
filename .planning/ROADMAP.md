@@ -7,6 +7,7 @@
 - ✅ **v1.2 Station UX & Polish** — Phases 7–11 (shipped 2026-03-25)
 - ✅ **v1.3 Discovery & Favorites** — Phases 12–15 (shipped 2026-04-03)
 - ✅ **v1.4 Media & Art Polish** — Phases 16–20 (shipped 2026-04-05)
+- 🚧 **v1.5 Further Polish** — Phase 21 (in progress, deadline 2026-04-19)
 
 ## Phases
 
@@ -70,6 +71,26 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
 
 </details>
 
+### 🚧 v1.5 Further Polish (In Progress — deadline 2026-04-19)
+
+**Milestone Goal:** Fix bugs discovered through daily use; close out v1.x before v2.0 revamp.
+
+- [ ] **Phase 21: Panel Layout Fix** - Fix YouTube thumbnail inflating now-playing panel at max/fullscreen
+
+## Phase Details
+
+### Phase 21: Panel Layout Fix
+**Goal**: The now-playing panel maintains its intended dimensions at all window sizes
+**Depends on**: Phase 20
+**Requirements**: FIX-01
+**Success Criteria** (what must be TRUE):
+  1. Playing a YouTube station while the window is maximized does not widen or stretch the now-playing panel
+  2. Playing a YouTube station while the window is fullscreen does not widen or stretch the now-playing panel
+  3. YouTube 16:9 thumbnails remain contained within the logo slot at all window sizes (letterboxed, no overflow)
+  4. Non-YouTube station art and layout are unaffected
+**Plans**: TBD
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -94,3 +115,4 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
 | 18. YouTube Thumbnail 16:9 | v1.4 | 1/1 | Complete | 2026-04-05 |
 | 19. Custom Accent Color | v1.4 | 2/2 | Complete | 2026-04-05 |
 | 20. Playback Controls & Media Keys | v1.4 | 2/2 | Complete | 2026-04-05 |
+| 21. Panel Layout Fix | v1.5 | 0/? | Not started | - |

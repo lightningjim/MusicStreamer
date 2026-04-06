@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Further Polish
-status: defining
+status: ready_to_plan
 stopped_at: null
 last_updated: "2026-04-05"
 last_activity: 2026-04-05
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-05 after v1.5 milestone start)
+See: .planning/PROJECT.md (updated 2026-04-05)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Defining requirements
+**Current focus:** Phase 21 — Panel Layout Fix
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-05 — Milestone v1.5 started
+Phase: 21 of 21 (Panel Layout Fix)
+Plan: 0 of ? in current phase
+Status: Ready to plan
+Last activity: 2026-04-05 — v1.5 roadmap created
 
 ## Performance Metrics
 
@@ -50,6 +50,9 @@ Last activity: 2026-04-05 — Milestone v1.5 started
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- Phase 18: ContentFit.CONTAIN for YouTube 16:9 in 160×160 slot — FIX-01 extends this to maximized/fullscreen
 
 ### Pending Todos
 
@@ -59,7 +62,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 
 ### Blockers/Concerns
 
-(None)
+None — FIX-01 is a targeted layout constraint fix.
 
 ### Known Tech Debt (v1.3)
 
@@ -70,4 +73,5 @@ Decisions are logged in PROJECT.md Key Decisions table.
 ## Session Continuity
 
 Last session: 2026-04-05
-Stopped at: Milestone v1.5 initialization
+Stopped at: v1.5 roadmap created; Phase 21 ready to plan
+Resume file: None
