@@ -8,8 +8,11 @@ Public API:
 """
 
 import json
+import os
 import re
 import subprocess
+
+from musicstreamer.constants import COOKIES_PATH
 
 
 def is_yt_playlist_url(url: str) -> bool:
@@ -26,8 +29,12 @@ def scan_playlist(url: str) -> list[dict]:
     Each returned dict has keys: "title", "url", "provider".
     Raises ValueError for private/unavailable playlists, RuntimeError on other failures.
     """
+    cmd = ["yt-dlp", "--flat-playlist", "--dump-json", "--no-cookies-from-browser"]
+    if os.path.exists(COOKIES_PATH):
+        cmd += ["--cookies", COOKIES_PATH]
+    cmd.append(url)
     result = subprocess.run(
-        ["yt-dlp", "--flat-playlist", "--dump-json", url],
+        cmd,
         capture_output=True,
         text=True,
         timeout=120,

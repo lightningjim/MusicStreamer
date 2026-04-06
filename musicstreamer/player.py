@@ -3,7 +3,7 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst, GLib
 from musicstreamer.models import Station
-from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
+from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES, COOKIES_PATH
 
 
 def _fix_icy_encoding(s: str) -> str:
@@ -83,8 +83,13 @@ class Player:
         self._stop_yt_proc()
         self._pipeline.set_state(Gst.State.NULL)
         # mpv handles yt-dlp extraction, auth, and HLS internally
+        import os
+        cmd = ["mpv", "--no-video", "--really-quiet", f"--volume={int(self._volume * 100)}"]
+        if os.path.exists(COOKIES_PATH):
+            cmd.append(f"--ytdl-raw-options=cookies={COOKIES_PATH}")
+        cmd.append(url)
         self._yt_proc = subprocess.Popen(
-            ["mpv", "--no-video", "--really-quiet", f"--volume={int(self._volume * 100)}", url],
+            cmd,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         on_title(fallback_name)
