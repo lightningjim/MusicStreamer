@@ -4,7 +4,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import Gtk, Adw, Pango, GdkPixbuf, GLib
+from gi.repository import Gtk, Adw, Pango, GdkPixbuf, GLib, Gio
 from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.repo import Repo
 from musicstreamer.models import Station, Favorite
@@ -15,6 +15,7 @@ from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
 from musicstreamer.constants import DATA_DIR
 from musicstreamer.ui.accent_dialog import AccentDialog
+from musicstreamer.ui.cookies_dialog import CookiesDialog
 from musicstreamer.mpris import MprisService
 
 
@@ -56,7 +57,20 @@ class MainWindow(Adw.ApplicationWindow):
         accent_btn.connect("clicked", self._open_accent_dialog)
         header.pack_end(accent_btn)
 
+        # Hamburger menu (D-07)
+        menu = Gio.Menu()
+        menu.append("YouTube Cookies\u2026", "app.open-cookies")
+
+        menu_btn = Gtk.MenuButton()
+        menu_btn.set_icon_name("open-menu-symbolic")
+        menu_btn.set_menu_model(menu)
+        header.pack_end(menu_btn)
+
         shell.add_top_bar(header)
+
+        action = Gio.SimpleAction.new("open-cookies", None)
+        action.connect("activate", self._open_cookies_dialog)
+        app.add_action(action)
 
         # --- Now-playing panel ---
         panel = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -955,6 +969,10 @@ class MainWindow(Adw.ApplicationWindow):
     def _open_import(self, *_):
         from musicstreamer.ui.import_dialog import ImportDialog
         dlg = ImportDialog(self.get_application(), self.repo, self)
+        dlg.present()
+
+    def _open_cookies_dialog(self, action, param):
+        dlg = CookiesDialog(self.get_application(), self)
         dlg.present()
 
     def _open_editor(self, station_id: int):
