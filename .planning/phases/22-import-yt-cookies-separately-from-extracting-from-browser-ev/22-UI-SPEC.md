@@ -35,9 +35,9 @@ Declared values — derived from existing codebase patterns (main_window.py, imp
 |-------|-------|-------|
 | xs | 4px | Icon gaps, tight inline padding |
 | sm | 8px | Box spacing, filter bar margins |
-| md | 12px | Dialog content margins (all sides) |
-| lg | 16px | Panel margin-top / margin-bottom |
-| xl | 24px | Panel margin-start / margin-end |
+| md | 16px | Dialog content margins (all sides) |
+| lg | 24px | Panel margin-top / margin-bottom |
+| xl | 32px | Panel margin-start / margin-end |
 
 Exceptions: Dialog default size 480×400 (narrower than ImportDialog 700×560 — cookies dialog has less content).
 
@@ -65,7 +65,7 @@ Apply `add_css_class("dim-label")` to secondary labels (e.g. "last imported" dat
 | Dominant (60%) | @window_bg_color (Adw) | Dialog background, content area |
 | Secondary (30%) | @headerbar_bg_color (Adw) | Header bar, expander header |
 | Accent (10%) | @accent_color (Adw — user-customizable per Phase 19) | Import button (suggested-action), active state |
-| Destructive | @destructive_color (Adw) | Clear button only |
+| Destructive | @destructive_color (Adw) | Clear Cookies button only |
 
 Accent reserved for: the primary Import Cookies button (`suggested-action` CSS class). No other elements in this dialog receive accent color.
 
@@ -86,7 +86,7 @@ Destructive reserved for: the Clear Cookies button only. Apply `destructive-acti
 - Widget class: `Adw.Window` (matches ImportDialog pattern — `set_transient_for`, `set_modal(True)`)
 - Default size: 480 × 400
 - Root: `Adw.ToolbarView` with `Adw.HeaderBar` top bar, title "YouTube Cookies"
-- Content margins: 12px all sides (matches ImportDialog)
+- Content margins: 16px all sides (md token)
 
 **Content layout (top to bottom):**
 
@@ -102,7 +102,7 @@ Destructive reserved for: the Clear Cookies button only. Apply `destructive-acti
    - **Google login section**: `Gtk.Button(label="Sign in with Google")` — opens controlled browser window; replaces with spinner + "Signing in…" label while in progress
 
 4. **Footer row** — `Gtk.Box` horizontal, spacing=8, packed at bottom:
-   - `Gtk.Button(label="Clear")` with `destructive-action` CSS class, packed at start (hexpand=False)
+   - `Gtk.Button(label="Clear Cookies")` with `destructive-action` CSS class, packed at start (hexpand=False)
    - spacer (`Gtk.Box` hexpand=True)
    - `Gtk.Button(label="Import Cookies")` with `suggested-action` CSS class, packed at end
 
@@ -110,14 +110,14 @@ Destructive reserved for: the Clear Cookies button only. Apply `destructive-acti
 
 | State | What changes |
 |-------|-------------|
-| No cookies stored | Status label: "No cookies imported" (dim-label); Clear button insensitive |
+| No cookies stored | Status label: "No cookies imported" (dim-label); Clear Cookies button insensitive |
 | File selected (not yet imported) | Entry shows filename; Import button sensitive |
 | Paste filled (not yet imported) | Import button sensitive |
 | Importing (file or paste) | Import button insensitive, label "Importing…"; spinner shown inline next to button |
 | Google login in progress | Sign-in button replaced by `Gtk.Spinner` + label "Signing in…" |
 | Import success | Status label updates to "Last imported: {date}"; Import button label resets |
 | Import error | Inline `Gtk.Label` with `error` CSS class below offending input; Import button re-enabled |
-| Cookies stored | Status shows date; Clear button sensitive |
+| Cookies stored | Status shows date; Clear Cookies button sensitive |
 
 ---
 
@@ -137,12 +137,12 @@ Destructive reserved for: the Clear Cookies button only. Apply `destructive-acti
 | Error — paste invalid | "Pasted content does not appear to be valid cookies. Check the format and try again." |
 | Error — Google login failed | "Sign-in failed or was cancelled. Try again or use the file method." |
 | Error — import write failed | "Could not save cookies. Check disk space and try again." |
-| Clear action label | "Clear" |
+| Clear action label | "Clear Cookies" |
 | Post-clear status | "No cookies imported" |
 | Dialog title | "YouTube Cookies" |
 | Expander label | "Other methods" |
 
-Destructive confirmation: None. Clear is immediately destructive but reversible (re-import). No confirmation dialog — consistent with the app's pragmatic UX profile.
+Destructive confirmation: None. Clear Cookies is immediately destructive but reversible (re-import). No confirmation dialog — consistent with the app's pragmatic UX profile.
 
 ---
 
@@ -173,7 +173,7 @@ Components required for implementation (all GTK4/Adw primitives, no new dependen
 | Paste area | `Gtk.TextView` | monospace, non-expanding |
 | Google sign-in button | `Gtk.Button` | Swapped for spinner during flow |
 | Import button | `Gtk.Button` + `suggested-action` | Primary CTA |
-| Clear button | `Gtk.Button` + `destructive-action` | Insensitive when no cookies stored |
+| Clear Cookies button | `Gtk.Button` + `destructive-action` | Insensitive when no cookies stored |
 | Inline error label | `Gtk.Label` + `error` CSS class | Hidden by default |
 | Spinner | `Gtk.Spinner` | Used in importing + Google login states |
 
