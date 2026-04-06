@@ -409,17 +409,17 @@ def _is_valid_cookies_txt(text: str) -> bool:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **WebKit2 Cookie object attrs at runtime**
+1. **WebKit2 Cookie object attrs at runtime** — RESOLVED
    - What we know: `CookieManager` has `get_all_cookies`; `WebKit2.Cookie` type not importable headlessly (segfault)
-   - What's unclear: exact method names on the cookie object returned by `get_all_cookies_finish`
-   - Recommendation: In Wave 0, add a dev-mode test that opens the login window, signs in, and prints `dir(cookies[0])` to confirm attrs before writing the Netscape serializer
+   - What was unclear: exact method names on the cookie object returned by `get_all_cookies_finish`
+   - Resolution: Plan 03 Task 1 action includes runtime introspection (`dir(cookies[0])`) as the first step of the Google login implementation. The Netscape cookie writer will be adapted to whatever attrs are discovered. Assumptions A1/A2 in the Assumptions Log cover the risk; fallback is trivial method name adjustment.
 
-2. **mpv ytdl-raw-options for suppressing browser cookies**
+2. **mpv ytdl-raw-options for suppressing browser cookies** — RESOLVED
    - What we know: `--no-cookies-from-browser` is a yt-dlp flag; mpv's `--ytdl-raw-options` passes key=value pairs
-   - What's unclear: boolean yt-dlp flags (no value) syntax in mpv's kv list
-   - Recommendation: Test `--ytdl-raw-options=no-cookies-from-browser=` at implementation time; fallback is that `--cookies-file` being present already takes precedence
+   - What was unclear: boolean yt-dlp flags (no value) syntax in mpv's kv list
+   - Resolution: Plan 01 Task 2 tests this at implementation time. The `--ytdl-raw-options=no-cookies-from-browser=` syntax will be verified with a live mpv call. If it fails, the fallback is already documented: `--cookies-file` being present takes precedence over browser extraction, and yt-dlp's own `--no-cookies-from-browser` flag handles the yt_import.py side.
 
 ---
 
