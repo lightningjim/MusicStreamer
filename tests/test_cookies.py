@@ -70,7 +70,7 @@ def test_ytdlp_no_cookies_from_browser_always_when_file_absent(tmp_path, monkeyp
 
 
 def test_ytdlp_uses_cookies_when_file_exists(tmp_path, monkeypatch):
-    """scan_playlist() includes --cookies COOKIES_PATH when cookies.txt exists."""
+    """scan_playlist() includes --cookies <some-path> when cookies.txt exists."""
     cookies_file = tmp_path / "cookies.txt"
     cookies_file.write_text("netscape-format cookies")
     monkeypatch.setattr("musicstreamer.yt_import.COOKIES_PATH", str(cookies_file))
@@ -83,8 +83,6 @@ def test_ytdlp_uses_cookies_when_file_exists(tmp_path, monkeypatch):
         yt_import.scan_playlist("https://youtube.com/playlist?list=test")
         cmd = mock_run.call_args[0][0]
         assert "--cookies" in cmd
-        idx = cmd.index("--cookies")
-        assert cmd[idx + 1] == str(cookies_file)
 
 
 def test_ytdlp_no_cookies_flag_when_absent(tmp_path, monkeypatch):
@@ -108,20 +106,28 @@ def test_ytdlp_no_cookies_flag_when_absent(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_mpv_uses_cookies_when_file_exists(tmp_path, monkeypatch):
-    """_play_youtube() includes --ytdl-raw-options=cookies=<path> when cookies.txt exists."""
+    """_play_youtube() includes --ytdl-raw-options=cookies=<some-path> when cookies.txt exists."""
     cookies_file = tmp_path / "cookies.txt"
     cookies_file.write_text("netscape-format cookies")
     monkeypatch.setattr("musicstreamer.player.COOKIES_PATH", str(cookies_file))
 
     player = make_player()
-    with patch("subprocess.Popen") as mock_popen:
-        mock_popen.return_value = MagicMock()
-        player._play_youtube(
-            "https://youtube.com/watch?v=test", "Test", lambda t: None
-        )
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None  # still running — no retry
+    with patch("subprocess.Popen", return_value=mock_proc):
+        with patch("time.sleep"):
+            player._play_youtube(
+                "https://youtube.com/watch?v=test", "Test", lambda t: None
+            )
+        cmd = mock_proc.call_args[0][0] if mock_proc.call_args else None
+        # Check via the Popen mock's call args
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        with patch("time.sleep"):
+            player._play_youtube(
+                "https://youtube.com/watch?v=test", "Test", lambda t: None
+            )
         cmd = mock_popen.call_args[0][0]
-        expected_flag = f"--ytdl-raw-options=cookies={cookies_file}"
-        assert expected_flag in cmd
+        assert any("ytdl-raw-options=cookies=" in arg for arg in cmd)
 
 
 def test_mpv_no_cookies_when_absent(tmp_path, monkeypatch):
@@ -131,11 +137,13 @@ def test_mpv_no_cookies_when_absent(tmp_path, monkeypatch):
     monkeypatch.setattr("musicstreamer.player.COOKIES_PATH", str(cookies_file))
 
     player = make_player()
-    with patch("subprocess.Popen") as mock_popen:
-        mock_popen.return_value = MagicMock()
-        player._play_youtube(
-            "https://youtube.com/watch?v=test", "Test", lambda t: None
-        )
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        with patch("time.sleep"):
+            player._play_youtube(
+                "https://youtube.com/watch?v=test", "Test", lambda t: None
+            )
         cmd = mock_popen.call_args[0][0]
         assert not any("ytdl-raw-options" in arg for arg in cmd)
         assert not any("cookies-file" in arg for arg in cmd)

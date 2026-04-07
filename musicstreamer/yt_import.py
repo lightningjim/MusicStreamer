@@ -10,7 +10,9 @@ Public API:
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 
 from musicstreamer.constants import COOKIES_PATH
 
@@ -30,15 +32,26 @@ def scan_playlist(url: str) -> list[dict]:
     Raises ValueError for private/unavailable playlists, RuntimeError on other failures.
     """
     cmd = ["yt-dlp", "--flat-playlist", "--dump-json", "--no-cookies-from-browser"]
+    cookie_tmp = None
     if os.path.exists(COOKIES_PATH):
-        cmd += ["--cookies", COOKIES_PATH]
+        try:
+            fd, cookie_tmp = tempfile.mkstemp(suffix=".txt", prefix="ms_cookies_")
+            os.close(fd)
+            shutil.copy2(COOKIES_PATH, cookie_tmp)
+            cmd += ["--cookies", cookie_tmp]
+        except OSError:
+            cookie_tmp = None
     cmd.append(url)
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    finally:
+        if cookie_tmp and os.path.exists(cookie_tmp):
+            os.unlink(cookie_tmp)
     if result.returncode != 0:
         stderr = result.stderr.strip()
         if "private" in stderr.lower() or "unavailable" in stderr.lower():

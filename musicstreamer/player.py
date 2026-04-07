@@ -1,5 +1,8 @@
 import os
+import shutil
 import subprocess
+import tempfile
+import time
 import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst, GLib
@@ -31,6 +34,7 @@ class Player:
         bus.connect("message::error", self._on_gst_error)
         bus.connect("message::tag", self._on_gst_tag)
         self._yt_proc = None
+        self._yt_cookie_tmp = None
         self._on_title = None
         self._volume = 1.0
 
@@ -75,10 +79,16 @@ class Player:
         self._stop_yt_proc()
         self._pipeline.set_state(Gst.State.NULL)
 
+    def _cleanup_cookie_tmp(self):
+        if self._yt_cookie_tmp and os.path.exists(self._yt_cookie_tmp):
+            os.unlink(self._yt_cookie_tmp)
+        self._yt_cookie_tmp = None
+
     def _stop_yt_proc(self):
         if self._yt_proc and self._yt_proc.poll() is None:
             self._yt_proc.terminate()
             self._yt_proc = None
+        self._cleanup_cookie_tmp()
 
     def _play_youtube(self, url: str, fallback_name: str, on_title: callable):
         self._stop_yt_proc()
@@ -89,15 +99,35 @@ class Player:
         if local_bin not in env.get("PATH", "").split(os.pathsep):
             env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
         cmd = ["mpv", "--no-video", "--really-quiet", f"--volume={int(self._volume * 100)}"]
+        self._yt_cookie_tmp = None
         if os.path.exists(COOKIES_PATH):
-            cmd.append(f"--ytdl-raw-options=cookies={COOKIES_PATH}")
+            try:
+                fd, self._yt_cookie_tmp = tempfile.mkstemp(suffix=".txt", prefix="ms_cookies_")
+                os.close(fd)
+                shutil.copy2(COOKIES_PATH, self._yt_cookie_tmp)
+                cmd.append(f"--ytdl-raw-options=cookies={self._yt_cookie_tmp}")
+            except OSError:
+                self._yt_cookie_tmp = None
         cmd.append(url)
+        launch_time = time.monotonic()
         self._yt_proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env=env,
         )
         on_title(fallback_name)
+        # D-05: retry without cookies if mpv exits immediately (corrupted cookies)
+        time.sleep(2)
+        if self._yt_cookie_tmp and self._yt_proc.poll() is not None:
+            import sys
+            print("mpv exited immediately with cookies, retrying without", file=sys.stderr)
+            self._cleanup_cookie_tmp()
+            cmd_no_cookies = [a for a in cmd if not a.startswith("--ytdl-raw-options=cookies=")]
+            self._yt_proc = subprocess.Popen(
+                cmd_no_cookies,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env=env,
+            )
 
     def _set_uri(self, uri: str, title: str, on_title: callable):
         self._pipeline.set_state(Gst.State.NULL)
