@@ -1,5 +1,8 @@
 import os
 import shutil
+import subprocess
+import tempfile
+import threading
 from datetime import datetime
 import gi
 gi.require_version("Gtk", "4.0")
@@ -232,12 +235,64 @@ class CookiesDialog(Adw.Window):
         self._clear_btn.set_sensitive(os.path.exists(COOKIES_PATH))
 
     # ------------------------------------------------------------------
-    # Google login (placeholder for Plan 03)
+    # Google login — launches WebKit2 subprocess (GTK3-based, separate process)
     # ------------------------------------------------------------------
 
     def _on_google_login(self, btn):
-        self._google_status.set_text("Google login coming soon")
+        self._google_btn.set_sensitive(False)
+        self._google_status.set_text("Signing in\u2026")
         self._google_status.set_visible(True)
+        self._error_label.set_visible(False)
+
+        # Run WebKit2 login in a background thread — subprocess writes cookies to a
+        # temp file and exits, then we pick them up on the GTK main thread.
+        tmp = tempfile.mktemp(suffix="-ms-yt-cookies.txt")
+        t = threading.Thread(
+            target=self._run_webkit_subprocess,
+            args=(tmp,),
+            daemon=True,
+        )
+        t.start()
+
+    def _run_webkit_subprocess(self, tmp_path: str):
+        """Run the WebKit2 GTK3 login subprocess and deliver result on main thread."""
+        script = _WEBKIT2_SUBPROCESS_SCRIPT.format(output_path=tmp_path)
+        try:
+            proc = subprocess.run(
+                ["python3", "-c", script],
+                timeout=300,  # 5-minute timeout for the sign-in flow
+            )
+            if proc.returncode == 0 and os.path.exists(tmp_path):
+                with open(tmp_path, "r", encoding="utf-8") as f:
+                    netscape_text = f.read()
+                GLib.idle_add(self._on_google_cookies_ready, netscape_text)
+            else:
+                GLib.idle_add(self._on_google_cookies_ready, None)
+        except subprocess.TimeoutExpired:
+            GLib.idle_add(self._on_google_cookies_ready, None)
+        except Exception:
+            GLib.idle_add(self._on_google_cookies_ready, None)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+    def _on_google_cookies_ready(self, netscape_text):
+        self._google_btn.set_sensitive(True)
+        self._google_status.set_visible(False)
+        if not netscape_text:
+            self._show_error("Sign-in failed or was cancelled. Try again or use the file method.")
+            return
+        try:
+            os.makedirs(os.path.dirname(COOKIES_PATH), exist_ok=True)
+            with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+                f.write(netscape_text)
+            os.chmod(COOKIES_PATH, 0o600)
+            self._update_status()
+            self._error_label.set_visible(False)
+        except Exception:
+            self._show_error("Could not save cookies. Check disk space and try again.")
 
     # ------------------------------------------------------------------
     # Error display
@@ -246,3 +301,159 @@ class CookiesDialog(Adw.Window):
     def _show_error(self, msg):
         self._error_label.set_text(msg)
         self._error_label.set_visible(True)
+
+
+# ---------------------------------------------------------------------------
+# Netscape cookie writer (used by subprocess script and importable for tests)
+# ---------------------------------------------------------------------------
+
+def _write_netscape_cookies(cookies, path: str):
+    """Write WebKit2 cookie objects to Netscape format file."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines = ["# Netscape HTTP Cookie File", ""]
+    for c in cookies:
+        domain = c.get_domain() or ""
+        domain_dot = "TRUE" if domain.startswith(".") else "FALSE"
+        path_val = c.get_path() or "/"
+        secure = "TRUE" if c.get_secure() else "FALSE"
+        expires = c.get_expires()
+        if expires is not None:
+            # get_expires() may return GLib.DateTime (to_unix) or Soup.Date (to_time_t)
+            if hasattr(expires, "to_unix"):
+                expiry = int(expires.to_unix())
+            elif hasattr(expires, "to_time_t"):
+                expiry = int(expires.to_time_t())
+            else:
+                expiry = 0
+        else:
+            expiry = 0
+        name = c.get_name() or ""
+        value = c.get_value() or ""
+        lines.append(f"{domain}\t{domain_dot}\t{path_val}\t{secure}\t{expiry}\t{name}\t{value}")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# _GoogleLoginWindow: stub class for import compatibility.
+# The actual browser window runs inside _WEBKIT2_SUBPROCESS_SCRIPT (below)
+# in a separate process to avoid GTK3/GTK4 namespace conflicts.
+# ---------------------------------------------------------------------------
+
+class _GoogleLoginWindow:
+    """Stub — real implementation lives in _WEBKIT2_SUBPROCESS_SCRIPT subprocess."""
+    def __init__(self, on_cookies_ready):
+        pass  # Not instantiated directly; see CookiesDialog._run_webkit_subprocess
+
+
+# ---------------------------------------------------------------------------
+# WebKit2 subprocess script (runs in its own Python/GTK3 process)
+# ---------------------------------------------------------------------------
+
+# This script is executed as a subprocess so that WebKit2 (which requires GTK3)
+# does not conflict with the parent app's GTK4 namespace. The script opens an
+# embedded browser window, waits for the user to sign in to Google, extracts
+# YouTube/Google cookies, writes them to {output_path} in Netscape format, then
+# exits with code 0. On cancellation or error it exits with code 1.
+
+_WEBKIT2_SUBPROCESS_SCRIPT = r"""
+import sys
+import os
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("WebKit2", "4.1")
+from gi.repository import Gtk, GLib, WebKit2
+
+OUTPUT_PATH = {output_path!r}
+_cookies_extracted = False
+
+
+def write_netscape_cookies(cookies, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines = ["# Netscape HTTP Cookie File", ""]
+    for c in cookies:
+        domain = c.get_domain() or ""
+        domain_dot = "TRUE" if domain.startswith(".") else "FALSE"
+        path_val = c.get_path() or "/"
+        secure = "TRUE" if c.get_secure() else "FALSE"
+        expires = c.get_expires()
+        if expires is not None:
+            if hasattr(expires, "to_unix"):
+                expiry = int(expires.to_unix())
+            elif hasattr(expires, "to_time_t"):
+                expiry = int(expires.to_time_t())
+            else:
+                expiry = 0
+        else:
+            expiry = 0
+        name = c.get_name() or ""
+        value = c.get_value() or ""
+        lines.append(f"{{domain}}\t{{domain_dot}}\t{{path_val}}\t{{secure}}\t{{expiry}}\t{{name}}\t{{value}}")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def on_got_cookies(mgr, res, user_data):
+    try:
+        cookies = mgr.get_all_cookies_finish(res)
+    except Exception as e:
+        print(f"get_all_cookies_finish failed: {{e}}", file=sys.stderr)
+        Gtk.main_quit()
+        sys.exit(1)
+    yt_cookies = [
+        c for c in (cookies or [])
+        if any(
+            d in (c.get_domain() or "")
+            for d in [".youtube.com", ".google.com", "youtube.com", "google.com"]
+        )
+    ]
+    if yt_cookies:
+        write_netscape_cookies(yt_cookies, OUTPUT_PATH)
+        Gtk.main_quit()
+        sys.exit(0)
+    else:
+        print("No YouTube/Google cookies found after login", file=sys.stderr)
+        Gtk.main_quit()
+        sys.exit(1)
+
+
+def on_load_changed(webview, event):
+    global _cookies_extracted
+    if event != WebKit2.LoadEvent.FINISHED:
+        return
+    uri = webview.get_uri() or ""
+    if ("youtube.com" in uri and "accounts.google" not in uri) or "myaccount.google.com" in uri:
+        if not _cookies_extracted:
+            _cookies_extracted = True
+            mgr = webview.get_website_data_manager().get_cookie_manager()
+            mgr.get_all_cookies(None, on_got_cookies, None)
+
+
+def on_delete_event(win, event):
+    if not _cookies_extracted:
+        Gtk.main_quit()
+        sys.exit(1)
+    return False
+
+
+win = Gtk.Window(title="Sign in with Google")
+win.set_default_size(800, 600)
+
+ctx = WebKit2.WebContext.get_default()
+webview = WebKit2.WebView.new_with_context(ctx)
+settings = webview.get_settings()
+settings.set_enable_javascript(True)
+webview.connect("load-changed", on_load_changed)
+win.add(webview)
+
+webview.load_uri(
+    "https://accounts.google.com/signin/v2/identifier"
+    "?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F"
+)
+
+win.connect("delete-event", on_delete_event)
+win.show_all()
+Gtk.main()
+sys.exit(1)
+"""
