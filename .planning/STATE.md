@@ -4,10 +4,10 @@ milestone: v1.5
 milestone_name: Further Polish
 status: planning
 stopped_at: Phase 22 UI-SPEC approved
-last_updated: "2026-04-07T01:59:11.381Z"
+last_updated: "2026-04-07T02:23:00.097Z"
 last_activity: 2026-04-07
 progress:
-  total_phases: 2
+  total_phases: 3
   completed_phases: 1
   total_plans: 3
   completed_plans: 3
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-05)
 
 ## Current Position
 
-Phase: 22 of 21 (Panel Layout Fix)
+Phase: 22 of 20 (Panel Layout Fix)
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-04-07
@@ -64,7 +64,10 @@ Recent decisions affecting current work:
 
 - Phase 22 added: Import YT cookies separately (avoid GNOME desktop cookie extraction issue)
 - Phase 23 added: Fix YouTube stream playback broken on CLI and app
-- Phase 24 added: Fix tag chip scroll overlap, filter button overflow, and broken Edit button
+- Phase 24 removed: combined UI fix phase — split into 24/25/26
+- Phase 24 added: Fix tag chip scroll overlapping buttons in edit dialog
+- Phase 25 added: Fix filter chip overflow in station filter section
+- Phase 26 added: Fix broken Edit button next to Add Station
 
 ### Blockers/Concerns
 
