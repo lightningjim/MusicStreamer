@@ -141,13 +141,18 @@ Plans:
 
 ### Phase 23: Fix YouTube stream playback broken on CLI and app
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** yt-dlp and mpv use temporary copies of cookies.txt so the original imported file is never overwritten; corrupted cookies trigger automatic retry without auth
+**Requirements**: FIX-02, FIX-03
 **Depends on:** Phase 22
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. Original cookies.txt is never modified by yt-dlp or mpv invocations
+  2. Temp cookie files are cleaned up after subprocess exits or is stopped
+  3. Copy failure falls back to no-cookies playback
+  4. mpv retries without cookies if it exits within 2 seconds
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 23 to break down)
+- [ ] 23-01-PLAN.md — TDD: temp cookie copies for yt-dlp and mpv invocations
 
 ### Phase 24: Fix tag chip scroll overlapping buttons in edit dialog
 

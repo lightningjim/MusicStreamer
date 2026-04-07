@@ -10,6 +10,8 @@ Requirements for this polish milestone. New items added as issues are discovered
 ### Bug Fixes
 
 - [ ] **FIX-01**: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
+- [ ] **FIX-02**: yt-dlp/mpv cookie invocations use a temporary copy of cookies.txt so the original imported file is never overwritten
+- [ ] **FIX-03**: If mpv exits immediately (~2s) with cookies, retry once without cookies to handle corrupted cookie files
 
 ### Cookie Management (Phase 22)
 
@@ -37,6 +39,8 @@ Requirements for this polish milestone. New items added as issues are discovered
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FIX-01 | Phase 21 | Pending |
+| FIX-02 | Phase 23 | Pending |
+| FIX-03 | Phase 23 | Pending |
 | COOKIE-01 | Phase 22 | Pending |
 | COOKIE-02 | Phase 22 | Pending |
 | COOKIE-03 | Phase 22 | Pending |
@@ -45,10 +49,10 @@ Requirements for this polish milestone. New items added as issues are discovered
 | COOKIE-06 | Phase 22 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 7 total
-- Mapped to phases: 7
+- v1.5 requirements: 9 total
+- Mapped to phases: 9
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-06 after Phase 22 planning*
+*Last updated: 2026-04-07 after Phase 23 planning*
