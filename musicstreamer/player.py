@@ -1,3 +1,4 @@
+import os
 import subprocess
 import gi
 gi.require_version("Gst", "1.0")
@@ -83,7 +84,10 @@ class Player:
         self._stop_yt_proc()
         self._pipeline.set_state(Gst.State.NULL)
         # mpv handles yt-dlp extraction, auth, and HLS internally
-        import os
+        env = os.environ.copy()
+        local_bin = os.path.expanduser("~/.local/bin")
+        if local_bin not in env.get("PATH", "").split(os.pathsep):
+            env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
         cmd = ["mpv", "--no-video", "--really-quiet", f"--volume={int(self._volume * 100)}"]
         if os.path.exists(COOKIES_PATH):
             cmd.append(f"--ytdl-raw-options=cookies={COOKIES_PATH}")
@@ -91,6 +95,7 @@ class Player:
         self._yt_proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=env,
         )
         on_title(fallback_name)
 
