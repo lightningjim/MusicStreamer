@@ -4,13 +4,13 @@ milestone: v1.5
 milestone_name: Further Polish
 status: planning
 stopped_at: Phase 23 context gathered
-last_updated: "2026-04-07T03:18:57.170Z"
+last_updated: "2026-04-07T22:53:51.018Z"
 last_activity: 2026-04-07
 progress:
   total_phases: 6
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
   percent: 100
 ---
 
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-04-05)
 
 ## Current Position
 
-Phase: 22 of 20 (Panel Layout Fix)
+Phase: 24 of 20 (fix tag chip scroll overlapping buttons in edit dialog)
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-04-07
@@ -34,7 +34,7 @@ Last activity: 2026-04-07
 
 **Velocity:**
 
-- Total plans completed: 37 (v1.0–v1.4)
+- Total plans completed: 38 (v1.0–v1.4)
 - Average duration: ~14 min
 - Total execution time: ~7 hours
 

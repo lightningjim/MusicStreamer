@@ -149,10 +149,10 @@ Plans:
   2. Temp cookie files are cleaned up after subprocess exits or is stopped
   3. Copy failure falls back to no-cookies playback
   4. mpv retries without cookies if it exits within 2 seconds
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 23-01-PLAN.md — TDD: temp cookie copies for yt-dlp and mpv invocations
+- [x] 23-01-PLAN.md — TDD: temp cookie copies for yt-dlp and mpv invocations
 
 ### Phase 24: Fix tag chip scroll overlapping buttons in edit dialog
 
