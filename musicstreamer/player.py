@@ -37,6 +37,13 @@ class Player:
         self._yt_cookie_tmp = None
         self._on_title = None
         self._volume = 1.0
+        # Clean up stale temp cookie files from previous crashed sessions
+        import glob
+        for stale in glob.glob(os.path.join(tempfile.gettempdir(), "ms_cookies_*.txt")):
+            try:
+                os.unlink(stale)
+            except OSError:
+                pass
 
     def set_volume(self, value: float):
         clamped = max(0.0, min(1.0, value))
@@ -85,8 +92,9 @@ class Player:
         self._yt_cookie_tmp = None
 
     def _stop_yt_proc(self):
-        if self._yt_proc and self._yt_proc.poll() is None:
-            self._yt_proc.terminate()
+        if self._yt_proc:
+            if self._yt_proc.poll() is None:
+                self._yt_proc.terminate()
             self._yt_proc = None
         self._cleanup_cookie_tmp()
 
