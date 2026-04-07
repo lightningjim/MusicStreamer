@@ -31,7 +31,10 @@ def scan_playlist(url: str) -> list[dict]:
     Each returned dict has keys: "title", "url", "provider".
     Raises ValueError for private/unavailable playlists, RuntimeError on other failures.
     """
-    cmd = ["yt-dlp", "--flat-playlist", "--dump-json", "--no-cookies-from-browser"]
+    local_bin = os.path.expanduser("~/.local/bin")
+    search_path = local_bin + os.pathsep + os.environ.get("PATH", "")
+    ytdlp = shutil.which("yt-dlp", path=search_path) or "yt-dlp"
+    cmd = [ytdlp, "--flat-playlist", "--dump-json", "--no-cookies-from-browser"]
     cookie_tmp = None
     if os.path.exists(COOKIES_PATH):
         try:

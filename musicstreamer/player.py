@@ -99,6 +99,9 @@ class Player:
         if local_bin not in env.get("PATH", "").split(os.pathsep):
             env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
         cmd = ["mpv", "--no-video", "--really-quiet", f"--volume={int(self._volume * 100)}"]
+        ytdl_path = shutil.which("yt-dlp", path=env.get("PATH"))
+        if ytdl_path:
+            cmd.append(f"--script-opts=ytdl_hook-ytdl_path={ytdl_path}")
         self._yt_cookie_tmp = None
         if os.path.exists(COOKIES_PATH):
             try:
@@ -109,7 +112,6 @@ class Player:
             except OSError:
                 self._yt_cookie_tmp = None
         cmd.append(url)
-        launch_time = time.monotonic()
         self._yt_proc = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
