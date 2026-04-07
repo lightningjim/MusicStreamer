@@ -18,7 +18,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Next:** If no new issues found by deadline, close out and move to v2.0 (OS-agnostic revamp).
 
-## Current State (v1.4 shipped — 2026-04-05)
+## Current State (v1.5 in progress — Phase 22 complete 2026-04-07)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
 - **LOC:** ~3,500 Python source | ~1,700 test LOC | **Tests:** 153 passing
@@ -32,6 +32,7 @@ Finding and playing a stream should take seconds — the right station should al
 - **Import:** ImportDialog (tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress feedback); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution, logo download)
 - **Playback:** GStreamer buffer tuned (10s/10MB); pause keeps station selected; MPRIS2 D-Bus service for OS media keys
 - **Personalization:** Custom accent color picker (8 presets + hex), CSS provider at PRIORITY_USER, persisted in SQLite
+- **YouTube Cookies:** Import cookies via file picker, paste, or Google login (WebKit2 subprocess); stored at ~/.local/share/musicstreamer/cookies.txt with 0o600 permissions; yt-dlp always gets --no-cookies-from-browser; both yt-dlp and mpv use --cookies when file exists
 
 ## Requirements
 
@@ -207,4 +208,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-05 after v1.5 milestone start*
+*Last updated: 2026-04-07 after Phase 22 (YouTube Cookies) complete*
