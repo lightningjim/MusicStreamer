@@ -64,6 +64,7 @@ Recent decisions affecting current work:
 
 - Phase 22 added: Import YT cookies separately (avoid GNOME desktop cookie extraction issue)
 - Phase 23 added: Fix YouTube stream playback broken on CLI and app
+- Phase 24 added: Fix tag chip scroll overlap, filter button overflow, and broken Edit button
 
 ### Blockers/Concerns
 
