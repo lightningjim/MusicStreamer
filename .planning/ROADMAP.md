@@ -138,3 +138,13 @@ Plans:
 | 20. Playback Controls & Media Keys | v1.4 | 2/2 | Complete | 2026-04-05 |
 | 21. Panel Layout Fix | v1.5 | 0/? | Not started | - |
 | 22. Import YT Cookies | v1.5 | 3/3 | Complete    | 2026-04-07 |
+
+### Phase 23: Fix YouTube stream playback broken on CLI and app
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 22
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 23 to break down)

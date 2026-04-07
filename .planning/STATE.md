@@ -63,6 +63,7 @@ Recent decisions affecting current work:
 ### Roadmap Evolution
 
 - Phase 22 added: Import YT cookies separately (avoid GNOME desktop cookie extraction issue)
+- Phase 23 added: Fix YouTube stream playback broken on CLI and app
 
 ### Blockers/Concerns
 
