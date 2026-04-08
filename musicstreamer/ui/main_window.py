@@ -208,26 +208,32 @@ class MainWindow(Adw.ApplicationWindow):
         chip_container.set_hexpand(True)
 
         # Provider chip row
-        self._provider_scroll = Gtk.ScrolledWindow()
-        self._provider_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-        self._provider_scroll.set_margin_top(4)
-        self._provider_scroll.set_margin_bottom(4)
-        self._provider_scroll.set_margin_start(8)
-        self._provider_scroll.set_margin_end(8)
-        self._provider_chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self._provider_scroll.set_child(self._provider_chip_box)
-        chip_container.append(self._provider_scroll)
+        self._provider_flow = Gtk.FlowBox()
+        self._provider_flow.set_orientation(Gtk.Orientation.HORIZONTAL)
+        self._provider_flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._provider_flow.set_column_spacing(8)
+        self._provider_flow.set_row_spacing(4)
+        self._provider_flow.set_homogeneous(False)
+        self._provider_flow.set_hexpand(False)
+        self._provider_flow.set_margin_top(4)
+        self._provider_flow.set_margin_bottom(4)
+        self._provider_flow.set_margin_start(8)
+        self._provider_flow.set_margin_end(8)
+        chip_container.append(self._provider_flow)
 
         # Tag chip row
-        self._tag_scroll = Gtk.ScrolledWindow()
-        self._tag_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-        self._tag_scroll.set_margin_top(4)
-        self._tag_scroll.set_margin_bottom(4)
-        self._tag_scroll.set_margin_start(8)
-        self._tag_scroll.set_margin_end(8)
-        self._tag_chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self._tag_scroll.set_child(self._tag_chip_box)
-        chip_container.append(self._tag_scroll)
+        self._tag_flow = Gtk.FlowBox()
+        self._tag_flow.set_orientation(Gtk.Orientation.HORIZONTAL)
+        self._tag_flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._tag_flow.set_column_spacing(8)
+        self._tag_flow.set_row_spacing(4)
+        self._tag_flow.set_homogeneous(False)
+        self._tag_flow.set_hexpand(False)
+        self._tag_flow.set_margin_top(4)
+        self._tag_flow.set_margin_bottom(4)
+        self._tag_flow.set_margin_start(8)
+        self._tag_flow.set_margin_end(8)
+        chip_container.append(self._tag_flow)
 
         self.clear_btn = Gtk.Button(label="Clear")
         self.clear_btn.set_visible(False)
@@ -382,10 +388,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         # --- Provider chips ---
         # Clear existing chips
-        child = self._provider_chip_box.get_first_child()
+        child = self._provider_flow.get_first_child()
         while child is not None:
             nxt = child.get_next_sibling()
-            self._provider_chip_box.remove(child)
+            self._provider_flow.remove(child)
             child = nxt
         self._provider_chip_btns = []
 
@@ -394,14 +400,14 @@ class MainWindow(Adw.ApplicationWindow):
             btn = self._make_chip(pname, self._make_provider_toggle_cb(pname))
             if pname in self._selected_providers:
                 btn.set_active(True)
-            self._provider_chip_box.append(btn)
+            self._provider_flow.append(btn)
             self._provider_chip_btns.append(btn)
 
         # --- Tag chips ---
-        child = self._tag_chip_box.get_first_child()
+        child = self._tag_flow.get_first_child()
         while child is not None:
             nxt = child.get_next_sibling()
-            self._tag_chip_box.remove(child)
+            self._tag_flow.remove(child)
             child = nxt
         self._tag_chip_btns = []
 
@@ -415,7 +421,7 @@ class MainWindow(Adw.ApplicationWindow):
             btn = self._make_chip(tag_display, self._make_tag_toggle_cb(tag_display))
             if tag_display in self._selected_tags:
                 btn.set_active(True)
-            self._tag_chip_box.append(btn)
+            self._tag_flow.append(btn)
             self._tag_chip_btns.append(btn)
 
         # Remove stale selections (provider/tag no longer exists)
