@@ -164,10 +164,10 @@ Plans:
   2. Tag chips do not overlap Save/Delete buttons or other form controls
   3. Toggling a tag chip still updates selected tags correctly
   4. Adding a new tag via the entry still works
-**Plans:** 1 plans
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 24-01-PLAN.md — Replace ScrolledWindow + horizontal Box with FlowBox for tag chips
+- [x] 24-01-PLAN.md — Replace ScrolledWindow + horizontal Box with FlowBox for tag chips
 
 ### Phase 25: Fix filter chip overflow in station filter section
 
