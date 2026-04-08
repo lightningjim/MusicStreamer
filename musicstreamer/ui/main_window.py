@@ -235,13 +235,22 @@ class MainWindow(Adw.ApplicationWindow):
         self._tag_flow.set_margin_end(8)
         chip_container.append(self._tag_flow)
 
+        # Wrap chip_container in a vertical ScrolledWindow with max height
+        # so chips wrap via FlowBox but scroll if they exceed ~80px
+        chip_scroll = Gtk.ScrolledWindow()
+        chip_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        chip_scroll.set_max_content_height(80)
+        chip_scroll.set_propagate_natural_height(True)
+        chip_scroll.set_hexpand(True)
+        chip_scroll.set_child(chip_container)
+
         self.clear_btn = Gtk.Button(label="Clear")
         self.clear_btn.set_visible(False)
         self.clear_btn.connect("clicked", self._on_clear)
 
         self.filter_box.append(add_btn)
         self.filter_box.append(edit_btn)
-        self.filter_box.append(chip_container)
+        self.filter_box.append(chip_scroll)
         self.filter_box.append(self.clear_btn)
         shell.add_top_bar(self.filter_box)
 

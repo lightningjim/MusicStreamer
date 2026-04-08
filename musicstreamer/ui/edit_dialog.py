@@ -237,7 +237,7 @@ class EditStationDialog(Adw.Window):
         self._chip_box.set_column_spacing(8)
         self._chip_box.set_row_spacing(4)
         self._chip_box.set_homogeneous(False)
-        self._chip_box.set_hexpand(False)
+        self._chip_box.set_hexpand(True)
         self._chip_box.set_margin_top(4)
         self._chip_box.set_margin_bottom(4)
         self._chip_box.set_margin_start(8)
@@ -255,8 +255,14 @@ class EditStationDialog(Adw.Window):
         self.new_tag_entry = Gtk.Entry()
         self.new_tag_entry.set_placeholder_text("New tag\u2026")
 
+        chip_scroll = Gtk.ScrolledWindow()
+        chip_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        chip_scroll.set_max_content_height(80)
+        chip_scroll.set_propagate_natural_height(True)
+        chip_scroll.set_child(self._chip_box)
+
         tags_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        tags_box.append(self._chip_box)
+        tags_box.append(chip_scroll)
         tags_box.append(self.new_tag_entry)
 
         # URL focus-out controller for auto-fetch
