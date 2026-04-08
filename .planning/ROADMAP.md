@@ -156,13 +156,18 @@ Plans:
 
 ### Phase 24: Fix tag chip scroll overlapping buttons in edit dialog
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Tag chips in the edit dialog wrap to multiple lines via FlowBox instead of overflowing horizontally, preventing overlap with adjacent form controls
+**Requirements**: FIX-04
 **Depends on:** Phase 23
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. Tag chips wrap to multiple lines when they exceed the dialog column width
+  2. Tag chips do not overlap Save/Delete buttons or other form controls
+  3. Toggling a tag chip still updates selected tags correctly
+  4. Adding a new tag via the entry still works
+**Plans:** 1 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 24 to break down)
+- [ ] 24-01-PLAN.md — Replace ScrolledWindow + horizontal Box with FlowBox for tag chips
 
 ### Phase 25: Fix filter chip overflow in station filter section
 
