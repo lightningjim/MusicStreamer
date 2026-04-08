@@ -18,7 +18,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Next:** If no new issues found by deadline, close out and move to v2.0 (OS-agnostic revamp).
 
-## Current State (v1.5 in progress — Phase 22 complete 2026-04-07)
+## Current State (v1.5 in progress — Phase 24 complete 2026-04-08)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
 - **LOC:** ~3,500 Python source | ~1,700 test LOC | **Tests:** 153 passing
@@ -26,7 +26,7 @@ Finding and playing a stream should take seconds — the right station should al
 - **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
 - **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Star+Pause+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
-- **Station management:** ComboRow provider picker, tag chip panel (inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch, AA logo auto-fetch
+- **Station management:** ComboRow provider picker, tag chip FlowBox (wrapping, inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch, AA logo auto-fetch
 - **Favorites:** Star ICY track titles, store in SQLite with station/provider/genre context, toggle Favorites/Stations view inline via Adw.ToggleGroup, remove with trash button
 - **Discovery:** DiscoveryDialog — search Radio-Browser.info by name, filter by tag/country, preview live, save to library; resolves PLS/M3U to direct stream URL
 - **Import:** ImportDialog (tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress feedback); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution, logo download)
@@ -208,4 +208,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-07 after Phase 22 (YouTube Cookies) complete*
+*Last updated: 2026-04-08 after Phase 24 (Fix tag chip scroll overlap) complete*
