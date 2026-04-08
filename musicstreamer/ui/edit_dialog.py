@@ -231,15 +231,17 @@ class EditStationDialog(Adw.Window):
         self._tag_chip_btns = []
         self._rebuilding = False
 
-        self._chip_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        chip_scroll = Gtk.ScrolledWindow()
-        chip_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-        chip_scroll.set_min_content_height(36)
-        chip_scroll.set_margin_top(4)
-        chip_scroll.set_margin_bottom(4)
-        chip_scroll.set_margin_start(8)
-        chip_scroll.set_margin_end(8)
-        chip_scroll.set_child(self._chip_box)
+        self._chip_box = Gtk.FlowBox()
+        self._chip_box.set_orientation(Gtk.Orientation.HORIZONTAL)
+        self._chip_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._chip_box.set_column_spacing(8)
+        self._chip_box.set_row_spacing(4)
+        self._chip_box.set_homogeneous(False)
+        self._chip_box.set_hexpand(False)
+        self._chip_box.set_margin_top(4)
+        self._chip_box.set_margin_bottom(4)
+        self._chip_box.set_margin_start(8)
+        self._chip_box.set_margin_end(8)
 
         self._rebuilding = True
         for tag in all_tags:
@@ -254,7 +256,7 @@ class EditStationDialog(Adw.Window):
         self.new_tag_entry.set_placeholder_text("New tag\u2026")
 
         tags_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        tags_box.append(chip_scroll)
+        tags_box.append(self._chip_box)
         tags_box.append(self.new_tag_entry)
 
         # URL focus-out controller for auto-fetch
