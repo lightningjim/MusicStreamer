@@ -171,13 +171,13 @@ Plans:
 
 ### Phase 25: Fix filter chip overflow in station filter section
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Provider and tag filter chips in the main window wrap via FlowBox instead of overflowing horizontally past adjacent buttons
+**Requirements**: FIX-05
 **Depends on:** Phase 24
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 25 to break down)
+- [ ] 25-01-PLAN.md — Replace ScrolledWindow chip containers with FlowBox in main window filter bar
 
 ### Phase 26: Fix broken Edit button next to Add Station
 
@@ -188,3 +188,23 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 26 to break down)
+
+### Phase 27: Add multiple streams per station for backup/round-robin and quality selection
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 26
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 27 to break down)
+
+### Phase 28: Stream failover logic with server round-robin and quality fallback
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 27
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 28 to break down)
