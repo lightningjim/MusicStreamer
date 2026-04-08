@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Further Polish
 status: executing
-stopped_at: Phase 25 context gathered
-last_updated: "2026-04-08T21:19:33.427Z"
+stopped_at: Phase 25 UI-SPEC approved
+last_updated: "2026-04-08T21:23:15.213Z"
 last_activity: 2026-04-08
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 3
   total_plans: 5
   completed_plans: 5
@@ -69,6 +69,7 @@ Recent decisions affecting current work:
 - Phase 25 added: Fix filter chip overflow in station filter section
 - Phase 26 added: Fix broken Edit button next to Add Station
 - Phase 27 added: Add multiple streams per station for backup/round-robin and quality selection
+- Phase 28 added: Stream failover logic with server round-robin and quality fallback (depends on 27)
 
 ### Blockers/Concerns
 
@@ -82,6 +83,6 @@ None — FIX-01 is a targeted layout constraint fix.
 
 ## Session Continuity
 
-Last session: 2026-04-08T21:19:33.425Z
-Stopped at: Phase 25 context gathered
-Resume file: .planning/phases/25-fix-filter-chip-overflow-in-station-filter-section/25-CONTEXT.md
+Last session: 2026-04-08T21:23:15.211Z
+Stopped at: Phase 25 UI-SPEC approved
+Resume file: .planning/phases/25-fix-filter-chip-overflow-in-station-filter-section/25-UI-SPEC.md
