@@ -71,6 +71,7 @@ Recent decisions affecting current work:
 - Phase 27 added: Add multiple streams per station for backup/round-robin and quality selection
 - Phase 28 added: Stream failover logic with server round-robin and quality fallback (depends on 27)
 - Phase 29 added: Move Discover, Import, and accent color into the hamburger menu
+- Phase 30 added: Add time counter showing how long current stream has been actively playing
 
 ### Blockers/Concerns
 
