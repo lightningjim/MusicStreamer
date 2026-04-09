@@ -748,17 +748,21 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _toggle_pause(self):
         if self._paused and self._paused_station:
-            # Resume: replay same station
+            # Resume: replay same station, preserving elapsed time
             self._paused = False
             self._paused_station = None
             self.pause_btn.set_icon_name("media-playback-pause-symbolic")
             self.pause_btn.set_tooltip_text("Pause")
+            saved_elapsed = self._elapsed_seconds  # preserve timer across resume
             self._play_station(self._current_station)
+            self._elapsed_seconds = saved_elapsed  # restore after _play_station reset
+            self._update_timer_label()
         elif self._current_station and not self._paused:
             # Pause: stop audio, keep UI
             self._paused = True
             self._paused_station = self._current_station
             self.player.pause()
+            self._pause_timer()
             self.pause_btn.set_icon_name("media-playback-start-symbolic")
             self.pause_btn.set_tooltip_text("Resume")
 
@@ -777,6 +781,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _stop(self):
         self.player.stop()
+        self._stop_timer()
         self.title_label.set_text("Nothing playing")
         self.title_label.remove_css_class("title-3")
         self.title_label.add_css_class("dim-label")
@@ -958,6 +963,7 @@ class MainWindow(Adw.ApplicationWindow):
                          preferred_quality=preferred_quality,
                          on_failover=self._on_player_failover)
         self._update_stream_picker(st)
+        self._start_timer()
 
     # ------------------------------------------------------------------ #
     # Toast notifications and stream picker
