@@ -244,17 +244,20 @@ class Player:
         if on_title:
             on_title(fallback_name)
         # D-05: retry without cookies if mpv exits immediately (corrupted cookies)
-        time.sleep(2)
-        if self._yt_cookie_tmp and self._yt_proc.poll() is not None:
-            import sys
-            print("mpv exited immediately with cookies, retrying without", file=sys.stderr)
-            self._cleanup_cookie_tmp()
-            cmd_no_cookies = [a for a in cmd if not a.startswith("--ytdl-raw-options=cookies=")]
-            self._yt_proc = subprocess.Popen(
-                cmd_no_cookies,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                env=env,
-            )
+        # Use a one-shot timer to avoid blocking the GLib main thread.
+        def _check_cookie_retry():
+            if self._yt_cookie_tmp and self._yt_proc and self._yt_proc.poll() is not None:
+                import sys
+                print("mpv exited immediately with cookies, retrying without", file=sys.stderr)
+                self._cleanup_cookie_tmp()
+                cmd_no_cookies = [a for a in cmd if not a.startswith("--ytdl-raw-options=cookies=")]
+                self._yt_proc = subprocess.Popen(
+                    cmd_no_cookies,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    env=env,
+                )
+            return False  # one-shot
+        GLib.timeout_add(2000, _check_cookie_retry)
         # Arm YouTube poll timer to detect process failure (BUFFER_DURATION_S timeout)
         # Poll every 1000ms; GLib.timeout_add with return True repeats
         self._yt_poll_timer_id = GLib.timeout_add(1000, self._yt_poll_cb)
@@ -278,9 +281,10 @@ class Player:
                 capture_output=True, text=True, env=env,
             )
             resolved = result.stdout.strip()
+            output = result.stdout + result.stderr
             if result.returncode == 0 and resolved.startswith("http"):
                 GLib.idle_add(self._on_twitch_resolved, resolved)
-            elif "No playable streams found" in result.stdout:
+            elif "No playable streams found" in output:
                 GLib.idle_add(self._on_twitch_offline, url)
             else:
                 GLib.idle_add(self._on_twitch_error)
