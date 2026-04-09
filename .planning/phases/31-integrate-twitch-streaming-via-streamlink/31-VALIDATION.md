@@ -38,12 +38,12 @@ created: 2026-04-09
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 31-01-01 | 01 | 0 | — | — | N/A | unit | `pytest tests/test_twitch.py -x -q` | ❌ W0 | ⬜ pending |
-| 31-01-02 | 01 | 1 | — | T-31-01 | URL detection branch prevents non-Twitch URLs reaching streamlink | unit | `pytest tests/test_twitch.py::test_twitch_url_detection -x -q` | ❌ W0 | ⬜ pending |
-| 31-01-03 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch.py::test_play_twitch_live -x -q` | ❌ W0 | ⬜ pending |
-| 31-01-04 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch.py::test_play_twitch_offline -x -q` | ❌ W0 | ⬜ pending |
-| 31-01-05 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch.py::test_re_resolve_on_error -x -q` | ❌ W0 | ⬜ pending |
-| 31-01-06 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch.py::test_path_includes_local_bin -x -q` | ❌ W0 | ⬜ pending |
+| 31-01-01 | 01 | 0 | — | — | N/A | unit | `pytest tests/test_twitch_playback.py -x -q` | ❌ W0 | ⬜ pending |
+| 31-01-02 | 01 | 1 | — | T-31-01 | URL detection branch prevents non-Twitch URLs reaching streamlink | unit | `pytest tests/test_twitch_playback.py::test_twitch_url_detection -x -q` | ❌ W0 | ⬜ pending |
+| 31-01-03 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch_playback.py::test_play_twitch_live -x -q` | ❌ W0 | ⬜ pending |
+| 31-01-04 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch_playback.py::test_play_twitch_offline -x -q` | ❌ W0 | ⬜ pending |
+| 31-01-05 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch_playback.py::test_re_resolve_on_error -x -q` | ❌ W0 | ⬜ pending |
+| 31-01-06 | 01 | 1 | — | — | N/A | unit | `pytest tests/test_twitch_playback.py::test_path_includes_local_bin -x -q` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,7 +51,7 @@ created: 2026-04-09
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_twitch.py` — stubs for all Twitch behaviors (URL detection, live resolution, offline handling, re-resolve, PATH setup)
+- [ ] `tests/test_twitch_playback.py` — stubs for all Twitch behaviors (URL detection, live resolution, offline handling, re-resolve, PATH setup)
 
 *Existing test infrastructure (pytest, conftest) covers all other phase requirements.*
 

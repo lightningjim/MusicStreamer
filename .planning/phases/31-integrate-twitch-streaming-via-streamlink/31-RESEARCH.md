@@ -298,17 +298,17 @@ toast_msg = f"{channel} is offline"
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Re-resolve retry limit**
    - What we know: D-02 says re-resolve on GStreamer error; no limit specified.
    - What's unclear: Should re-resolve retry be bounded (e.g., max 3 attempts) to avoid infinite loop on persistent errors?
-   - Recommendation: On first GStreamer error, re-resolve once. On second consecutive error for same URL, call `_try_next_stream()` to advance queue. Simplest implementation: track `_twitch_resolve_attempts` counter, reset on station change.
+   - RESOLVED: On first GStreamer error, re-resolve once. On second consecutive error for same URL, call `_try_next_stream()` to advance queue. Track `_twitch_resolve_attempts` counter, reset on station change.
 
 2. **Elapsed timer on offline state**
    - What we know: D-05 says "station stays selected (like pause)" — timer should pause, not stop.
    - What's unclear: CONTEXT.md says "like pause" but offline is not user-initiated.
-   - Recommendation: Call `_pause_timer()` (not `_stop_timer()`) so elapsed time is preserved if user manually retries or channel comes back online.
+   - RESOLVED: Call `_pause_timer()` (not `_stop_timer()`) so elapsed time is preserved if user manually retries or channel comes back online.
 
 ---
 
