@@ -73,6 +73,7 @@ Recent decisions affecting current work:
 - Phase 29 added: Move Discover, Import, and accent color into the hamburger menu
 - Phase 30 added: Add time counter showing how long current stream has been actively playing
 - Phase 31 added: Ability to select specific stream to play on now playing (dropdown)
+- Phase 31 added: Integrate Twitch streaming via streamlink
 
 ### Blockers/Concerns
 
