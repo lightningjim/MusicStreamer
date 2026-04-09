@@ -129,6 +129,22 @@ class MainWindow(Adw.ApplicationWindow):
         self.station_name_label.set_visible(False)
         center.append(self.station_name_label)
 
+        # Elapsed time counter row (TIMER-01, per D-01, D-02)
+        self.timer_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        self.timer_row.set_visible(False)
+
+        timer_icon = Gtk.Image.new_from_icon_name("timer-symbolic")
+        timer_icon.add_css_class("dim-label")
+        timer_icon.set_pixel_size(16)
+        self.timer_row.append(timer_icon)
+
+        self.timer_label = Gtk.Label(label="0:00")
+        self.timer_label.add_css_class("dim-label")
+        self.timer_label.set_xalign(0)
+        self.timer_row.append(self.timer_label)
+
+        center.append(self.timer_row)
+
         controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         controls_box.set_halign(Gtk.Align.END)
 
@@ -317,6 +333,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._current_station = None
         self._paused = False
         self._paused_station = None
+        self._elapsed_seconds: int = 0
+        self._timer_source_id: int | None = None
         self._selected_providers: set[str] = set()
         self._selected_tags: set[str] = set()
         self._provider_chip_btns: list[Gtk.ToggleButton] = []
@@ -788,6 +806,48 @@ class MainWindow(Adw.ApplicationWindow):
         val = int(slider.get_value())
         self.player.set_volume(val / 100.0)
         self.repo.set_setting("volume", str(val))
+
+    # ------------------------------------------------------------------ #
+    # Elapsed time counter (TIMER-01 through TIMER-06)
+    # ------------------------------------------------------------------ #
+
+    def _format_elapsed(self, seconds: int) -> str:
+        h, rem = divmod(seconds, 3600)
+        m, s = divmod(rem, 60)
+        if h:
+            return f"{h}:{m:02d}:{s:02d}"
+        return f"{m}:{s:02d}"
+
+    def _update_timer_label(self):
+        self.timer_label.set_text(self._format_elapsed(self._elapsed_seconds))
+
+    def _on_timer_tick(self) -> bool:
+        self._elapsed_seconds += 1
+        self._update_timer_label()
+        return True  # keep ticking; removal via _stop_timer
+
+    def _start_timer(self):
+        self._stop_timer()  # prevent double source (RESEARCH pitfall 1)
+        self._elapsed_seconds = 0
+        self._update_timer_label()
+        self.timer_row.set_visible(True)
+        self._timer_source_id = GLib.timeout_add_seconds(1, self._on_timer_tick)
+
+    def _pause_timer(self):
+        if self._timer_source_id is not None:
+            GLib.source_remove(self._timer_source_id)
+            self._timer_source_id = None
+
+    def _resume_timer(self):
+        if self._timer_source_id is None and self.timer_row.get_visible():
+            self._timer_source_id = GLib.timeout_add_seconds(1, self._on_timer_tick)
+
+    def _stop_timer(self):
+        if self._timer_source_id is not None:
+            GLib.source_remove(self._timer_source_id)
+            self._timer_source_id = None
+        self._elapsed_seconds = 0
+        self.timer_row.set_visible(False)
 
     def _play_row(self, _listbox, row):
         station_id = row.station_id
