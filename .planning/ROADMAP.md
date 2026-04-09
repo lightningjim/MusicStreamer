@@ -184,10 +184,10 @@ Plans:
 **Goal:** Remove broken standalone Edit button from filter bar; add pencil edit icon to now-playing controls_box that opens the editor for the currently playing station
 **Requirements**: FIX-06
 **Depends on:** Phase 25
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 26-01-PLAN.md — Remove filter bar Edit button, add now-playing edit button
+- [x] 26-01-PLAN.md — Remove filter bar Edit button, add now-playing edit button
 
 ### Phase 27: Add multiple streams per station for backup/round-robin and quality selection
 
@@ -208,3 +208,13 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 28 to break down)
+
+### Phase 29: Move Discover, Import, and accent color into the hamburger menu
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 28
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 29 to break down)

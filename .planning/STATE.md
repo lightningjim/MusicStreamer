@@ -70,6 +70,7 @@ Recent decisions affecting current work:
 - Phase 26 added: Fix broken Edit button next to Add Station
 - Phase 27 added: Add multiple streams per station for backup/round-robin and quality selection
 - Phase 28 added: Stream failover logic with server round-robin and quality fallback (depends on 27)
+- Phase 29 added: Move Discover, Import, and accent color into the hamburger menu
 
 ### Blockers/Concerns
 
