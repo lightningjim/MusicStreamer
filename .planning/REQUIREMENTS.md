@@ -42,6 +42,14 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **STR-13**: Attach-to-existing auto-detects matching station by name with manual override
 - [ ] **STR-14**: YouTube import works with new stream-based model (single stream per station)
 
+### Hamburger Menu Consolidation (Phase 29)
+
+- [ ] **MENU-01**: Hamburger menu has two sections: station actions (Discover Stations, Import Stations) and settings (Accent Color, YouTube Cookies), separated by a visual divider
+- [ ] **MENU-02**: Menu items are text-only with no icons, using ellipsis labels ("Discover Stations...", "Import Stations...", "Accent Color...", "YouTube Cookies...")
+- [ ] **MENU-03**: Discover, Import, and Accent Color header bar buttons are removed; header bar contains only search entry and hamburger MenuButton
+- [ ] **MENU-04**: Each menu item is a Gio.SimpleAction on the app, wired to existing handler methods
+- [ ] **MENU-05**: All four menu items open their respective dialogs (discovery, import, accent color, cookies)
+
 ## Future Requirements
 
 ### v2.0 — OS-Agnostic Revamp
@@ -84,12 +92,17 @@ Requirements for this polish milestone. New items added as issues are discovered
 | STR-12 | Phase 27 | Pending |
 | STR-13 | Phase 27 | Pending |
 | STR-14 | Phase 27 | Pending |
+| MENU-01 | Phase 29 | Pending |
+| MENU-02 | Phase 29 | Pending |
+| MENU-03 | Phase 29 | Pending |
+| MENU-04 | Phase 29 | Pending |
+| MENU-05 | Phase 29 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 26 total
-- Mapped to phases: 26
+- v1.5 requirements: 31 total
+- Mapped to phases: 31
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-09 after Phase 27 planning*
+*Last updated: 2026-04-09 after Phase 29 planning*

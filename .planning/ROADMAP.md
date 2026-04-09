@@ -228,13 +228,13 @@ Plans:
 
 ### Phase 29: Move Discover, Import, and accent color into the hamburger menu
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Move Discover, Import, and Accent Color buttons from header bar into the hamburger Gio.Menu with two sections (station actions + settings); header bar becomes search entry + hamburger only
+**Requirements**: MENU-01, MENU-02, MENU-03, MENU-04, MENU-05
 **Depends on:** Phase 28
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 29 to break down)
+- [ ] 29-01-PLAN.md — Restructure hamburger menu with sections and remove header bar buttons
 
 ### Phase 30: Add time counter showing how long current stream has been actively playing
 
