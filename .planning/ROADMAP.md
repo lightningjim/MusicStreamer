@@ -265,8 +265,8 @@ Plans:
   4. GStreamer error on Twitch stream re-resolves once before normal failover
   5. Elapsed timer pauses on offline (does not reset)
   6. Existing HTTP and YouTube playback unaffected
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 31-01-PLAN.md — TDD: Twitch URL detection, streamlink resolution, offline/error handling in player.py
-- [ ] 31-02-PLAN.md — Wire on_offline callback in main_window.py + toast + timer pause + human verify
+- [x] 31-01-PLAN.md — TDD: Twitch URL detection, streamlink resolution, offline/error handling in player.py
+- [x] 31-02-PLAN.md — Wire on_offline callback in main_window.py + toast + timer pause + human verify
