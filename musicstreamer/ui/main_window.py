@@ -796,7 +796,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.title_label.add_css_class("title-3")
 
         # Detect YouTube stations — use CONTAIN display for 16:9 thumbnails
-        is_youtube = "youtube.com" in st.url or "youtu.be" in st.url
+        _st_url = st.streams[0].url if st.streams else ""
+        is_youtube = "youtube.com" in _st_url or "youtu.be" in _st_url
 
         # Load station logo
         if is_youtube and st.station_art_path:

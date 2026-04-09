@@ -198,7 +198,8 @@ class EditStationDialog(Adw.Window):
 
         # Fields
         self.name_entry = Gtk.Entry(text=self.station.name)
-        self.url_entry = Gtk.Entry(text=self.station.url)
+        _current_url = self.station.streams[0].url if self.station.streams else ""
+        self.url_entry = Gtk.Entry(text=_current_url)
 
         # Provider picker: ComboRow of existing providers + entry for new ones
         providers = repo.list_providers()
@@ -595,13 +596,26 @@ class EditStationDialog(Adw.Window):
         self.repo.update_station(
             station_id=self.station_id,
             name=name,
-            url=url,
             provider_id=provider_id,
             tags=tags,
             station_art_path=self.station_art_rel,
             album_fallback_path=self.album_art_rel,
             icy_disabled=self.icy_switch.get_active(),
         )
+        # Update the primary stream URL (position=1), or create it if none exists
+        if url:
+            existing = self.repo.list_streams(self.station_id)
+            if existing:
+                self.repo.update_stream(existing[0].id, url, existing[0].label,
+                                        existing[0].quality, existing[0].position,
+                                        existing[0].stream_type, existing[0].codec)
+            else:
+                self.repo.insert_stream(self.station_id, url)
+        else:
+            # url cleared — remove position=1 stream if it exists
+            existing = self.repo.list_streams(self.station_id)
+            if existing and existing[0].position == 1:
+                self.repo.delete_stream(existing[0].id)
 
         if self.on_saved:
             self.on_saved()
