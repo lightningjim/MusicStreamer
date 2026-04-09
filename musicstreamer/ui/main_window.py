@@ -993,6 +993,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_twitch_offline(self, channel: str):
         """Called by Player via GLib.idle_add when a Twitch channel is offline."""
         self._show_toast(f"{channel} is offline", timeout=5)
+        self.player.stop()   # clear pipeline + callbacks
         self._pause_timer()
         return False  # GLib.idle_add: don't repeat
 
