@@ -967,7 +967,8 @@ class MainWindow(Adw.ApplicationWindow):
         preferred_quality = self.repo.get_setting(QUALITY_SETTING_KEY, "")
         self.player.play(st, on_title=_on_title,
                          preferred_quality=preferred_quality,
-                         on_failover=self._on_player_failover)
+                         on_failover=self._on_player_failover,
+                         on_offline=self._on_twitch_offline)
         self._update_stream_picker(st)
         self._start_timer()
 
@@ -987,6 +988,12 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             label = stream.label or stream.url[:40]
             self._show_toast(f"Stream failed \u2014 trying {label}\u2026", timeout=3)
+        return False  # GLib.idle_add: don't repeat
+
+    def _on_twitch_offline(self, channel: str):
+        """Called by Player via GLib.idle_add when a Twitch channel is offline."""
+        self._show_toast(f"{channel} is offline", timeout=5)
+        self._pause_timer()
         return False  # GLib.idle_add: don't repeat
 
     def _update_stream_picker(self, station):
@@ -1037,6 +1044,7 @@ class MainWindow(Adw.ApplicationWindow):
             stream,
             on_title=_on_title,
             on_failover=self._on_player_failover,
+            on_offline=self._on_twitch_offline,
         )
         # Update picker to show new selection
         if self._current_station:
