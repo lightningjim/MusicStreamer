@@ -337,7 +337,7 @@ shell.set_content(self.toast_overlay)
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Where to arm timeout for YouTube streams given the blocking sleep(2)**
    - What we know: `_play_youtube` blocks for 2s on the main thread. After that it returns. The GLib timer would be armed after return.
