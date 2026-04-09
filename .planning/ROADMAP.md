@@ -210,13 +210,21 @@ Plans:
 
 ### Phase 28: Stream failover logic with server round-robin and quality fallback
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Player automatically tries next stream on error or timeout, using preferred quality first then position order; toast notifications for failover events; manual stream picker in now-playing controls
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08
 **Depends on:** Phase 27
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. GStreamer error or 10s timeout triggers failover to next stream
+  2. Preferred quality stream is tried first; remaining in position order
+  3. Each stream tried exactly once; all-exhausted stops playback with error toast
+  4. Toast notifications on each failover attempt and on exhaustion
+  5. Stream picker button in now-playing controls shows all streams for manual switching
+  6. Manual stream selection plays immediately without affecting configured order
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 28 to break down)
+- [ ] 28-01-PLAN.md — TDD: failover logic in Player (stream queue, timeout, error handling)
+- [ ] 28-02-PLAN.md — ToastOverlay + stream picker MenuButton + failover callback wiring
 
 ### Phase 29: Move Discover, Import, and accent color into the hamburger menu
 
