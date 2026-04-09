@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-09T03:41:10.865Z",
+  "phase": "27",
+  "phase_name": "add-multiple-streams-per-station-for-backup-round-robin-and-",
+  "phase_dir": ".planning/phases/27-add-multiple-streams-per-station-for-backup-round-robin-and-",
+  "plan": 2,
+  "task": 0,
+  "total_tasks": 6,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "27-01 Task 1: StationStream schema + migration + CRUD", "status": "done", "commit": "afd643f"},
+    {"id": 2, "name": "27-01 Task 2: Player + UI URL resolution updates", "status": "done", "commit": "e8197f0"}
+  ],
+  "remaining_tasks": [
+    {"id": 3, "name": "27-02 Task 1: ManageStreamsDialog + quality constants + edit_dialog", "status": "not_started"},
+    {"id": 4, "name": "27-02 Task 2: Human verify streams sub-dialog", "status": "not_started"},
+    {"id": 5, "name": "27-03 Task 1: AA multi-quality import + TDD", "status": "not_started"},
+    {"id": 6, "name": "27-03 Task 2: RB attach-to-existing + YT compat", "status": "not_started"}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Up/down buttons for stream reorder (Claude discretion D-04)", "rationale": "GTK4 DnD is ~60 lines vs ~10 for position swaps", "phase": "27"}
+  ],
+  "uncommitted_files": [".planning/ROADMAP.md", ".planning/config.json"],
+  "next_action": "Spawn wave 2 executor agents for plans 27-02 and 27-03 in parallel (worktree isolation). 27-02 is autonomous:false (has checkpoint for human UI verify). 27-03 is autonomous:true.",
+  "context_notes": "Running via --chain mode (discuss -> plan -> execute). Wave 1 complete (27-01 merged). Wave 2 has two plans with no file overlap — safe for parallel worktree execution. ROADMAP.md has been updated for 27-01 completion but not committed (orchestrator-owned). Auto-chain flag is active in config."
+}
