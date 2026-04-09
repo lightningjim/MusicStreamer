@@ -201,12 +201,12 @@ Plans:
   4. Station editor has "Manage Streams..." button opening sub-dialog for stream CRUD with reordering
   5. AudioAddict import creates hi/med/low streams per channel
   6. Radio-Browser discovery offers "new station" or "attach to existing station"
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 27-01-PLAN.md — TDD: schema, migration, StationStream model, stream CRUD, player URL resolution
-- [ ] 27-02-PLAN.md — ManageStreamsDialog UI + quality constants + edit_dialog update
-- [ ] 27-03-PLAN.md — AudioAddict multi-quality import + Radio-Browser attach-to-existing
+- [x] 27-01-PLAN.md — TDD: schema, migration, StationStream model, stream CRUD, player URL resolution
+- [x] 27-02-PLAN.md — ManageStreamsDialog UI + quality constants + edit_dialog update
+- [x] 27-03-PLAN.md — AudioAddict multi-quality import + Radio-Browser attach-to-existing
 
 ### Phase 28: Stream failover logic with server round-robin and quality fallback
 
@@ -237,3 +237,13 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 30 to break down)
+
+### Phase 31: Ability to select specific stream to play on now playing (dropdown)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 30
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 31 to break down)

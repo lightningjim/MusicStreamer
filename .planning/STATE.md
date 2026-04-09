@@ -4,14 +4,14 @@ milestone: v1.5
 milestone_name: Further Polish
 status: executing
 stopped_at: Phase 27 context gathered
-last_updated: "2026-04-09T03:31:18.389Z"
-last_activity: 2026-04-09 -- Phase 27 planning complete
+last_updated: "2026-04-09T12:09:47.668Z"
+last_activity: 2026-04-09
 progress:
-  total_phases: 10
-  completed_phases: 5
+  total_phases: 11
+  completed_phases: 6
   total_plans: 10
-  completed_plans: 7
-  percent: 70
+  completed_plans: 10
+  percent: 100
 ---
 
 # Project State
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-04-05)
 
 ## Current Position
 
-Phase: 27
+Phase: 28
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-04-09 -- Phase 27 planning complete
+Last activity: 2026-04-09
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 41 (v1.0–v1.4)
+- Total plans completed: 44 (v1.0–v1.4)
 - Average duration: ~14 min
 - Total execution time: ~7 hours
 
@@ -72,6 +72,7 @@ Recent decisions affecting current work:
 - Phase 28 added: Stream failover logic with server round-robin and quality fallback (depends on 27)
 - Phase 29 added: Move Discover, Import, and accent color into the hamburger menu
 - Phase 30 added: Add time counter showing how long current stream has been actively playing
+- Phase 31 added: Ability to select specific stream to play on now playing (dropdown)
 
 ### Blockers/Concerns
 
