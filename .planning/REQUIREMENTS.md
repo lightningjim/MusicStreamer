@@ -50,6 +50,15 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **MENU-04**: Each menu item is a Gio.SimpleAction on the app, wired to existing handler methods
 - [ ] **MENU-05**: All four menu items open their respective dialogs (discovery, import, accent color, cookies)
 
+### Elapsed Time Counter (Phase 30)
+
+- [ ] **TIMER-01**: Timer row (icon + label) displayed between station_name_label and controls_box in now-playing center column
+- [ ] **TIMER-02**: Timer uses GLib.timeout_add_seconds(1, callback) to tick every second; source ID tracked for cleanup
+- [ ] **TIMER-03**: Timer pauses when stream paused, resumes on unpause with accumulated seconds preserved
+- [ ] **TIMER-04**: Timer resets to 0:00 on station change; stream failover does NOT reset
+- [ ] **TIMER-05**: Timer hidden when nothing playing; shows 0:00 immediately on play start
+- [ ] **TIMER-06**: Adaptive format: M:SS for <1h, H:MM:SS for >=1h; dim-label CSS class on icon and label
+
 ## Future Requirements
 
 ### v2.0 — OS-Agnostic Revamp
@@ -97,12 +106,18 @@ Requirements for this polish milestone. New items added as issues are discovered
 | MENU-03 | Phase 29 | Pending |
 | MENU-04 | Phase 29 | Pending |
 | MENU-05 | Phase 29 | Pending |
+| TIMER-01 | Phase 30 | Pending |
+| TIMER-02 | Phase 30 | Pending |
+| TIMER-03 | Phase 30 | Pending |
+| TIMER-04 | Phase 30 | Pending |
+| TIMER-05 | Phase 30 | Pending |
+| TIMER-06 | Phase 30 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 31 total
-- Mapped to phases: 31
+- v1.5 requirements: 37 total
+- Mapped to phases: 37
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-09 after Phase 29 planning*
+*Last updated: 2026-04-09 after Phase 30 planning*

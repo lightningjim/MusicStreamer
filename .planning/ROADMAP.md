@@ -238,13 +238,20 @@ Plans:
 
 ### Phase 30: Add time counter showing how long current stream has been actively playing
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Display an elapsed time counter in the now-playing panel (icon + label) that ticks every second, pauses/resumes with the stream, resets on station change, and hides when stopped
+**Requirements**: TIMER-01, TIMER-02, TIMER-03, TIMER-04, TIMER-05, TIMER-06
 **Depends on:** Phase 29
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. Timer row visible between station name and controls when a stream is playing
+  2. Timer ticks up in 1-second intervals while playing
+  3. Timer pauses when stream paused, resumes with correct accumulated time
+  4. Timer resets to 0:00 on station change; failover does not reset
+  5. Timer hidden when nothing is playing
+  6. Format: M:SS under 1 hour, H:MM:SS at 1 hour+
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 30 to break down)
+- [ ] 30-01-PLAN.md — Timer widget + GLib tick callback + play/pause/stop lifecycle wiring
 
 ### Phase 31: Integrate Twitch streaming via streamlink
 
