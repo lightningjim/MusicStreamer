@@ -191,13 +191,22 @@ Plans:
 
 ### Phase 27: Add multiple streams per station for backup/round-robin and quality selection
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Normalize station data model from single URL to multiple streams per station with quality tiers; provide Manage Streams UI in editor; update AudioAddict import for multi-quality and Radio-Browser for attach-to-existing
+**Requirements**: STR-01, STR-02, STR-03, STR-04, STR-05, STR-06, STR-07, STR-08, STR-09, STR-10, STR-11, STR-12, STR-13, STR-14
 **Depends on:** Phase 26
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. station_streams table exists with all D-01 columns; existing station URLs migrated at position=1
+  2. stations.url column removed; Station dataclass uses streams list
+  3. Player resolves URL from station.streams[0]; preferred quality setting respected
+  4. Station editor has "Manage Streams..." button opening sub-dialog for stream CRUD with reordering
+  5. AudioAddict import creates hi/med/low streams per channel
+  6. Radio-Browser discovery offers "new station" or "attach to existing station"
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 27 to break down)
+- [ ] 27-01-PLAN.md — TDD: schema, migration, StationStream model, stream CRUD, player URL resolution
+- [ ] 27-02-PLAN.md — ManageStreamsDialog UI + quality constants + edit_dialog update
+- [ ] 27-03-PLAN.md — AudioAddict multi-quality import + Radio-Browser attach-to-existing
 
 ### Phase 28: Stream failover logic with server round-robin and quality fallback
 

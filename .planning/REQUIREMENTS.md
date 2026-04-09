@@ -25,6 +25,23 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **COOKIE-05**: Hamburger menu in header bar with "YouTube Cookies..." item opens the cookie dialog
 - [ ] **COOKIE-06**: Google login flow via embedded WebKit2 browser captures YouTube cookies and saves as cookies.txt
 
+### Multi-Stream Support (Phase 27)
+
+- [ ] **STR-01**: `station_streams` table created by `db_init()` with columns: id, station_id, url, label, quality, position, stream_type, codec
+- [ ] **STR-02**: Existing `stations.url` data migrated into `station_streams` at position=1 during db_init
+- [ ] **STR-03**: `stations.url` column removed after migration (table recreation)
+- [ ] **STR-04**: `station_exists_by_url()` queries `station_streams` table instead of `stations`
+- [ ] **STR-05**: `insert_station()` creates a `station_streams` row when url is non-empty
+- [ ] **STR-06**: AudioAddict import creates hi/med/low quality streams per channel
+- [ ] **STR-07**: `get_preferred_stream_url()` returns position=1 stream when no quality preference set
+- [ ] **STR-08**: `get_preferred_stream_url()` returns quality-matched stream when preference set
+- [ ] **STR-09**: "Manage Streams..." button in station editor opens sub-dialog for stream CRUD
+- [ ] **STR-10**: ManageStreamsDialog supports add/edit/delete/reorder with Up/Down buttons
+- [ ] **STR-11**: Quality dropdown in stream editor offers hi/med/low/custom presets
+- [ ] **STR-12**: Radio-Browser discovery offers "Add as new station" or "Add stream to existing station"
+- [ ] **STR-13**: Attach-to-existing auto-detects matching station by name with manual override
+- [ ] **STR-14**: YouTube import works with new stream-based model (single stream per station)
+
 ## Future Requirements
 
 ### v2.0 — OS-Agnostic Revamp
@@ -53,12 +70,26 @@ Requirements for this polish milestone. New items added as issues are discovered
 | COOKIE-04 | Phase 22 | Pending |
 | COOKIE-05 | Phase 22 | Pending |
 | COOKIE-06 | Phase 22 | Pending |
+| STR-01 | Phase 27 | Pending |
+| STR-02 | Phase 27 | Pending |
+| STR-03 | Phase 27 | Pending |
+| STR-04 | Phase 27 | Pending |
+| STR-05 | Phase 27 | Pending |
+| STR-06 | Phase 27 | Pending |
+| STR-07 | Phase 27 | Pending |
+| STR-08 | Phase 27 | Pending |
+| STR-09 | Phase 27 | Pending |
+| STR-10 | Phase 27 | Pending |
+| STR-11 | Phase 27 | Pending |
+| STR-12 | Phase 27 | Pending |
+| STR-13 | Phase 27 | Pending |
+| STR-14 | Phase 27 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 12 total
-- Mapped to phases: 12
+- v1.5 requirements: 26 total
+- Mapped to phases: 26
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-08 after Phase 25 planning*
+*Last updated: 2026-04-09 after Phase 27 planning*
