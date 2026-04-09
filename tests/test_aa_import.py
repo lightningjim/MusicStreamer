@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 
 from musicstreamer.aa_import import _resolve_pls, fetch_channels, import_stations
+from musicstreamer.aa_import import fetch_channels_multi, import_stations_multi
 
 
 # ---------------------------------------------------------------------------
@@ -319,3 +320,140 @@ def test_import_stations_logo_failure_silent():
     assert imported == 1
     assert skipped == 0
     mock_thread_repo.update_station_art.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# fetch_channels_multi tests
+# ---------------------------------------------------------------------------
+
+def test_fetch_channels_multi_returns_streams():
+    """fetch_channels_multi returns channels with hi/med/low streams."""
+    channel_data = _mock_channel_json("Ambient", "ambient")
+
+    def urlopen_side(url, timeout=None):
+        if "api.audioaddict.com" in url:
+            return _urlopen_factory(json.dumps([]).encode())
+        return _urlopen_factory(channel_data)
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+        result = fetch_channels_multi("testkey123")
+
+    assert isinstance(result, list)
+    assert len(result) > 0
+    for ch in result:
+        assert "streams" in ch
+        assert len(ch["streams"]) == 3
+        qualities = {s["quality"] for s in ch["streams"]}
+        assert qualities == {"hi", "med", "low"}
+
+
+def test_fetch_channels_multi_stream_has_quality():
+    """Each stream dict in channel['streams'] has url, quality, position keys."""
+    channel_data = _mock_channel_json("Jazz", "jazz")
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(json.dumps([]).encode())
+               if "api.audioaddict.com" in url else _urlopen_factory(channel_data)), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+        result = fetch_channels_multi("testkey123")
+
+    for ch in result:
+        for s in ch["streams"]:
+            assert "url" in s
+            assert "quality" in s
+            assert "position" in s
+
+
+def test_fetch_channels_multi_positions():
+    """hi=1, med=2, low=3 positions."""
+    channel_data = _mock_channel_json("Jazz", "jazz")
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(json.dumps([]).encode())
+               if "api.audioaddict.com" in url else _urlopen_factory(channel_data)), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+        result = fetch_channels_multi("testkey123")
+
+    for ch in result:
+        pos_map = {s["quality"]: s["position"] for s in ch["streams"]}
+        assert pos_map == {"hi": 1, "med": 2, "low": 3}
+
+
+def test_fetch_channels_multi_invalid_key():
+    """fetch_channels_multi raises ValueError('invalid_key') on 401/403."""
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=_make_http_error(403)):
+        with pytest.raises(ValueError, match="invalid_key"):
+            fetch_channels_multi("badkey")
+
+
+def test_fetch_channels_multi_no_channels():
+    """fetch_channels_multi raises ValueError('no_channels') when empty."""
+    empty_data = json.dumps([]).encode()
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(empty_data)):
+        with pytest.raises(ValueError, match="no_channels"):
+            fetch_channels_multi("testkey123")
+
+
+def test_import_multi_creates_streams():
+    """import_stations_multi creates one station with 3 stream rows."""
+    mock_repo = MagicMock()
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 42
+    mock_repo.list_streams.return_value = [MagicMock(id=100)]
+
+    channels = [{
+        "title": "Ambient",
+        "provider": "DI.fm",
+        "image_url": None,
+        "streams": [
+            {"url": "http://hi.stream", "quality": "hi", "position": 1, "codec": "AAC"},
+            {"url": "http://med.stream", "quality": "med", "position": 2, "codec": "MP3"},
+            {"url": "http://low.stream", "quality": "low", "position": 3, "codec": "MP3"},
+        ],
+    }]
+    imported, skipped = import_stations_multi(channels, mock_repo)
+    assert imported == 1
+    assert skipped == 0
+    mock_repo.insert_station.assert_called_once()
+    # Should have called insert_stream for the 2 additional streams (first was auto-created)
+    assert mock_repo.insert_stream.call_count == 2
+
+
+def test_import_multi_skips_existing():
+    """import_stations_multi skips channel if any stream URL already exists."""
+    mock_repo = MagicMock()
+    mock_repo.station_exists_by_url.return_value = True
+
+    channels = [{
+        "title": "Ambient", "provider": "DI.fm", "image_url": None,
+        "streams": [{"url": "http://hi.stream", "quality": "hi", "position": 1, "codec": "AAC"}],
+    }]
+    imported, skipped = import_stations_multi(channels, mock_repo)
+    assert imported == 0
+    assert skipped == 1
+    mock_repo.insert_station.assert_not_called()
+
+
+def test_import_multi_calls_progress():
+    """on_progress is called after each channel."""
+    mock_repo = MagicMock()
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 10
+    mock_repo.list_streams.return_value = [MagicMock(id=1)]
+
+    channels = [
+        {
+            "title": "Ambient", "provider": "DI.fm", "image_url": None,
+            "streams": [{"url": "http://a.stream", "quality": "hi", "position": 1, "codec": "AAC"}],
+        },
+        {
+            "title": "Jazz", "provider": "DI.fm", "image_url": None,
+            "streams": [{"url": "http://b.stream", "quality": "hi", "position": 1, "codec": "AAC"}],
+        },
+    ]
+    progress_calls = []
+    import_stations_multi(channels, mock_repo, on_progress=lambda imp, skip: progress_calls.append((imp, skip)))
+    assert len(progress_calls) == 2

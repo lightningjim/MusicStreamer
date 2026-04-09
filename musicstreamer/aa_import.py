@@ -107,6 +107,147 @@ def fetch_channels(listen_key: str, quality: str) -> list[dict]:
     return results
 
 
+def fetch_channels_multi(listen_key: str) -> list[dict]:
+    """Fetch all channels across all 6 AA networks with hi/med/low quality streams.
+
+    Returns list of dicts:
+      {"title": str, "provider": str, "image_url": str|None,
+       "streams": [{"url": str, "quality": str, "position": int, "codec": str}]}
+    Raises ValueError("invalid_key") on 401/403.
+    Raises ValueError("no_channels") when zero channels returned.
+    """
+    channels_by_net_key = {}  # (network_slug, channel_key) -> channel dict
+
+    for net in NETWORKS:
+        img_map = _fetch_image_map(net["slug"])
+
+        for quality, tier in QUALITY_TIERS.items():
+            url = f"https://{net['domain']}/{tier}?listen_key={listen_key}"
+            try:
+                with urllib.request.urlopen(url, timeout=15) as resp:
+                    data = json.loads(resp.read())
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 403):
+                    raise ValueError("invalid_key")
+                continue
+            except Exception:
+                continue
+
+            position_map = {"hi": 1, "med": 2, "low": 3}
+            for ch in data:
+                key = (net["slug"], ch["key"])
+                pls_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
+                stream_url = _resolve_pls(pls_url)
+
+                if key not in channels_by_net_key:
+                    channels_by_net_key[key] = {
+                        "title": ch["name"],
+                        "provider": net["name"],
+                        "image_url": img_map.get(ch["key"]),
+                        "streams": [],
+                    }
+                channels_by_net_key[key]["streams"].append({
+                    "url": stream_url,
+                    "quality": quality,
+                    "position": position_map[quality],
+                    "codec": "AAC" if tier == "premium_high" else "MP3",
+                })
+
+    results = list(channels_by_net_key.values())
+    if not results:
+        raise ValueError("no_channels")
+    return results
+
+
+def import_stations_multi(channels: list[dict], repo, on_progress=None, on_logo_progress=None) -> tuple[int, int]:
+    """Import multi-quality AA channels. Creates one station per channel with multiple streams.
+
+    Each channel dict has "streams" list with {url, quality, position, codec}.
+    Skips channel if ANY of its stream URLs already exist in library.
+    """
+    imported = 0
+    skipped = 0
+    logo_targets = []
+
+    for ch in channels:
+        # Check if any stream URL already exists
+        any_exists = any(repo.station_exists_by_url(s["url"]) for s in ch.get("streams", []))
+        if any_exists:
+            skipped += 1
+        else:
+            # Insert station (with first stream URL for backward compat)
+            first_url = ch["streams"][0]["url"] if ch["streams"] else ""
+            station_id = repo.insert_station(
+                name=ch["title"],
+                url=first_url,
+                provider_name=ch["provider"],
+                tags="",
+            )
+            # insert_station already created a stream for first_url at position=1
+            # Update the auto-created stream with quality/codec metadata, then insert remaining
+            for s in ch["streams"]:
+                if s["url"] == first_url:
+                    streams = repo.list_streams(station_id)
+                    if streams:
+                        repo.update_stream(
+                            streams[0].id, s["url"], s.get("label", ""),
+                            s["quality"], s["position"],
+                            "shoutcast", s.get("codec", "")
+                        )
+                else:
+                    repo.insert_stream(
+                        station_id, s["url"], label="",
+                        quality=s["quality"], position=s["position"],
+                        stream_type="shoutcast", codec=s.get("codec", "")
+                    )
+            imported += 1
+            image_url = ch.get("image_url")
+            if image_url:
+                logo_targets.append((station_id, image_url))
+        if on_progress:
+            on_progress(imported, skipped)
+
+    # Logo download phase (reuse existing pattern)
+    if logo_targets:
+        if on_logo_progress:
+            on_logo_progress(0, len(logo_targets))
+
+        def _download_logo(station_id: int, image_url: str) -> None:
+            try:
+                with urllib.request.urlopen(image_url, timeout=15) as resp:
+                    data = resp.read()
+                suffix = os.path.splitext(image_url.split("?")[0])[1] or ".png"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    tmp.write(data)
+                    tmp_path = tmp.name
+                try:
+                    art_path = copy_asset_for_station(station_id, tmp_path, "station_art")
+                    thread_repo = Repo(db_connect())
+                    thread_repo.update_station_art(station_id, art_path)
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+            except Exception:
+                pass
+
+        total = len(logo_targets)
+        completed = 0
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = {
+                executor.submit(_download_logo, sid, url): (sid, url)
+                for sid, url in logo_targets
+            }
+            for future in as_completed(futures):
+                future.result()
+                completed += 1
+                if on_logo_progress:
+                    on_logo_progress(completed, total)
+
+    return imported, skipped
+
+
 def import_stations(channels: list[dict], repo, on_progress=None, on_logo_progress=None) -> tuple[int, int]:
     """Import a list of AudioAddict channel dicts into the station library via repo.
 
