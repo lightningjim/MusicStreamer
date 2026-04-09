@@ -379,15 +379,121 @@ class DiscoveryDialog(Adw.Window):
             dlg.present()
             return
 
+        dlg = Adw.MessageDialog(
+            transient_for=self,
+            heading="Save Station",
+            body=f'Add "{station_dict.get("name", "")}" as a new station, or attach this stream to an existing station?',
+        )
+        dlg.add_response("new", "New Station")
+        dlg.add_response("attach", "Attach to Existing\u2026")
+        dlg.add_response("cancel", "Cancel")
+        dlg.set_default_response("new")
+        dlg.set_close_response("cancel")
+        dlg.connect("response", self._on_save_response, station_dict, save_btn, url)
+        dlg.present()
+
+    def _on_save_response(self, dlg, response_id: str, station_dict: dict, save_btn: Gtk.Button, url: str):
+        if response_id == "new":
+            self._save_as_new(station_dict, url, save_btn)
+        elif response_id == "attach":
+            self._show_station_picker(url, station_dict, save_btn)
+
+    def _save_as_new(self, station_dict: dict, url: str, save_btn: Gtk.Button):
         provider_name = self._extract_provider(station_dict)
         tags = station_dict.get("tags", "").replace(",", ", ")
         tags = re.sub(r",\s*", ", ", tags).strip(", ")
-
         self.repo.insert_station(station_dict.get("name", ""), url, provider_name, tags)
         self._saved_urls.add(url)
         save_btn.set_sensitive(False)
         save_btn.set_tooltip_text("Saved")
         self.main_window.reload_list()
+
+    def _show_station_picker(self, url: str, station_dict: dict, save_btn: Gtk.Button):
+        """Show dialog to pick an existing station to attach the stream to."""
+        stations = self.repo.list_stations()
+        if not stations:
+            self._save_as_new(station_dict, url, save_btn)
+            return
+
+        # Auto-detect: case-insensitive substring match on name
+        search_name = station_dict.get("name", "").lower()
+        auto_match_idx = 0
+        for i, st in enumerate(stations):
+            if search_name and search_name in st.name.lower():
+                auto_match_idx = i
+                break
+
+        picker = Adw.Window(title="Attach to Station")
+        picker.set_default_size(400, 500)
+        picker.set_transient_for(self)
+        picker.set_modal(True)
+
+        root = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        root.add_top_bar(header)
+
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        body.set_margin_top(12)
+        body.set_margin_bottom(12)
+        body.set_margin_start(12)
+        body.set_margin_end(12)
+
+        hint = Gtk.Label(label="Select a station to attach this stream to:")
+        hint.set_xalign(0)
+        body.append(hint)
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        listbox = Gtk.ListBox()
+        listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+
+        for st in stations:
+            row = Adw.ActionRow()
+            row.set_title(GLib.markup_escape_text(st.name))
+            provider = st.provider_name or ""
+            stream_count = len(st.streams)
+            row.set_subtitle(f"{provider} \u00b7 {stream_count} stream{'s' if stream_count != 1 else ''}")
+            listbox.append(row)
+
+        target_row = listbox.get_row_at_index(auto_match_idx)
+        if target_row:
+            listbox.select_row(target_row)
+
+        scroll.set_child(listbox)
+        body.append(scroll)
+
+        attach_btn = Gtk.Button(label="Attach Stream")
+        attach_btn.add_css_class("suggested-action")
+        body.append(attach_btn)
+
+        def on_attach(*_):
+            selected = listbox.get_selected_row()
+            if selected is None:
+                return
+            idx = selected.get_index()
+            target_station = stations[idx]
+            existing_streams = self.repo.list_streams(target_station.id)
+            next_pos = max((s.position for s in existing_streams), default=0) + 1
+            stream_type = ""
+            if "youtube.com" in url or "youtu.be" in url:
+                stream_type = "youtube"
+            codec_str = station_dict.get("codec", "")
+            label = station_dict.get("name", "")
+            self.repo.insert_stream(
+                target_station.id, url, label=label,
+                quality="", position=next_pos,
+                stream_type=stream_type, codec=codec_str
+            )
+            self._saved_urls.add(url)
+            save_btn.set_sensitive(False)
+            save_btn.set_tooltip_text("Saved")
+            self.main_window.reload_list()
+            picker.close()
+
+        attach_btn.connect("clicked", on_attach)
+        root.set_content(body)
+        picker.set_content(root)
+        picker.present()
 
     # ------------------------------------------------------------------
     # Provider extraction

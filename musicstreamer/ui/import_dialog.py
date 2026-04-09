@@ -387,7 +387,7 @@ class ImportDialog(Adw.Window):
 
     def _aa_import_worker(self, key: str, quality: str):
         try:
-            channels = aa_import.fetch_channels(key, quality)
+            channels = aa_import.fetch_channels_multi(key)
         except ValueError as e:
             if str(e) == "invalid_key":
                 GLib.idle_add(self._on_aa_error_key)
@@ -411,7 +411,7 @@ class ImportDialog(Adw.Window):
         con = db_connect()
         try:
             thread_repo = Repo(con)
-            imported, skipped = aa_import.import_stations(
+            imported, skipped = aa_import.import_stations_multi(
                 channels, thread_repo,
                 on_progress=on_progress,
                 on_logo_progress=on_logo_progress,
