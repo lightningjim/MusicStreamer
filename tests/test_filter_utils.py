@@ -6,7 +6,6 @@ def make_station(name="Test Station", provider_name="Soma.FM", tags=""):
     return Station(
         id=1,
         name=name,
-        url="http://example.com/stream",
         provider_id=1,
         provider_name=provider_name,
         tags=tags,

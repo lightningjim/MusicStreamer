@@ -14,7 +14,6 @@ def make_station():
     return Station(
         id=1,
         name="Test Station",
-        url="http://example.com/stream",
         provider_id=1,
         provider_name="Test",
         tags="",
