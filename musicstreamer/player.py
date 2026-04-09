@@ -65,9 +65,11 @@ class Player:
 
     def play(self, station: Station, on_title: callable):
         self._on_title = on_title
-        url = (station.url or "").strip()
+        url = ""
+        if station.streams:
+            url = (station.streams[0].url or "").strip()
         if not url:
-            on_title("(no URL set)")
+            on_title("(no streams configured)")
             return
         if "youtube.com" in url or "youtu.be" in url:
             self._play_youtube(url, station.name, on_title)

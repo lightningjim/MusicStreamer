@@ -7,7 +7,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, GLib
 from musicstreamer.repo import Repo
-from musicstreamer.models import Station
+from musicstreamer.models import Station, StationStream
 import musicstreamer.radio_browser as radio_browser
 
 
@@ -312,17 +312,17 @@ class DiscoveryDialog(Adw.Window):
         station = Station(
             id=0,
             name=station_dict.get("name", ""),
-            url=stream_url,
             provider_id=None,
             provider_name=self._extract_provider(station_dict),
             tags=station_dict.get("tags", ""),
             station_art_path=None,
             album_fallback_path=None,
             icy_disabled=False,
+            streams=[StationStream(id=0, station_id=0, url=stream_url)],
         )
 
         # Toggle off if same station
-        if self._preview_station and self._preview_station.url == stream_url:
+        if self._preview_station and self._preview_station.streams and self._preview_station.streams[0].url == stream_url:
             self.main_window.player.stop()
             self._preview_station = None
             self._active_play_btn = None
