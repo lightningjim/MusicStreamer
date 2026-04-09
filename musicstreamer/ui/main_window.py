@@ -13,7 +13,7 @@ import musicstreamer.cover_art as cover_art_mod
 from musicstreamer.ui.station_row import StationRow
 from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
-from musicstreamer.constants import DATA_DIR
+from musicstreamer.constants import DATA_DIR, QUALITY_SETTING_KEY
 from musicstreamer.ui.accent_dialog import AccentDialog
 from musicstreamer.ui.cookies_dialog import CookiesDialog
 from musicstreamer.mpris import MprisService
@@ -155,6 +155,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.stop_btn.set_sensitive(False)
         self.stop_btn.connect("clicked", lambda *_: self._stop())
         controls_box.append(self.stop_btn)
+
+        self.stream_btn = Gtk.MenuButton()
+        self.stream_btn.set_icon_name("network-wireless-symbolic")
+        self.stream_btn.add_css_class("flat")
+        self.stream_btn.set_tooltip_text("Switch stream")
+        self.stream_btn.set_visible(False)  # hidden until station with 2+ streams
+        controls_box.append(self.stream_btn)
 
         center.append(controls_box)
 
@@ -315,7 +322,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.favorites_empty.set_title("No favorites yet")
         self.favorites_empty.set_description("Star a track while it\u2019s playing to save it here.")
 
-        shell.set_content(scroller)
+        self.toast_overlay = Adw.ToastOverlay()
+        self.toast_overlay.set_child(scroller)
+        shell.set_content(self.toast_overlay)
         self.set_content(shell)
         self.connect("close-request", self._on_close)
 
@@ -544,9 +553,9 @@ class MainWindow(Adw.ApplicationWindow):
         # Empty state check
         total_stations = sum(len(v) for v in groups.values()) + len(uncategorized)
         if total_stations == 0 and self._any_filter_active():
-            self.shell.set_content(self.empty_page)
+            self.toast_overlay.set_child(self.empty_page)
         else:
-            self.shell.set_content(self.scroller)
+            self.toast_overlay.set_child(self.scroller)
 
     def _rebuild_flat(self, stations):
         self._clear_listbox()
@@ -557,9 +566,9 @@ class MainWindow(Adw.ApplicationWindow):
             self.listbox.append(row)
 
         if not stations and self._any_filter_active():
-            self.shell.set_content(self.empty_page)
+            self.toast_overlay.set_child(self.empty_page)
         else:
-            self.shell.set_content(self.scroller)
+            self.toast_overlay.set_child(self.scroller)
 
     def _make_action_row(self, st: Station) -> Adw.ActionRow:
         provider = st.provider_name or "Unknown"
@@ -760,6 +769,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.pause_btn.set_tooltip_text("Pause")
         self.pause_btn.set_sensitive(False)
         self.star_btn.set_visible(False)
+        self.stream_btn.set_visible(False)
 
         if self.mpris:
             import dbus
@@ -877,7 +887,82 @@ class MainWindow(Adw.ApplicationWindow):
                 return  # suppress ICY metadata per user setting
             self.title_label.set_text(title)
             self._on_cover_art(title)  # pass RAW title to cover art (iTunes needs real chars)
-        self.player.play(st, on_title=_on_title)
+        preferred_quality = self.repo.get_setting(QUALITY_SETTING_KEY, "")
+        self.player.play(st, on_title=_on_title,
+                         preferred_quality=preferred_quality,
+                         on_failover=self._on_player_failover)
+        self._update_stream_picker(st)
+
+    # ------------------------------------------------------------------ #
+    # Toast notifications and stream picker
+    # ------------------------------------------------------------------ #
+
+    def _show_toast(self, message: str, timeout: int = 3):
+        toast = Adw.Toast.new(message)
+        toast.set_timeout(timeout)
+        self.toast_overlay.add_toast(toast)
+
+    def _on_player_failover(self, stream):
+        """Called by Player via GLib.idle_add when a stream fails over."""
+        if stream is None:
+            self._show_toast("All streams failed", timeout=5)
+        else:
+            label = stream.label or stream.url[:40]
+            self._show_toast(f"Stream failed \u2014 trying {label}\u2026", timeout=3)
+        return False  # GLib.idle_add: don't repeat
+
+    def _update_stream_picker(self, station):
+        """Rebuild stream picker popover for the given station."""
+        streams = sorted(station.streams, key=lambda s: s.position)
+        self.stream_btn.set_visible(len(streams) > 1)
+        if len(streams) <= 1:
+            return
+
+        popover = Gtk.Popover()
+        listbox = Gtk.ListBox()
+        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
+        listbox.add_css_class("boxed-list")
+
+        for s in streams:
+            row = Adw.ActionRow()
+            label_text = s.label or s.url[:50]
+            row.set_title(GLib.markup_escape_text(label_text, -1))
+            if s.quality:
+                badge = Gtk.Label(label=s.quality.upper())
+                badge.add_css_class("dim-label")
+                badge.add_css_class("caption")
+                row.add_suffix(badge)
+            # Highlight currently playing stream
+            if self.player._current_stream and s.id == self.player._current_stream.id:
+                check = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+                row.add_prefix(check)
+            row.set_activatable(True)
+            row._stream_ref = s  # store reference for click handler
+            listbox.append(row)
+
+        listbox.connect("row-activated", self._on_stream_picker_row_activated)
+        popover.set_child(listbox)
+        self.stream_btn.set_popover(popover)
+
+    def _on_stream_picker_row_activated(self, listbox, row):
+        """User manually selected a stream from the picker."""
+        stream = row._stream_ref
+        self.stream_btn.get_popover().popdown()
+
+        def _on_title(title):
+            if self._current_station and self._current_station.icy_disabled:
+                return
+            self.title_label.set_text(title)
+            self._on_cover_art(title)
+
+        self.player.play_stream(
+            stream,
+            on_title=_on_title,
+            on_failover=self._on_player_failover,
+        )
+        # Update picker to show new selection
+        if self._current_station:
+            self._update_stream_picker(self._current_station)
 
     # ------------------------------------------------------------------ #
     # Favorites
@@ -922,9 +1007,9 @@ class MainWindow(Adw.ApplicationWindow):
         self._clear_listbox()
         favorites = self.repo.list_favorites()
         if not favorites:
-            self.shell.set_content(self.favorites_empty)
+            self.toast_overlay.set_child(self.favorites_empty)
             return
-        self.shell.set_content(self.scroller)
+        self.toast_overlay.set_child(self.scroller)
         for fav in favorites:
             row = Adw.ActionRow(
                 title=GLib.markup_escape_text(fav.track_title, -1),
