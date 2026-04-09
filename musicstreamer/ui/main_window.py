@@ -133,6 +133,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.star_btn.connect("clicked", self._on_star_clicked)
         controls_box.append(self.star_btn)
 
+        self.edit_btn = Gtk.Button()
+        self.edit_btn.set_icon_name("document-edit-symbolic")
+        self.edit_btn.add_css_class("flat")
+        self.edit_btn.set_sensitive(False)
+        self.edit_btn.set_tooltip_text("Edit station")
+        self.edit_btn.connect("clicked", self._on_edit_playing_clicked)
+        controls_box.append(self.edit_btn)
+
         self.pause_btn = Gtk.Button()
         self.pause_btn.set_icon_name("media-playback-pause-symbolic")
         self.pause_btn.add_css_class("suggested-action")
@@ -200,9 +208,6 @@ class MainWindow(Adw.ApplicationWindow):
         add_btn = Gtk.Button(label="Add Station")
         add_btn.connect("clicked", self._add_station)
 
-        edit_btn = Gtk.Button(label="Edit")
-        edit_btn.connect("clicked", self._edit_selected)
-
         # Chip strip container (vertical — two rows of chips)
         chip_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         chip_container.set_hexpand(True)
@@ -249,7 +254,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.clear_btn.connect("clicked", self._on_clear)
 
         self.filter_box.append(add_btn)
-        self.filter_box.append(edit_btn)
         self.filter_box.append(chip_scroll)
         self.filter_box.append(self.clear_btn)
         shell.add_top_bar(self.filter_box)
@@ -751,6 +755,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._paused = False
         self._paused_station = None
         self.stop_btn.set_sensitive(False)
+        self.edit_btn.set_sensitive(False)
         self.pause_btn.set_icon_name("media-playback-pause-symbolic")
         self.pause_btn.set_tooltip_text("Pause")
         self.pause_btn.set_sensitive(False)
@@ -856,6 +861,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.pause_btn.set_tooltip_text("Pause")
         self.pause_btn.set_sensitive(True)
         self.stop_btn.set_sensitive(True)
+        self.edit_btn.set_sensitive(True)
 
         if self.mpris:
             import dbus
@@ -966,10 +972,10 @@ class MainWindow(Adw.ApplicationWindow):
         station_id = self.repo.create_station()
         self._open_editor(station_id)
 
-    def _edit_selected(self, *_):
-        row = self.listbox.get_selected_row()
-        if row and hasattr(row, 'station_id'):
-            self._open_editor(row.station_id)
+    def _on_edit_playing_clicked(self, *_):
+        station = self._current_station or self._paused_station
+        if station:
+            self._open_editor(station.id)
 
     def _open_accent_dialog(self, *_):
         app = self.get_application()
