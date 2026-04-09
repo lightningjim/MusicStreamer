@@ -270,3 +270,13 @@ Plans:
 Plans:
 - [x] 31-01-PLAN.md — TDD: Twitch URL detection, streamlink resolution, offline/error handling in player.py
 - [x] 31-02-PLAN.md — Wire on_offline callback in main_window.py + toast + timer pause + human verify
+
+### Phase 32: Add Twitch authentication via streamlink OAuth token
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 31
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 32 to break down)
