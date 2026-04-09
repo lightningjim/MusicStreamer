@@ -174,10 +174,10 @@ Plans:
 **Goal:** Provider and tag filter chips in the main window wrap via FlowBox instead of overflowing horizontally past adjacent buttons
 **Requirements**: FIX-05
 **Depends on:** Phase 24
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 25-01-PLAN.md — Replace ScrolledWindow chip containers with FlowBox in main window filter bar
+- [x] 25-01-PLAN.md — Replace ScrolledWindow chip containers with FlowBox in main window filter bar
 
 ### Phase 26: Fix broken Edit button next to Add Station
 
