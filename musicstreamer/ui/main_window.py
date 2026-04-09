@@ -43,23 +43,20 @@ class MainWindow(Adw.ApplicationWindow):
         self.search_entry.connect("search-changed", self._on_filter_changed)
         header.set_title_widget(self.search_entry)
 
-        discover_btn = Gtk.Button(label="Discover")
-        discover_btn.connect("clicked", self._open_discovery)
-        header.pack_end(discover_btn)
-
-        import_btn = Gtk.Button(label="Import")
-        import_btn.connect("clicked", self._open_import)
-        header.pack_end(import_btn)
-
-        accent_btn = Gtk.Button()
-        accent_btn.set_icon_name("color-select-symbolic")
-        accent_btn.set_tooltip_text("Accent color")
-        accent_btn.connect("clicked", self._open_accent_dialog)
-        header.pack_end(accent_btn)
-
-        # Hamburger menu (D-07)
+        # Hamburger menu (D-07) — two sections
         menu = Gio.Menu()
-        menu.append("YouTube Cookies\u2026", "app.open-cookies")
+
+        # Top section — station actions (per D-01)
+        station_section = Gio.Menu()
+        station_section.append("Discover Stations\u2026", "app.open-discovery")
+        station_section.append("Import Stations\u2026", "app.open-import")
+        menu.append_section(None, station_section)
+
+        # Bottom section — settings (per D-01)
+        settings_section = Gio.Menu()
+        settings_section.append("Accent Color\u2026", "app.open-accent")
+        settings_section.append("YouTube Cookies\u2026", "app.open-cookies")
+        menu.append_section(None, settings_section)
 
         menu_btn = Gtk.MenuButton()
         menu_btn.set_icon_name("open-menu-symbolic")
@@ -71,6 +68,15 @@ class MainWindow(Adw.ApplicationWindow):
         action = Gio.SimpleAction.new("open-cookies", None)
         action.connect("activate", self._open_cookies_dialog)
         app.add_action(action)
+
+        for name, handler in [
+            ("open-discovery", self._open_discovery),
+            ("open-import", self._open_import),
+            ("open-accent", self._open_accent_dialog),
+        ]:
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", handler)
+            app.add_action(action)
 
         # --- Now-playing panel ---
         panel = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)

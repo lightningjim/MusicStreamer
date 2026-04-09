@@ -2,81 +2,74 @@
 phase: 29-move-discover-import-and-accent-color-into-the-hamburger-men
 plan: "01"
 subsystem: ui
-tags: [gtk, gio-menu, hamburger-menu, header-bar, gnome]
-
-requires: []
-provides:
-  - Sectioned hamburger Gio.Menu with Discover, Import, Accent Color, and YouTube Cookies
-  - Decluttered header bar (search entry + hamburger button only)
-  - SimpleAction registrations for open-discovery, open-import, open-accent
-affects: []
-
-tech-stack:
+tags: [gtk4, hamburger-menu, header-bar, gio-menu]
+dependency_graph:
+  requires: []
+  provides: [sectioned-hamburger-menu, decluttered-header-bar]
+  affects: [musicstreamer/ui/main_window.py]
+tech_stack:
   added: []
-  patterns:
-    - "Gio.Menu with append_section for grouped menu items in GTK hamburger menus"
-    - "SimpleAction loop registration pattern for multiple menu actions"
-
-key-files:
-  created: []
+  patterns: [Gio.Menu.append_section, Gio.SimpleAction loop registration]
+key_files:
   modified:
     - musicstreamer/ui/main_window.py
-
-key-decisions:
-  - "Used append_section(None, section) with no label to create visual separator via GTK default styling"
-  - "Registered new actions via loop over (name, handler) tuples alongside existing open-cookies action"
-
-patterns-established:
-  - "Hamburger menu sections: station actions (top) / settings (bottom)"
-
-requirements-completed: [MENU-01, MENU-02, MENU-03, MENU-04, MENU-05]
-
-duration: 15min
-completed: 2026-04-09
+decisions:
+  - "Used append_section(None, ...) for unnamed sections — produces visual separator without a section header label, matching GNOME HIG"
+  - "Registered actions via loop to eliminate 3 identical SimpleAction registration blocks"
+metrics:
+  duration: ~5 min
+  completed: 2026-04-09
+  tasks_completed: 1
+  tasks_total: 2
+  files_changed: 1
 ---
 
-# Phase 29 Plan 01: Move Discover/Import/Accent Color into Hamburger Menu Summary
+# Phase 29 Plan 01: Move Discover/Import/Accent into Hamburger Menu Summary
 
-**Discover, Import, and Accent Color buttons removed from header bar and reorganized into a two-section Gio.Menu hamburger menu, leaving only search entry and hamburger button in the header.**
+Restructured header bar — removed three inline buttons (Discover, Import, Accent Color) and placed them into a two-section Gio.Menu under the existing hamburger MenuButton, using app-level SimpleActions.
 
-## Performance
+## What Was Built
 
-- **Duration:** ~15 min
-- **Started:** 2026-04-09T00:00:00Z
-- **Completed:** 2026-04-09T00:15:00Z
-- **Tasks:** 2
-- **Files modified:** 1
+- Deleted `discover_btn`, `import_btn`, and `accent_btn` from the header bar construction block
+- Replaced the flat single-item `Gio.Menu` with two `append_section` groups:
+  - **Top section (station actions):** "Discover Stations…" (`app.open-discovery`), "Import Stations…" (`app.open-import`)
+  - **Bottom section (settings):** "Accent Color…" (`app.open-accent`), "YouTube Cookies…" (`app.open-cookies`)
+- Registered `open-discovery`, `open-import`, `open-accent` as `Gio.SimpleAction` objects on the app via a loop; kept `open-cookies` registration unchanged
+- Header bar now contains only the search entry (`set_title_widget`) and the hamburger `MenuButton`
 
-## Accomplishments
-- Removed `discover_btn`, `import_btn`, and `accent_btn` from header bar construction
-- Replaced flat Gio.Menu with two-section layout: station actions (Discover, Import) and settings (Accent Color, YouTube Cookies)
-- Registered three new SimpleActions (open-discovery, open-import, open-accent) via loop pattern
-- User visually confirmed hamburger menu layout and all four dialog open actions work correctly
+## Commits
 
-## Task Commits
-
-1. **Task 1: Restructure hamburger menu and remove header bar buttons** - `b68f7c0` (feat)
-2. **Task 2: Verify hamburger menu layout and dialog opening** - human-verify checkpoint, approved
-
-## Files Created/Modified
-- `musicstreamer/ui/main_window.py` - Removed three header bar buttons; restructured Gio.Menu into two sections with SimpleAction registrations
-
-## Decisions Made
-- Section labels set to `None` (no visible section heading) so GTK renders a plain separator line between sections — matches GNOME HIG style for grouped menus
+| Task | Name | Commit | Files |
+|------|------|--------|-------|
+| 1 | Restructure hamburger menu and remove header bar buttons | b68f7c0 | musicstreamer/ui/main_window.py |
 
 ## Deviations from Plan
-None - plan executed exactly as written.
 
-## Issues Encountered
+None — plan executed exactly as written.
+
+## Awaiting Human Verification (Task 2 — checkpoint:human-verify)
+
+Launch: `cd /home/kcreasey/OneDrive/Projects/MusicStreamer && python -m musicstreamer`
+
+Verify:
+1. Header bar shows ONLY search entry + hamburger button — no Discover, Import, or Accent buttons
+2. Hamburger opens with top section: "Discover Stations…" and "Import Stations…"
+3. Visual separator between sections
+4. Bottom section: "Accent Color…" and "YouTube Cookies…"
+5. All four items open their respective dialogs
+
+## Known Stubs
+
 None.
 
-## User Setup Required
-None - no external service configuration required.
+## Threat Flags
 
-## Next Phase Readiness
-- Header bar is decluttered; hamburger menu follows GNOME conventions
-- No blockers for subsequent phases
+None — UI-only reorganization, no new trust boundaries.
 
----
-*Phase: 29-move-discover-import-and-accent-color-into-the-hamburger-men*
-*Completed: 2026-04-09*
+## Self-Check: PASSED
+
+- `musicstreamer/ui/main_window.py` — exists and syntax-valid (ast.parse)
+- Commit b68f7c0 — verified in git log
+- 2 `append_section` calls — confirmed
+- 0 occurrences of `discover_btn`, `import_btn`, `accent_btn` — confirmed
+- All 4 action names present in source — confirmed
