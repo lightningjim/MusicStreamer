@@ -255,10 +255,18 @@ Plans:
 
 ### Phase 31: Integrate Twitch streaming via streamlink
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Twitch URLs are auto-detected and played via streamlink URL resolution into GStreamer playbin3; offline channels show toast without triggering failover; GStreamer errors re-resolve once before falling through to normal failover
+**Requirements**: TWITCH-01, TWITCH-02, TWITCH-03, TWITCH-04, TWITCH-05, TWITCH-06, TWITCH-07, TWITCH-08
 **Depends on:** Phase 30
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. Twitch URLs auto-detected by "twitch.tv" in URL string and routed to streamlink
+  2. streamlink resolves to HLS URL played through GStreamer playbin3
+  3. Offline channels show "[channel] is offline" toast without failover
+  4. GStreamer error on Twitch stream re-resolves once before normal failover
+  5. Elapsed timer pauses on offline (does not reset)
+  6. Existing HTTP and YouTube playback unaffected
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 31 to break down)
+- [ ] 31-01-PLAN.md — TDD: Twitch URL detection, streamlink resolution, offline/error handling in player.py
+- [ ] 31-02-PLAN.md — Wire on_offline callback in main_window.py + toast + timer pause + human verify

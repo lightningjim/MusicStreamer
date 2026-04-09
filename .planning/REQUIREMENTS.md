@@ -59,6 +59,17 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **TIMER-05**: Timer hidden when nothing playing; shows 0:00 immediately on play start
 - [ ] **TIMER-06**: Adaptive format: M:SS for <1h, H:MM:SS for >=1h; dim-label CSS class on icon and label
 
+### Twitch Streaming via Streamlink (Phase 31)
+
+- [ ] **TWITCH-01**: Twitch URLs (containing "twitch.tv") auto-detected and routed to streamlink resolution in player.py
+- [ ] **TWITCH-02**: streamlink invoked as `streamlink --stream-url <url> best` with list args (no shell=True); ~/.local/bin on PATH
+- [ ] **TWITCH-03**: Resolved HLS URL from streamlink fed to GStreamer playbin3 via existing _set_uri path
+- [ ] **TWITCH-04**: Offline channel ("No playable streams found") shows toast "[channel] is offline" without triggering failover; station stays selected
+- [ ] **TWITCH-05**: GStreamer error on Twitch stream re-resolves URL once via streamlink before falling through to normal failover
+- [ ] **TWITCH-06**: Failover timeout NOT armed for Twitch URLs (streamlink handles its own resolution timing)
+- [ ] **TWITCH-07**: Offline state pauses elapsed timer (does not reset); timer resumes if stream is retried
+- [ ] **TWITCH-08**: on_offline callback wired from main_window.py to player.play() and player.play_stream()
+
 ## Future Requirements
 
 ### v2.0 — OS-Agnostic Revamp
@@ -112,12 +123,20 @@ Requirements for this polish milestone. New items added as issues are discovered
 | TIMER-04 | Phase 30 | Pending |
 | TIMER-05 | Phase 30 | Pending |
 | TIMER-06 | Phase 30 | Pending |
+| TWITCH-01 | Phase 31 | Pending |
+| TWITCH-02 | Phase 31 | Pending |
+| TWITCH-03 | Phase 31 | Pending |
+| TWITCH-04 | Phase 31 | Pending |
+| TWITCH-05 | Phase 31 | Pending |
+| TWITCH-06 | Phase 31 | Pending |
+| TWITCH-07 | Phase 31 | Pending |
+| TWITCH-08 | Phase 31 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 37 total
-- Mapped to phases: 37
+- v1.5 requirements: 45 total
+- Mapped to phases: 45
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-09 after Phase 30 planning*
+*Last updated: 2026-04-09 after Phase 31 planning*
