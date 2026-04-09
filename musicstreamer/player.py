@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import gi
 gi.require_version("Gst", "1.0")
@@ -45,6 +46,8 @@ class Player:
         self._current_stream: StationStream | None = None
         self._current_station_name: str = ""
         self._is_first_attempt: bool = True
+        self._twitch_resolve_attempts: int = 0
+        self._on_offline = None
         # Clean up stale temp cookie files from previous crashed sessions
         import glob
         for stale in glob.glob(os.path.join(tempfile.gettempdir(), "ms_cookies_*.txt")):
@@ -62,6 +65,11 @@ class Player:
         err, debug = msg.parse_error()
         print(f"GStreamer ERROR: {err}\n  debug: {debug}")
         self._cancel_failover_timer()
+        if self._current_stream and "twitch.tv" in self._current_stream.url:
+            if self._twitch_resolve_attempts < 1:
+                self._twitch_resolve_attempts += 1
+                self._play_twitch(self._current_stream.url)
+                return
         self._try_next_stream()
 
     def _on_gst_tag(self, bus, msg):
@@ -107,25 +115,30 @@ class Player:
         url = stream.url.strip()
         if "youtube.com" in url or "youtu.be" in url:
             self._play_youtube(url, self._current_station_name, self._on_title)
+        elif "twitch.tv" in url:
+            self._play_twitch(url)
         else:
             self._stop_yt_proc()
             self._set_uri(url, self._current_station_name, self._on_title)
-        # Arm the failover timeout (not for YouTube — it arms its own poll timer inside _play_youtube)
-        if "youtube.com" not in url and "youtu.be" not in url:
+        # Arm the failover timeout (not for YouTube or Twitch — they arm their own timing)
+        if "youtube.com" not in url and "youtu.be" not in url and "twitch.tv" not in url:
             self._failover_timer_id = GLib.timeout_add(
                 BUFFER_DURATION_S * 1000, self._on_timeout_cb
             )
 
     def play(self, station: Station, on_title: callable,
              preferred_quality: str = "",
-             on_failover: callable = None):
+             on_failover: callable = None,
+             on_offline: callable = None):
         # Cancel any in-progress failover from previous play
         self._cancel_failover_timer()
         self._streams_queue = []
         self._on_title = on_title
         self._on_failover = on_failover
+        self._on_offline = on_offline
         self._current_station_name = station.name
         self._is_first_attempt = True
+        self._twitch_resolve_attempts = 0
 
         if not station.streams:
             on_title("(no streams configured)")
@@ -146,11 +159,13 @@ class Player:
         self._try_next_stream()
 
     def play_stream(self, stream: StationStream, on_title: callable,
-                    on_failover: callable = None):
+                    on_failover: callable = None,
+                    on_offline: callable = None):
         """Manually play a specific stream, bypassing the failover queue (D-08)."""
         self._cancel_failover_timer()
         self._on_title = on_title
         self._on_failover = on_failover
+        self._on_offline = on_offline
         self._streams_queue = [stream]
         self._is_first_attempt = True
         self._try_next_stream()
@@ -248,3 +263,40 @@ class Player:
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.set_property("uri", uri)
         self._pipeline.set_state(Gst.State.PLAYING)
+
+    def _play_twitch(self, url: str):
+        """Resolve Twitch URL via streamlink, then play HLS URI via GStreamer."""
+        self._pipeline.set_state(Gst.State.NULL)
+        env = os.environ.copy()
+        local_bin = os.path.expanduser("~/.local/bin")
+        if local_bin not in env.get("PATH", "").split(os.pathsep):
+            env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
+
+        def _resolve():
+            result = subprocess.run(
+                ["streamlink", "--stream-url", url, "best"],
+                capture_output=True, text=True, env=env,
+            )
+            resolved = result.stdout.strip()
+            if result.returncode == 0 and resolved.startswith("http"):
+                GLib.idle_add(self._on_twitch_resolved, resolved)
+            elif "No playable streams found" in result.stdout:
+                GLib.idle_add(self._on_twitch_offline, url)
+            else:
+                GLib.idle_add(self._on_twitch_error)
+
+        threading.Thread(target=_resolve, daemon=True).start()
+
+    def _on_twitch_resolved(self, resolved_url: str) -> bool:
+        self._set_uri(resolved_url, self._current_station_name, self._on_title)
+        return False
+
+    def _on_twitch_offline(self, url: str) -> bool:
+        channel = url.rstrip("/").split("/")[-1]
+        if self._on_offline:
+            self._on_offline(channel)
+        return False
+
+    def _on_twitch_error(self) -> bool:
+        self._try_next_stream()
+        return False
