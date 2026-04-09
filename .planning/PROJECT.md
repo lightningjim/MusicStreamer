@@ -18,7 +18,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Next:** If no new issues found by deadline, close out and move to v2.0 (OS-agnostic revamp).
 
-## Current State (v1.5 in progress — Phase 24 complete 2026-04-08)
+## Current State (v1.5 in progress — Phase 25 complete 2026-04-09)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
 - **LOC:** ~3,500 Python source | ~1,700 test LOC | **Tests:** 153 passing
