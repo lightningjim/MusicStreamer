@@ -138,6 +138,7 @@ Plans:
 | 20. Playback Controls & Media Keys | v1.4 | 2/2 | Complete | 2024-04-05 |
 | 21. Panel Layout Fix | v1.5 | 0/? | Not started | - |
 | 22. Import YT Cookies | v1.5 | 3/3 | Complete    | 2024-04-07 |
+| 26. Fix broken Edit button | v1.5 | 0/1 | In progress | - |
 
 ### Phase 23: Fix YouTube stream playback broken on CLI and app
 

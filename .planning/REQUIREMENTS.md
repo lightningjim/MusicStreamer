@@ -14,6 +14,7 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **FIX-03**: If mpv exits immediately (~2s) with cookies, retry once without cookies to handle corrupted cookie files
 - [ ] **FIX-04**: Tag chip container in edit dialog does not overflow or overlap adjacent buttons; chips wrap to multiple lines via FlowBox
 - [ ] **FIX-05**: Provider and tag filter chip containers in main window do not overflow horizontally; chips wrap to multiple lines via FlowBox
+- [ ] **FIX-06**: Standalone Edit button in filter bar replaced with now-playing edit icon button; edit icon sensitive only when a station is playing or paused
 
 ### Cookie Management (Phase 22)
 
@@ -45,6 +46,7 @@ Requirements for this polish milestone. New items added as issues are discovered
 | FIX-03 | Phase 23 | Pending |
 | FIX-04 | Phase 24 | Pending |
 | FIX-05 | Phase 25 | Pending |
+| FIX-06 | Phase 26 | Pending |
 | COOKIE-01 | Phase 22 | Pending |
 | COOKIE-02 | Phase 22 | Pending |
 | COOKIE-03 | Phase 22 | Pending |
@@ -53,8 +55,8 @@ Requirements for this polish milestone. New items added as issues are discovered
 | COOKIE-06 | Phase 22 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 11 total
-- Mapped to phases: 11
+- v1.5 requirements: 12 total
+- Mapped to phases: 12
 - Unmapped: 0
 
 ---
