@@ -220,11 +220,11 @@ Plans:
   4. Toast notifications on each failover attempt and on exhaustion
   5. Stream picker button in now-playing controls shows all streams for manual switching
   6. Manual stream selection plays immediately without affecting configured order
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 28-01-PLAN.md — TDD: failover logic in Player (stream queue, timeout, error handling)
-- [ ] 28-02-PLAN.md — ToastOverlay + stream picker MenuButton + failover callback wiring
+- [x] 28-01-PLAN.md — TDD: failover logic in Player (stream queue, timeout, error handling)
+- [x] 28-02-PLAN.md — ToastOverlay + stream picker MenuButton + failover callback wiring
 
 ### Phase 29: Move Discover, Import, and accent color into the hamburger menu
 
