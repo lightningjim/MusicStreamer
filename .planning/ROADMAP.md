@@ -248,10 +248,10 @@ Plans:
   4. Timer resets to 0:00 on station change; failover does not reset
   5. Timer hidden when nothing is playing
   6. Format: M:SS under 1 hour, H:MM:SS at 1 hour+
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 30-01-PLAN.md — Timer widget + GLib tick callback + play/pause/stop lifecycle wiring
+- [x] 30-01-PLAN.md — Timer widget + GLib tick callback + play/pause/stop lifecycle wiring
 
 ### Phase 31: Integrate Twitch streaming via streamlink
 
