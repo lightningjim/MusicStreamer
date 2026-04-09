@@ -198,8 +198,6 @@ class EditStationDialog(Adw.Window):
 
         # Fields
         self.name_entry = Gtk.Entry(text=self.station.name)
-        _current_url = self.station.streams[0].url if self.station.streams else ""
-        self.url_entry = Gtk.Entry(text=_current_url)
 
         # Provider picker: ComboRow of existing providers + entry for new ones
         providers = repo.list_providers()
@@ -266,11 +264,6 @@ class EditStationDialog(Adw.Window):
         tags_box.append(chip_scroll)
         tags_box.append(self.new_tag_entry)
 
-        # URL focus-out controller for auto-fetch
-        focus_controller = Gtk.EventControllerFocus()
-        focus_controller.connect("leave", self._on_url_focus_out)
-        self.url_entry.add_controller(focus_controller)
-
         # Art previews
         self.station_pic = Gtk.Picture()
         self.station_pic.set_size_request(128, 128)
@@ -335,8 +328,16 @@ class EditStationDialog(Adw.Window):
         form.attach(Gtk.Label(label="Name", xalign=0), 0, 0, 1, 1)
         form.attach(self.name_entry, 1, 0, 1, 1)
 
-        form.attach(Gtk.Label(label="URL", xalign=0), 0, 1, 1, 1)
-        form.attach(self.url_entry, 1, 1, 1, 1)
+        manage_btn = Gtk.Button(label="Manage Streams\u2026")
+        manage_btn.connect("clicked", self._on_manage_streams)
+        self._stream_count_label = Gtk.Label(xalign=0)
+        self._stream_count_label.add_css_class("dim-label")
+        self._update_stream_count()
+        streams_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        streams_box.append(manage_btn)
+        streams_box.append(self._stream_count_label)
+        form.attach(Gtk.Label(label="Streams", xalign=0), 0, 1, 1, 1)
+        form.attach(streams_box, 1, 1, 1, 1)
 
         form.attach(Gtk.Label(label="Provider", xalign=0), 0, 2, 1, 1)
         form.attach(provider_box, 1, 2, 1, 1)
@@ -422,19 +423,26 @@ class EditStationDialog(Adw.Window):
     # YouTube thumbnail fetch
     # ------------------------------------------------------------------
 
-    def _on_url_focus_out(self, *_):
-        url = self.url_entry.get_text().strip()
-        if _is_youtube_url(url):
-            self._start_thumbnail_fetch(url)
-            self._start_title_fetch(url)
-        elif _is_aa_url(url):
-            # Auto-fetch logo if API key is already stored (D-07)
-            stored_key = self.repo.get_setting("audioaddict_listen_key", "")
-            if stored_key:
-                self._start_aa_logo_fetch(url)
+    def _on_manage_streams(self, *_):
+        from musicstreamer.ui.streams_dialog import ManageStreamsDialog
+        dlg = ManageStreamsDialog(
+            self.get_application(), self.repo, self.station_id,
+            on_changed=self._update_stream_count,
+        )
+        dlg.set_transient_for(self)
+        dlg.set_modal(True)
+        dlg.present()
+
+    def _update_stream_count(self):
+        streams = self.repo.list_streams(self.station_id)
+        n = len(streams)
+        self._stream_count_label.set_text(f"{n} stream{'s' if n != 1 else ''} configured")
 
     def _on_fetch_clicked(self, *_):
-        url = self.url_entry.get_text().strip()
+        streams = self.repo.list_streams(self.station_id)
+        if not streams:
+            return
+        url = streams[0].url
         if _is_youtube_url(url):
             self._start_thumbnail_fetch(url)
         elif _is_aa_url(url):
@@ -493,9 +501,11 @@ class EditStationDialog(Adw.Window):
             return
         self.repo.set_setting("audioaddict_listen_key", key)
         self._aa_key_popover.popdown()
-        url = self.url_entry.get_text().strip()
-        if _is_aa_url(url):
-            self._start_aa_logo_fetch(url)
+        streams = self.repo.list_streams(self.station_id)
+        if streams:
+            url = streams[0].url
+            if _is_aa_url(url):
+                self._start_aa_logo_fetch(url)
 
     def _start_title_fetch(self, url: str):
         if self._title_fetch_in_progress:
@@ -574,7 +584,6 @@ class EditStationDialog(Adw.Window):
 
     def _save(self, *_):
         name = self.name_entry.get_text().strip() or "Unnamed"
-        url = self.url_entry.get_text().strip()
 
         new_prov = self.new_provider_entry.get_text().strip()
         if new_prov:
@@ -602,20 +611,7 @@ class EditStationDialog(Adw.Window):
             album_fallback_path=self.album_art_rel,
             icy_disabled=self.icy_switch.get_active(),
         )
-        # Update the primary stream URL (position=1), or create it if none exists
-        if url:
-            existing = self.repo.list_streams(self.station_id)
-            if existing:
-                self.repo.update_stream(existing[0].id, url, existing[0].label,
-                                        existing[0].quality, existing[0].position,
-                                        existing[0].stream_type, existing[0].codec)
-            else:
-                self.repo.insert_stream(self.station_id, url)
-        else:
-            # url cleared — remove position=1 stream if it exists
-            existing = self.repo.list_streams(self.station_id)
-            if existing and existing[0].position == 1:
-                self.repo.delete_stream(existing[0].id)
+        # Streams are managed exclusively via the ManageStreamsDialog sub-dialog
 
         if self.on_saved:
             self.on_saved()

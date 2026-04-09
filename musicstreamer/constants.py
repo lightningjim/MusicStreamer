@@ -18,6 +18,10 @@ def clear_cookies() -> bool:
 BUFFER_DURATION_S = 10                    # seconds; applied as BUFFER_DURATION_S * Gst.SECOND
 BUFFER_SIZE_BYTES = 10 * 1024 * 1024      # 5 MB
 
+# Quality tiers (Phase 27 / D-05)
+QUALITY_PRESETS = ("hi", "med", "low")
+QUALITY_SETTING_KEY = "preferred_quality"
+
 # Accent color (Phase 19 / ACCENT-01)
 ACCENT_COLOR_DEFAULT = "#3584e4"
 ACCENT_PRESETS = [
