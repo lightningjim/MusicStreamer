@@ -335,6 +335,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._paused_station = None
         self._elapsed_seconds: int = 0
         self._timer_source_id: int | None = None
+        self._resuming: bool = False
         self._selected_providers: set[str] = set()
         self._selected_tags: set[str] = set()
         self._provider_chip_btns: list[Gtk.ToggleButton] = []
@@ -754,9 +755,12 @@ class MainWindow(Adw.ApplicationWindow):
             self.pause_btn.set_icon_name("media-playback-pause-symbolic")
             self.pause_btn.set_tooltip_text("Pause")
             saved_elapsed = self._elapsed_seconds  # preserve timer across resume
+            self._resuming = True  # flag: skip _start_timer inside _play_station
             self._play_station(self._current_station)
-            self._elapsed_seconds = saved_elapsed  # restore after _play_station reset
+            self._resuming = False
+            self._elapsed_seconds = saved_elapsed
             self._update_timer_label()
+            self._resume_timer()  # restart ticking without resetting elapsed
         elif self._current_station and not self._paused:
             # Pause: stop audio, keep UI
             self._paused = True
@@ -832,6 +836,8 @@ class MainWindow(Adw.ApplicationWindow):
         return True  # keep ticking; removal via _stop_timer
 
     def _start_timer(self):
+        if getattr(self, '_resuming', False):
+            return  # skip reset during unpause — _resume_timer handles restart
         self._stop_timer()  # prevent double source (RESEARCH pitfall 1)
         self._elapsed_seconds = 0
         self._update_timer_label()
