@@ -310,9 +310,16 @@ def test_mpv_retry_without_cookies_on_fast_exit(tmp_path, monkeypatch):
     monotonic_values = iter([0.0, 1.0])
     monkeypatch.setattr("time.monotonic", lambda: next(monotonic_values))
 
-    with patch("subprocess.Popen", side_effect=fake_popen):
-        with patch("time.sleep"):
-            player._play_youtube("https://youtube.com/watch?v=test", "Test", lambda t: None)
+    timeout_callbacks = []
+
+    with patch("musicstreamer.player.subprocess.Popen", side_effect=fake_popen), \
+         patch("musicstreamer.player.GLib") as mock_glib:
+        mock_glib.timeout_add.side_effect = lambda ms, cb: timeout_callbacks.append(cb) or 99
+        player._play_youtube("https://youtube.com/watch?v=test", "Test", lambda t: None)
+        # Simulate the GLib timer firing the cookie retry callback
+        assert timeout_callbacks, "Expected GLib.timeout_add callback for cookie retry"
+        for cb in timeout_callbacks:
+            cb()
 
     assert len(popen_calls) == 2, f"Expected 2 Popen calls, got {len(popen_calls)}"
     second_cmd = popen_calls[1]

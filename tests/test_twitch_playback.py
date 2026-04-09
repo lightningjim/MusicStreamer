@@ -117,6 +117,7 @@ def test_streamlink_called_with_correct_args():
     mock_result = MagicMock()
     mock_result.returncode = 0
     mock_result.stdout = "https://example.m3u8\n"
+    mock_result.stderr = ""
 
     mock_thread = MagicMock()
 
@@ -150,6 +151,7 @@ def test_streamlink_env_includes_local_bin():
     mock_result = MagicMock()
     mock_result.returncode = 0
     mock_result.stdout = "https://example.m3u8\n"
+    mock_result.stderr = ""
 
     local_bin = os.path.expanduser("~/.local/bin")
 
@@ -224,6 +226,7 @@ def test_offline_channel_calls_on_offline():
     mock_result = MagicMock()
     mock_result.returncode = 1
     mock_result.stdout = "error: No playable streams found on this URL: https://www.twitch.tv/testchannel"
+    mock_result.stderr = ""
 
     idle_calls = []
 
@@ -259,6 +262,7 @@ def test_non_offline_error_calls_try_next():
     mock_result = MagicMock()
     mock_result.returncode = 1
     mock_result.stdout = "error: Failed to open segment 1/1\n"
+    mock_result.stderr = ""
 
     idle_calls = []
 
