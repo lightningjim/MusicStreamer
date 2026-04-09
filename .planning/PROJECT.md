@@ -18,11 +18,11 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Next:** If no new issues found by deadline, close out and move to v2.0 (OS-agnostic revamp).
 
-## Current State (v1.5 in progress — Phase 26 complete 2026-04-09)
+## Current State (v1.5 in progress — Phase 31 complete 2026-04-09)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
-- **LOC:** ~3,500 Python source | ~1,700 test LOC | **Tests:** 153 passing
-- **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + dbus-python + urllib (iTunes API, Radio-Browser API, AudioAddict API)
+- **LOC:** ~3,800 Python source | ~2,100 test LOC | **Tests:** 255 passing
+- **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + streamlink + dbus-python + urllib (iTunes API, Radio-Browser API, AudioAddict API)
 - **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
 - **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
@@ -107,7 +107,7 @@ Finding and playing a stream should take seconds — the right station should al
 | Auto-refresh saved Radio-Browser stations | Stations in library are managed manually; auto-refresh adds complexity for unclear benefit |
 | Social sharing / export of favorites | Single-user desktop app |
 | MusicBrainz cover art fallback | iTunes sufficient; revisit if gaps found |
-| Twitch stream support | yt-dlp supports it; revisit if user adds Twitch stations |
+| ~~Twitch stream support~~ | Implemented in Phase 31 via streamlink |
 | Local music library / file playback | Streaming app only |
 | Multi-user / authentication | Single-user desktop app |
 | Podcast support | Different use case |
@@ -151,7 +151,7 @@ Finding and playing a stream should take seconds — the right station should al
 | ch['key'] not ch['name'] for AudioAddict PLS slug | Channel names have spaces; keys are lowercase slugs used in URL paths | ✓ Good |
 | ValueError('no_channels') for empty AudioAddict response | Catches expired API keys returning 200+empty instead of 401 | ✓ Good |
 | Resolve PLS to direct URL in aa_import.fetch_channels | GStreamer cannot play PLS playlists; resolution must happen at import time | ✓ Good |
-| Twitch deferred | Requires stations in library to validate | — Pending |
+| Twitch via streamlink | `_play_twitch()` resolves HLS URL via `streamlink --stream-url`, feeds to GStreamer playbin3; offline detection with toast | ✓ Good — Phase 31 |
 | Buffer constants in constants.py (not inlined) | Consistent with project pattern, allows future tuning | ✓ Good |
 | ThreadPoolExecutor for AA logo downloads | Async/decoupled from insert loop — avoids import regression | ✓ Good |
 | Thread-local db_connect() in logo workers | SQLite connections cannot be shared across threads | ✓ Good |
@@ -209,4 +209,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after Phase 26 (Fix broken Edit button) complete*
+*Last updated: 2026-04-09 after Phase 31 (Integrate Twitch streaming via streamlink) complete*
