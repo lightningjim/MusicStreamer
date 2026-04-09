@@ -181,13 +181,13 @@ Plans:
 
 ### Phase 26: Fix broken Edit button next to Add Station
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Remove broken standalone Edit button from filter bar; add pencil edit icon to now-playing controls_box that opens the editor for the currently playing station
+**Requirements**: FIX-06
 **Depends on:** Phase 25
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 26 to break down)
+- [ ] 26-01-PLAN.md — Remove filter bar Edit button, add now-playing edit button
 
 ### Phase 27: Add multiple streams per station for backup/round-robin and quality selection
 
