@@ -9,7 +9,7 @@ Requirements for this polish milestone. New items added as issues are discovered
 
 ### Bug Fixes
 
-- [ ] **FIX-01**: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
+- [x] **FIX-01**: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
 - [ ] **FIX-02**: yt-dlp/mpv cookie invocations use a temporary copy of cookies.txt so the original imported file is never overwritten
 - [ ] **FIX-03**: If mpv exits immediately (~2s) with cookies, retry once without cookies to handle corrupted cookie files
 - [ ] **FIX-04**: Tag chip container in edit dialog does not overflow or overlap adjacent buttons; chips wrap to multiple lines via FlowBox
@@ -102,7 +102,7 @@ Requirements for this polish milestone. New items added as issues are discovered
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIX-01 | Phase 21 | Pending |
+| FIX-01 | Phase 21 | Complete |
 | FIX-02 | Phase 23 | Pending |
 | FIX-03 | Phase 23 | Pending |
 | FIX-04 | Phase 24 | Pending |
