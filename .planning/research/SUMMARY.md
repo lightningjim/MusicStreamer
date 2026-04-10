@@ -1,156 +1,225 @@
 # Project Research Summary
 
-**Project:** MusicStreamer v1.4 — Media & Art Polish
-**Domain:** GTK4/GStreamer Python desktop internet radio
-**Researched:** 2026-04-03
-**Confidence:** MEDIUM–HIGH
+**Project:** MusicStreamer v2.0 — OS-Agnostic Qt/PySide6 Port
+**Domain:** Cross-platform desktop audio stream player (Linux + Windows)
+**Researched:** 2026-04-10
+**Confidence:** MEDIUM-HIGH
+
+---
 
 ## Executive Summary
 
-v1.4 targets four focused improvements to an established, working codebase: stream reliability (STREAM-01), AudioAddict station logos at import time (ART-01) and in the editor (ART-01b), YouTube thumbnail aspect ratio (ART-02), and user-selectable accent color (ACCENT-01). No new dependencies are required — all four features are achievable with the existing stack (GTK4/Libadwaita, GStreamer playbin3, GdkPixbuf, urllib, SQLite). The only new file is `ui/accent_dialog.py`.
+MusicStreamer v2.0 is a UI-layer replacement: GTK4/Libadwaita exits, PySide6 enters, the Python + GStreamer + SQLite backend survives unchanged. Nine of ten backend modules are clean for direct reuse. The two that are not — player.py (GLib timer/idle calls) and mpris.py (dbus-python) — are the critical path. Getting player.py's threading model right before any UI work starts is the single most important sequencing decision, because every downstream phase depends on a Player that correctly delivers ICY titles, EOS events, and failover signals to Qt.
 
-The recommended implementation approach is risk-ascending: buffer tuning first (2–3 lines, zero UI, fully isolated), then AA logo fetch (blocked on live API inspection), then 16:9 thumbnail fix (layout-only, high-confidence), then accent color (new dialog, most surface area). All four are independent and can be reordered if needed.
+The recommended approach is a hard cutover: (1) refactor player.py to a QObject with Qt signals and QTimer instances, removing all GLib.* calls; (2) scaffold a bare QMainWindow and delete musicstreamer/ui/ immediately; (3) implement each dialog sequentially. The GStreamer Qt event loop is resolved by running a GLib.MainLoop daemon thread alongside Qt's main loop and emitting Qt signals from GStreamer bus callbacks. Bus messages cross the thread boundary via Qt's queued connection, no GLib idle calls needed in player.py. MPRIS2 moves to PySide6.QtDBus; Windows gets SMTC via winrt.
 
-The primary risk in v1.4 is the AudioAddict logo field name — inferred from community plugin error traces (`channel_images.default`), not confirmed against a live API response. Everything else is HIGH confidence. Secondary risks are the ICY/buffer tension (larger buffers delay metadata delivery) and the 16:9 slot breaking square iTunes art display. Both have clear, low-effort mitigations.
+The highest single risk is GStreamer on Windows. Bundling GStreamer DLLs and plugins into a PyInstaller distributable is documented but untested for this project. All four researchers independently flagged this as the primary unknown. A Windows packaging spike must prove out the full chain on a clean Windows VM before the Windows port is declared done.
+
+---
 
 ## Key Findings
 
-### Stack Additions
+### Recommended Stack
 
-None. No uv.lock changes. All features use existing imports.
+The v1.5 backend stack (Python, GStreamer playbin3, yt-dlp, streamlink, mpv, SQLite, urllib) requires zero changes. New additions: PySide6 >=6.8 (UI framework, LGPL, no commercial license needed for personal use), platformdirs (cross-platform data paths), winrt-runtime + winrt-Windows.Media.Playback (SMTC, Windows-only), and PySide6-WebEngine (Twitch OAuth, subprocess-isolated). Packages leaving: PyGObject GTK/Adw, dbus-python, WebKit2Gtk.
 
-| Feature | Existing Library Used |
-|---------|----------------------|
-| STREAM-01 | `Gst` (already in player.py) |
-| ART-01 | `urllib.request`, `json` (already in aa_import.py) |
-| ART-02 | `GdkPixbuf.Pixbuf` (already in main_window.py) |
-| ACCENT-01 | `Gtk.CssProvider`, `Gdk.Display` (already in `__main__.py`) |
+**Core technologies:**
+- PySide6 6.8+: Qt UI framework, LGPL, pip-installable, works on both platforms
+- PySide6.QtDBus: MPRIS2 on Linux, replaces dbus-python, already in the PySide6 package
+- winrt-runtime + winrt-Windows.Media.Playback: SMTC on Windows, Windows 10+ only, guarded by sys.platform == 'win32'
+- platformdirs: cross-platform data dir, replaces hardcoded XDG path in constants.py
+- PyInstaller 6.x: packaging, only tool with a working GStreamer gi hook
+- GLib.MainLoop daemon thread: GStreamer bus driver, runs alongside QEventLoop, communicates via Qt queued signals
 
-### Implementation Decisions Per Feature
+### Expected Features
 
-**STREAM-01 — GStreamer Buffer Tuning**
-Set `buffer-duration = 5 * Gst.SECOND` and `buffer-size = 2 * 1024 * 1024` on the `playbin3` pipeline in `Player.__init__`, immediately after pipeline construction, before any URI is set. Both persist across URI changes with the existing NULL→PLAYING reuse pattern. Do NOT access `souphttpsrc` properties directly — that element is created lazily; use the `source-setup` signal if source-level properties are ever needed. Do NOT set `ring-buffer-max-size` — progressive-download only, not applicable to live streams.
+**Must have (v2.0 table stakes):**
+- Qt/PySide6 UI at full v1.5 feature parity
+- Platform-correct data paths via platformdirs
+- Cross-platform media keys: SMTC (Windows) and MPRIS2/QtDBus (Linux) behind a media_keys/ factory
+- Bundled SVG icon set compiled into .qrc
+- Settings export/import: ZIP archive with export.json + logos, excludes cookies/tokens
+- Windows installer via PyInstaller + NSIS
+- Single-instance enforcement, high-DPI scaling, dark mode, toast via QSystemTrayIcon.showMessage
 
-**ART-01 — AA Logo at Import Time**
-The public endpoint `https://api.audioaddict.com/v1/{slug}/channels` (no auth required) returns channel objects including `channel_images`. Access via `ch.get('channel_images', {}).get('default')`. Store the URL during `fetch_channels`; decouple image download from the insert loop to avoid blocking the progress UI for 2–5 minutes on ~300 channels. Download images in a separate pass or bounded thread pool after all DB inserts complete. Only write art on initial insert — skip if station already exists.
+**Should have (v2.1):**
+- Minimize-to-tray
+- Windows accent color seed on first run
 
-**ART-01b — AA Logo Auto-Fetch in Editor (bonus)**
-Add `_is_audioaddict_url()` to `edit_dialog.py` matching against the explicit domain list from `aa_import.NETWORKS`. Extract channel key from the URL path (`/premium_high/deephouse.pls` → key `deephouse`). Trigger via the same `_on_url_focus_out` hook used for YouTube. Only auto-populate if `station_art_rel` is currently empty. If the stored AA API key is unavailable, silently skip. This is a convenience feature — if reliability is uncertain, defer it and rely on ART-01 alone.
-
-**ART-02 — YouTube 16:9 Thumbnail**
-Change `GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 160, 160, False)` to `new_from_file_at_scale(path, -1, 160, True)` in `_on_cover_art`. Use `ContentFit.CONTAIN` in the existing 160×160 slot. This shows the full thumbnail letterboxed with minimal bars — acceptable for v1.4. Do NOT widen the slot to 284px without conditional sizing logic; a fixed wider slot breaks square iTunes art on all non-YouTube stations.
-
-**ACCENT-01 — Custom Accent Color**
-Inject CSS via a second `Gtk.CssProvider` at `STYLE_PROVIDER_PRIORITY_APPLICATION + 1`. Use `:root` selector: `@define-color accent_color {hex}; @define-color accent_bg_color {hex};`. Reload via `load_from_string()` on the same provider object for live preview. Validate hex in Python (`re.fullmatch(r'#[0-9a-fA-F]{6}', value)`) before passing to GTK — silent parse failures will not raise. Store as hex string in the existing settings table; load before window is presented. New file: `ui/accent_dialog.py`.
+**Defer to v2.2+:**
+- File association for .pls/.m3u, Windows Jump List, taskbar thumbnail toolbar
 
 ### Architecture Approach
 
-All four features are additive changes to existing modules. State lives in `MainWindow` as before; all background work uses `threading.Thread(daemon=True)` + `GLib.idle_add`. The only new module is `ui/accent_dialog.py`.
+Nine modules are clean for direct reuse; only player.py and mpris.py need refactoring. Player becomes a QObject with typed signals (title_changed, failover_event, offline_event) replacing current callback parameters; GLib.timeout_add/source_remove become QTimer instances. A GLib.MainLoop daemon thread drives the GStreamer bus; callbacks emit Qt signals via queued connection into the main thread. mpris.py is deleted and replaced by a media_keys/ package with a platform factory. Platform divergence is isolated to four seams: data paths, media keys, subprocess flags, and file permissions. The UI is a hard cutover to ui_qt/. Station list uses direct QListWidget fill, not QAbstractListModel.
 
-**Files changed per feature:**
-
-| Feature | Files Modified | New Files |
-|---------|---------------|-----------|
-| STREAM-01 | `player.py` | none |
-| ART-01 | `aa_import.py` | none |
-| ART-01b | `edit_dialog.py` | none |
-| ART-02 | `main_window.py` | none |
-| ACCENT-01 | `main_window.py` | `ui/accent_dialog.py` |
+**Major components:**
+1. Player (QObject): GStreamer pipeline owner, emits Qt signals, QTimer for all timers, zero GLib calls
+2. GLib daemon thread: runs GLib.MainLoop to drive GStreamer bus, signals only to main thread
+3. media_keys/ package: factory returning MprisService (Linux, QtDBus) or SmtcService (Windows, winrt)
+4. ui_qt/ package: full Qt UI, direct widget fill, custom ExpanderSection/ToastOverlay/FlowLayout widgets
+5. platform_utils.py: app data dir, secure file write, CREATE_NO_WINDOW subprocess helper, extra tool dirs
+6. settings_io.py (new): ZIP export/import with export.json + logo images
 
 ### Critical Pitfalls
 
-1. **ICY/buffer tension** — A larger buffer delays ICY metadata TAG messages. Keep `buffer-duration` at or below 5s. Validate by measuring time from PLAYING state to first TAG message after tuning.
+1. GStreamer bus callbacks on wrong thread: bus.add_signal_watch() silently delivers nothing without a running GLib context. Use bus.enable_sync_message_emission() and emit a Qt signal from the sync handler. Never call QWidget methods inside that handler. Address in Phase A.
 
-2. **AA logo field name unverified** — `channel_images.default` is inferred from plugin error traces, not confirmed against a live response. Print the raw channel dict from `/v1/di/channels` before writing production code. Fall back gracefully if absent.
+2. GStreamer plugin path missing in PyInstaller bundle (Windows): Pipelines fail immediately with no element "playbin3". Set GST_PLUGIN_PATH, GST_PLUGIN_SCANNER, GST_REGISTRY at startup when sys.frozen is detected. Add Tree() blocks for plugin DLLs in .spec. Test on clean VM.
 
-3. **AA logo fetch must be async** — Inline `urlopen` in the `import_stations` loop turns a 5-second import into a 5-minute one. Decouple: store URL during insert loop, fetch images in a separate pass after inserts complete.
+3. souphttpsrc SSL on Windows: HTTPS streams fail (TLS/SSL support not available) when libgiognutls.dll is absent from the bundle. Explicitly collect from GStreamer MSVC runtime. Test an HTTPS stream as a packaging quality gate.
 
-4. **souphttpsrc via source-setup signal** — `pipeline.get_by_name("source")` returns None at construction. For STREAM-01 this is sidestepped by using playbin3-level properties instead. Note for future: if source-level config is ever needed, use the `source-setup` signal.
+4. QObject C++ lifetime vs. Python GC: RuntimeError: Internal C++ object already deleted when Qt destroys a widget while Python holds a reference. Always parent widgets; dialogs use exec() or stored as self._dialog; GStreamer callbacks emit signals only.
 
-5. **16:9 slot breaks square art** — Widening `cover_stack` to 284px permanently degrades non-YouTube stations. Use `ContentFit.CONTAIN` in the existing 160×160 slot as the safe default.
+5. Subprocess console window flash + pipe deadlock on Windows: CREATE_NO_WINDOW missing causes visible CMD flash. stdout=PIPE stderr=PIPE without timeout deadlocks when child fills pipe buffer. Centralize through a _popen() helper; use subprocess.run(capture_output=True, timeout=30) for yt-dlp.
 
-6. **CSS variable scope** — Accent override must use `:root` selector at `PRIORITY_APPLICATION` (600). A scoped selector only affects widget subtrees. Invalid hex silently no-ops in GTK — validate in Python first.
+---
+
+## Reconciled Decisions
+
+### 1. GStreamer Qt Event Loop: RESOLVED -- GLib daemon thread + Qt signals
+
+Three researchers gave different recommendations. Canonical pattern: run a GLib.MainLoop on a daemon thread (ARCHITECTURE). In player.py, use bus.enable_sync_message_emission() + sync-message to emit Qt signals from callbacks (PITFALLS). Replace all GLib.idle_add/GLib.timeout_add in player.py with Qt signals and QTimer (all researchers agree).
+
+STACK's QTimer-based timed_pop(0) polling is valid but polled at 50ms; the GLib daemon thread + sync emission is reactive and idiomatic for GStreamer + Qt coexistence. Do not use GLib.idle_add() in player.py -- it is a no-op on Windows.
+
+### 2. MPRIS2 on Linux: RESOLVED -- PySide6.QtDBus
+
+Drop dbus-python. Rewrite mpris.py using QDBusAbstractAdaptor and QDBusConnection.sessionBus(). Rationale: dbus-python requires DBusGMainLoop(set_as_default=True), which conflicts with the Qt-only loop goal. PySide6.QtDBus is already in the dependency set, no extra install. On Windows it is a no-op, guarded by sys.platform == 'linux'. More boilerplate than dbus-python but correct long-term architecture.
+
+### 3. QtWebEngine vs system-browser OAuth: RESOLVED -- subprocess isolation
+
+Keep the subprocess isolation pattern. Spawn a minimal oauth_helper.py that embeds QWebEngineView, connects to profile.cookieStore().cookieAdded, captures access_token, writes to a temp file, and exits. The main process reads the temp file.
+
+Rationale: QtWebEngine adds ~130-150MB to the distributable and ~3s to main process startup. Subprocess isolation avoids both costs. System-browser + local redirect server (OAuth PKCE) is a zero-dependency alternative to flag for v2.1 if the subprocess approach proves fragile.
+
+### 4. GStreamer Windows bundling: SPIKE REQUIRED
+
+All four researchers flagged this as the primary unknown. The documented path (GStreamer MSVC runtime MSI + PyInstaller spec with Tree() plugin DLLs + GST_PLUGIN_PATH at startup + libgiognutls.dll for HTTPS) is correct in theory. A spike must validate the full chain on a clean Windows VM with Defender enabled before Phase H is planned.
+
+---
 
 ## Implications for Roadmap
 
-### Phase 16: GStreamer Buffer Tuning (STREAM-01)
-**Rationale:** Smallest scope (2 lines, player.py only), zero risk, zero UI. Improves stream reliability baseline for all subsequent testing. Start the AA API inspection in parallel so Phase 17 is not blocked by idle time.
-**Delivers:** Reduction in audible drop-outs on ShoutCast/HTTP streams.
-**Avoids:** Pitfall #1 (ICY delay) — keep duration ≤ 5s, validate TAG latency after change.
-**Research flag:** None — standard GStreamer playbin3 API, HIGH confidence.
+### Phase A: Backend isolation -- player.py refactor
+**Rationale:** Everything downstream depends on Player working correctly. Prove the GStreamer Qt bridge before any UI exists.
+**Delivers:** player.py without gi.repository.GLib; all 265 tests pass; Player is a QObject with typed signals and QTimer instances; GLib.MainLoop daemon thread wired in entry point.
+**Pitfalls avoided:** Wrong-thread bus delivery (Pitfall 1), GLib.idle_add no-op on Windows (Pitfall 10)
+**Research flag:** Standard patterns -- skip phase research.
 
-### Phase 17: AudioAddict Station Art (ART-01 + ART-01b)
-**Rationale:** Blocked on live API field discovery; overlapping that check with Phase 16 removes idle wait. ART-01b shares lookup logic with ART-01 and should follow it.
-**Delivers:** Channel logos on all ~300 AA imported stations; auto-logo on URL paste in editor.
-**Avoids:** Pitfall #3 (blocking import via inline urlopen), Pitfall #4 (URL format assumptions), Pitfall #12 (overwriting user-set art on re-import).
-**Research flag:** REQUIRED — verify `channel_images` field name from live `/v1/di/channels` response before writing any fetch logic. If absent, check `asset_url` or static CDN fallback pattern.
+### Phase B: Qt scaffold + GTK cutover
+**Rationale:** Validate the entry point and delete GTK immediately to eliminate dead weight.
+**Delivers:** Bare QMainWindow launches; musicstreamer/ui/ deleted; platformdirs path migration in constants.py; pytest-qt + offscreen configured.
+**Pitfalls avoided:** Hardcoded data paths (Pitfall 6), parallel ui/ anti-pattern, Xvfb in tests (Pitfall 16)
+**Research flag:** Boilerplate -- skip phase research. Gap to resolve: data path migration for existing Linux users on first run.
 
-### Phase 18: YouTube Thumbnail 16:9 (ART-02)
-**Rationale:** Single-call change (`new_from_file_at_scale` args), no API unknowns, easy visual QA. Goes before ACCENT-01 to keep QA surfaces small and sequential.
-**Delivers:** Full YouTube 16:9 thumbnails visible without cropping in now-playing panel.
-**Avoids:** Pitfall #6 (square art regression) — CONTAIN + existing 160×160 slot, not widened slot.
-**Research flag:** None — GdkPixbuf `-1` width behavior is documented; existing `Gtk.Overflow.HIDDEN` on `cover_stack` provides horizontal clipping.
+### Phase C: Station list + now-playing panel
+**Rationale:** Core loop -- load stations, click to play, see title update. Validates Player signals wired to UI end-to-end.
+**Delivers:** Grouped ExpanderSections, now-playing panel, volume slider, ICY title updates, recently played, ToastOverlay, bundled SVG icon set compiled into .qrc.
+**Pitfalls avoided:** Libadwaita widget mapping (Pitfall 9), QObject lifetime (Pitfall 7)
+**Research flag:** Custom Qt widget implementations follow published Qt examples -- skip phase research.
 
-### Phase 19: Custom Accent Color (ACCENT-01)
-**Rationale:** Most surface area (new dialog + CSS subsystem). Goes last so visual QA catches any interaction with Phase 11 corner radii and panel borders. Fully independent of other v1.4 phases.
-**Delivers:** Preset swatches + hex input, live preview, persistence across restarts.
-**Avoids:** Pitfall #8 (CSS scope — use `:root`), Pitfall #9 (hex validation before GTK), Pitfall #10 (GNOME 47 system accent at PRIORITY_APPLICATION to win).
-**Research flag:** Resolve `@define-color` vs `--accent-bg-color` CSS mechanism at Phase 19 start — STACK.md and ARCHITECTURE.md are inconsistent on this. Test both on the installed Libadwaita version; `@define-color` is the documented GTK4 mechanism.
+### Phase D: Filter strip + favorites view
+**Rationale:** Stateless UI, no new backend or platform concerns. Group with Phase C or follow immediately.
+**Delivers:** Search, provider/tag chip filters, empty state, Stations/Favorites segmented control, star button, favorites list.
+**Pitfalls avoided:** GTK CSS to QSS translation (Pitfall 8) -- accent QSS written fresh for Qt selectors, not ported verbatim.
+
+### Phase E: All dialogs
+**Rationale:** Dialogs are independent of each other; implement as a group after main window is stable.
+**Delivers:** EditStation, ManageStreams, Discovery, Import (YouTube + AudioAddict tabs), AccentDialog, AccountsDialog (oauth_helper.py subprocess for Twitch OAuth), StreamsDialog.
+**Pitfalls avoided:** QObject lifetime in dialogs (Pitfall 7), WebEngine subprocess isolation (Pitfall 11), scope creep (Pitfall 15)
+**Research flag:** AccountsDialog -- QWebEngineCookieStore.cookieAdded async delivery in a subprocess context needs one-off validation before implementation.
+
+### Phase F: Platform integration (media keys + Windows subprocess compat)
+**Rationale:** Platform-conditional code cleanly separated from UI. Implement after UI is stable.
+**Delivers:** media_keys/ factory (MprisService/SmtcService), platform_utils.py complete, _popen() helper with CREATE_NO_WINDOW, pipe deadlock fixes, os.chmod no-op documented, single-instance enforcement.
+**Pitfalls avoided:** Console window flash (Pitfall 4), pipe deadlock (Pitfall 5), chmod no-op (Pitfall 12)
+**Research flag:** SMTC winrt async pattern for button_pressed events needs validation on a real Windows machine before Phase F is planned.
+
+### Phase G: Settings export/import
+**Rationale:** Standalone feature with no UI or platform dependencies; can be reprioritized earlier without risk.
+**Delivers:** ZIP archive export (JSON + logos, excludes cookies/tokens), import with merge/conflict dialog, hamburger menu entry.
+**Research flag:** Standard stdlib (zipfile, json) -- skip phase research.
+
+### Phase H: Windows packaging spike + installer
+**Rationale:** Highest-risk phase; validates GStreamer bundling on a clean Windows VM. Run as a spike first.
+**Delivers:** PyInstaller spec with GStreamer plugin DLLs collected, frozen startup sets GST_PLUGIN_PATH/GST_REGISTRY, HTTPS stream plays on clean VM with Defender enabled, NSIS installer EXE.
+**Pitfalls avoided:** Plugin path missing (Pitfall 2), souphttpsrc SSL (Pitfall 3), AV false positives (Pitfall 14) via --onedir + --no-upx
+**Research flag:** NEEDS PHASE RESEARCH. Run spike first: install GStreamer MSVC MSI, build minimal PyInstaller spec, play HTTP + HTTPS streams on clean VM. Do not plan the full packaging phase until the spike passes.
 
 ### Phase Ordering Rationale
 
-- Phase 16 first: zero-risk, improves test baseline, parallel-starts the AA API discovery needed for Phase 17.
-- Phase 17 requires a live API call to unblock — overlap with Phase 16 to avoid dead time.
-- Phase 18 is fully independent; inserting it before Phase 19 keeps QA checkpoints tight and avoids stacking two uncertain features.
-- Phase 19 last: new file, new dialog, new CSS subsystem — most likely surface area for rework.
-
-All four phases are independent. If the AA field name is confirmed quickly, Phases 17 and 18 can proceed concurrently.
+- Phases A-B are infrastructure prerequisites. No UI code before Player is clean and scaffold is green.
+- Phase C proves the Player-UI signal path end-to-end. If ICY titles don't update, stop and fix before proceeding.
+- Phases D-E follow naturally.
+- Phase F after UI because media-keys shim needs confirmed signals to push into MPRIS2/SMTC.
+- Phase G is isolated and can be moved earlier without risk.
+- Phase H is last; packaging requires a stable, feature-complete codebase.
 
 ### Research Flags
 
-Phases needing live validation before coding:
-- **Phase 17 (ART-01):** AA `channel_images` field name must be confirmed from a live API response. No-op on the field fails silently.
-- **Phase 19 (ACCENT-01):** Confirm `@define-color accent_color` vs CSS custom property `--accent-bg-color` behavior on installed Libadwaita version. The two research files disagree on the exact CSS mechanism.
+Needs deeper research during planning:
+- Phase H (Windows packaging): GStreamer DLL bundling is the project's primary unvalidated risk. Budget 1-2 days of exploration before planning the full phase.
+- Phase F (SMTC): winrt async pattern for SMTC verified against docs only. Needs real Windows validation before planning.
+- Phase E (OAuth): QWebEngineCookieStore.cookieAdded in a subprocess context needs a quick proof-of-concept.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 16 (STREAM-01):** GStreamer playbin3 property API, HIGH confidence.
-- **Phase 18 (ART-02):** GdkPixbuf scale API, HIGH confidence.
+Standard patterns -- skip research-phase:
+- Phase A: Qt signals + QTimer replacing GLib calls is canonical.
+- Phase B: PySide6 QMainWindow scaffold is boilerplate.
+- Phase C: ExpanderSection, FlowLayout, ToastOverlay follow published Qt examples.
+- Phase G: zipfile + json export/import is stdlib.
+
+---
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | No new deps; all existing APIs verified against official docs |
-| Features | HIGH | Code-read of existing hooks + GTK4/GStreamer official docs |
-| Architecture | HIGH | Existing codebase is ground truth; integration points identified with file and line precision |
-| Pitfalls | MEDIUM | GStreamer/GTK pitfalls HIGH; AA API field name LOW; CSS variable behavior MEDIUM |
+| Stack | HIGH | PySide6 LGPL, PyInstaller GStreamer hook, platformdirs verified against official docs. winrt SMTC MEDIUM for Python-specific async behavior. |
+| Features | HIGH | Port of known-working v1.5 features; new additions well-scoped with clear precedent. |
+| Architecture | HIGH | Direct source audit of v1.5 codebase; module contamination factual. Qt threading model canonical per PySide6 docs. GLib daemon thread pattern MEDIUM -- documented but untested in this codebase. |
+| Pitfalls | HIGH (Linux) / MEDIUM (Windows) | Bus threading, subprocess flags, pipe deadlock, AV false positives well-sourced. GStreamer Windows bundling requires project-specific validation. |
 
-**Overall confidence:** MEDIUM–HIGH
+**Overall confidence:** MEDIUM-HIGH
 
 ### Gaps to Address
 
-- **AA `channel_images` field name:** Inspect live `/v1/di/channels` response before writing ART-01. If absent, fall back in order: `asset_url`, then static CDN pattern `https://assets.di.fm/static/images/default_channel_images/{key}.png`.
-- **Libadwaita CSS mechanism:** `@define-color` (STACK.md) vs `--accent-bg-color` custom property (ARCHITECTURE.md/FEATURES.md). Resolve at Phase 19 start by testing both on the installed version.
-- **ART-01b API key access in editor:** `edit_dialog.py` may not have access to the stored AA API key. Gate ART-01b on `repo.get_setting("aa_listen_key")` returning non-empty; silently skip if missing.
+- GStreamer Windows bundling (Phase H): Exact DLLs, PyInstaller spec structure, registry.bin behavior -- all require hands-on validation. First Windows task.
+- SMTC winrt async pattern (Phase F): Python async handling for button_pressed on SystemMediaTransportControls may require asyncio bridge or Windows-specific event integration.
+- QDBusAbstractAdaptor MPRIS2 boilerplate (Phase F): Exact Q_CLASSINFO declarations for org.mpris.MediaPlayer2.Player need a reference implementation before committing to QtDBus.
+- Data path migration on upgrade (Phase B): First Linux launch after the port must migrate the old path if it differs from platformdirs. Needs an explicit plan.
+
+---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Existing codebase (`player.py`, `main_window.py`, `edit_dialog.py`, `aa_import.py`, `assets.py`) — integration points, threading patterns, existing hook locations
-- GStreamer playbin3 docs — `buffer-size`, `buffer-duration` properties
-- GdkPixbuf `new_from_file_at_scale` — width=-1 proportional scaling behavior
-- GTK4 `Gtk.CssProvider.load_from_string` — CSS injection and live reload
-- Libadwaita CSS variables — `accent_color`, `accent_bg_color`
+- PyPI PySide6 6.11.0 -- version, Python requirements
+- Qt licensing docs -- LGPL personal-app analysis
+- PySide6 QtDBus docs -- server-mode capability
+- GStreamer bus documentation -- timed_pop, enable_sync_message_emission, add_signal_watch
+- PyInstaller 6.x hooks-config docs -- GStreamer include_plugins/exclude_plugins
+- Qt WebEngine platform notes -- Windows qt.conf requirement
+- platformdirs GitHub/PyPI -- cross-platform path behavior
+- Microsoft SMTC docs -- SystemMediaTransportControls API
+- Direct source audit of musicstreamer/ package -- module contamination analysis
+- PySide6 QueuedConnection docs -- cross-thread signal safety
 
 ### Secondary (MEDIUM confidence)
-- Pithos issue #393, Mopidy discourse — GStreamer buffer values for HTTP audio streams
-- Libadwaita `@define-color` override — GNOME Discourse confirmation
-- GNOME 47 accent color hex values — Adwaita-Accent-Tint repo
+- GStreamer Discourse: Qt GStreamer event loop woes
+- Qt Forum: GLib event loop integration
+- pythonguis.com: Packaging PySide6 with PyInstaller
+- GStreamer Discourse / PyInstaller/Kivy issue -- plugin DLL bundling on Windows
+- winsdk / pywinrt GitHub -- Python SMTC bindings
+- Qt Dark Mode on Windows 11 blog (Qt 6.5)
+- pytest-qt troubleshooting docs -- offscreen platform configuration
 
-### Tertiary (LOW confidence — needs live verification)
-- AA `channel_images.default` field — inferred from ssapalski/plugin.audio.addict issue #8 `KeyError` trace; not confirmed against live response
-- AA static CDN URL fallback pattern — community implementations; cross-network consistency unverified
+### Tertiary (LOW confidence / needs project-specific validation)
+- GStreamer souphttpsrc SSL issue #451 -- libgiognutls.dll requirement on Windows (documented, not yet verified for this project)
+- PyInstaller AV false positive guide -- --onedir + --no-upx (community consensus, untested here)
+- STACK.md bundle size estimate (~130MB QtWebEngineCore) -- from 2023 PyInstaller discussion, directionally accurate
 
 ---
-*Research completed: 2026-04-03*
+
+*Research completed: 2026-04-10*
 *Ready for roadmap: yes*
