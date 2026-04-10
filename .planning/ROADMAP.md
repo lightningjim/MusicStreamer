@@ -273,10 +273,18 @@ Plans:
 
 ### Phase 32: Add Twitch authentication via streamlink OAuth token
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Twitch OAuth token captured via WebKit2 login flow, stored as plain text file, and passed to streamlink via --twitch-api-header; CookiesDialog renamed to AccountsDialog with YouTube and Twitch tabs
+**Requirements**: TAUTH-01, TAUTH-02, TAUTH-03, TAUTH-04, TAUTH-05, TAUTH-06, TAUTH-07
 **Depends on:** Phase 31
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. TWITCH_TOKEN_PATH constant resolves to ~/.local/share/musicstreamer/twitch-token.txt
+  2. _play_twitch() includes --twitch-api-header Authorization=OAuth <token> when token file exists
+  3. Hamburger menu shows "Accounts..." opening AccountsDialog with YouTube and Twitch tabs
+  4. Twitch tab has login status, "Log in to Twitch" button, and "Log out" button
+  5. WebKit2 subprocess captures auth-token cookie from .twitch.tv and stores raw token with 0o600
+  6. Existing YouTube cookie functionality unchanged
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 32 to break down)
+- [ ] 32-01-PLAN.md — TDD: TWITCH_TOKEN_PATH constant + _play_twitch() auth header injection
+- [ ] 32-02-PLAN.md — Rename to AccountsDialog with tabs + Twitch WebKit2 login flow

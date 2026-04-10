@@ -70,6 +70,16 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **TWITCH-07**: Offline state pauses elapsed timer (does not reset); timer resumes if stream is retried
 - [ ] **TWITCH-08**: on_offline callback wired from main_window.py to player.play() and player.play_stream()
 
+### Twitch Authentication (Phase 32)
+
+- [ ] **TAUTH-01**: TWITCH_TOKEN_PATH constant in constants.py resolves to ~/.local/share/musicstreamer/twitch-token.txt
+- [ ] **TAUTH-02**: clear_twitch_token() deletes twitch-token.txt if it exists and returns True; returns False when absent
+- [ ] **TAUTH-03**: _play_twitch() includes --twitch-api-header Authorization=OAuth <token> when token file exists and has content; omits when absent or empty
+- [ ] **TAUTH-04**: CookiesDialog renamed to AccountsDialog in accounts_dialog.py; hamburger menu entry renamed from "YouTube Cookies..." to "Accounts..."
+- [ ] **TAUTH-05**: AccountsDialog uses Gtk.Notebook with "YouTube" tab (existing cookie UI) and "Twitch" tab
+- [ ] **TAUTH-06**: Twitch tab has: status label (Logged in / Not logged in), "Log in to Twitch" button spawning WebKit2 subprocess, "Log out" button deleting token
+- [ ] **TAUTH-07**: WebKit2 subprocess opens twitch.tv/login, captures auth-token cookie from .twitch.tv domain, writes raw token to TWITCH_TOKEN_PATH with 0o600 permissions
+
 ## Future Requirements
 
 ### v2.0 — OS-Agnostic Revamp
@@ -131,12 +141,19 @@ Requirements for this polish milestone. New items added as issues are discovered
 | TWITCH-06 | Phase 31 | Pending |
 | TWITCH-07 | Phase 31 | Pending |
 | TWITCH-08 | Phase 31 | Pending |
+| TAUTH-01 | Phase 32 | Pending |
+| TAUTH-02 | Phase 32 | Pending |
+| TAUTH-03 | Phase 32 | Pending |
+| TAUTH-04 | Phase 32 | Pending |
+| TAUTH-05 | Phase 32 | Pending |
+| TAUTH-06 | Phase 32 | Pending |
+| TAUTH-07 | Phase 32 | Pending |
 
 **Coverage:**
-- v1.5 requirements: 45 total
-- Mapped to phases: 45
+- v1.5 requirements: 52 total
+- Mapped to phases: 52
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-05*
-*Last updated: 2026-04-09 after Phase 31 planning*
+*Last updated: 2026-04-10 after Phase 32 planning*
