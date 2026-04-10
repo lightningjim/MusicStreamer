@@ -894,14 +894,14 @@ class MainWindow(Adw.ApplicationWindow):
                     existing_yt = self.logo_stack.get_child_by_name("yt")
                     if existing_yt:
                         self.logo_stack.remove(existing_yt)
-                    # Pre-scale to fit 160x160 with aspect preserved (16:9 → 160x90).
+                    # Pre-scale to 320x180 (16:9) with aspect preserved.
                     # Using Gtk.Image+pixbuf instead of Gtk.Picture because Picture
                     # reports natural size as the full image (1280x720), bypassing
                     # set_size_request and inflating the panel on fullscreen (FIX-01 regression).
-                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(abs_path, 160, 160, True)
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(abs_path, 320, 320, True)
                     yt_image = Gtk.Image.new_from_pixbuf(pixbuf)
-                    yt_image.set_pixel_size(160)
-                    yt_image.set_size_request(160, 160)
+                    yt_image.set_pixel_size(320)
+                    yt_image.set_size_request(320, 180)
                     yt_image.set_hexpand(False)
                     yt_image.set_vexpand(False)
                     yt_image.set_halign(Gtk.Align.CENTER)
