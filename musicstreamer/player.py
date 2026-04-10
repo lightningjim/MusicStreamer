@@ -232,6 +232,22 @@ class Player:
             self._try_next_stream()
         return False
 
+    def _open_mpv_log(self, url: str, phase: str):
+        """Open the mpv diagnostic log in append mode and write a header.
+        Returns an open file handle (caller closes after Popen inherits it) or
+        None if the log cannot be opened."""
+        try:
+            from musicstreamer.constants import DATA_DIR
+            os.makedirs(DATA_DIR, exist_ok=True)
+            log_path = os.path.join(DATA_DIR, "mpv.log")
+            fh = open(log_path, "a", buffering=1)
+            ts = time.strftime("%Y-%m-%d %H:%M:%S")
+            fh.write(f"\n===== {ts} [{phase}] {url} =====\n")
+            fh.flush()
+            return fh
+        except OSError:
+            return None
+
     def _play_youtube(self, url: str, fallback_name: str, on_title: callable):
         self._stop_yt_proc()
         self._pipeline.set_state(Gst.State.NULL)
@@ -254,11 +270,14 @@ class Player:
             except OSError:
                 self._yt_cookie_tmp = None
         cmd.append(url)
+        log_fh = self._open_mpv_log(url, "initial")
         self._yt_proc = subprocess.Popen(
             cmd,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=log_fh, stderr=log_fh,
             env=env,
         )
+        if log_fh is not None:
+            log_fh.close()
         self._yt_attempt_start_ts = time.monotonic()
         if on_title:
             on_title(fallback_name)
@@ -270,11 +289,14 @@ class Player:
                 print("mpv exited immediately with cookies, retrying without", file=sys.stderr)
                 self._cleanup_cookie_tmp()
                 cmd_no_cookies = [a for a in cmd if not a.startswith("--ytdl-raw-options=cookies=")]
+                retry_log_fh = self._open_mpv_log(url, "cookie-retry")
                 self._yt_proc = subprocess.Popen(
                     cmd_no_cookies,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    stdout=retry_log_fh, stderr=retry_log_fh,
                     env=env,
                 )
+                if retry_log_fh is not None:
+                    retry_log_fh.close()
                 self._yt_attempt_start_ts = time.monotonic()
             return False  # one-shot
         GLib.timeout_add(2000, _check_cookie_retry)
