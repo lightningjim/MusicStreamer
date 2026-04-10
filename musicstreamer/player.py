@@ -166,6 +166,7 @@ class Player:
         self._on_title = on_title
         self._on_failover = on_failover
         self._on_offline = on_offline
+        self._current_station_name = ""
         self._streams_queue = [stream]
         self._is_first_attempt = True
         self._try_next_stream()
