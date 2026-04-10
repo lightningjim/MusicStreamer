@@ -897,6 +897,10 @@ class MainWindow(Adw.ApplicationWindow):
                     pic = Gtk.Picture.new_for_filename(abs_path)
                     pic.set_content_fit(Gtk.ContentFit.CONTAIN)
                     pic.set_size_request(160, 160)
+                    pic.set_hexpand(False)
+                    pic.set_vexpand(False)
+                    pic.set_halign(Gtk.Align.CENTER)
+                    pic.set_valign(Gtk.Align.CENTER)
                     self.logo_stack.add_named(pic, "yt")
                     self.logo_stack.set_visible_child_name("yt")
                 except Exception:
