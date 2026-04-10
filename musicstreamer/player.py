@@ -56,6 +56,10 @@ class Player:
             except OSError:
                 pass
 
+    @property
+    def current_stream(self):
+        return self._current_stream
+
     def set_volume(self, value: float):
         clamped = max(0.0, min(1.0, value))
         self._volume = clamped

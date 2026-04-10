@@ -1019,7 +1019,7 @@ class MainWindow(Adw.ApplicationWindow):
                 badge.add_css_class("caption")
                 row.add_suffix(badge)
             # Highlight currently playing stream
-            if self.player._current_stream and s.id == self.player._current_stream.id:
+            if self.player.current_stream and s.id == self.player.current_stream.id:
                 check = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
                 row.add_prefix(check)
             row.set_activatable(True)
