@@ -900,6 +900,7 @@ class MainWindow(Adw.ApplicationWindow):
                     # set_size_request and inflating the panel on fullscreen (FIX-01 regression).
                     pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(abs_path, 160, 160, True)
                     yt_image = Gtk.Image.new_from_pixbuf(pixbuf)
+                    yt_image.set_pixel_size(160)
                     yt_image.set_size_request(160, 160)
                     yt_image.set_hexpand(False)
                     yt_image.set_vexpand(False)
