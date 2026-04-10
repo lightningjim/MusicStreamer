@@ -349,16 +349,16 @@ def test_yt_premature_exit_does_not_failover_before_15s():
 | A4 | Cookie retry path is exercised by enough real-world cookie failures that re-seeding the timestamp matters | Pitfall 2, Example 5 | Low — D-07 explicitly states the desired behavior; the cost of re-seeding is one line of code regardless of frequency. |
 | A5 | The `Adw.ToastOverlay` stacks toasts cleanly when "Connecting…" overlaps with "Stream failed — trying…" | Don't Hand-Roll | Low — D-05 accepts overlap; libadwaita is documented to queue/stack toasts. If visual overlap is ugly in practice, that's a follow-up tweak, not a phase blocker. [ASSUMED based on libadwaita design intent] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the connecting toast text include the station name?**
    - What we know: D-04 says "Connecting…" — message wording is Claude's discretion.
    - What's unclear: "Connecting to Lofi Girl…" is more informative but longer; "Connecting…" matches the terse style.
-   - Recommendation: Keep it short — `"Connecting\u2026"`. Station name is already visible in the now-playing panel.
+   - RESOLVED: Keep it short — `"Connecting\u2026"`. Station name is already visible in the now-playing panel.
 
 2. **Should `play_stream()` (manual stream picker) get the connecting toast?**
    - What we know: CONTEXT.md Claude's discretion bullet recommends "yes, for consistency".
-   - Recommendation: Yes. Plan should add the toast at both `_on_play` and `_on_stream_picker_row_activated`.
+   - RESOLVED: Yes. Plan adds the toast at both `_on_play` and `_on_stream_picker_row_activated`.
 
 ## Environment Availability
 
