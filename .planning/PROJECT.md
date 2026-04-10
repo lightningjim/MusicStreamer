@@ -8,20 +8,16 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v1.5 Further Polish
+## Current Milestone: v1.5 Further Polish ✓ SHIPPED 2026-04-10
 
-**Goal:** Fix bugs and polish issues discovered through 2 weeks of daily use (deadline: 2026-04-19).
+**Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-**Target features:**
-- Fix: YouTube 16:9 thumbnail inflates now-playing panel when window is maximized/fullscreen
-- Additional fixes TBD as discovered during use
+**Next:** v2.0 — OS-agnostic revamp (cross-platform support beyond GNOME).
 
-**Next:** If no new issues found by deadline, close out and move to v2.0 (OS-agnostic revamp).
-
-## Current State (v1.5 in progress — Phase 31 complete 2026-04-09)
+## Current State (v1.5 shipped — 2026-04-10)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, mpris.py
-- **LOC:** ~3,800 Python source | ~2,100 test LOC | **Tests:** 255 passing
+- **LOC:** ~9,900 Python total (source + tests) | **Tests:** 265 passing, 0 failures
 - **Stack:** Python + GTK4/Libadwaita + GStreamer + SQLite + yt-dlp + streamlink + dbus-python + urllib (iTunes API, Radio-Browser API, AudioAddict API)
 - **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
 - **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites
@@ -94,9 +90,25 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ CTRL-01: Play/pause button between star and stop; pause keeps station selected and now-playing visible — v1.4 Phase 20
 - ✓ CTRL-02: MPRIS2 D-Bus service wired via dbus-python — OS media keys control pause/resume/stop — v1.4 Phase 20
 
-### Active (v1.5)
+- ✓ FIX-01: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen — v1.5 Phase 21 (fixed via GdkPixbuf pre-scale + Gtk.Image, live UAT confirmed)
+- ✓ FIX-02: yt-dlp/mpv cookie invocations use temporary copies so original cookies.txt is never overwritten — v1.5 Phase 23
+- ✓ FIX-03: mpv fast-exit (~2s) with cookies triggers one retry without cookies — v1.5 Phase 23
+- ✓ FIX-04: Tag chip FlowBox in edit dialog wraps instead of overflowing — v1.5 Phase 24
+- ✓ FIX-05: Provider/tag filter chip containers wrap via FlowBox — v1.5 Phase 25
+- ✓ FIX-06: Standalone Edit button replaced with now-playing edit icon gated on play/pause — v1.5 Phase 26
+- ✓ FIX-07: YouTube streams get 15s minimum wait before failover + "Connecting…" toast on all play paths — v1.5 Phase 33
+- ✓ COOKIE-01..06: YouTube cookie import via file/paste/Google login, 0o600 perms, hamburger menu entry — v1.5 Phase 22
+- ✓ STR-01..14: Multi-stream per station model (station_streams table, quality presets, ManageStreamsDialog, Radio-Browser/YT/AudioAddict integration) — v1.5 Phase 27
+- ✓ D-01..08 (Stream Failover): Toast + picker + round-robin queue, 13 failover tests — v1.5 Phase 28
+- ✓ MENU-01..05: Hamburger menu consolidation (Discover, Import, Accent, YT Cookies) — v1.5 Phase 29
+- ✓ TIMER-01..06: Elapsed time counter, pause/resume, failover-safe — v1.5 Phase 30
+- ✓ TWITCH-01..08: Twitch streaming via streamlink, offline detection, failover integration — v1.5 Phase 31
+- ✓ TAUTH-01..07: Twitch OAuth token auth via AccountsDialog + WebKit2 capture — v1.5 Phase 32
+- ✓ PHASE-33-DEFERRED: Twitch test fixture fixed (monkeypatch TWITCH_TOKEN_PATH), stale cookies-test bullet annotated as already resolved — v1.5 Phase 34
 
-- [ ] FIX-01: YouTube 16:9 thumbnail does not inflate now-playing panel when window is maximized/fullscreen
+### Active (v2.0)
+
+- [ ] V2-01: Cross-platform support (not GNOME-only)
 
 ### Out of Scope
 
@@ -189,6 +201,25 @@ Finding and playing a stream should take seconds — the right station should al
 | 13: Radio-Browser Discovery | v1.3 | ✓ Complete | 2026-04-01 |
 | 14: YouTube Playlist Import | v1.3 | ✓ Complete | 2026-04-02 |
 | 15: AudioAddict Import | v1.3 | ✓ Complete | 2026-04-03 |
+| 16: GStreamer Buffer Tuning | v1.4 | ✓ Complete | 2026-04-03 |
+| 17: AudioAddict Station Art | v1.4 | ✓ Complete | 2026-04-03 |
+| 18: YouTube Thumbnail 16:9 | v1.4 | ✓ Complete | 2026-04-05 |
+| 19: Custom Accent Color | v1.4 | ✓ Complete | 2026-04-05 |
+| 20: Playback Controls & Media Keys | v1.4 | ✓ Complete | 2026-04-05 |
+| 21: Panel Layout Fix | v1.5 | ✓ Complete | 2026-04-10 |
+| 22: Import YT Cookies | v1.5 | ✓ Complete | 2026-04-07 |
+| 23: Fix YT Playback (cookies) | v1.5 | ✓ Complete | 2026-04-07 |
+| 24: Tag Chip FlowBox | v1.5 | ✓ Complete | 2026-04-08 |
+| 25: Filter Chip Overflow | v1.5 | ✓ Complete | 2026-04-08 |
+| 26: Edit Button Fix | v1.5 | ✓ Complete | 2026-04-08 |
+| 27: Multi-Stream Model | v1.5 | ✓ Complete | 2026-04-08 |
+| 28: Stream Failover | v1.5 | ✓ Complete | 2026-04-09 |
+| 29: Hamburger Menu Consolidation | v1.5 | ✓ Complete | 2026-04-09 |
+| 30: Elapsed Time Counter | v1.5 | ✓ Complete | 2026-04-09 |
+| 31: Twitch via Streamlink | v1.5 | ✓ Complete | 2026-04-09 |
+| 32: Twitch OAuth Token | v1.5 | ✓ Complete | 2026-04-10 |
+| 33: YT 15s Wait + Toast | v1.5 | ✓ Complete | 2026-04-10 |
+| 34: Deferred Items from Phase 33 | v1.5 | ✓ Complete | 2026-04-10 |
 
 ---
 ## Evolution
@@ -209,4 +240,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-09 after Phase 31 (Integrate Twitch streaming via streamlink) complete*
+*Last updated: 2026-04-10 after v1.5 Further Polish milestone shipped (14 phases, 53 requirements, 265/265 tests)*

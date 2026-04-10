@@ -1,5 +1,31 @@
 # Milestones
 
+## v1.5 Further Polish (Shipped: 2026-04-10)
+
+**Phases completed:** 14 phases (21–34), 21 plans | **Stats:** 265/265 tests passing, ~9,900 LOC Python total | **Timeline:** 2026-04-06 → 2026-04-10 (5 days)
+
+**Delivered:** Closed out v1.x with bug fixes discovered through daily use plus opportunistic feature polish — YouTube cookie import, multi-stream station model with failover and quality selection, Twitch streaming via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, 15s YouTube failover gate with connecting-toast UX, and panel-layout sizing regression fix.
+
+**Key accomplishments:**
+
+- **FIX-01 (Phase 21):** YouTube thumbnail sizing regression fixed by switching from `Gtk.Picture` + `ContentFit.CONTAIN` to pre-scaled `GdkPixbuf` + `Gtk.Image` with 320×180 slot; root-caused to `Gtk.Picture.measure()` reporting source natural size regardless of `set_size_request`/`vexpand`. Live-UAT verified after the initial audit missed the regression.
+- **Phase 22 (COOKIE-01..06):** YouTube cookie import via file picker, paste, or Google login (WebKit2 embedded browser); stored at `~/.local/share/musicstreamer/cookies.txt` with 0o600 permissions; yt-dlp always gets `--no-cookies-from-browser` and both yt-dlp/mpv use `--cookies=<path>` when present.
+- **Phase 23 (FIX-02/03):** Cookie invocations use temp copies to preserve the imported original; mpv fast-exit (~2s) with cookies triggers one retry without cookies to survive corrupted cookie files.
+- **Phases 24–26 (FIX-04/05/06):** Tag chips and filter chips wrap via `Gtk.FlowBox`; the broken standalone filter-bar Edit button was replaced with a now-playing edit icon gated on play/pause state.
+- **Phase 27 (STR-01..14):** Multi-stream station model — `station_streams` table with quality/label/position, `stations.url` migrated and dropped, `ManageStreamsDialog` for CRUD/reorder, quality presets (hi/med/low/custom), Radio-Browser/YT/AudioAddict import integrated.
+- **Phase 28 (D-01..08):** Stream failover engine with server round-robin, quality fallback queue, toast notifications, and stream-picker UI; 13 failover tests.
+- **Phase 29 (MENU-01..05):** Hamburger menu consolidation — Discover, Import, Accent Color, and YouTube Cookies moved from the header bar into a two-section Gio menu driven by `SimpleAction`s.
+- **Phase 30 (TIMER-01..06):** Elapsed-time counter in now-playing panel with pause/resume, station-change reset, failover-safe continuity, and adaptive `M:SS` / `H:MM:SS` formatting.
+- **Phases 31–32 (TWITCH/TAUTH):** Twitch streaming via `streamlink --stream-url` feeding GStreamer playbin3; offline detection with toast (no failover); OAuth token auth via renamed `AccountsDialog` with WebKit2 subprocess that captures the Twitch auth-token cookie and writes it to `TWITCH_TOKEN_PATH` with 0o600 perms.
+- **Phase 33 (FIX-07):** YouTube streams get a 15-second minimum wait window before `_try_next_stream` can fire; `_yt_attempt_start_ts` + `_yt_poll_timer_id` track the gate; cookie-retry re-seeds the timestamp; "Connecting…" `Adw.Toast` fires on all `play()` / `play_stream()` paths; `_cancel_failover_timer` clears the attempt timestamp. 264 tests pass after the phase.
+- **Phase 34 (cleanup):** Fixed deferred `test_streamlink_called_with_correct_args` by monkeypatching `musicstreamer.player.TWITCH_TOKEN_PATH` to force the no-token branch; annotated the stale cookies-test deferred item in Phase 33 as already resolved in commit `b3e066b` during 33-02. Production code untouched. 265/265 tests pass.
+
+**Tech debt carried forward:** panel-sizing has no automated regression test (GTK needs live display); `accounts_dialog.py` uses deprecated `tempfile.mktemp`; `~/.local/share/musicstreamer/mpv.log` has no rotation.
+
+**Process lesson:** Retroactive verification based on static code inspection missed the FIX-01 runtime GTK-measure behavior. Future phases touching GTK widget sizing require live-display UAT as an explicit gate.
+
+---
+
 ## v1.4 Media & Art Polish (Shipped: 2026-04-05)
 
 **Phases completed:** 5 phases (16–20), 8 plans | **Stats:** 153 tests | 69 files changed, 8,484 insertions | 2 days
