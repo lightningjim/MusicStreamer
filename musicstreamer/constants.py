@@ -27,6 +27,9 @@ def clear_twitch_token() -> bool:
 BUFFER_DURATION_S = 10                    # seconds; applied as BUFFER_DURATION_S * Gst.SECOND
 BUFFER_SIZE_BYTES = 10 * 1024 * 1024      # 5 MB
 
+# YouTube mpv minimum wait window before failover (Phase 33 / FIX-07 / D-01)
+YT_MIN_WAIT_S = 15
+
 # Quality tiers (Phase 27 / D-05)
 QUALITY_PRESETS = ("hi", "med", "low")
 QUALITY_SETTING_KEY = "preferred_quality"

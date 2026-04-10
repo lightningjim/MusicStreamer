@@ -375,3 +375,151 @@ def test_youtube_failover_polling():
 
     # A poll timer should have been registered
     assert len(yt_poll_callbacks) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 33 / FIX-07 — 15s YT minimum wait window
+# ---------------------------------------------------------------------------
+
+def test_yt_premature_exit_does_not_failover_before_15s():
+    """FIX-07 (a): If mpv exits at <15s, _yt_poll_cb must keep polling
+    and must NOT call _try_next_stream."""
+    p = make_player()
+    p._pipeline = MagicMock()
+    p._on_title = MagicMock()
+
+    yt_stream = StationStream(id=1, station_id=1,
+                              url="https://www.youtube.com/watch?v=test",
+                              quality="hi", position=1)
+    backup_stream = make_stream(2, 2, "med")
+    station = make_station_with_streams([yt_stream, backup_stream])
+
+    mock_yt_proc = MagicMock()
+    mock_yt_proc.poll.return_value = 1  # exited nonzero
+
+    captured_callbacks = []
+
+    def capture_timeout(ms, cb):
+        captured_callbacks.append(cb)
+        return 100 + len(captured_callbacks)
+
+    with patch.object(p, "_stop_yt_proc"), \
+         patch("musicstreamer.player.subprocess.Popen", return_value=mock_yt_proc), \
+         patch("musicstreamer.player.time") as mock_time, \
+         patch("musicstreamer.player.GLib") as mock_glib:
+        mock_glib.timeout_add.side_effect = capture_timeout
+        mock_glib.idle_add.side_effect = lambda fn, *args: fn(*args)
+        mock_glib.source_remove = MagicMock()
+        # Seed at 0.0, poll reads 1.0 (premature — well under 15s)
+        mock_time.monotonic.side_effect = [0.0, 1.0]
+        p.play(station, p._on_title)
+        # The LAST registered timeout is the 1000ms _yt_poll_cb
+        yt_poll_cb = captured_callbacks[-1]
+        result = yt_poll_cb()
+
+    assert result is True, "Must keep polling when premature exit detected"
+    assert p._current_stream.url.endswith("v=test"), \
+        "Must still be on YT stream, not failed over to backup"
+    assert p._yt_poll_timer_id is not None, "Poll timer must still be live"
+
+
+def test_yt_alive_at_window_close_succeeds():
+    """FIX-07 (b): If mpv still running at >=15s, _yt_poll_cb returns False
+    and clears poll timer + attempt ts (success signal)."""
+    p = make_player()
+    p._pipeline = MagicMock()
+    p._on_title = MagicMock()
+
+    yt_stream = StationStream(id=1, station_id=1,
+                              url="https://www.youtube.com/watch?v=test",
+                              quality="hi", position=1)
+    station = make_station_with_streams([yt_stream])
+
+    mock_yt_proc = MagicMock()
+    mock_yt_proc.poll.return_value = None  # still running
+
+    captured_callbacks = []
+
+    def capture_timeout(ms, cb):
+        captured_callbacks.append(cb)
+        return 100 + len(captured_callbacks)
+
+    with patch.object(p, "_stop_yt_proc"), \
+         patch("musicstreamer.player.subprocess.Popen", return_value=mock_yt_proc), \
+         patch("musicstreamer.player.time") as mock_time, \
+         patch("musicstreamer.player.GLib") as mock_glib:
+        mock_glib.timeout_add.side_effect = capture_timeout
+        mock_glib.idle_add.side_effect = lambda fn, *args: fn(*args)
+        mock_glib.source_remove = MagicMock()
+        # Seed at 0.0, then read at 15.1 (window closed)
+        mock_time.monotonic.side_effect = [0.0, 15.1]
+        p.play(station, p._on_title)
+        yt_poll_cb = captured_callbacks[-1]
+        result = yt_poll_cb()
+
+    assert result is False, "Must stop polling when window closes with mpv alive"
+    assert p._yt_poll_timer_id is None
+    assert p._yt_attempt_start_ts is None
+
+
+def test_cookie_retry_reseeds_yt_window():
+    """FIX-07 (c): When cookie-retry substitutes a new mpv at t=2s,
+    _yt_attempt_start_ts is re-seeded to time.monotonic() of the substitution."""
+    p = make_player()
+    p._pipeline = MagicMock()
+    p._on_title = MagicMock()
+
+    yt_stream = StationStream(id=1, station_id=1,
+                              url="https://www.youtube.com/watch?v=test",
+                              quality="hi", position=1)
+    station = make_station_with_streams([yt_stream])
+
+    # First proc: exited immediately (simulates cookie-broken mpv)
+    first_proc = MagicMock()
+    first_proc.poll.return_value = 1
+    # Second proc: still running after cookie removal
+    second_proc = MagicMock()
+    second_proc.poll.return_value = None
+
+    captured_callbacks = []
+
+    def capture_timeout(ms, cb):
+        captured_callbacks.append(cb)
+        return 100 + len(captured_callbacks)
+
+    with patch.object(p, "_stop_yt_proc"), \
+         patch("musicstreamer.player.os.path.exists", return_value=True), \
+         patch("musicstreamer.player.tempfile.mkstemp", return_value=(0, "/tmp/fake_cookies.txt")), \
+         patch("musicstreamer.player.os.close"), \
+         patch("musicstreamer.player.os.unlink"), \
+         patch("musicstreamer.player.shutil.copy2"), \
+         patch("musicstreamer.player.subprocess.Popen", side_effect=[first_proc, second_proc]), \
+         patch("musicstreamer.player.time") as mock_time, \
+         patch("musicstreamer.player.GLib") as mock_glib:
+        mock_glib.timeout_add.side_effect = capture_timeout
+        mock_glib.idle_add.side_effect = lambda fn, *args: fn(*args)
+        mock_glib.source_remove = MagicMock()
+        # Seeds: initial Popen=0.0, cookie-retry re-seed=2.0
+        mock_time.monotonic.side_effect = [0.0, 2.0]
+        p.play(station, p._on_title)
+        # Second-to-last registered timeout is the 2000ms _check_cookie_retry
+        # (the last is the 1000ms _yt_poll_cb)
+        cookie_retry_cb = captured_callbacks[-2]
+        cookie_retry_cb()
+
+    assert p._yt_attempt_start_ts == 2.0, \
+        f"Must re-seed to cookie-retry time, got {p._yt_attempt_start_ts}"
+
+
+def test_cancel_clears_yt_attempt_ts():
+    """FIX-07 (e): _cancel_failover_timer must clear _yt_attempt_start_ts."""
+    p = make_player()
+    p._yt_attempt_start_ts = 5.0
+    p._yt_poll_timer_id = 99
+
+    with patch("musicstreamer.player.GLib") as mock_glib:
+        mock_glib.source_remove = MagicMock()
+        p._cancel_failover_timer()
+
+    assert p._yt_attempt_start_ts is None
+    assert p._yt_poll_timer_id is None
