@@ -187,16 +187,76 @@
 
 ---
 
+## Milestone: v1.5 — Further Polish
+
+**Shipped:** 2026-04-10
+**Phases:** 14 (21–34) | **Plans:** 21 | **Timeline:** 5 days (2026-04-06 → 2026-04-10)
+
+### What Was Built
+
+- **FIX-01 Panel layout (Phase 21)** — YouTube thumbnail inflation fixed by switching from `Gtk.Picture` + `ContentFit.CONTAIN` to pre-scaled `GdkPixbuf` + `Gtk.Image` with a 320×180 slot. Root cause: `Gtk.Picture.measure()` returns source natural size regardless of `set_size_request` (minimum, not cap) or `vexpand=False`.
+- **COOKIE-01..06 YT cookie import (Phase 22)** — File picker, paste, and Google login via WebKit2 embedded browser; 0o600 perms; hamburger menu entry; yt-dlp always gets `--no-cookies-from-browser`; both yt-dlp and mpv use `--cookies=<path>` when present.
+- **FIX-02/03 Cookie-safe playback (Phase 23)** — yt-dlp/mpv invocations use temp copies of cookies.txt (preserving the imported original); mpv fast-exit (~2s) with cookies triggers one retry without cookies to survive corrupted cookie files.
+- **FIX-04/05/06 Layout fixes (Phases 24–26)** — Tag chips and filter chips wrap via `Gtk.FlowBox`; broken standalone Edit button replaced with a now-playing edit icon gated on play/pause state.
+- **STR-01..14 Multi-stream model (Phase 27)** — `station_streams` table with quality/label/position, `stations.url` migrated and dropped, `ManageStreamsDialog` for CRUD/reorder, quality presets (hi/med/low/custom); Radio-Browser/YT/AudioAddict import integrated.
+- **Stream failover D-01..08 (Phase 28)** — Server round-robin + quality fallback queue, toast notifications, stream-picker UI, 13 failover tests.
+- **MENU-01..05 Hamburger consolidation (Phase 29)** — Discover, Import, Accent Color, YT Cookies moved from header bar to a two-section Gio menu driven by `SimpleAction`s; header bar reduced to search + hamburger.
+- **TIMER-01..06 Elapsed counter (Phase 30)** — Now-playing time counter with pause/resume, station-change reset, failover-safe continuity, adaptive `M:SS` / `H:MM:SS` formatting.
+- **TWITCH-01..08 Twitch streaming (Phase 31)** — `streamlink --stream-url` resolves HLS URL and feeds GStreamer playbin3; offline detection shows toast without triggering failover; `~/.local/bin` added to PATH.
+- **TAUTH-01..07 Twitch OAuth (Phase 32)** — `CookiesDialog` renamed to `AccountsDialog` with `Gtk.Notebook` tabs; WebKit2 subprocess captures Twitch auth-token cookie and writes it to `TWITCH_TOKEN_PATH` with 0o600; `_play_twitch()` prepends `--twitch-api-header Authorization=OAuth <token>` when the token file is present.
+- **FIX-07 YouTube 15s failover gate (Phase 33)** — YT streams get a 15-second minimum wait before `_try_next_stream` can fire; `_yt_attempt_start_ts` + `_yt_poll_timer_id` track the gate; cookie-retry re-seeds the timestamp; `Adw.Toast("Connecting…")` fires on all `play()` / `play_stream()` paths; `_cancel_failover_timer` clears the attempt timestamp.
+- **Phase 34 cleanup** — Fixed deferred `test_streamlink_called_with_correct_args` by monkeypatching `musicstreamer.player.TWITCH_TOKEN_PATH` to force the no-token branch; annotated the stale cookies-test deferred item in Phase 33 as already resolved in commit `b3e066b` during 33-02. Production code untouched. 265/265 tests pass.
+
+### What Worked
+
+- **Pre-execution scope audits saved rework.** Phase 34's discuss step discovered the cookies-test deferred item was already fixed in Phase 33-02 (commit `b3e066b`), reducing the phase from "fix two tests" to "fix one test + annotate stale doc." Running the deferred tests BEFORE planning was the difference-maker.
+- **Tight per-phase scoping.** Bundling FIX-01 alone into Phase 21, keeping the chip fixes (24/25/26) as separate phases, and splitting multi-stream (27) from failover (28) let each phase ship independently and audit cleanly.
+- **Chain-mode (`--chain`) for trivial phases.** Phase 34 ran discuss → plan → execute → verify autonomously in one shot because scope was locked by the discussion. No mid-phase replanning.
+- **Live UAT gate after FIX-01 regression.** The initial audit cleared FIX-01 via code inspection; a post-audit UAT found a real GTK layout regression. Re-audit + fix + live UAT closed the gap the same day, before ship.
+- **Streamlink for Twitch instead of a new subsystem.** Feeding streamlink's resolved HLS URL to existing GStreamer playbin3 reused the whole failover/timer/metadata stack. Offline detection required only a toast path, not a new state machine.
+
+### What Was Inefficient
+
+- **Retroactive verification based on static code inspection missed a runtime GTK layout bug in FIX-01.** `Gtk.Picture.measure()` returns source natural size regardless of `set_size_request`/`vexpand`. The initial audit would have shipped a regression if the user hadn't run post-audit UAT. Added explicit "live-display UAT required" gate for any future phase touching GTK widget sizing.
+- **51-of-53 REQUIREMENTS.md checkboxes drifted to milestone close.** Only FIX-01 and FIX-07 were flipped inline. A checkbox sweep at `/gsd-complete-milestone` handled it, but consider having `/gsd-execute-phase` flip checkboxes at phase-commit time in the future.
+- **MILESTONES.md one-liner extraction broke again.** `gsd-tools summary-extract --pick one_liner` returned literal "One-liner:" header text instead of the content after it. Same issue flagged in v1.4; still needs a fix upstream. Manual correction required.
+- **Nyquist VALIDATION.md artifacts still `nyquist_compliant: false` across v1.5 phases.** Same verdict as v1.4 — overhead without payoff at this scale for a single-user desktop app. Skipped `/gsd-validate-phase` for all 14 phases.
+
+### Patterns Established
+
+- **`GdkPixbuf.new_from_file_at_scale` + `Gtk.Image`** for aspect-ratio-aware image slots where `Gtk.Picture`'s natural-size measurement would inflate containers. Superset of v1.4's `ContentFit.CONTAIN` pattern.
+- **`monkeypatch.setattr("module.PATH_CONSTANT", str(tmp_path / "nonexistent"))`** as the cleanest way to force no-token/no-file branches in subprocess tests without touching `builtins.open` or the subprocess mock.
+- **WebKit2 subprocess for cookie capture** — same subprocess pattern reused from Phase 22 (YT cookies) in Phase 32 (Twitch token). Spawn, navigate, extract, write to 0o600 file, exit.
+- **Streamlink-in-front-of-GStreamer** for non-direct-stream sources: resolve the HLS URL externally, feed the direct URL to existing `_set_uri` pipeline. Keeps failover/timer/metadata paths unchanged.
+- **Elapsed timer uses `GLib.timeout_add_seconds(1, cb)`** with tracked source ID for cleanup; pause on stream pause, resume on unpause, reset only on station change (not failover).
+- **Pre-execution scope audit during discuss-phase** — run the actual commands mentioned in deferred-items or acceptance criteria before planning. Saved an entire plan in Phase 34.
+
+### Key Lessons
+
+- **GTK measurement ≠ size constraints.** `set_size_request` is a minimum, `hexpand/vexpand=False` only govern extra-space allocation, and `Gtk.Picture.measure()` reports source natural size. For fixed-slot image containers, pre-scale the pixbuf and use `Gtk.Image`.
+- **Retroactive verification without UAT is unsafe for runtime-layout code.** Static inspection of constraints can miss emergent runtime behavior. Require live UAT as a gate when code touches widget sizing or container allocation.
+- **Deferred-items.md entries go stale fast.** Re-verify before planning a cleanup phase. One of the two Phase 33 deferred items was already fixed two commits later.
+- **A "trivial" follow-up phase still benefits from the full discuss→plan→execute→verify cycle** when it's wrapped in `--chain`. Phase 34 shipped in one chain invocation with no manual intervention because the discussion locked the scope.
+- **265/0 test ratio is achievable** when a cleanup phase explicitly forbids production-code touches and runs the full regression suite as the verification gate.
+
+### Cost Observations
+
+- Model mix: opus for plan-phase, sonnet for execute/verify/check — standard GSD defaults
+- Sessions: ~6 across 5 days
+- Notable: Phase 34 ran end-to-end (discuss → plan → execute → verify → audit) in a single `/gsd-discuss-phase 34 --chain` invocation followed by `/gsd-audit-milestone` → `/gsd-complete-milestone`. Fully autonomous pipeline for a bounded scope.
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 |
-|--------|------|------|------|------|------|
-| Phases | 4 | 2 | 5 | 4 | 5 |
-| Plans | 8 | 4 | 12 | 8 | 8 |
-| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) |
-| LOC source (Python) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) |
-| Gap closure plans | 1 | 0 | 0 | 0 | 0 |
-| Days | 35 | 1 | 3 | 8 | 2 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 |
+|--------|------|------|------|------|------|------|
+| Phases | 4 | 2 | 5 | 4 | 5 | 14 |
+| Plans | 8 | 4 | 12 | 8 | 8 | 21 |
+| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) |
+| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) |
+| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 |
+| Days | 35 | 1 | 3 | 8 | 2 | 5 |
 
 ## Milestone: v1.1 — Polish & Station Management
 
