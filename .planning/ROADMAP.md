@@ -283,8 +283,8 @@ Plans:
   4. Twitch tab has login status, "Log in to Twitch" button, and "Log out" button
   5. WebKit2 subprocess captures auth-token cookie from .twitch.tv and stores raw token with 0o600
   6. Existing YouTube cookie functionality unchanged
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 32-01-PLAN.md — TDD: TWITCH_TOKEN_PATH constant + _play_twitch() auth header injection
-- [ ] 32-02-PLAN.md — Rename to AccountsDialog with tabs + Twitch WebKit2 login flow
+- [x] 32-01-PLAN.md — TDD: TWITCH_TOKEN_PATH constant + _play_twitch() auth header injection
+- [x] 32-02-PLAN.md — Rename to AccountsDialog with tabs + Twitch WebKit2 login flow
