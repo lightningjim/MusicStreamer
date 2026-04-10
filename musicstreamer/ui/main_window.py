@@ -15,7 +15,7 @@ from musicstreamer.ui.edit_dialog import EditStationDialog
 from musicstreamer.filter_utils import normalize_tags, matches_filter_multi
 from musicstreamer.constants import DATA_DIR, QUALITY_SETTING_KEY
 from musicstreamer.ui.accent_dialog import AccentDialog
-from musicstreamer.ui.cookies_dialog import CookiesDialog
+from musicstreamer.ui.accounts_dialog import AccountsDialog
 from musicstreamer.mpris import MprisService
 
 
@@ -55,7 +55,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Bottom section — settings (per D-01)
         settings_section = Gio.Menu()
         settings_section.append("Accent Color\u2026", "app.open-accent")
-        settings_section.append("YouTube Cookies\u2026", "app.open-cookies")
+        settings_section.append("Accounts\u2026", "app.open-accounts")
         menu.append_section(None, settings_section)
 
         menu_btn = Gtk.MenuButton()
@@ -65,8 +65,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         shell.add_top_bar(header)
 
-        action = Gio.SimpleAction.new("open-cookies", None)
-        action.connect("activate", self._open_cookies_dialog)
+        action = Gio.SimpleAction.new("open-accounts", None)
+        action.connect("activate", self._open_accounts_dialog)
         app.add_action(action)
 
         for name, handler in [
@@ -1165,8 +1165,8 @@ class MainWindow(Adw.ApplicationWindow):
         dlg = ImportDialog(self.get_application(), self.repo, self)
         dlg.present()
 
-    def _open_cookies_dialog(self, action, param):
-        dlg = CookiesDialog(self.get_application(), self)
+    def _open_accounts_dialog(self, action, param):
+        dlg = AccountsDialog(self.get_application(), self)
         dlg.present()
 
     def _open_editor(self, station_id: int):

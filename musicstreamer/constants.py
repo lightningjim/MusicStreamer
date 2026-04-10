@@ -17,7 +17,7 @@ def clear_cookies() -> bool:
 
 
 def clear_twitch_token() -> bool:
-    """Delete twitch-token.txt if it exists. Returns True if removed."""
+    """Delete twitch-token.txt if it exists. Returns True if file was removed."""
     if os.path.exists(TWITCH_TOKEN_PATH):
         os.remove(TWITCH_TOKEN_PATH)
         return True
