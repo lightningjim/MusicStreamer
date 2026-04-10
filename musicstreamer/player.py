@@ -8,7 +8,7 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst, GLib
 from musicstreamer.models import Station, StationStream
-from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES, COOKIES_PATH, TWITCH_TOKEN_PATH
+from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES, COOKIES_PATH, TWITCH_TOKEN_PATH, YT_MIN_WAIT_S
 
 
 def _fix_icy_encoding(s: str) -> str:
@@ -46,6 +46,7 @@ class Player:
         self._current_stream: StationStream | None = None
         self._current_station_name: str = ""
         self._is_first_attempt: bool = True
+        self._yt_attempt_start_ts: float | None = None
         self._twitch_resolve_attempts: int = 0
         self._on_offline = None
         # Clean up stale temp cookie files from previous crashed sessions
@@ -95,6 +96,7 @@ class Player:
         if self._yt_poll_timer_id is not None:
             GLib.source_remove(self._yt_poll_timer_id)
             self._yt_poll_timer_id = None
+        self._yt_attempt_start_ts = None
 
     def _on_timeout_cb(self) -> bool:
         """Failover timeout: no audio arrived within BUFFER_DURATION_S seconds."""
@@ -204,20 +206,31 @@ class Player:
         self._cleanup_cookie_tmp()
 
     def _yt_poll_cb(self) -> bool:
-        """Poll the YouTube mpv process for failure. Triggers failover if process exited non-zero."""
+        """Poll the YouTube mpv process. Failover only after YT_MIN_WAIT_S has elapsed
+        (Phase 33 / FIX-07 / D-01). See RESEARCH.md Pattern 1."""
         if self._yt_proc is None:
             self._yt_poll_timer_id = None
             return False
         exit_code = self._yt_proc.poll()
-        if exit_code is not None and exit_code != 0:
-            self._yt_poll_timer_id = None
+        elapsed = 0.0
+        if self._yt_attempt_start_ts is not None:
+            elapsed = time.monotonic() - self._yt_attempt_start_ts
+        if exit_code is None:
+            # Still running. If we've crossed the window, treat as success (D-03).
+            if elapsed >= YT_MIN_WAIT_S:
+                self._yt_poll_timer_id = None
+                self._yt_attempt_start_ts = None
+                return False
+            return True  # keep polling
+        # mpv has exited. Defer failover until the window closes (D-01, D-02).
+        if elapsed < YT_MIN_WAIT_S:
+            return True  # keep polling — sit idle until window elapses
+        # Window elapsed AND exited.
+        self._yt_poll_timer_id = None
+        self._yt_attempt_start_ts = None
+        if exit_code != 0:
             self._try_next_stream()
-            return False
-        if exit_code is not None:
-            # Exited cleanly (exit 0) — not a failure
-            self._yt_poll_timer_id = None
-            return False
-        return True  # Still running, keep polling
+        return False
 
     def _play_youtube(self, url: str, fallback_name: str, on_title: callable):
         self._stop_yt_proc()
@@ -246,6 +259,7 @@ class Player:
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env=env,
         )
+        self._yt_attempt_start_ts = time.monotonic()
         if on_title:
             on_title(fallback_name)
         # D-05: retry without cookies if mpv exits immediately (corrupted cookies)
@@ -261,6 +275,7 @@ class Player:
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     env=env,
                 )
+                self._yt_attempt_start_ts = time.monotonic()
             return False  # one-shot
         GLib.timeout_add(2000, _check_cookie_retry)
         # Arm YouTube poll timer to detect process failure (BUFFER_DURATION_S timeout)
