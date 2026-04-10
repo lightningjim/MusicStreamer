@@ -307,7 +307,8 @@ def test_mpv_retry_without_cookies_on_fast_exit(tmp_path, monkeypatch):
             return first_proc
         return second_proc
 
-    monotonic_values = iter([0.0, 1.0])
+    import itertools
+    monotonic_values = itertools.count(start=0.0, step=1.0)
     monkeypatch.setattr("time.monotonic", lambda: next(monotonic_values))
 
     timeout_callbacks = []
