@@ -288,3 +288,13 @@ Plans:
 Plans:
 - [x] 32-01-PLAN.md — TDD: TWITCH_TOKEN_PATH constant + _play_twitch() auth header injection
 - [x] 32-02-PLAN.md — Rename to AccountsDialog with tabs + Twitch WebKit2 login flow
+
+### Phase 33: Fix YT video playback delay until all streams failed toast
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 32
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 33 to break down)
