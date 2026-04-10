@@ -894,14 +894,18 @@ class MainWindow(Adw.ApplicationWindow):
                     existing_yt = self.logo_stack.get_child_by_name("yt")
                     if existing_yt:
                         self.logo_stack.remove(existing_yt)
-                    pic = Gtk.Picture.new_for_filename(abs_path)
-                    pic.set_content_fit(Gtk.ContentFit.CONTAIN)
-                    pic.set_size_request(160, 160)
-                    pic.set_hexpand(False)
-                    pic.set_vexpand(False)
-                    pic.set_halign(Gtk.Align.CENTER)
-                    pic.set_valign(Gtk.Align.CENTER)
-                    self.logo_stack.add_named(pic, "yt")
+                    # Pre-scale to fit 160x160 with aspect preserved (16:9 → 160x90).
+                    # Using Gtk.Image+pixbuf instead of Gtk.Picture because Picture
+                    # reports natural size as the full image (1280x720), bypassing
+                    # set_size_request and inflating the panel on fullscreen (FIX-01 regression).
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(abs_path, 160, 160, True)
+                    yt_image = Gtk.Image.new_from_pixbuf(pixbuf)
+                    yt_image.set_size_request(160, 160)
+                    yt_image.set_hexpand(False)
+                    yt_image.set_vexpand(False)
+                    yt_image.set_halign(Gtk.Align.CENTER)
+                    yt_image.set_valign(Gtk.Align.CENTER)
+                    self.logo_stack.add_named(yt_image, "yt")
                     self.logo_stack.set_visible_child_name("yt")
                 except Exception:
                     self.logo_stack.set_visible_child_name("fallback")
