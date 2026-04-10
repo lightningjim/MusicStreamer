@@ -1,381 +1,215 @@
 # Feature Research
 
-**Domain:** Personal GNOME desktop internet radio — v1.4 Media & Art Polish
-**Researched:** 2026-04-03
-**Overall confidence:** MEDIUM–HIGH (code read + web verification where possible)
+**Domain:** Cross-platform (Linux + Windows) desktop audio-stream player — Qt/PySide6 port of GTK MusicStreamer v1.5
+**Researched:** 2026-04-10
+**Confidence:** MEDIUM-HIGH (Windows integration verified via official docs + community; packaging verified via multiple sources)
 
 ---
 
-## Scope Boundary
+## Scope
 
-This file covers the four v1.4 features only. Prior v1.3 feature research is preserved in
-git history. Existing behavior is documented here only where it affects edge-case handling
-or implementation decisions for new features.
-
----
-
-## Feature 1: GStreamer Buffer Tuning (STREAM-01)
-
-### What the user experiences
-
-ShoutCast/HTTP streams (AudioAddict, Soma.FM, etc.) occasionally produce a brief audible
-drop-out — a fraction of a second of silence or glitch — when network delivery is momentarily
-slow. This is distinct from a full stream failure (which would produce an error and stop).
-The user hears it as a subtle pop or gap. On good connections it may never happen. On
-congested Wi-Fi or VPN it can happen several times per minute.
-
-### Root cause in the current implementation
-
-`player.py` uses `playbin3` with no explicit buffer configuration. GStreamer's default
-buffer size for HTTP audio streams is very small (typically ~2s or less). When a burst of
-network jitter exceeds that window the queue empties and GStreamer either mutes briefly or
-resets. The fix is to raise `buffer-duration` (and optionally `buffer-size`) so GStreamer
-pre-buffers more before starting and tolerates longer network bursts.
-
-### Table-stakes behavior
-
-| Behavior | Notes |
-|----------|-------|
-| No audible glitches on typical home network streams | The primary requirement |
-| Start-up latency increase is imperceptible (<1s) | A 5s buffer pre-loads quickly at 128–320kbps |
-| Behavior unchanged for YouTube streams | YT uses mpv subprocess — completely separate code path, not affected |
-| No behavior change for the user | Internal-only change; no UI needed |
-
-### Recommended values (MEDIUM confidence — from community sources)
-
-`buffer-duration = 5 * Gst.SECOND` (5,000,000,000 ns) is the most commonly cited value
-in pithos, Mopidy, and GStreamer forum threads for resolving HTTP audio drop-outs. Some
-sources combine it with `buffer-size = 1024 * 1024` (1 MB) as an upper bound. The
-duration approach is preferred because it scales with bitrate; size alone can be too small
-for high-bitrate streams.
-
-`playbin3` (used in the app) exposes the same `buffer-duration` and `buffer-size`
-properties as `playbin`. Both should be set.
-
-### Edge cases
-
-| Case | Expected behavior |
-|------|-------------------|
-| Stream bitrate lower than GStreamer's rate estimate | Buffering takes longer at startup; tolerable |
-| Metered / slow connection where 5s of audio is large | Still correct — larger buffer helps, never hurts |
-| YouTube station played | mpv subprocess handles it; `buffer-duration` setting ignored for that code path |
-| Setting applied mid-stream (not at startup) | Must set before `set_state(PLAYING)`. Already the case in `_set_uri`. |
-| GStreamer can't determine bitrate (rate estimate = 0) | Buffer-duration fallback is buffer-size; set both to be safe |
-
-### Anti-feature
-
-Do NOT expose a buffer-size slider to the user. This is an internal reliability fix. Adding
-UI for it would be scope creep — the only expected outcome is that drop-outs stop happening.
+This file covers NEW capabilities needed for v2.0. All v1.5 features (station library, now-playing,
+failover, discovery, import, Twitch, cookies, MPRIS2, accent color) are pre-validated and ported
+as-is. This document does not re-list them.
 
 ---
 
-## Feature 2: AudioAddict Station Art (ART-01 + implicit ART-01b)
+## Feature Landscape
 
-### Sub-feature A: Fetch logo at bulk import time (ART-01)
+### Table Stakes (Users Expect These)
 
-**What the user experiences:** After running the AudioAddict import dialog, each imported
-station has its channel logo as station art — the same square logo visible in the station
-list row and now-playing left slot. Without this, all ~200 imported stations show the
-generic audio icon.
+| Feature | Platform | Why Expected | Complexity | Notes |
+|---------|----------|--------------|------------|-------|
+| Qt/PySide6 UI at v1.5 feature parity | Both | Without this nothing else exists | HIGH | Core milestone deliverable; GTK retired entirely |
+| Platform-correct user data paths | Both | Windows apps that write to their own install folder break under UAC and antivirus heuristics | LOW | `%LOCALAPPDATA%\MusicStreamer` on Windows; `~/.local/share/musicstreamer` on Linux unchanged. `platformdirs` library resolves both. |
+| Windows SMTC (SystemMediaTransportControls) | Windows-only | Keyboard media keys, taskbar thumbnail transport, and lock-screen Now Playing all route through SMTC on Win10/11 | MEDIUM | `pywinrt` / `winsdk` packages provide Python bindings. Replaces dbus-python MPRIS2 on Windows. Linux keeps MPRIS2. Implement via platform-dispatch shim (`sys.platform` guard). |
+| MPRIS2 retained on Linux | Linux-only | Current behavior; Linux users expect media-key passthrough via D-Bus | LOW | Keep existing `mpris.py`; guard with `sys.platform == 'linux'` |
+| High-DPI scaling | Both (critical Windows) | Windows 10/11 defaults to 125–150% scaling; unscaled Qt app looks tiny or blurry | LOW | Qt 6 handles automatically when `QApplication.setHighDpiScaleFactorRoundingPolicy(PassThrough)` is set. Porting checklist: confirm no hardcoded pixel sizes survive the GTK port. |
+| Dark-mode respect on Windows | Windows-only | Windows 11 users with system dark mode expect apps to follow it | MEDIUM | Qt 6.5+ reads Windows color scheme via `QStyleHints.colorScheme`. The default Windows style does NOT reliably respect it — only Fusion does. Recommendation: ship Fusion style with manual palette override on Windows. `pyqtdarktheme` library provides a consistent palette as a fallback. Known bug in PySide 6.8.0.1 — test carefully. |
+| Windows Defender SmartScreen — signed executable | Windows-only | Unsigned EXE shows "Windows protected your PC" block dialog; many users won't know the bypass | HIGH | As of 2024, EV certs no longer bypass SmartScreen instantly — reputation builds over time regardless of cert type. For personal/small distribution: self-signed is acceptable if users are trusted. For wider distribution: OV code-signing cert (~$100–300/yr) reduces friction. Hardware token required by CA/B Forum since June 2023. |
+| Single-instance enforcement | Both | Second instance would start a second GStreamer pipeline; on Windows there is no session D-Bus to arbitrate | LOW | Windows: named mutex via `ctypes.windll.kernel32.CreateMutexW`. Linux: lock file in XDG runtime dir. On second launch, raise the existing window. |
+| Bundled SVG icon set (replace GNOME symbolic icons) | Both | `QIcon.fromTheme()` returns nothing on Windows; GNOME symbolic icons don't exist there | MEDIUM | Use Material Symbols or Fluent System Icons (both Apache 2.0); subset to ~20 icons. Compile into Qt resources (`.qrc`). Pattern: `QIcon.fromTheme("media-playback-start", QIcon(":/icons/play.svg"))` — Linux themes win when present, bundled SVGs everywhere else. `QtSvg` plugin must be included in the PyInstaller bundle. |
+| System font on Windows (Segoe UI) | Windows-only | Qt defaults to Segoe UI on Windows automatically. No action needed, but the Adwaita Sans assumption must not be hardcoded anywhere in the Qt UI code | LOW | Porting checklist item: confirm no `setFont("Adwaita Sans")` calls survive the port. |
+| Manual settings export/import | Both | Stated v2.0 milestone requirement for cross-machine moves | MEDIUM | See dedicated section below. |
+| Windows installer / distributable binary | Windows-only | Windows users expect an installer EXE; a raw folder is not an acceptable deliverable | MEDIUM | See packaging section below. |
 
-**How the AA API provides images:**
+### Differentiators (Nice-to-Haves)
 
-The existing `aa_import.py` calls `https://listen.{domain}/{tier}?listen_key={key}` and
-gets a JSON array of channel objects. Each object currently uses only `name` and `key`.
+| Feature | Platform | Value Proposition | Complexity | Notes |
+|---------|----------|-------------------|------------|-------|
+| Minimize-to-tray | Both (more relevant Windows) | Music player running in background with no taskbar clutter; standard for media players | LOW | `QSystemTrayIcon` + `QMenu` is well-supported on both platforms. Hide window on minimize, show tray icon, left-click restores. First close should offer "minimize to tray" vs "quit". |
+| Windows accent color seed on first run | Windows-only | App accent matches user's Windows color, replacing the custom GNOME accent picker for that platform | MEDIUM | `QPalette::Accent` via `QGuiApplication.palette()` reads Windows accent. Broken in PySide 6.8.0.1 (showed gray). Registry fallback: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`. Decision: keep custom accent picker as primary; optionally seed it from Windows accent on first launch only. |
+| Toast replacement via QSystemTrayIcon.showMessage | Both | Current Adw.Toast has no Qt equivalent; failover and "Connecting…" toasts need a cross-platform replacement | LOW | `QSystemTrayIcon.showMessage()` is the correct baseline — it works on both platforms, has no additional dependencies, and covers the non-blocking notification use case adequately. |
+| Global media hotkeys beyond SMTC | Windows-only | Some users remap media keys or use global shortcuts outside SMTC | MEDIUM | SMTC covers standard media keys natively. Global hotkeys beyond that (e.g., `Ctrl+Alt+P`) require `RegisterHotKey` Win32 API or the `keyboard` PyPI package. Defer unless SMTC proves insufficient in practice. |
 
-Based on community client code (Plex/Kodi plugins, mopidy-audioaddict) and the archived
-api-rev-5 documentation, the channel objects in this response also contain image-related
-fields. The exact field name is LOW confidence (not verified against a live response) but
-community implementations reference:
-- `asset_url` — a CDN URL to a square channel logo image (noted in v1.3 research)
-- `images` — an object with nested keys like `default`, `compact`, etc. (seen in Kodi plugin)
-- Direct URL construction: `https://cdn-radiotime-logos.tunein.com/` pattern is NOT used
-  by AA; AA uses its own CDN (typically `cdn-images.audioaddict.com` or similar)
+### Anti-Features (Commonly Requested, Often Problematic)
 
-**Recommended approach:** Extract whatever image URL field is present in the response and
-download it during `import_stations()`. Store via the existing `copy_asset_for_station()`
-path. If the field is absent or download fails, silently skip (no logo is fine; the import
-should not fail because of missing art).
-
-**Edge cases:**
-
-| Case | Expected behavior |
-|------|-------------------|
-| Channel JSON has no image field | Skip art silently; station imported with no logo |
-| Image URL returns 404 or times out | `try/except` around download; skip art, continue import |
-| Image is not square (e.g., 16:9 banner) | `copy_asset_for_station` + `Gtk.ContentFit.COVER` crops to 1:1 correctly |
-| Re-import of existing station (dedup by URL) | Station is skipped entirely; no art update. User can manually set art if needed. |
-| Image download is slow (N=200 channels) | Must be async or background; cannot block the import progress UI |
-| CDN requires cookies or auth | Extremely unlikely for logo images; if it happens, silently skip |
-| Image MIME is WebP (not PNG/JPEG) | GdkPixbuf supports WebP; `copy_asset_for_station` stores as-is |
-
-**Important implementation constraint:** `import_stations()` runs in a background thread
-(see `aa_import.py` usage in `ImportDialog`). Image downloads must happen on that same
-thread — they cannot call GTK. All SQLite writes must use a thread-local connection (same
-pattern as existing import code: `db_connect()` per-thread).
-
-### Sub-feature B: Auto-fetch logo when user pastes an AudioAddict URL in station editor (ART-01b)
-
-**What the user experiences:** User adds or edits a station and pastes an AudioAddict
-stream URL (e.g., `https://listen.di.fm/premium_high/deephouse.pls?listen_key=...`).
-The station art is auto-populated with the DI.fm channel logo — same UX as the existing
-YouTube thumbnail auto-fetch when a YouTube URL is pasted.
-
-**Trigger:** `_on_url_focus_out` in `edit_dialog.py` already calls `_start_thumbnail_fetch`
-for YouTube URLs. The same hook should detect AA URLs and trigger an AA logo fetch.
-
-**URL detection:** AA stream URLs contain `listen.di.fm`, `listen.radiotunes.com`,
-`listen.jazzradio.com`, `listen.rockradio.com`, `listen.classicalradio.com`, or
-`listen.zenradio.com`. A helper `_is_audioaddict_url(url)` should be added alongside the
-existing `_is_youtube_url()`.
-
-**Channel key extraction:** The stream URL path contains the channel key:
-`/premium_high/deephouse.pls` → key = `deephouse`. The network domain identifies which
-AA network to query.
-
-**Logo retrieval:** Once key + network are known, either:
-1. Call the AA channels API for that network and find the matching channel's image URL, OR
-2. Construct a CDN URL directly if a stable pattern exists (LOW confidence — verify first)
-
-Option 1 is safer but requires the user's API key to be available. If the station editor
-doesn't have access to the stored API key, this sub-feature may need the key to be stored
-in the repo settings table (not just in the import dialog's in-flight state).
-
-**Alternative simpler approach:** If the AA API channel image URL is a predictable pattern
-(e.g., `https://cdn-images.audioaddict.com/.../{key}.jpg`), a direct URL construction
-avoids needing the API key at all. This must be confirmed against a live response.
-
-**Edge cases:**
-
-| Case | Expected behavior |
-|------|-------------------|
-| URL is an AA URL but channel key not found in API | Show spinner, silently revert to spinner→no-image (same as YT fail) |
-| URL is an AA URL, API key not stored | Cannot fetch — silently skip; show no spinner (don't mislead user) |
-| User pastes AA URL then immediately changes it | `_fetch_cancelled` flag (already exists) handles this |
-| URL matches `listen.*.com` but is not actually AA | Detection is best-effort; worst case a fetch attempt fails silently |
-| User pasted a non-PLS direct stream URL from AA | Channel key extraction may fail; fallback: skip logo fetch |
-| Logo already set (station has existing art) | Do NOT overwrite existing art on focus-out. Only auto-populate if `station_art_rel` is currently None/empty |
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| MSIX packaging | Modern Microsoft format, avoids SmartScreen | Requires Microsoft Store submission or sideloading config, mandatory signing with hardware token, complex build pipeline. Overkill for a personal app. | PyInstaller + NSIS EXE installer |
+| Auto-update | Nice for end-users | Single-user personal app. Auto-update infrastructure adds ~50 LOC of error-prone code (GitHub Releases API check, download, re-exec, signature verify) for zero real benefit. | Manual download when a new build is wanted |
+| Native Windows toast (Windows.UI.Notifications / winrt) | Native feel | Requires AUMID registration, COM machinery, significantly more setup than the value justifies. Broken in some Python WinRT versions. | `QSystemTrayIcon.showMessage()` covers the need completely |
+| Cookie export in settings bundle | Completeness | Cookies contain live session tokens; exporting them in a portable ZIP creates a credential exposure risk. Google session cookies especially sensitive. | Document: cookies must be re-imported manually on a new machine |
+| Twitch token export in settings bundle | Completeness | Same credential exposure risk as cookies | Document: re-auth manually on new machine |
+| adwaita-qt pixel-perfect theming | Match GNOME look on Linux | `adwaita-qt` gives approximate parity; chasing pixel-perfection means maintaining a custom style engine. GNOME users understand Qt apps look slightly different from native GTK apps. | Ship Fusion + adwaita-qt, accept the visual delta |
+| Windows Jump List | Recently-played stations in taskbar right-click | Very high complexity (`winrt` Jump List API), fragile, and the station library is always one click away in the app. Marginal value. | In-app recently-played section (already v1.5) |
+| Taskbar thumbnail toolbar (play/pause buttons on hover) | Convenience | `ITaskbarList3::ThumbBarAddButtons` Win32 COM; high complexity. SMTC already covers this use case for Windows. | SMTC lock-screen / taskbar integration |
+| File association (.pls / .m3u double-click opens app) | Standard player behavior | Requires registry writes at install time, a URL handler protocol, and a CLI entry point that imports/plays a file — significant cross-cutting scope. This app's workflow is library-first, not file-first. | Defer to v2.1 if requested |
 
 ---
 
-## Feature 3: YouTube Thumbnail 16:9 Display (ART-02)
+## Settings Export/Import — Feature Shape
 
-### What the user experiences
+**What the bundle contains:**
 
-YouTube live stream stations (e.g., Lofi Girl) have wide 16:9 thumbnails. Currently the
-now-playing right slot is a fixed 160×160 square with `ContentFit.COVER`, which crops
-the thumbnail to its center — cutting off the sides of a 16:9 image, sometimes cropping
-out the subject entirely.
+| Data | Include | Rationale |
+|------|---------|-----------|
+| Stations (name, provider, tags, logo path, ICY disabled) | YES | Core library |
+| Station streams (URL, quality, label, position) | YES | Multi-stream model |
+| Favorites (track titles with station/provider/genre) | YES | User data |
+| App settings (volume, accent color) | YES | Preferences |
+| Logo image files | YES — embedded in archive | Without logos, import looks broken |
+| cookies.txt | NO | Live session tokens; credential risk |
+| Twitch OAuth token | NO | Live credential; credential risk |
 
-The fix: show the full 16:9 image in the now-playing panel, either by letterboxing it
-within the 160×160 slot or by giving it a wider slot (e.g., 284×160 for 16:9).
+**Format:** Zip archive (`.musicstreamer` extension or `.zip`) containing:
+- `export.json` — all station/stream/favorites/settings data with a `schema_version` field
+- `logos/` — image files referenced by station records by relative path
 
-### Display options
+Rationale over alternatives: A SQLite snapshot is binary-diff-unfriendly and couples the export format to internal schema migrations. A flat JSON + images zip is human-inspectable, version-tolerant, trivially implemented with stdlib (`zipfile`, `json`), and easy to validate on import.
 
-| Approach | UX | Notes |
-|----------|----|-------|
-| `ContentFit.CONTAIN` in existing 160×160 slot | Full image, letterboxed with bars top/bottom | Simplest code change; image shrinks noticeably |
-| Widen the cover art slot to 284×160 (true 16:9) | Full image, no bars | Panel width increases for YT stations only — layout shifts |
-| Detect aspect ratio; conditionally adjust | Correct for each image type | More complex; covers the mixed-content case |
-| `ContentFit.CONTAIN` in 284×160 slot, constrained | Full image within wider slot; ICY art still 160×160 COVER | Works if the slot is physically wider than for ICY art |
-
-**Recommended approach:** The cleanest approach that fits the existing panel layout is to
-change the `cover_image` widget to use `ContentFit.CONTAIN` and give it a fixed 284×160
-size. For ICY stations, square cover art will have slight side letterboxing — acceptable.
-For YT stations, the full 16:9 shows. No conditional logic needed.
-
-Alternative: keep 160×160 for ICY art (which is always square album art) and only widen
-for YouTube. This requires knowing at display time whether the current station is YouTube.
-That information is available via `_current_station.url` — but adds branching.
-
-**Simplest correct answer:** `ContentFit.CONTAIN` in the existing 160×160 slot. No layout
-change. 16:9 thumbnail will be letterboxed but fully visible. This is table-stakes — just
-show the whole image.
-
-### Table-stakes behavior
-
-| Behavior | Notes |
-|----------|-------|
-| Entire 16:9 thumbnail visible in now-playing | Core requirement |
-| No crash or UI layout break when thumbnail loads | Verify widget size_request is honored |
-| ICY station cover art still displays correctly | Square iTunes art must not be distorted |
-| Transition from station logo → thumbnail works correctly | Same Gtk.Stack swap; content_fit change is on the Gtk.Image inside |
-
-### Edge cases
-
-| Case | Expected behavior |
-|------|-------------------|
-| YT thumbnail is 4:3 or 1:1 (rare but possible) | `ContentFit.CONTAIN` handles all aspect ratios correctly — bars appear as needed |
-| ICY station playing, then YT station selected | Cover stack resets to fallback on play; thumbnail loads when ready |
-| Thumbnail fetch fails | Stack shows fallback icon (existing behavior, unchanged) |
-| Panel height constrained by window resize | `set_size_request` is a minimum — layout already handles this |
-| GdkPixbuf.new_from_file_at_scale called with False (don't preserve aspect) | Currently called this way in `_on_cover_art`. For 16:9, the pixbuf scale should preserve aspect OR the Gtk.Picture/Image content_fit should do it. Don't double-scale. |
-
-**Note on existing code:** `_on_cover_art` currently calls
-`GdkPixbuf.Pixbuf.new_from_file_at_scale(temp_path, 160, 160, False)` (no aspect
-preservation). For 16:9 thumbnails this stretches them to 160×160 before they reach the
-widget. The fix must happen at the pixbuf scale call too: either pass `True` (preserve
-aspect) or use `Gtk.Picture` directly with `set_filename` and let GTK handle scaling.
-The latter is simpler and already done in the station editor (`station_pic` uses
-`Gtk.Picture.set_filename`).
+**Import conflict resolution:** Replace-on-URL-match. If an existing station has the same primary stream URL, update its metadata. Otherwise insert. Do not silently discard. Surface a summary dialog ("3 updated, 12 added") after import completes.
 
 ---
 
-## Feature 4: Custom Accent Color (ACCENT-01)
+## Windows Packaging — Recommendation
 
-### What the user experiences
+**Toolchain:** PyInstaller 6.x → NSIS installer EXE
 
-A settings panel (or dialog) with:
-- A row of preset color swatches (e.g., 6–8 named colors matching GNOME's system accent
-  palette: Blue, Teal, Green, Yellow, Orange, Red, Pink, Purple, Slate)
-- A hex input field for custom colors
-- Changes apply immediately (live preview)
-- Color persists across app restarts
-
-The accent color affects highlighted widgets: the active chip filters, the "Save" button,
-the Stop button's suggested-action style, the star when active — all the elements that use
-Adwaita's `--accent-bg-color` CSS variable.
-
-### How CSS override works in GTK4/Libadwaita (MEDIUM confidence)
-
-Libadwaita defines `--accent-bg-color` and `--accent-color` as CSS custom properties.
-Applications can override them by loading a `Gtk.CssProvider` with higher priority than
-the default theme. The standard way:
-
-```python
-provider = Gtk.CssProvider()
-provider.load_from_string(":root { --accent-bg-color: #e01b24; --accent-color: #ffffff; }")
-Gtk.StyleContext.add_provider_for_display(
-    Gdk.Display.get_default(),
-    provider,
-    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-)
-```
-
-`STYLE_PROVIDER_PRIORITY_APPLICATION` (600) overrides the default Adwaita theme (400)
-and user `gtk.css` (500). This is the documented correct priority for app-level overrides.
-
-To update the accent color at runtime: call `provider.load_from_string(new_css)` again
-on the same provider object — GTK4 re-applies automatically without needing to re-add
-the provider.
-
-### Persistence
-
-Store the accent color as a hex string in the existing SQLite settings table (already
-used for `volume` and `recently_played_count`). Key: `"accent_color"`. Load on startup,
-apply before the window is shown to avoid flash of default color. If not set, use the
-system accent (no override applied).
-
-### Deriving `--accent-color` from `--accent-bg-color`
-
-Libadwaita states that standalone accent colors are automatically derived from the
-background color. In practice: when overriding `--accent-bg-color`, also override
-`--accent-color` with either `#ffffff` or `#000000` based on the luminance of the
-background. This ensures text on accent-colored buttons remains readable.
-
-Simple luminance formula: `0.2126*R + 0.7152*G + 0.0722*B > 0.5` → use black text,
-else white text.
-
-### Preset swatch values
-
-Use GNOME 47+ system accent colors for familiarity:
-
-| Name | Hex |
-|------|-----|
-| Blue (default) | `#3584e4` |
-| Teal | `#2190a4` |
-| Green | `#3a944a` |
-| Yellow | `#c88800` |
-| Orange | `#e66100` |
-| Red | `#e01b24` |
-| Pink | `#d56199` |
-| Purple | `#9141ac` |
-| Slate | `#6f8396` |
-
-### Table-stakes behavior
-
-| Behavior | Notes |
-|----------|-------|
-| Preset swatches visually show the color | Color buttons with the actual background color |
-| Hex input accepts valid 6-char hex (with or without `#`) | Validate before applying |
-| Invalid hex input silently rejected (no crash) | Show no visual feedback or show a brief error label |
-| Selected color applied immediately on click/confirm | No "apply" button needed; live preview |
-| Color persists after app restart | Read from `settings` table on init |
-| No color set = system/default Adwaita colors | When no setting stored, do not load a CSS override |
-
-### Edge cases
-
-| Case | Expected behavior |
-|------|-------------------|
-| User enters pure white or pure black hex | Apply it. Edge case but valid. Text contrast may look bad — user's responsibility. |
-| User enters a color that makes text unreadable | Derive fg as described above; best-effort readability |
-| Hex field loses focus mid-typing (partial hex) | Do not apply partial hex. Apply only when length == 6 (or 7 with `#`). |
-| Settings DB migration (new `accent_color` key) | `get_setting` already handles missing keys with a default; no schema change needed (key-value table) |
-| App launched for first time (no stored color) | Libadwaita default accent (blue) used; no override applied |
-| User removes color (reset to default) | Set stored value to empty string or delete the key; do not load a CSS provider |
-| Adwaita version that doesn't support `--accent-bg-color` variable | Older libadwaita (<1.0) doesn't have this variable. Since v1.0+ is required for the app anyway (uses Adw.ToggleGroup, Adw.SwitchRow), this is safe. |
-| Dark mode: accent color readable on dark background | Libadwaita auto-adapts accent saturation for dark mode when using the CSS variable; custom hex may not. This is acceptable. |
+- PyInstaller bundles Python + GStreamer + PySide6 into a single-folder dist. Well-documented for PySide6 (pythonguis.com tutorial current 2025, PyInstaller 6.19 on PyPI).
+- NSIS wraps the dist folder into a standard Windows installer EXE. Generates uninstaller, Start Menu shortcut, optional desktop shortcut. Small footprint, scriptable, widely used.
+- Pipeline: `pyinstaller musicstreamer.spec` → `makensis installer.nsi` → distributable `MusicStreamer-Setup.exe`.
+- **Highest-complexity packaging concern:** GStreamer on Windows requires the GStreamer Windows runtime installer or bundled GStreamer plugins. This is non-trivial and needs its own phase-level research before implementation.
+- User data location: `%LOCALAPPDATA%\MusicStreamer` (not `%APPDATA%` — avoid roaming profile replication of large logo image files).
+- Auto-update: none. Personal app, one user.
+- SmartScreen: for personal use, unsigned or self-signed is acceptable (user clicks "More info → Run anyway"). For distribution to others, OV cert removes the block after reputation builds.
 
 ---
 
-## Feature Dependencies (v1.4)
+## Cross-Platform Icon Strategy
+
+**Recommendation:** Bundle a custom SVG icon set as Qt resources.
+
+- Source: Material Symbols (Google, Apache 2.0) or Fluent System Icons (Microsoft, MIT). Subset to ~20 icons actually used.
+- Compile into a `.qrc` resource file so icons are embedded in the binary — no external asset files at runtime.
+- Call pattern: `QIcon.fromTheme("media-playback-start", QIcon(":/icons/play.svg"))` — Linux GNOME icon themes win when present; bundled SVGs are the universal fallback.
+- The `QtSvg` plugin must be included in the PyInstaller bundle via `--collect-all PySide6.QtSvg`.
+- GNOME symbolic icons (current v1.5 approach via GTK) are entirely unavailable in Qt; do not attempt to reuse them.
+
+---
+
+## Feature Dependencies
 
 ```
-STREAM-01 (buffer tuning)
-    requires: player.py (set_property on playbin3 before PLAYING state)
-    no new DB, no UI
+Qt/PySide6 port (all UI)
+    └──required by──> SMTC integration (Windows media keys)
+    └──required by──> Tray icon / minimize-to-tray (QSystemTrayIcon)
+    └──required by──> Dark mode palette
+    └──required by──> Windows accent color seed
+    └──required by──> Toast replacement (QSystemTrayIcon.showMessage)
+    └──required by──> Bundled icon set (Qt resources)
 
-ART-01 (AA logo at import time)
-    requires: aa_import.py fetch_channels + import_stations
-    requires: assets.copy_asset_for_station (already exists)
-    requires: urllib.request (already used in aa_import.py)
-    new: image download in background thread at import time
+Platform data paths (%LOCALAPPDATA% / ~/.local/share)
+    └──required by──> Settings export/import (knows where DB lives)
+    └──required by──> Windows installer NSIS script
 
-ART-01b (AA logo in station editor)
-    requires: edit_dialog.py _on_url_focus_out (already exists)
-    requires: new _is_audioaddict_url() helper
-    requires: channel key extraction from URL
-    requires: AA API image lookup (may need stored API key from settings)
-    dependency on ART-01: shares the same image URL lookup logic
+Settings export/import
+    └──enhances──> Cross-machine workflow (stated v2.0 goal)
+    └──must exclude──> cookies.txt, Twitch token (credential risk)
 
-ART-02 (YT thumbnail 16:9)
-    requires: main_window.py cover_image + _on_cover_art
-    requires: GdkPixbuf scale call change (preserve aspect or remove explicit scaling)
-    no new DB, no new threads
+PyInstaller bundle
+    └──required by──> NSIS installer
+    └──GStreamer Windows runtime──> needs phase-specific research
 
-ACCENT-01 (accent color)
-    requires: Gtk.CssProvider + Gtk.StyleContext.add_provider_for_display
-    requires: settings table (already exists)
-    new: color picker UI (new dialog or header popover)
-    new: CSS string generation at runtime
+Single-instance enforcement
+    └──enhances──> Tray icon (second launch raises existing window rather than refusing)
 ```
+
+### Dependency Notes
+
+- SMTC requires the port to be functionally complete so the Now Playing metadata (station name, track title, art) is available to push into SMTC.
+- The bundled icon set must be decided before UI implementation begins so icons are not hardcoded as theme-only references.
+- GStreamer Windows runtime bundling is a hard dependency for the installer to produce a working binary; it must be resolved in the early packaging phase, not deferred to the end.
 
 ---
 
-## Anti-Features (v1.4 specific)
+## MVP Definition
 
-| Feature | Why Avoid | What to Do Instead |
-|---------|-----------|-------------------|
-| Buffer size slider in UI | Internal reliability fix, not a user-facing setting | Hard-code 5s buffer; no UI |
-| Full color theme editor (font size, spacing, etc.) | Scope creep — this is an audio app, not a theming tool | Accent color only |
-| Per-station accent color | Adds significant state complexity for marginal value | Single app-wide color |
-| Overwrite existing station art during AA import re-run | Destructive and unexpected | Skip art if station already exists (already the dedup behavior) |
-| Animated color picker (hue wheel, sliders) | Complex GTK widget for a personal app | Preset swatches + hex input is sufficient |
-| Store accent color as RGB floats in DB | Unnecessary complexity | Hex string is human-readable and sufficient |
+### Launch With (v2.0)
+
+- [ ] Qt/PySide6 UI at v1.5 feature parity — without this nothing else functions
+- [ ] Platform-correct user data paths (`%LOCALAPPDATA%` on Windows, unchanged on Linux)
+- [ ] Cross-platform media keys shim (SMTC on Windows, MPRIS2 on Linux)
+- [ ] Bundled SVG icon set replacing GNOME symbolic icons
+- [ ] Dark mode on Windows via Fusion + palette (imperfect but functional)
+- [ ] Single-instance enforcement
+- [ ] Settings export/import (stated v2.0 milestone requirement)
+- [ ] Windows installer (PyInstaller + NSIS)
+- [ ] High-DPI scaling (Qt 6 default; porting checklist to catch hardcoded pixel sizes)
+- [ ] Toast replacement via `QSystemTrayIcon.showMessage`
+
+### Add After Port Stabilizes (v2.1)
+
+- [ ] Minimize-to-tray — low complexity, high UX value once port is stable
+- [ ] Windows accent color seed on first run — differentiator, low risk
+
+### Future Consideration (v2.2+)
+
+- [ ] File association for .pls / .m3u — high complexity, niche benefit for a library-first app
+- [ ] Windows Jump List — very high complexity, marginal value
+- [ ] Taskbar thumbnail toolbar — very high complexity, covered by SMTC
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Qt/PySide6 port (parity) | HIGH | HIGH | P1 |
+| Platform data paths | HIGH | LOW | P1 |
+| SMTC (Windows media keys) | HIGH | MEDIUM | P1 |
+| Bundled SVG icons | HIGH | MEDIUM | P1 |
+| Windows installer | HIGH | MEDIUM | P1 |
+| Settings export/import | HIGH | MEDIUM | P1 |
+| Single-instance enforcement | MEDIUM | LOW | P1 |
+| High-DPI scaling | HIGH | LOW | P1 |
+| Dark mode (Windows) | MEDIUM | MEDIUM | P1 |
+| Toast via QSystemTrayIcon | MEDIUM | LOW | P1 |
+| Minimize-to-tray | MEDIUM | LOW | P2 |
+| Windows accent color seed | LOW | MEDIUM | P2 |
+| File association .pls/.m3u | LOW | HIGH | P3 |
+| Jump List | LOW | HIGH | P3 |
 
 ---
 
 ## Sources
 
-- `player.py`, `aa_import.py`, `edit_dialog.py`, `main_window.py`: direct code read — HIGH confidence
-- `.planning/PROJECT.md` v1.4 requirements: direct source — HIGH confidence
-- GStreamer buffer-duration: [GStreamer Playback Tutorial 4](https://gstreamer.freedesktop.org/documentation/tutorials/playback/progressive-streaming.html), [pithos issue #393](https://github.com/pithos/pithos/issues/393), [Mopidy discourse](https://discourse.mopidy.com/t/buffer-size-and-buffer-duration-configurable-where-to-post-my-patch/4591) — MEDIUM confidence (community, not official measurement)
-- AudioAddict channel image fields: prior v1.3 research (`asset_url` mention), community Kodi/Plex plugin code — LOW confidence (not verified against live API; must confirm field name before implementation)
-- GTK4 `ContentFit` enum: [GTK4 docs](https://docs.gtk.org/gtk4/enum.ContentFit.html) — HIGH confidence
-- Libadwaita CSS variable override: [Adw CSS Variables](https://gnome.pages.gitlab.gnome.org/libadwaita/doc/1.6/css-variables.html), [GNOME Discourse](https://discourse.gnome.org/t/how-to-get-accent-color-in-gtk-4-10/24489/2) — MEDIUM confidence (API verified; runtime behavior of `load_from_string` update not tested)
-- GNOME accent color hex values: [Adwaita-Accent-Tint](https://github.com/pakovm-git/Adwaita-Accent-Tint) — MEDIUM confidence
+- Qt High DPI docs: https://doc.qt.io/qtforpython-6/overviews/qtdoc-highdpi.html
+- QSystemTrayIcon docs + example: https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html
+- Qt Dark Mode on Windows 11 (Qt blog, Qt 6.5): https://www.qt.io/blog/dark-mode-on-windows-11-with-qt-6.5
+- QStyleHints.colorScheme docs: https://doc.qt.io/qtforpython-6/PySide6/QtGui/QStyleHints.html
+- PySide6 accent color bug (6.8.0.1): https://github.com/TagStudioDev/TagStudio/issues/668
+- PyWinRT / python-winsdk (SMTC bindings): https://github.com/pywinrt/python-winsdk
+- winsdk on PyPI: https://pypi.org/project/winsdk/
+- SMTC Microsoft docs: https://learn.microsoft.com/en-us/windows/apps/develop/media-playback/system-media-transport-controls
+- Windows SmartScreen / OV vs EV (2024 change): https://learn.microsoft.com/en-us/answers/questions/417016/reputation-with-ov-certificates-and-are-ev-certifi
+- Packaging PySide6 with PyInstaller + InstallForge: https://www.pythonguis.com/tutorials/packaging-pyside6-applications-windows-pyinstaller-installforge/
+- MSIX + PyInstaller (2025): https://82phil.github.io/python/2025/04/24/msix_pyinstaller.html
+- Qt icon themes cross-platform guide: https://openapplibrary.org/dev-tutorials/qt-icon-themes
+- QIcon fromTheme docs: https://doc.qt.io/qt-6/qicon.html
+- SingleApplication (Qt6 single-instance): https://github.com/itay-grudev/SingleApplication
 
 ---
 
-*Feature research for: MusicStreamer v1.4 Media & Art Polish*
-*Researched: 2026-04-03*
+*Feature research for: MusicStreamer v2.0 OS-Agnostic Qt/PySide6 port*
+*Researched: 2026-04-10*

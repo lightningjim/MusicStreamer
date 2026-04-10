@@ -1,236 +1,369 @@
-# Technology Stack — v1.4 Media & Art Polish
+# Technology Stack — v2.0 OS-Agnostic Qt/PySide6 Port
 
-**Project:** MusicStreamer v1.4
-**Researched:** 2026-04-03
-**Scope:** New capabilities only. Existing stack (GTK4/Libadwaita, GStreamer, SQLite, yt-dlp, urllib, threading/GLib.idle_add) is validated and unchanged.
-
----
-
-## No New Dependencies Required
-
-All 4 v1.4 features are achievable with the existing stack. No new packages, no pip changes, uv.lock unchanged.
-
-| Feature | Libraries Needed | Status |
-|---------|-----------------|--------|
-| GStreamer buffer tuning | `Gst` — already imported in player.py | Existing |
-| AA channel logos | `urllib.request` + `json` — already in aa_import.py | Existing |
-| GTK4 CSS accent color | `Gtk.CssProvider`, `Gdk.Display` — already used in `__main__.py` | Existing |
-| YouTube 16:9 thumbnail | `GdkPixbuf.Pixbuf` — already imported in main_window.py | Existing |
+**Project:** MusicStreamer v2.0
+**Researched:** 2026-04-10
+**Scope:** New stack additions/changes only. Existing validated stack (Python, GStreamer playbin3, yt-dlp, streamlink, mpv, SQLite, urllib) is unchanged and not re-researched.
 
 ---
 
-## Feature 1: GStreamer Buffer Tuning (STREAM-01)
+## Q1: PySide6 Version and Licensing
 
-### Integration Point
+**Target:** PySide6 6.8.x (LTS) or 6.11.0 (current)
 
-`musicstreamer/player.py` — `Player.__init__()`, immediately after `playbin3` is created and before URI is ever set.
+Current PyPI release is **6.11.0** (released 2026-03-23). Requires Python 3.10–3.14.
 
-### Properties on `playbin3`
+**Licensing for a personal app:** PySide6 is LGPL v3. Python apps that `import PySide6` as a separate installed package satisfy the LGPL "dynamic linking" requirement automatically — you do not need to open-source your own code. No commercial license needed. This is a straightforward personal-app case.
 
-| Property | Type | Recommended Value | Notes |
-|----------|------|------------------|-------|
-| `buffer-duration` | int (nanoseconds) | `5 * Gst.SECOND` = 5,000,000,000 | Primary lever. Playbin uses rate estimate to scale buffered data. Takes effect on next NULL→PLAYING cycle. |
-| `buffer-size` | int (bytes) | `2 * 1024 * 1024` (2 MB) | Fallback when rate estimate unavailable. |
-| `ring-buffer-max-size` | int (bytes) | leave at 0 (default disabled) | Progressive download ring buffer — not applicable to live HTTP/ShoutCast streams. Do not set. |
+**Version recommendation:** Start with 6.8.x (last LTS point release) if stability matters, or 6.11.0 if you want current APIs. The project is a port with no novel Qt features, so either works. Pin to a minor version in `pyproject.toml` to avoid breaking API changes mid-development.
 
-**Call site (in `__init__`, after creating `_pipeline`):**
+**Confidence:** HIGH — verified against PyPI page and official Qt licensing docs.
+
+---
+
+## Q2: GStreamer ↔ Qt Event Loop Integration
+
+This is the most critical decision for the port. The answer is nuanced.
+
+### How the v1.5 GTK code works
+
+`dbus-python` sets `DBusGMainLoop(set_as_default=True)`, which installs GLib's main context as the default. GStreamer's `bus.add_watch()` and `bus.add_signal_watch()` both require a running GLib main loop — and GTK runs one implicitly. That is why `GLib.idle_add()` works: the GTK main loop drives the GLib main context, which drains bus watches and idles on each iteration.
+
+### What changes with PySide6
+
+Qt on Linux is compiled with **QEventDispatcherGlib** by default. This means Qt's event loop drives GLib's `g_main_context_default` instead of `g_main_loop_run`. On Linux this is sufficient: `bus.add_signal_watch()` + `bus.connect('message', handler)` will work because Qt's main loop is already iterating the GLib default context. You do **not** need a separate `GLib.MainLoop` thread on Linux.
+
+On Windows, Qt does not use QEventDispatcherGlib (GLib is not available). This is where the integration breaks:
+
+- `bus.add_signal_watch()` / `bus.add_watch()` require a running GLib main context, which Qt's Win32 event loop does not provide.
+- `GLib.idle_add()` similarly has no effect without a GLib context being iterated.
+
+### Recommended integration pattern
+
+**QTimer-based bus polling** — works on both Linux and Windows, avoids the GLib loop dependency:
+
 ```python
-self._pipeline.set_property("buffer-duration", 5 * Gst.SECOND)
-self._pipeline.set_property("buffer-size", 2 * 1024 * 1024)
+# In Player.__init__(), after creating the pipeline:
+self._bus = self._pipeline.get_bus()
+# Do NOT call bus.add_signal_watch() — this requires GLib main context
+self._bus_timer = QTimer()
+self._bus_timer.setInterval(50)  # 50ms polling — low latency, low CPU
+self._bus_timer.timeout.connect(self._drain_bus)
+self._bus_timer.start()
+
+def _drain_bus(self):
+    while True:
+        msg = self._bus.timed_pop(0)  # non-blocking
+        if msg is None:
+            break
+        self._on_bus_message(msg)
 ```
 
-These are set once at construction. They persist across URI changes as long as the pipeline is reused (the current pattern: `set_state(NULL)` → `set_property("uri", ...)` → `set_state(PLAYING)`).
+`timed_pop(0)` returns immediately with `None` if no message is waiting — safe to call in a 50ms timer. The callback `_on_bus_message` runs on the Qt main thread, so Qt UI calls (`setText`, `QPixmap`, etc.) are safe inside it.
 
-**Confidence:** HIGH — `buffer-size` and `buffer-duration` confirmed in official GStreamer playbin3 docs. `ring-buffer-max-size` confirmed as progressive-download-only (not applicable here).
+**Replace `GLib.idle_add()` with `QMetaObject.invokeMethod()` or signals for cross-thread UI updates.** In v1.5, GStreamer bus callbacks fire in GStreamer's streaming thread and use `GLib.idle_add()` to marshal to the GTK main thread. With PySide6, the equivalent is:
+- For worker threads: `QTimer.singleShot(0, callback)` or emit a Qt signal connected to the main-thread slot.
+- Do not use `GLib.idle_add()` — it will silently do nothing on Windows.
+
+**Qt Multimedia is NOT a viable replacement for GStreamer.** It lacks ICY metadata, does not handle HLS/RTMP/Twitch, cannot be driven by yt-dlp URLs, and has no equivalent to `playbin3`'s multi-protocol support. Keep GStreamer directly.
+
+**Confidence:** HIGH (Linux QEventDispatcherGlib behavior) / MEDIUM (Windows polling approach — well-documented pattern, but the specific 50ms QTimer approach requires integration testing).
 
 **Sources:**
-- https://gstreamer.freedesktop.org/documentation/playback/playbin3.html
-- https://gstreamer.freedesktop.org/documentation/application-development/advanced/buffering.html
+- https://discourse.gstreamer.org/t/qt-gstreamer-event-loop-woes/5766
+- https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html
+- https://forum.qt.io/topic/104299/integration-with-glib-event-loop
 
 ---
 
-## Feature 2: AudioAddict Channel Logo (ART-01)
+## Q3: Windows Availability of Backend Tools
 
-### Integration Point
+### GStreamer on Windows
 
-`musicstreamer/aa_import.py` — `fetch_channels()` and `import_stations()`.
+**Two viable options; the official MSI installer is preferred for app distribution:**
 
-### API Endpoint for Images
+| Approach | Pros | Cons |
+|----------|------|------|
+| Official GStreamer MSI (gstreamer.freedesktop.org) | Prebuilt, complete, includes all plugin sets, MSI installer for runtime | PyGObject Python bindings NOT included — must install separately |
+| MSYS2 (mingw-w64 packages) | One-step install includes GStreamer + PyGObject + Python | MSYS2 environment dependency is hard to bundle in a distributable app |
 
-The existing `fetch_channels()` call hits `https://{net['domain']}/{tier}?listen_key={listen_key}` — this is the stream/PLS listing endpoint and does **not** include image data.
+**For development:** MSYS2 UCRT64 is the fastest path — `pacman -S mingw-w64-ucrt-x86_64-gstreamer mingw-w64-ucrt-x86_64-gst-plugins-{base,good,bad} mingw-w64-ucrt-x86_64-python3-gobject`.
 
-Image data lives on a separate public endpoint (no auth required):
+**For distribution:** Official GStreamer Windows MSI runtime + `pip install PyGObject` (which finds GStreamer DLLs via `GSTREAMER_ROOT_X86_64` env var). PyInstaller has a GStreamer-aware gi hook that bundles discovered DLLs and plugins. See Q7.
+
+**PyGObject on Windows:** Available via pip (`pip install PyGObject`) but requires GStreamer DLLs to be resolvable at runtime. The GSTREAMER_ROOT_X86_64 environment variable or PATH pointing to GStreamer's `bin/` makes this work. Not a dealbreaker, but setup is manual.
+
+**Confidence:** MEDIUM — official installer path is documented, but bundling GStreamer DLLs into a distributable PyInstaller build requires phase-specific testing.
+
+### yt-dlp on Windows
+
+**Not a dealbreaker.** Official Windows `.exe` builds available from GitHub releases. Can also be installed via `pip install yt-dlp`. No MSYS2 or special environment required.
+
+### streamlink on Windows
+
+**Not a dealbreaker.** Official Windows installer and portable `.exe` available. Also installable via `pip install streamlink`. Native Windows binary.
+
+### mpv on Windows
+
+**Not a dealbreaker.** Official Windows builds at mpv.io. Used in MusicStreamer as a subprocess for cookie-retry path. Works natively on Windows.
+
+**Summary: No backend tools are dealbreakers on Windows.** GStreamer setup is the most complex but is well-trodden with official tooling.
+
+---
+
+## Q4: Cross-Platform Media Keys
+
+**No single Python library bridges MPRIS2 and SMTC.** Two separate implementations are required.
+
+### Linux: Replace dbus-python with PySide6.QtDBus
+
+`dbus-python` can stay for the interim but requires `GDBusGMainLoop` which conflicts with the Qt-only loop goal. The clean replacement is **PySide6.QtDBus**.
+
+QtDBus can expose a D-Bus service object (server mode) via `QDBusConnection.registerObject()` and `QDBusConnection.registerService()`. This is sufficient for MPRIS2. The existing `mpris.py` module will need rewriting using `QDBusAbstractAdaptor` rather than `dbus.service.Object`, but the interface is analogous.
+
+**Alternatively:** Keep `dbus-python` on Linux only, initialized before Qt starts, and avoid the GLib loop conflict by not calling `DBusGMainLoop(set_as_default=True)` — instead, use `dbus.mainloop.glib` only for the D-Bus service thread. This is a lower-risk interim approach for the port.
+
+**Recommendation:** Rewrite MPRIS2 in PySide6.QtDBus. It removes the dbus-python dependency entirely and is the correct long-term architecture.
+
+**Libraries:**
+- `PySide6.QtDBus` — part of the PySide6 package, no extra install needed
+
+### Windows: SMTC via winrt packages
+
+The `winrt` package family (modular, one package per Windows SDK namespace) provides Python bindings for WinRT APIs including SMTC.
 
 ```
-https://api.audioaddict.com/v1/{network_slug}/channels
+pip install winrt-runtime winrt-Windows.Media winrt-Windows.Media.Playback
 ```
 
-e.g. `https://api.audioaddict.com/v1/di/channels`
+`winrt-Windows.Media.Control` is for reading media sessions from other apps. To **register** as a media provider (to receive play/pause/stop key presses), you use `winrt-Windows.Media.Playback` — specifically `SystemMediaTransportControls` obtained via `MediaPlayer.system_media_transport_controls`.
 
-The `network_slug` maps directly to the `slug` field already in the `NETWORKS` list in `aa_import.py` (`"di"`, `"radiotunes"`, `"jazzradio"`, `"rockradio"`, `"classicalradio"`, `"zenradio"`).
+**Pattern:**
+```python
+# Windows only — import guarded by sys.platform == 'win32'
+from winrt.windows.media.playback import MediaPlayer
+mp = MediaPlayer()
+smtc = mp.system_media_transport_controls
+smtc.is_play_enabled = True
+smtc.is_pause_enabled = True
+smtc.is_stop_enabled = True
+smtc.button_pressed += lambda sender, args: _handle_button(args.button)
+```
 
-### Image Field
+**Requires:** Windows 10+ (winrt APIs). Python 3.9+. Windows-only.
 
-The extended channel object from this endpoint includes a `channel_images` dict. Based on third-party plugin analysis (Kodi addon issue trace referencing `KeyError: 'default'` on `channel_images`), the structure is:
+**Confidence:** MEDIUM — winrt package is the correct mechanism, SMTC registration via MediaPlayer is documented in Microsoft docs. The specific Python async pattern may need testing (winrt uses asyncio-style async for some APIs).
 
-```json
-{
-  "key": "ambient",
-  "name": "Ambient",
-  "channel_images": {
-    "default": "https://cdn-radioassets.audioaddict.com/...",
-    "compact": "...",
-    "horizontal_banner": "..."
-  }
+**Sources:**
+- https://pypi.org/project/winrt-Windows.Media.Control/
+- https://learn.microsoft.com/en-us/uwp/api/windows.media.systemmediatransportcontrols
+
+---
+
+## Q5: Replacement for WebKit2Gtk (OAuth Cookie Capture)
+
+**Use `PySide6.QtWebEngineWidgets`.** This is the direct functional equivalent of WebKit2Gtk — an embedded Chromium browser that can navigate to OAuth pages, capture cookies, and be driven from Python.
+
+```
+pip install PySide6-WebEngine
+```
+
+`QWebEngineView` + `QWebEngineProfile` provides cookie access via `QNetworkCookie` and `QWebEngineCookieStore`. The existing WebKit2 subprocess pattern can be replaced with an in-process `QWebEngineView` dialog (preferred) or kept as a subprocess using a minimal PySide6 WebEngine script.
+
+### Windows bundle size
+
+QtWebEngine bundles Chromium — the `QtWebEngineCore` DLL is ~130 MB. This is unavoidable if the OAuth login dialog is in-process. The total distributable will be significantly larger on Windows than a bare Qt app.
+
+**Mitigation options:**
+1. Keep the OAuth capture as a **subprocess** (spawn a minimal helper script that uses `PySide6.QtWebEngineWidgets`). The subprocess DLLs still get bundled by PyInstaller but are isolated from the main binary.
+2. Use a system browser + local redirect server for OAuth instead of embedded WebView. This avoids QtWebEngine entirely. For Twitch OAuth specifically, this is the cleaner UX pattern.
+3. Accept the size. For a personal app, 200-300 MB distributable is acceptable.
+
+**Gotcha on Windows:** QtWebEngine requires a helper process (`QtWebEngineProcess.exe`) and a `qt.conf` file pointing to it. PyInstaller's QtWebEngine hook handles this automatically in recent versions (6.x) but must be verified. Frozen apps that ship QtWebEngine without correct `qt.conf` fail silently.
+
+**Confidence:** HIGH (QtWebEngineWidgets capability) / MEDIUM (bundle size numbers — 130MB for QtWebEngineCore is from a 2023 PyInstaller discussion and directionally accurate).
+
+**Sources:**
+- https://doc.qt.io/qtforpython-6/PySide6/QtWebEngineWidgets/index.html
+- https://doc.qt.io/qt-6/qtwebengine-platform-notes.html
+
+---
+
+## Q6: D-Bus / MPRIS2 on Linux — dbus-python vs QtDBus
+
+**Recommendation: Migrate to `PySide6.QtDBus`.** Drop `dbus-python`.
+
+Rationale:
+- `dbus-python` requires `DBusGMainLoop(set_as_default=True)` to function properly as a D-Bus service. This integrates the GLib main context, which works under GTK but creates friction under Qt's event loop on Linux and is entirely broken on Windows.
+- `PySide6.QtDBus` is already in the dependency set (part of PySide6), requires no additional package, and integrates natively with Qt's event loop.
+- `QDBusAbstractAdaptor` is the correct mechanism for exposing a D-Bus service (MPRIS2 player interface). `QDBusConnection.sessionBus().registerService("org.mpris.MediaPlayer2.musicstreamer")` and `registerObject("/org/mpris/MediaPlayer2", adaptor)` are the call sites.
+
+**Implementation note:** `QDBusAbstractAdaptor` is a C++ class, but PySide6 exposes it. Implementing MPRIS2 requires declaring the interface XML or using `Q_CLASSINFO("D-Bus Interface", "org.mpris.MediaPlayer2.Player")`. This is more boilerplate than `dbus-python`'s decorator-based approach, but is fully supported.
+
+**On Windows:** QtDBus is a no-op on Windows (Qt builds without D-Bus support on Win32). The MPRIS2 code path must be runtime-guarded with `sys.platform == 'linux'`.
+
+**Confidence:** MEDIUM — QtDBus server-mode capability is documented in Qt docs; the MPRIS2 adaptor pattern requires implementation verification.
+
+**Sources:**
+- https://doc.qt.io/qtforpython-6/PySide6/QtDBus/index.html
+- https://wiki.qt.io/Qt_for_Python_DBusIntegration
+
+---
+
+## Q7: Packaging — PyInstaller vs Briefcase vs Nuitka
+
+**Recommendation: PyInstaller 6.x.**
+
+| Tool | GStreamer DLL Support | PySide6 Support | Maturity |
+|------|----------------------|-----------------|---------|
+| PyInstaller 6.x | YES — dedicated gi/gstreamer hook with `include_plugins`/`exclude_plugins` in `.spec` | YES — official hook in `pyinstaller-hooks-contrib` | HIGH |
+| Briefcase | NO native GStreamer handling — would require manual `binaries` entries | YES | MEDIUM |
+| Nuitka | Known issues with GStreamer + PyGObject (open GitHub issue #2762) | YES | LOW for this use case |
+
+### PyInstaller GStreamer hook
+
+PyInstaller's gi hook auto-discovers GStreamer plugins from the build environment and bundles them. Control via `.spec` `hooksconfig`:
+
+```python
+hooksconfig={
+    "gstreamer": {
+        "include_plugins": [
+            "coreelements",   # required
+            "playback",       # playbin3
+            "soup",           # HTTP source
+            "typefindfunctions",
+            "audioconvert", "audioresample", "autodetect",
+            "id3demux", "icydemux",  # ICY metadata
+        ],
+        "exclude_plugins": [
+            "opencv", "vulkan", "qt",  # not needed
+        ],
+    },
 }
 ```
 
-Access via `ch.get('channel_images', {}).get('default')`.
+This keeps the bundle size manageable. Default (no config) includes all installed plugins — too large.
 
-**MUST VERIFY at implementation time:** Print raw channel dict from `/v1/di/channels` before writing production code. The `channel_images.default` field name is inferred from plugin error traces, not confirmed against live API response.
+**Windows GStreamer DLL bundling:** PyInstaller follows DLL dependencies and collects them. With GStreamer installed via official MSI (DLLs in `%GSTREAMER_ROOT_X86_64%\bin\`), PyInstaller finds and bundles them if that directory is on PATH at build time. The `GST_PLUGIN_PATH` env var must be set in the frozen app via `os.environ` before `Gst.init()`.
 
-### Recommended Implementation
+**Distributable size estimate:** PySide6 base ~80MB + GStreamer runtime + selected plugins ~100-150MB + QtWebEngine (if included) ~130MB. Without WebEngine: ~200-250MB total. With WebEngine: ~350MB.
 
-1. In `fetch_channels()`, add one request per network to `https://api.audioaddict.com/v1/{slug}/channels` to build a `channel_key → image_url` lookup dict.
-2. When constructing each channel dict, add `"image_url": image_lookup.get(ch['key'])`.
-3. In `import_stations()`, download the image bytes via `urllib.request.urlopen`, save to `DATA_DIR/art/`, and pass the relative path to `repo.insert_station()`.
-4. Check `repo.insert_station()` signature — the `art` or image parameter name needs to match what was wired in v1.1 (station art storage).
+**Installer tooling:** PyInstaller produces a directory or single-file EXE. Wrap with **NSIS** or **Inno Setup** for a proper Windows installer. Both are free and well-integrated with PyInstaller workflows.
 
-**Confidence:** MEDIUM — endpoint URL pattern confirmed by multiple community AA clients. `channel_images.default` field inferred from plugin error traces, not from live API response inspection.
-
----
-
-## Feature 3: GTK4 CSS Accent Color (ACCENT-01)
-
-### Integration Point
-
-`musicstreamer/__main__.py` — `App.do_activate()`. The exact pattern already exists for `_APP_CSS`.
-
-### Existing Pattern (already working in codebase)
-
-```python
-css_provider = Gtk.CssProvider()
-css_provider.load_from_string(_APP_CSS)
-Gtk.StyleContext.add_provider_for_display(
-    Gdk.Display.get_default(),
-    css_provider,
-    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-)
-```
-
-### Accent Color Override
-
-Libadwaita exposes accent color via CSS named colors. Override at runtime with a second provider:
-
-```python
-accent_css = f"@define-color accent_color {hex_color}; @define-color accent_bg_color {hex_color};"
-accent_provider = Gtk.CssProvider()
-accent_provider.load_from_string(accent_css)
-Gtk.StyleContext.add_provider_for_display(
-    Gdk.Display.get_default(),
-    accent_provider,
-    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
-)
-```
-
-**CSS variables to override:**
-
-| Variable | Role |
-|----------|------|
-| `accent_color` | Standalone use (accent text on regular background) |
-| `accent_bg_color` | Background for accent-colored widgets (buttons, highlights) |
-| `accent_fg_color` | Foreground over accent background — Libadwaita derives this automatically; leave unset unless contrast issues arise |
-
-**Priority:** `STYLE_PROVIDER_PRIORITY_APPLICATION + 1` ensures accent provider beats the base `_APP_CSS` provider. CSS overrides always win over `AdwStyleManager` — the style manager API returns system color, but visual rendering uses the CSS value.
-
-**Dynamic update:** Hold the `accent_provider` object at module or app level. Call `load_from_string()` again on the same object when the user picks a new color — GTK automatically re-applies all providers after a reload.
-
-**Persistence:** Store hex string in SQLite via `repo.set_setting("accent_color", "#FF5733")`. Load on startup between `Gst.init()` and `win.present()`.
-
-**Preset swatches:** Define a small fixed list of named hex values in `constants.py` (e.g. `ACCENT_PRESETS = {"Blue": "#3584e4", "Teal": "#2190a4", "Green": "#26a269", ...}`). No library needed.
-
-**Confidence:** HIGH — `load_from_string()` is already live in this codebase; `@define-color` override confirmed in Libadwaita CSS variable docs and GTK4 CSS docs.
+**Confidence:** MEDIUM — PyInstaller GStreamer hook capability confirmed in docs; actual bundle size and DLL resolution on Windows requires build-time verification.
 
 **Sources:**
-- https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/styles-and-appearance.html
-- https://docs.gtk.org/gtk4/method.CssProvider.load_from_string.html
+- https://pyinstaller.org/en/v6.11.0/hooks-config.html
+- https://www.pythonguis.com/tutorials/packaging-pyside6-applications-windows-pyinstaller-installforge/
+- https://doc.qt.io/qtforpython-6.7/deployment/deployment-pyside6-deploy.html
 
 ---
 
-## Feature 4: YouTube 16:9 Thumbnail Display (ART-02)
+## Q8: Cross-Platform Path Handling
 
-### Integration Point
+**Use `platformdirs` (not `QStandardPaths`).** 
 
-`musicstreamer/ui/main_window.py` — wherever `GdkPixbuf.Pixbuf.new_from_file_at_scale` is called to load cover art into `cover_image`.
+`platformdirs` is a pure-Python library that returns correct platform-specific directories:
+- Linux: `~/.local/share/musicstreamer/` (XDG_DATA_HOME)
+- Windows: `%APPDATA%\musicstreamer\` (CSIDL_APPDATA)
 
-### Root Cause of Current Squash
-
-All art loading currently uses:
-```python
-pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 160, 160, False)
 ```
-`preserve_aspect_ratio=False` distorts 16:9 thumbnails (284×160 squashed to 160×160).
-
-### Fix
-
-Change to preserve aspect ratio, scale to height=160:
-
-```python
-pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, -1, 160, True)
+pip install platformdirs
 ```
 
-- Passing `-1` for width means: scale height to 160, derive width proportionally.
-- A 16:9 thumbnail scales to ~284×160. A square image scales to 160×160. No distortion in either case.
-- `cover_stack` already has `set_overflow(Gtk.Overflow.HIDDEN)` and `set_size_request(160, 160)` — the wider 16:9 image clips horizontally within the 160px slot boundary. This is the intended behavior (show full height, clip excess width).
-- No layout changes required.
-
-**`new_from_file_at_scale` signature:**
 ```python
-GdkPixbuf.Pixbuf.new_from_file_at_scale(filename: str, width: int, height: int, preserve_aspect_ratio: bool) -> Pixbuf
+from platformdirs import user_data_dir
+DATA_DIR = Path(user_data_dir("musicstreamer", appauthor=False))
 ```
 
-**Confidence:** HIGH — passing `-1` for one dimension to force proportional scaling is the documented behavior of `new_from_file_at_scale`. The existing `Gtk.Overflow.HIDDEN` on `cover_stack` provides the clip without additional work.
+`QStandardPaths` is an alternative but introduces a Qt dependency in the non-UI modules (constants.py, repo.py) — coupling that will cause pain in tests and anywhere the backend is used standalone. `platformdirs` is pure Python, well-maintained, and is exactly what the existing `~/.local/share/musicstreamer/` hardcoding should become.
 
-**Source:** https://docs.gtk.org/gdk-pixbuf/ctor.Pixbuf.new_from_file_at_scale.html
+**Migration:** v1.5 uses a hardcoded `Path.home() / ".local/share/musicstreamer"`. Replace with `user_data_dir()` call in `constants.py`. The path resolves identically on Linux, correctly to AppData on Windows.
+
+**Confidence:** HIGH — platformdirs is the de facto standard for this use case, actively maintained, used widely across the Python ecosystem.
+
+**Sources:**
+- https://github.com/tox-dev/platformdirs
+- https://pypi.org/project/platformdirs/
 
 ---
 
-## Summary
+## New Dependencies Summary
 
-| Feature | Key API / Property | File | Confidence |
-|---------|-------------------|------|------------|
-| Buffer tuning | `set_property("buffer-duration", 5 * Gst.SECOND)` | player.py | HIGH |
-| Buffer tuning | `set_property("buffer-size", 2*1024*1024)` | player.py | HIGH |
-| AA logo endpoint | `api.audioaddict.com/v1/{slug}/channels` | aa_import.py | MEDIUM |
-| AA logo field | `ch['channel_images']['default']` | aa_import.py | MEDIUM — verify live |
-| Accent color CSS | `@define-color accent_color {hex}; @define-color accent_bg_color {hex};` | `__main__.py` | HIGH |
-| Accent CSS method | `Gtk.CssProvider.load_from_string()` at priority APPLICATION+1 | `__main__.py` | HIGH |
-| 16:9 pixbuf | `new_from_file_at_scale(path, -1, 160, True)` | main_window.py | HIGH |
+| Package | Version | Platform | Purpose | Install |
+|---------|---------|----------|---------|---------|
+| `PySide6` | >=6.8,<7 | Both | Qt UI framework | `pip install PySide6` |
+| `PySide6-WebEngine` | (matches PySide6) | Both | OAuth cookie capture (replaces WebKit2) | `pip install PySide6-WebEngine` |
+| `platformdirs` | >=4.0 | Both | Cross-platform data/config paths | `pip install platformdirs` |
+| `winrt-runtime` | >=2.3 | Windows only | WinRT base for SMTC | `pip install winrt-runtime` |
+| `winrt-Windows.Media` | >=3.2 | Windows only | SMTC type definitions | `pip install winrt-Windows.Media` |
+| `winrt-Windows.Media.Playback` | >=3.2 | Windows only | SMTC registration | `pip install winrt-Windows.Media.Playback` |
 
----
+## Packages Leaving the Stack
+
+| Package | Why Removed | Replacement |
+|---------|-------------|-------------|
+| `PyGObject` (GTK4/Libadwaita) | UI replaced by Qt | PySide6 |
+| `dbus-python` | GTK/GLib loop dependent | PySide6.QtDBus |
+| WebKit2Gtk | GTK-specific | PySide6-WebEngine |
 
 ## What NOT to Add
 
-| Avoid | Why |
-|-------|-----|
-| `requests` library | urllib covers all HTTP needs for AA image fetch |
-| Any color picker library | Gtk.ColorButton is stdlib GTK4; swatches are plain Gtk.Button with CSS styling |
-| New GStreamer elements | Only properties on existing `playbin3` — no new elements needed |
-| `ring-buffer-max-size` changes | For progressive download only; live streams don't benefit |
+| Avoid | Why | Use Instead |
+|-------|-----|-------------|
+| Qt Multimedia | Lacks ICY metadata, HLS, yt-dlp URL support | Keep GStreamer directly |
+| `requests` | Stdlib urllib still sufficient | urllib |
+| `asyncio` for GStreamer bridge | Adds complexity; QTimer polling is simpler and sufficient | QTimer + `timed_pop(0)` |
+| `appdirs` | Superseded and unmaintained | `platformdirs` |
+| Briefcase | No GStreamer DLL handling | PyInstaller |
+| Nuitka | Open issue with GStreamer/PyGObject | PyInstaller |
+| `GLib.MainLoop` background thread | Fragile on Windows; not needed with QTimer bus poll | QTimer |
+
+---
+
+## Version Compatibility
+
+| Package | Compatible With | Notes |
+|---------|-----------------|-------|
+| PySide6 6.8+ | Python 3.10-3.14 | Pin minor version in pyproject.toml |
+| PyGObject 3.x | GStreamer 1.x via gi.repository | Must match installed GStreamer runtime version |
+| winrt 3.x | Windows 10+ | Python 3.9+; requires Win10 build 1607+ for SMTC |
+| PyInstaller 6.x | PySide6 6.x | Use pyinstaller-hooks-contrib for latest Qt hooks |
+
+---
+
+## Key Integration Points for Phase Planning
+
+1. **Player.py rewrite is the critical path.** The GLib.idle_add → Qt signal migration and bus.add_signal_watch → QTimer polling change touches all playback feedback: ICY titles, EOS, errors, buffering. Phase this first.
+
+2. **mpris.py becomes platform-conditional.** Linux: rewrite using PySide6.QtDBus. Windows: implement SMTC via winrt. Guard all D-Bus code with `if sys.platform == 'linux'`.
+
+3. **constants.py path migration is low risk.** Replace hardcoded `~/.local/share/musicstreamer` with `platformdirs.user_data_dir()` before anything else — downstream code uses `DATA_DIR` consistently.
+
+4. **WebEngine OAuth is deferrable.** The Twitch and Google OAuth dialogs can be ported last. Consider system-browser redirect as a simpler alternative that avoids the 130MB WebEngine dependency.
+
+5. **Windows CI must have GStreamer on PATH.** Any automated Windows build/test must install GStreamer MSI and set `GSTREAMER_ROOT_X86_64` before running pytest or PyInstaller.
 
 ---
 
 ## Sources
 
-| Source | Confidence |
-|--------|------------|
-| GStreamer playbin3 docs — buffer-size, buffer-duration properties | HIGH |
-| GdkPixbuf.new_from_file_at_scale — width=-1 behavior | HIGH |
-| Gtk.CssProvider.load_from_string — GTK4 official docs | HIGH |
-| Libadwaita CSS variables — accent_color, accent_bg_color | HIGH |
-| AA channel_images field — inferred from ssapalski/plugin.audio.addict issue #8 KeyError trace | MEDIUM |
+| Source | Topic | Confidence |
+|--------|-------|-----------|
+| https://pypi.org/project/PySide6/ | Version 6.11.0, Python requirements | HIGH |
+| https://www.pythonguis.com/faq/licensing-differences-between-pyqt6-and-pyside6/ | LGPL licensing personal app | HIGH |
+| https://discourse.gstreamer.org/t/qt-gstreamer-event-loop-woes/5766 | Qt+GStreamer event loop | MEDIUM |
+| https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html | bus.timed_pop, add_signal_watch | HIGH |
+| https://forum.qt.io/topic/104299/integration-with-glib-event-loop | QEventDispatcherGlib Linux behavior | MEDIUM |
+| https://dev.to/liberifatali/setup-gstreamer-with-python-on-windows-59n3 | GStreamer Windows MSYS2 setup | MEDIUM |
+| https://pyinstaller.org/en/v6.11.0/hooks-config.html | GStreamer hook include/exclude_plugins | HIGH |
+| https://doc.qt.io/qtforpython-6/PySide6/QtWebEngineWidgets/index.html | QtWebEngineWidgets capability | HIGH |
+| https://doc.qt.io/qt-6/qtwebengine-platform-notes.html | Windows WebEngine qt.conf requirement | HIGH |
+| https://doc.qt.io/qtforpython-6/PySide6/QtDBus/index.html | QtDBus server mode | MEDIUM |
+| https://pypi.org/project/winrt-Windows.Media.Control/ | winrt package Python bindings | MEDIUM |
+| https://learn.microsoft.com/en-us/uwp/api/windows.media.systemmediatransportcontrols | SMTC API | HIGH |
+| https://github.com/tox-dev/platformdirs | platformdirs cross-platform paths | HIGH |
 
 ---
 
-*Stack research for: MusicStreamer v1.4 Media & Art Polish*
-*Researched: 2026-04-03*
+*Stack research for: MusicStreamer v2.0 OS-Agnostic Qt/PySide6 Port*
+*Researched: 2026-04-10*

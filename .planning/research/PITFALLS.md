@@ -1,291 +1,576 @@
-# Domain Pitfalls — MusicStreamer v1.4
+# Pitfalls Research — MusicStreamer v2.0 OS-Agnostic Port
 
-**Domain:** GTK4/GStreamer Python internet radio app
-**Researched:** 2026-04-03
-**Scope:** 4 features — GStreamer buffer tuning, AudioAddict logo fetch, YouTube 16:9 art, custom accent color
-**Confidence:** HIGH for GStreamer/GTK4 pitfalls (verified against official docs + codebase); MEDIUM for AA API URL format (undocumented API, inferred from community implementations)
+**Domain:** Qt/PySide6 port of a Linux GNOME Python desktop app (GTK4/Libadwaita + GStreamer) to Linux + Windows
+**Researched:** 2026-04-10
+**Confidence:** HIGH (GStreamer/Qt threading patterns, subprocess Windows flags, PyInstaller AV) | MEDIUM (WebEngine cookie store, Windows ACL, souphttpsrc SSL bundling specifics)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Buffer Tuning Delays ICY Metadata Delivery
+### Pitfall 1: GStreamer Bus Callbacks Delivered on Wrong Thread
 
-**Feature:** STREAM-01
+**What goes wrong:**
+v1.5 uses `GLib.idle_add()` to marshal GStreamer bus messages to the GTK main thread. When GTK is gone, there is no GMainLoop to pump. `bus.add_signal_watch()` — which hooks into the GLib main context — silently delivers nothing. ICY track titles and EOS/ERROR events stop working with no crash or error log.
 
-**What goes wrong:** Increasing `buffer-size` or `buffer-duration` on `playbin3` fills the internal queue before emitting TAG bus messages. ICY metadata is interleaved in the HTTP byte stream at fixed intervals (typically every 8–16 KB). When the buffer fills before the first metadata interval passes through the demuxer, users see a stale title or "Nothing playing" for several seconds after audio starts.
+**Why it happens:**
+`bus.add_signal_watch()` attaches to the default GLib main context. The Qt event loop does not pump that context. The Qt event loop does not pump a GMainLoop.
 
-**Why it happens:** `playbin3` buffers the incoming HTTP stream in a `queue2` element before demuxing. ICY metadata is embedded at byte intervals in the raw HTTP body — the larger the buffer, the more data must pass through `icydemux` before the first TAG message fires. This is a pipeline ordering issue, not a timing fluke.
-
-**Consequences:** Audio plays but `title_label` stays stale. Degrades a core existing feature. Only manifests on first play after a station switch; hard to catch in casual testing.
-
-**Prevention:** Set `buffer-duration` in the 2–5 second range, not higher. Avoid setting `buffer-size` above ~64 KB for ShoutCast streams. Prefer `buffer-duration` over `buffer-size` — the former scales with stream bitrate rather than raw bytes. Validate by measuring time from `PLAYING` state to first TAG message when testing buffer values.
-
-**Codebase note:** `Player._on_gst_tag` dispatches via `GLib.idle_add` — no app-side delay is introduced. The issue is purely pipeline-level.
-
----
-
-### Pitfall 2: `souphttpsrc` Properties Not Accessible at Pipeline Construction Time
-
-**Feature:** STREAM-01
-
-**What goes wrong:** The natural approach is to get the `souphttpsrc` element from the pipeline and call `set_property("buffer-time", ...)` directly. With `playbin3`, the source element is created lazily when the URI is set and the state transitions. Calling `pipeline.get_by_name("source")` or accessing the `source` property before the pipeline reaches `READY` state returns `None`.
-
-**Why it happens:** `playbin3` creates and destroys the source element on each URI change. The element does not exist at `__init__` time or between playback sessions.
-
-**Consequences:** Crash (`AttributeError` on `None`) or silent no-op — the property call is lost and buffering is unchanged.
-
-**Prevention:** Connect to the `source-setup` signal on `playbin3`, which fires after the source element is created but before it starts fetching. This is the correct hook:
+**How to avoid:**
+Use `bus.enable_sync_message_emission()` + connect to the `sync-message` signal, then immediately re-emit as a Qt signal across a queued connection. The GStreamer sync handler runs on the streaming thread; a queued Qt signal delivers to the main thread slot automatically.
 
 ```python
-self._pipeline.connect("source-setup", self._on_source_setup)
+self._bus = self._pipeline.get_bus()
+self._bus.enable_sync_message_emission()
+self._bus.connect("sync-message", self._on_gst_message)
 
-def _on_source_setup(self, pipeline, source):
-    if hasattr(source.props, 'buffer_time'):
-        source.set_property("buffer-time", 5_000_000)  # microseconds
+def _on_gst_message(self, bus, msg):
+    # Runs on GStreamer streaming thread — emit Qt signal only, no widget access
+    self.gst_message.emit(msg)  # auto-queued to main thread
+
+# In main window (main thread slot):
+@Slot(object)
+def _handle_gst_message(self, msg): ...
 ```
 
-Alternatively, set `buffer-size` and `buffer-duration` as properties directly on `playbin3` — these proxy to the internal queue and do not require `source-setup`.
+Do NOT call any `QWidget` method directly from inside `_on_gst_message`.
 
-**Detection:** Property setter appears to succeed but stream behavior is unchanged. Add a `print(source.get_name())` in `source-setup` to confirm which element you are configuring.
+**Warning signs:**
+- ICY track titles never update after porting
+- Stream errors and EOS events not caught; app hangs at stream end
+- Works with a dummy GMainLoop running but not in production
 
----
-
-### Pitfall 3: AA Logo Fetch Blocks the Import Worker (Unacceptable Wall Time)
-
-**Feature:** ART-01
-
-**What goes wrong:** `aa_import.import_stations` is a synchronous loop already called from a daemon thread (import dialog). Adding `urllib.request.urlopen(logo_url)` inside the loop extends per-channel time from ~1ms (DB insert) to ~500ms+ (HTTP fetch). With 300+ AA channels across 6 networks, sequential logo fetching takes 2–5 minutes. The progress bar will advance, but the import appears hung.
-
-**Why it happens:** The import loop is fast because it only does DB inserts. Image fetching is network I/O and is fundamentally different in cost. The existing on-progress callback goes through `GLib.idle_add` so the UI stays alive, but the wall clock time is unacceptable.
-
-**Consequences:** Import runs for 5 minutes instead of 5 seconds. Users force-quit. If the import thread is a daemon, forced app exit kills it mid-write, potentially leaving partial state.
-
-**Prevention:** Decouple logo fetch from the import loop. Two viable patterns:
-1. Store the logo URL as a DB field during import (fast), then fetch the image lazily on first station display.
-2. After all stations are inserted, run a separate batch fetch pass using a thread pool with bounded concurrency (3–5 workers max).
-
-Do not add `urlopen` inside the `import_stations` loop. Keep that loop at DB-insert speed.
-
-**Codebase note:** The AA channel JSON returned by `fetch_channels` already includes image URL fields. No extra API call is needed to get the URL — only to download the image bytes. The URL is available in the `channels` list; store it, don't fetch it inline.
+**Phase to address:** scaffold — establish this pattern in the player module before any UI code touches the bus.
 
 ---
 
-### Pitfall 4: AA API Logo URL Format Is Undocumented and Field Names Are Unstable
+### Pitfall 2: GStreamer Plugin Path Not Set in PyInstaller Bundle (Windows)
 
-**Feature:** ART-01
+**What goes wrong:**
+On Windows, GStreamer looks for plugins under `%GSTREAMER_ROOT%\lib\gstreamer-1.0`. When bundled with PyInstaller, that path does not exist relative to the exe. Result: `gst.parse_launch()` finds zero elements and pipelines fail immediately with cryptic errors like `no element "playbin3"`.
 
-**What goes wrong:** The AudioAddict API is unofficial with no current public documentation. The logo URL format in the JSON response may use relative paths, inconsistent domains, CDN token parameters, or sizing suffixes (e.g. `?size=100`). Assuming a simple absolute `https://...jpg` format will fail for some channels silently.
+**Why it happens:**
+On Linux, GStreamer is a system package with compile-time plugin paths baked in. On Windows, the GStreamer installer sets `GST_PLUGIN_PATH` in the system environment, but that variable is absent in a PyInstaller bundle unless explicitly set at app startup.
 
-**Why it happens:** Community implementations (Plex plugins, CLI tools) suggest the API returns `asset_url`, `images`, or similar fields — but these have varied across API versions. The field may contain a relative path requiring a base domain to be prepended.
+**How to avoid:**
+At app startup, before `Gst.init()`, detect a PyInstaller bundle and set the environment:
 
-**Consequences:** Silent partial failure — some channels get art, others don't, with no visible error. The pattern is hard to notice without inspecting the DB directly.
-
-**Prevention:** Log the raw channel JSON during development and inspect the actual image URL structure before writing the fetch logic. Write a normalizer that handles both relative and absolute URLs. Treat a missing or 404 logo as a non-fatal no-op — fall through to no station art without raising.
-
-**Detection:** Some stations have art, others don't, with no pattern by provider or network. 404 errors appear in `urllib` exception logs.
-
----
-
-### Pitfall 5: AA URL Detection in Edit Dialog Produces False Positives/Negatives
-
-**Feature:** ART-01 — auto-fetch on URL paste in editor
-
-**What goes wrong:** The existing `_on_url_focus_out` handler in `EditStationDialog` auto-fetches YouTube thumbnails via `_is_youtube_url`. Adding AA logo auto-fetch with a naively broad pattern (e.g. checking for `"listen."` or `"di.fm"` substrings) produces false positives on URLs like `listen.soma.fm` (a non-AA station). It can also miss AA stream URLs if the detection pattern doesn't cover all 6 network domains after PLS resolution (the resolved URL may point to a CDN, not the `listen.*` domain).
-
-**Why it happens:** AA streams span 6 different `listen.*` domains. After PLS resolution in `aa_import._resolve_pls`, the final URL may be a CDN hostname that contains no recognizable AA marker.
-
-**Consequences:** False positive: fetch fires for non-AA stations, hits the AA API (key required), silently fails. False negative: user pastes an AA URL and no auto-fetch happens.
-
-**Prevention:** Gate auto-fetch against the explicit domain list from `NETWORKS` in `aa_import.py`. Match before PLS resolution (i.e., match against the URL the user typed, not the resolved URL). Apply the same `_thumb_fetch_in_progress` guard pattern already used for YouTube. Accept that auto-fetch is a convenience, not a requirement — if detection reliability is uncertain, defer it and rely on fetch-at-import-time only.
-
----
-
-## Moderate Pitfalls
-
-### Pitfall 6: 16:9 Slot Displays Square iTunes Art Incorrectly
-
-**Feature:** ART-02 — YouTube 16:9 in now-playing
-
-**What goes wrong:** `cover_stack` is currently `160x160`. Changing it to a 16:9 container (e.g. `284x160`) makes the now-playing panel wider. When a non-YouTube station is playing and cover art comes from the iTunes API (square ~160x160), the image will either be center-cropped (if `ContentFit.COVER`) or letterboxed with grey bars (if `ContentFit.CONTAIN`). Both are regressions from current behavior where square art fills the square slot cleanly.
-
-**Why it happens:** The slot is now-playing cover art, shared between YouTube stations (16:9 thumbnails) and ShoutCast stations (square iTunes art). The two content types have incompatible aspect ratios. A single fixed-size container cannot display both well.
-
-**Consequences:** iTunes cover art looks wrong for the majority of stations (all non-YouTube stations). Center crop cuts off text or subjects; letterbox looks unfinished.
-
-**Prevention:** Keep the slot adaptive. Track whether the current station is YouTube-based (`_current_station` is already available on `MainWindow`) and conditionally resize the container, or use `ContentFit.CONTAIN` as the default and accept slight letterboxing for YouTube thumbnails rather than breaking the common case. The simplest safe choice: keep the slot `160x160` and let `ContentFit.CONTAIN` handle 16:9 thumbnails with minimal bars. This degrades gracefully without breaking existing stations.
-
-**Codebase note:** `cover_stack.set_size_request(160, 160)` is at line 142–143 of `main_window.py`. The `panel.set_size_request(-1, 160)` at line 53 constrains the row height. Changing the slot width will reflow the center column width — test the full panel layout after any change.
-
----
-
-### Pitfall 7: Changing `cover_stack` Size Breaks `now-playing-panel` Layout
-
-**Feature:** ART-02
-
-**What goes wrong:** The now-playing panel is a 3-column `Gtk.Box` (logo | center | cover). The center column has `set_hexpand(True)` and expands to fill remaining space. If `cover_stack` changes from 160px wide to 284px wide, the center column shrinks by 124px, which may compress the `title_label`, `station_name_label`, volume slider, and controls box. On smaller window sizes this causes truncation or widget overlap.
-
-**Prevention:** After changing the art slot size, test at the minimum window size (`900x650`, the current default). Verify that the `title_label` still has enough horizontal space to show a meaningful portion of a long track title. Check that the volume slider doesn't collapse to near-zero width.
-
----
-
-### Pitfall 8: CSS Variable Override Scope — `--accent-bg-color` Must Be on `:root`
-
-**Feature:** ACCENT-01
-
-**What goes wrong:** Setting `--accent-bg-color` in a rule scoped to a widget class (e.g. `.suggested-action { --accent-bg-color: ... }`) only affects descendants of that specific widget. Most accent-colored widgets elsewhere in the app (buttons in other dialogs, focus rings, selection highlights) won't pick it up because GTK CSS custom properties scope to the subtree of the selector.
-
-**Why it happens:** `Gtk.StyleContext.add_provider_for_display` loads the CSS globally, but the variable's effective scope is still determined by the selector in the CSS string. Adding a scoped rule globally doesn't make it global in scope.
-
-**Consequences:** Accent color changes in some widgets but not others. Partial effect is hard to debug — not an obvious failure.
-
-**Prevention:** Declare `--accent-bg-color` on `:root` or `*`:
-
-```css
-:root {
-    --accent-bg-color: #ff6a00;
-    --accent-color: #ff6a00;
-    --accent-fg-color: #ffffff;
-}
+```python
+import sys, os
+if getattr(sys, 'frozen', False):
+    bundle_dir = sys._MEIPASS
+    os.environ['GST_PLUGIN_PATH'] = os.path.join(bundle_dir, 'gst-plugins')
+    os.environ['GST_PLUGIN_SCANNER'] = ''   # disable scanner; all plugins collected
+    os.environ['GST_REGISTRY'] = os.path.join(bundle_dir, 'registry.bin')
 ```
 
-Use `Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)` — not per-widget `add_provider`. This priority (600) is higher than Libadwaita's theme provider and wins on conflict.
+In the `.spec` file, add a `Tree()` block collecting the required plugin DLLs: `playback`, `soup`, `libav`, `audioconvert`, `autodetect`, `volume`, `typefindfunctions`.
+
+**Warning signs:**
+- `no element "playbin3"` on Windows packaged build
+- Works in development (system GStreamer installed) but fails after packaging
+- First launch fails; second launch works (registry rebuilt) — classic registry race
+
+**Phase to address:** packaging — required quality gate before calling the Windows bundle done.
 
 ---
 
-### Pitfall 9: Invalid Hex Input Causes Silent No-Op or Strips Existing Styles
+### Pitfall 3: souphttpsrc SSL Failure on Windows (Missing glib-networking)
 
-**Feature:** ACCENT-01
+**What goes wrong:**
+HTTPS radio stream URLs fail silently or with `TLS/SSL support not available; install glib-networking`. The `souphttpsrc` element delegates TLS to `glib-networking` (`libgiognutls.dll` on Windows). This DLL is not auto-collected by PyInstaller hooks and may be absent from minimal GStreamer runtime installations.
 
-**What goes wrong:** `Gtk.CssProvider.load_from_string` (or `load_from_data`) silently ignores invalid CSS rules. Passing an invalid hex (`#xyz`, incomplete `#ff0`, empty string) causes the rule to be dropped without raising a Python exception. The `parsing-error` signal fires but only if connected. A structurally malformed CSS string (e.g. missing closing brace) can invalidate the entire stylesheet, stripping previously applied styles including Phase 11 corner radii and panel borders.
+**Why it happens:**
+On Linux, `glib-networking` is a system package installed alongside GLib. On Windows, it ships in the GStreamer MSVC runtime as a separate DLL. PyInstaller's GStreamer hook does not scan it as a Python import dependency.
 
-**Why it happens:** GTK CSS parsing is lenient by design — it skips invalid rules rather than failing hard.
+**How to avoid:**
+- Use the GStreamer MSVC runtime installer — it includes `libgiognutls.dll` and the CA cert bundle.
+- In the PyInstaller `.spec`, explicitly add `libgiognutls.dll` and `lib\gio\modules\` to `binaries`.
+- Test an HTTPS stream URL (e.g., a `https://` SomaFM endpoint) on the freshly packaged build as an explicit quality gate.
+- Fallback: per-station `ssl-strict=false` property on `souphttpsrc` as a last resort for debugging — never as a production default.
 
-**Consequences:** Accent color silently stays at previous value with no user feedback. In the worst case (malformed CSS structure), Phase 11 visual polish is wiped out.
+**Warning signs:**
+- HTTP `http://` streams work; HTTPS `https://` streams fail immediately
+- Error log: `TLS/SSL support not available`
 
-**Prevention:**
-1. Validate the hex string in Python before passing to GTK: `re.fullmatch(r'#[0-9a-fA-F]{6}', value)` — reject 3-char, uppercase-only, or prefixless values.
-2. Derive `--accent-fg-color` (white or black) from luminance rather than hardcoding.
-3. Keep the CSS string minimal — only the variable declarations — to minimize structural parse risk.
-4. During development, connect `provider.connect("parsing-error", lambda p, s, e: print(e.message))` to surface parse errors.
-
----
-
-### Pitfall 10: GNOME 47+ System Accent Color Overwrites App-Level Override
-
-**Feature:** ACCENT-01
-
-**What goes wrong:** GNOME 47+ introduced system-level accent color via the settings portal. Libadwaita reads this at startup and injects `--accent-bg-color`. If the app loads its CSS provider at a lower priority, or reloads it at the wrong time, the system accent will overwrite the user's custom value.
-
-**Prevention:** Always use `Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION` (600) — this is above Libadwaita's theme provider. Reload the provider on every settings change (re-call `load_from_string` and re-add via `add_provider_for_display`), not just at startup. Test on a GNOME installation with a non-default system accent color active.
+**Phase to address:** packaging.
 
 ---
 
-## Minor Pitfalls
+### Pitfall 4: subprocess Console Window Flash on Windows (yt-dlp, streamlink, mpv)
 
-### Pitfall 11: AA Logo Fetch Leaves Temp Files on Import Interruption
+**What goes wrong:**
+Every call to `yt-dlp`, `streamlink`, or `mpv` as a subprocess pops a CMD window for a fraction of a second. Highly visible and makes the app look broken.
 
-**Feature:** ART-01
+**Why it happens:**
+On Windows, `subprocess.Popen` creates a console window for console-subsystem executables unless `creationflags=subprocess.CREATE_NO_WINDOW` is passed.
 
-**What goes wrong:** The existing `fetch_yt_thumbnail` pattern writes to a `NamedTemporaryFile` and calls `os.unlink` after `copy_asset_for_station`. An AA batch logo fetch will follow the same pattern. If the import is cancelled mid-batch or the app is closed, partially downloaded logos leave orphan `/tmp/*.jpg` files.
+**How to avoid:**
+Centralize all subprocess calls behind a helper:
 
-**Prevention:** Always wrap `os.unlink(temp_path)` in `try/except OSError`. Use a `finally` block to ensure cleanup regardless of whether `copy_asset_for_station` succeeded.
+```python
+import subprocess, sys
+
+def _popen(args, **kwargs):
+    if sys.platform == "win32":
+        kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
+    return subprocess.Popen(args, **kwargs)
+```
+
+Also set `stdin=subprocess.DEVNULL` on all fire-and-forget subprocesses to prevent the child from blocking on stdin.
+
+Never use `shell=True` on Windows with any user-controlled content — use list args and the helper.
+
+**Warning signs:**
+- Black CMD window flashes during stream start on Windows
+- No crash, no error — purely a UX artifact
+
+**Phase to address:** platform — part of the Windows subprocess compatibility layer, built before the first YouTube/Twitch playback test.
 
 ---
 
-### Pitfall 12: AA Logo Fetch Overwrites User-Set Station Art on Re-Import
+### Pitfall 5: Subprocess Pipe Deadlock (yt-dlp stdout + stderr)
 
-**Feature:** ART-01
+**What goes wrong:**
+`subprocess.Popen` with `stdout=PIPE, stderr=PIPE` deadlocks when the child writes enough to fill the OS pipe buffer (~64 KB on Windows) before the parent reads it. yt-dlp with `--verbose` or cookie auth can produce megabytes of stderr. The calling thread hangs indefinitely.
 
-**What goes wrong:** `copy_asset_for_station` writes to `assets/<station_id>/station_art<ext>`. If a new fetch path updates logos for stations already in the DB (e.g. a "refresh logos" action), it silently overwrites art the user manually chose.
+**Why it happens:**
+Child fills `stderr`, blocks. Parent is blocked on `stdout.read()`. Neither makes progress. This is a known, documented Python subprocess issue on Windows specifically.
 
-**Prevention:** Only write station art during initial import (when `imported += 1`), never during the skipped-duplicate path. Add an explicit guard: only write if `station_art_path` is `None` or empty in the DB.
+**How to avoid:**
+Use `subprocess.run(capture_output=True, timeout=30)` for all one-shot yt-dlp URL extractions. For long-running processes (mpv), redirect stderr to `subprocess.DEVNULL` or a rotating log file — never pipe it unless actively consuming it in a separate thread.
+
+```python
+result = subprocess.run(
+    ["yt-dlp", "--get-url", url],
+    capture_output=True, text=True, timeout=30,
+    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+)
+```
+
+**Warning signs:**
+- App freezes during YouTube stream resolution on Windows
+- Works with short URLs, hangs with authenticated/playlist URLs
+- No timeout fires (no timeout was set)
+
+**Phase to address:** platform — audit all subprocess calls during Windows compatibility phase.
 
 ---
 
-### Pitfall 13: GStreamer State Transition Race More Audible With Larger Buffers
+### Pitfall 6: Hard-Coded `~/.local/share/musicstreamer` Path Breaks on Windows
 
-**Feature:** STREAM-01
+**What goes wrong:**
+Every module that constructs `~/.local/share/musicstreamer/` puts data in a non-standard Windows location that users can't find via Explorer. Worse: `os.makedirs` may fail if the intermediate `.local/share` path doesn't exist on Windows by default.
 
-**What goes wrong:** `Player._set_uri` calls `set_state(NULL)` then immediately sets the URI and calls `set_state(PLAYING)`. With larger buffers, the pipeline may not fully drain to NULL before the new URI is set, leaving buffered audio that plays briefly before the new stream starts. This pre-exists the buffer tuning work but larger buffers make the artifact more audible.
+**Why it happens:**
+XDG base directory conventions are Linux-only. `os.path.expanduser("~/.local/...")` technically works on Windows but produces a non-conventional path.
 
-**Prevention:** Do not change the existing state transition pattern unless glitches are observed after tuning. If glitches appear on station switch, flush the pipeline explicitly with `Gst.Event.new_flush_start()` / `flush_stop` before setting the new URI.
+**How to avoid:**
+Compute `DATA_DIR` once at startup using `QStandardPaths`:
+
+```python
+from PySide6.QtCore import QStandardPaths, QCoreApplication
+QCoreApplication.setOrganizationName("")
+QCoreApplication.setApplicationName("MusicStreamer")
+DATA_DIR = QStandardPaths.writableLocation(
+    QStandardPaths.StandardLocation.AppLocalDataLocation
+)
+# Linux: ~/.local/share/MusicStreamer
+# Windows: C:\Users\<user>\AppData\Roaming\MusicStreamer
+```
+
+Store this in `constants.py` and use `DATA_DIR` everywhere — never construct the path inline. On Linux, if the old `~/.local/share/musicstreamer` exists and the QStandardPaths location is new/empty, migrate it on first run.
+
+Note: `QCoreApplication` must be constructed before `QStandardPaths.writableLocation` is called.
+
+**Warning signs:**
+- Cookie file not found by yt-dlp on Windows (absolute path baked into the call)
+- Database created at wrong path; settings not persisted between sessions
+
+**Phase to address:** scaffold — zero-day decision; every file path in the codebase must use `DATA_DIR`.
 
 ---
 
-## Phase-Specific Warnings
+### Pitfall 7: QObject C++ Lifetime vs. Python GC (`RuntimeError: Internal C++ object already deleted`)
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|----------------|------------|
-| GStreamer buffer tuning | ICY metadata latency regression (#1) | Measure time to first TAG message; keep buffer-duration ≤5s |
-| GStreamer buffer tuning | `souphttpsrc` property timing (#2) | Use `source-setup` signal; verify which element owns the property |
-| AA logo fetch at import | UI blocking from inline HTTP (#3) | Decouple fetch from import loop |
-| AA logo fetch at import | Undocumented URL format (#4) | Inspect raw JSON in development, normalize URLs |
-| AA logo auto-fetch in editor | URL detection false pos/neg (#5) | Match against explicit `NETWORKS` domain list only |
-| YouTube 16:9 now-playing | Square iTunes art breakage (#6) | Conditional sizing or CONTAIN fallback |
-| YouTube 16:9 now-playing | Panel layout reflow (#7) | Test at min window size after dimension change |
-| Custom accent color | CSS variable scope (#8) | Use `:root` selector, `PRIORITY_APPLICATION` |
-| Custom accent color | Invalid hex silent failure (#9) | Validate hex in Python before passing to GTK |
-| Custom accent color | System accent conflict (#10) | Test on GNOME with non-default system accent |
+**What goes wrong:**
+Qt destroys the C++ object (e.g., when a dialog closes and destroys its children) while Python still holds a reference. Any subsequent attribute access raises `RuntimeError: Internal C++ object already deleted`. This is the most common PySide6 crash and has no GTK equivalent — GTK widgets are Python-owned; Qt widgets are C++-owned.
+
+**Why it happens:**
+When a `QDialog` closes without `exec()` keeping it alive, Qt can delete it and all children. A GStreamer callback that was running while the dialog was open may try to update a now-dead label.
+
+**How to avoid:**
+- Always give every widget a parent (`parent=` constructor arg) or store as `self.widget`. Never create widgets in local scope without parenting.
+- Dialogs: use `dialog.exec()` (blocks) or store as `self._dialog` on the parent window.
+- Connect to `dialog.finished` or `dialog.destroyed` to clear the Python reference.
+- GStreamer callbacks that update UI: check `sip.isdeleted(widget)` or use a `try/except RuntimeError` guard. Better: the callback only emits a Qt signal; the slot in the main window checks whether the widget is still live.
+
+**Warning signs:**
+- `RuntimeError: Internal C++ object already deleted` in stderr
+- Crash when re-opening a dialog after it was previously dismissed
+- Crash after a dialog is dismissed while a background thread is still running
+
+**Phase to address:** port — apply as a code review gate on every dialog and every GStreamer callback that references UI widgets.
+
+---
+
+### Pitfall 8: GTK CSS → QSS — Semantics Are Completely Different
+
+**What goes wrong:**
+The v1.5 accent color system writes GTK CSS via `Gtk.CssProvider` at `PRIORITY_USER`. QSS looks syntactically similar but behaves differently in ways that matter:
+
+- QSS selectors use Qt widget class names (`QLabel`, `QPushButton`) not element names (`label`, `button`).
+- No cascade priority system — `QApplication.setStyleSheet()` is global; setting it on a widget overrides global for that widget's subtree only.
+- No CSS custom properties (`--accent-bg-color`). Every accent token must be string-interpolated at generation time.
+- No `@define-color`. No `:root`. Selectors map to widget types, not DOM elements.
+- `border-radius` on a `QWidget` requires `background-color` also set — otherwise no visual effect.
+
+**How to avoid:**
+Re-implement the accent system from scratch for Qt. Do not port the GTK CSS string. Generate a minimal QSS snippet with hardcoded hex values. Use Qt's `QPalette` API for semantic color roles where possible — palette changes propagate correctly; QSS string patches do not.
+
+**Warning signs:**
+- QSS applied but no visible change
+- `border-radius` works on some widgets, not others
+- Accent color leaks into unintended widgets
+
+**Phase to address:** port — accent color is a re-implement, not a translate.
+
+---
+
+### Pitfall 9: Libadwaita Compound Widgets Have No Qt Equivalent — Map First
+
+**What goes wrong:**
+`Adw.ExpanderRow`, `Adw.ActionRow`, `Adw.SwitchRow`, `Adw.ComboRow`, and `Adw.ToggleGroup` are compound Libadwaita widgets with built-in spacing, icon slots, subtitles, and activation semantics. Developers look for 1:1 Qt replacements, find none, and bolt together `QFrame` + `QHBoxLayout` + `QLabel` combos that don't match the interaction model.
+
+**How to avoid:**
+Establish the widget mapping table before writing a line of Qt UI code:
+
+| Libadwaita | Qt replacement |
+|-----------|----------------|
+| `Adw.ExpanderRow` (provider groups) | Custom `QWidget` with expand/collapse toggle + hidden child `QListWidget` |
+| `Adw.ActionRow` (station rows) | Custom `QWidget` set via `QListWidget.setItemWidget` |
+| `Adw.SwitchRow` | `QWidget` + `QCheckBox` in a form layout |
+| `Adw.ComboRow` | `QComboBox` |
+| `Adw.ToggleGroup` (Stations/Favorites) | Exclusive `QButtonGroup` with `QPushButton` |
+| `Adw.Toast` | Custom overlay `QLabel` with `QTimer` auto-dismiss, or `QStatusBar` |
+| `Adw.FlowBox` chip strip | Qt's `FlowLayout` example, or `QScrollArea` with wrapping `QWidget` |
+| `Adw.Dialog` | `QDialog` |
+| `Adw.HeaderBar` | `QMenuBar` + `QToolBar` or just `QMenuBar` |
+
+Accept that visual output will look different from v1.5 on GNOME. This is expected for a cross-platform port.
+
+**Warning signs:**
+- Nested `QFrame` soup trying to replicate `Adw.ActionRow`
+- Expand/collapse state not persisting across filter changes (re-learned the v1.2 lesson)
+
+**Phase to address:** port — decide the mapping table during scaffold; implement during port.
+
+---
+
+### Pitfall 10: Daemon Thread + `GLib.idle_add` — Wrong Migration to QThread
+
+**What goes wrong:**
+v1.5 uses `threading.Thread(daemon=True)` + `GLib.idle_add(callback)` for all background I/O. The naive Qt port subclasses `QThread` and calls `QWidget` methods from `run()` — crash. A slightly less naive port uses `moveToThread` but puts the worker in the wrong thread (QThread lives in the spawning thread, not the thread it manages).
+
+**How to avoid:**
+Use the **worker-object + `moveToThread`** pattern:
+
+```python
+class FetchWorker(QObject):
+    result_ready = Signal(str)
+
+    def fetch(self, url):        # runs in worker thread via Signal invocation
+        data = do_blocking_work(url)
+        self.result_ready.emit(data)  # queued to main thread slot
+
+# Setup:
+self._worker = FetchWorker()       # no parent — required for moveToThread
+self._thread = QThread()
+self._worker.moveToThread(self._thread)
+self._thread.start()
+self._worker.result_ready.connect(self._on_result)  # queued connection
+```
+
+Key rules:
+- `moveToThread` fails if the worker has a parent — never set parent before moving.
+- The `QThread` object lives in the spawning thread; do not access worker attributes directly from the main thread after moving.
+- `GLib.idle_add` is replaced by emitting a Qt signal — queued connection delivers to the main thread slot.
+- For one-shot tasks, `QThreadPool` + `QRunnable` is simpler and avoids lifetime management.
+
+**Warning signs:**
+- `QObject: Cannot move to target thread` warning in stderr
+- Random crashes during import or thumbnail fetch
+- UI updates that work 90% of the time and crash 10%
+
+**Phase to address:** scaffold — establish the threading pattern before any feature porting. Every background worker must use it.
+
+---
+
+### Pitfall 11: WebKit2Gtk → QtWebEngine for Twitch OAuth — Different Cookie API
+
+**What goes wrong:**
+v1.5 captures the Twitch auth token by spawning a WebKit2 subprocess, intercepting the `access_token` cookie from the WebKit2 cookie store, and writing it to `TWITCH_TOKEN_PATH`. QtWebEngine uses a Chromium-based `QWebEngineCookieStore` with an async API — cookies are delivered via the `cookieAdded` signal, not synchronously readable after navigation.
+
+Additionally, QtWebEngine adds ~150MB to a packaged build and requires a separate `QtWebEngineProcess.exe` bundled alongside the app.
+
+**How to avoid:**
+Keep the subprocess isolation pattern. Spawn a minimal Qt script (`oauth_helper.py`) that embeds `QWebEngineView`, connects to `profile.cookieStore().cookieAdded`, filters for `access_token`, writes the token to a temp file, and exits. The main app reads the temp file. This isolates the QtWebEngine weight to a subprocess rather than importing it into the main process.
+
+If QtWebEngine size is prohibitive: explore the `webbrowser.open()` + local redirect server pattern (OAuth PKCE flow) as an alternative that requires no embedded browser.
+
+**Warning signs:**
+- OAuth window opens but token is never captured
+- `QtWebEngineProcess.exe` not found in packaged build
+- Main process imports `QtWebEngineWidgets` and takes 3 seconds to start
+
+**Phase to address:** platform — Twitch OAuth is platform-specific. Address as a dedicated task in the Windows auth/cookies phase.
+
+---
+
+### Pitfall 12: `os.chmod(0o600)` Is a No-Op on Windows
+
+**What goes wrong:**
+v1.5 sets `0o600` permissions on `cookies.txt` and `TWITCH_TOKEN_PATH` via `os.chmod()`. On Windows, `os.chmod()` is silently ignored for all permission bits except read-only. The files are created but are readable by any local user — no exception is raised.
+
+**Why it happens:**
+Windows uses ACLs, not POSIX permission bits. Python's `os.chmod()` on Windows only honors the "read-only" attribute.
+
+**How to avoid:**
+Wrap in a platform check:
+
+```python
+import sys, os, stat
+def set_private_permissions(path: str) -> None:
+    if sys.platform != "win32":
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    # Windows: os.chmod is a no-op for ownership; document gap explicitly
+    # For a single-user personal app this is acceptable risk
+```
+
+Do not add a `pywin32` ACL dependency for a personal single-user app. Document the gap in a code comment and move on.
+
+**Warning signs:**
+- Security scanner flags world-readable credential files on Windows
+
+**Phase to address:** platform — document during Windows compatibility review.
+
+---
+
+### Pitfall 13: PyInstaller GStreamer Hook Does Not Auto-Collect Native Plugin DLLs
+
+**What goes wrong:**
+PyInstaller's `gi.repository.Gst` hook collects Python bindings but does NOT auto-collect native GStreamer plugin DLLs. The packaged exe starts but has no audio — `playbin3` has no elements available.
+
+**Why it happens:**
+GStreamer plugins are native DLLs in `gstreamer-1.0/` that PyInstaller does not discover as Python imports. The hook (PyInstaller 5.6+) provides `include_plugins` / `exclude_plugins` but requires explicit enumeration.
+
+**How to avoid:**
+In `.spec`, explicitly collect the required plugin DLLs:
+
+```python
+gst_plugins = r"C:\gstreamer\1.0\msvc_x86_64\lib\gstreamer-1.0"
+a.datas += Tree(gst_plugins, prefix='gst-plugins')
+```
+
+Required plugins: `playback`, `soup`, `libav`, `audioconvert`, `autodetect`, `volume`, `typefindfunctions`. Test the packaged build against both HTTP and HTTPS streams before declaring packaging done.
+
+**Warning signs:**
+- Packaged exe starts, UI appears, but audio never plays
+- `gst-inspect-1.0 playbin3` returns nothing inside the bundle
+
+**Phase to address:** packaging — explicit quality gate.
+
+---
+
+### Pitfall 14: Antivirus False Positives and SmartScreen on Unsigned PyInstaller Exe
+
+**What goes wrong:**
+PyInstaller bundles the interpreter and extracts to a temp dir at runtime — behavior matching common malware packers. Windows Defender and third-party AV products flag unsigned PyInstaller executables as `Trojan.GenericKD`. SmartScreen blocks launch with "Windows protected your PC."
+
+**How to avoid:**
+- Use `--onedir` mode, not `--onefile`. The extraction behavior that triggers AV heuristics is `--onefile` only.
+- Do NOT use UPX compression (`--no-upx`). UPX-compressed Python exes have extremely high AV false-positive rates.
+- For personal use: document that users must click "Run Anyway" on first launch. For distribution: get a code-signing certificate (EV cert = immediate SmartScreen reputation).
+- Build the PyInstaller bootloader from source — different binary hash reduces detection rate.
+
+**Warning signs:**
+- Windows Defender quarantines the exe on first launch on a clean VM
+- SmartScreen "unknown publisher" dialog on first run
+
+**Phase to address:** packaging — test on a clean Windows VM with Defender enabled before declaring packaging done.
+
+---
+
+### Pitfall 15: "Improve While Porting" Scope Creep Causes Feature Drift
+
+**What goes wrong:**
+Every widget re-implementation is a temptation: "while I'm rewriting the station list, I'll also restructure to use `QAbstractListModel`" or "Qt's model/view is more elegant so I'll refactor the data layer too." These improvements compound, the port takes 3x as long, bugs are introduced in areas that weren't broken, and v1.5 behavior is no longer the baseline.
+
+**Why it happens:**
+Port work touches every UI file. Qt idioms (model/view, `QAbstractListModel`) suggest architectural refactors not needed with GTK. Developers naturally improve as they touch code.
+
+**How to avoid:**
+- Establish a written "port-only" rule before the first phase: every plan must reference a specific v1.5 behavior as the target and say "match this exactly."
+- Create a feature-parity checklist from v1.5 requirements before writing a line of Qt code. Each checkbox maps to a testable behavior.
+- New improvements, architecture changes, Qt-idiomatic refactors go into a labeled backlog — not into port phases.
+- Phase plans during the port must include: "No new behavior introduced in this phase."
+- The only new behavior in v2.0 is: `QStandardPaths` path migration, manual settings export/import, cross-platform media keys, and Windows installer.
+
+**Warning signs:**
+- Phase plan descriptions contain "also improved" or "also refactored"
+- Test count drops (old behavior tests deleted rather than adapted)
+- Phase estimates doubling mid-execution
+
+**Phase to address:** all phases — process rule, not a code fix. Enforce at the plan-writing stage.
+
+---
+
+### Pitfall 16: pytest Tests That Use Xvfb Won't Run on Windows CI
+
+**What goes wrong:**
+GTK widget tests require a display — handled on Linux CI via Xvfb. On Windows there is no X11. Any test that imports GTK (even indirectly) crashes the test suite at import time. When Qt widget tests are added naively (without `pytest-qt`), they fail on headless CI too.
+
+**How to avoid:**
+- Use `pytest-qt` for all Qt widget tests. It automatically sets `QT_QPA_PLATFORM=offscreen` when no display is available — headless and cross-platform.
+- Set `QT_QPA_PLATFORM=offscreen` in CI environment config as belt-and-suspenders.
+- All GStreamer and subprocess calls in tests remain monkeypatched — no real media pipeline in tests.
+- Do not create real widget objects in tests without `qtbot` — use `qtbot.addWidget()` for lifecycle management.
+
+**Warning signs:**
+- `could not connect to display` on Windows CI
+- Tests pass on Linux dev machine, import-error on Windows
+
+**Phase to address:** scaffold — establish `pytest-qt` + offscreen before writing any Qt widget test.
+
+---
+
+## Technical Debt Patterns
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Keep `threading.Thread` alongside `QThread` | Avoids full threading refactor | Two threading systems; non-Qt threads can't emit Qt signals safely | Never — pick one |
+| `shell=True` on Windows subprocess | Avoids path lookup complexity | Security risk; hides `CREATE_NO_WINDOW` | Never |
+| Hardcode plugin list in PyInstaller spec | Fast to ship | Breaks when GStreamer version changes | Acceptable if version-pinned in requirements |
+| Skip `os.chmod` on Windows with a comment | Avoids `pywin32` dependency | Credential files world-readable | Acceptable for single-user personal app |
+| Keep subprocess OAuth pattern (no in-process WebEngine) | Avoids 150MB WebEngine dep in main process | Subprocess spawning is fragile | Acceptable — isolation is good architecture |
+| Port to `QListWidget` + `setItemWidget` instead of `QAbstractListModel` | Faster to implement, matches GTK flat-list mental model | Harder to filter/sort at scale | Acceptable for 50–200 station library |
+
+---
+
+## Integration Gotchas
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| GStreamer + Qt event loop | `bus.add_signal_watch()` with no GMainLoop | `enable_sync_message_emission()` + emit Qt signal from sync handler |
+| GStreamer + PyInstaller | Rely on auto-collection for native plugin DLLs | Explicit `Tree()` in spec + `GST_PLUGIN_PATH` at startup |
+| GStreamer + Windows SSL | No `libgiognutls.dll` in bundle | Explicitly collect DLL + test HTTPS stream on packaged build |
+| yt-dlp subprocess | `stdout=PIPE, stderr=PIPE` no timeout | `subprocess.run(capture_output=True, timeout=30)` |
+| mpv subprocess | stderr piped for logging | Redirect to `DEVNULL` or rotating log file |
+| `QStandardPaths` | Called before `QCoreApplication` constructed | Construct app with org/name first; then call `writableLocation` |
+| Twitch OAuth + WebEngine | Import `QtWebEngineWidgets` in main process | Subprocess isolation — spawn `oauth_helper.py` |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+- [ ] **GStreamer bus:** ICY titles update after port — not just "pipeline plays"
+- [ ] **Windows subprocess:** No CMD flash on yt-dlp, streamlink, mpv calls
+- [ ] **HTTPS streams:** HTTPS URL plays in packaged build (not just HTTP)
+- [ ] **Data paths:** `DATA_DIR` used in every file path — no `~/.local` literals remain
+- [ ] **QStandardPaths migration:** Old Linux path migrated on upgrade if it exists and new path is empty
+- [ ] **Threading:** No `QObject: Cannot move to target thread` warnings in stderr during import
+- [ ] **Widget lifetime:** 10-minute smoke test with no `RuntimeError: Internal C++ object deleted`
+- [ ] **AV false positive:** Packaged exe runs on clean Windows VM with Defender enabled
+- [ ] **Accent color:** Changes apply to all targeted widgets, not just some
+- [ ] **pytest-qt:** All tests pass headless on both Linux and Windows
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| GStreamer bus on wrong thread | scaffold | ICY titles update; EOS caught in integration test |
+| GST_PLUGIN_PATH missing | packaging | Fresh Windows VM: stream plays within 10s |
+| souphttpsrc SSL missing | packaging | HTTPS SomaFM stream plays in packaged build |
+| Console window flash | platform | No CMD flash during stream start (manual test) |
+| Pipe deadlock | platform | yt-dlp `--verbose` call does not hang; 30s timeout fires |
+| Hard-coded data paths | scaffold | `DATA_DIR` constant; no `~/.local` literals; `grep` clean |
+| C++ object deleted crash | port | No RuntimeError in 10-min smoke; dialog open/close cycle passes |
+| GTK CSS vs QSS | port | Accent color applies to all targeted widget types |
+| Libadwaita widget mapping | port | Mapping table reviewed before first UI file written |
+| Thread migration | scaffold | No `Cannot move to target thread` warnings; no import crash |
+| WebEngine OAuth | platform | Twitch token captured on Windows without in-process WebEngine |
+| chmod no-op | platform | Documented in code comment; no exception on Windows |
+| PyInstaller plugins missing | packaging | Packaged exe plays audio (HTTP + HTTPS) |
+| AV false positives | packaging | Clean VM with Defender: exe runs without quarantine |
+| Scope creep | all phases | Phase plans state "no new behavior"; parity checklist gates each phase |
+| Xvfb/display in tests | scaffold | `pytest-qt` + offscreen; full suite passes on Windows CI |
 
 ---
 
 ## Sources
 
-- GStreamer playbin3 docs: https://gstreamer.freedesktop.org/documentation/playback/playbin3.html
-- GStreamer buffering guide: https://gstreamer.freedesktop.org/documentation/application-development/advanced/buffering.html
-- souphttpsrc docs: https://gstreamer.freedesktop.org/documentation/soup/souphttpsrc.html
-- Pithos buffer-size real-world issue: https://github.com/pithos/pithos/issues/393
-- Libadwaita CSS variables: https://gnome.pages.gitlab.gnome.org/libadwaita/doc/1.2/css-variables.html
-- GTK4 CSS overview: https://docs.gtk.org/gtk4/css-overview.html
-- AudioAddict community implementation (phrawzty): https://github.com/phrawzty/AudioAddict.bundle
-- Codebase analysis: `player.py`, `main_window.py`, `edit_dialog.py`, `aa_import.py`, `cover_art.py`, `assets.py`
+- [GStreamer GstBus documentation](https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html)
+- [Qt Forum: Howto push GST thread into Qt Main Thread](https://forum.qt.io/topic/132596/howto-push-gst-thread-into-qt-main-thread)
+- [GStreamer Discourse: Qt GStreamer Event Loop Woes](https://discourse.gstreamer.org/t/qt-gstreamer-event-loop-woes/5766)
+- [GStreamer souphttpsrc SSL issue #451](https://gitlab.freedesktop.org/gstreamer/gst-plugins-good/-/issues/451)
+- [GStreamer installing on Windows](https://gstreamer.freedesktop.org/documentation/installing/on-windows.html)
+- [PyInstaller/Kivy GStreamer bundling issue #6126](https://github.com/kivy/kivy/issues/6126)
+- [yt-dlp Windows GUI console window issue #1251](https://github.com/yt-dlp/yt-dlp/issues/1251)
+- [Python subprocess deadlock CPython issue #14872](https://bugs.python.org/issue14872)
+- [PyInstaller AV false positives guide](https://www.pythonguis.com/faq/problems-with-antivirus-software-and-pyinstaller/)
+- [PyInstaller SmartScreen signing issue #6747](https://github.com/pyinstaller/pyinstaller/issues/6747)
+- [QStandardPaths Qt for Python docs](https://doc.qt.io/qtforpython-6/PySide6/QtCore/QStandardPaths.html)
+- [PySide6 QThread multithreading guide](https://www.pythonguis.com/tutorials/multithreading-pyside6-applications-qthreadpool/)
+- [QThread correct usage](https://www.haccks.com/posts/how-to-use-qthread-correctly-p1/)
+- [QWebEngineCookieStore Qt for Python docs](https://doc.qt.io/qtforpython-6/PySide6/QtWebEngineCore/QWebEngineCookieStore.html)
+- [Porting from Qt WebKit to Qt WebEngine](https://doc.qt.io/qtforpython-6.5/overviews/qtwebenginewidgets-qtwebkitportingguide.html)
+- [oschmod — cross-platform chmod alternative](https://pypi.org/project/oschmod/)
+- [pytest-qt troubleshooting / offscreen platform](https://pytest-qt.readthedocs.io/en/latest/troubleshooting.html)
 
 ---
 
-## Archived — v1.3 Pitfalls (Discovery & Favorites)
+## Archived — v1.4 Pitfalls (GTK4/GStreamer)
 
-The following pitfalls were researched for v1.3 and remain valid as historical reference. They are addressed in Phases 12–15.
+Prior pitfall research for v1.4 (GStreamer buffer tuning, AudioAddict art, accent color) is archived below for reference. These pitfalls are already addressed in v1.5 shipped code.
 
 <details>
-<summary>Expand v1.3 pitfalls</summary>
+<summary>Expand v1.4 pitfalls (archived)</summary>
 
-### P1: Radio-Browser.info — Hardcoded Server IP
-Use DNS round-robin via `all.api.radio-browser.info`. Do not hardcode `de1.api.radio-browser.info`.
+### P1: Buffer Tuning Delays ICY Metadata Delivery
+Set `buffer-duration` ≤5s. Prefer `buffer-duration` over `buffer-size`. Validate time-to-first-TAG-message.
 
-### P2: Radio-Browser.info — Sync HTTP on Main Thread
-All Radio-Browser calls must use daemon thread + `GLib.idle_add`. Debounce search-changed 300ms.
+### P2: `souphttpsrc` Properties Not Accessible at Pipeline Construction
+Connect to `source-setup` signal on `playbin3`. Do not call `get_by_name("source")` before `READY` state.
 
-### P3: Radio-Browser.info — Unbounded Response
-Always pass `limit=100` to search endpoint.
+### P3: AA Logo Fetch Blocks Import Worker
+Decouple logo fetch from insert loop. Use `ThreadPoolExecutor` post-insert pass.
 
-### P4: AudioAddict API Key Security
-Store in settings table; mask in UI (`set_visibility(False)`); never log.
+### P4: AA API Logo URL Format Undocumented
+Inspect raw JSON first. Normalize URLs. Treat missing logos as non-fatal.
 
-### P5: AudioAddict PLS URL Per Quality Tier
-Re-fetch PLS for each quality tier; never substitute subdomains.
+### P5: AA URL Detection False Positives
+Gate detection on explicit `NETWORKS` domain list from `aa_import.py`.
 
-### P6: YouTube Import Blocking Main Loop
-Daemon thread + `GLib.idle_add` for results. Spinner while running.
+### P6: 16:9 Slot Breaks Square iTunes Art
+Use `ContentFit.CONTAIN`; keep slot `160x160`. Adaptive slot complicates the panel layout.
 
-### P7: YouTube Non-Live Filter
-`is_live == True` strict identity check (non-live entries return `None`, not `False`).
+### P7: Changing `cover_stack` Size Reflows Panel
+Test at min window size after any dimension change.
 
-### P8: Favorites Duplicate Detection
-`INSERT OR IGNORE` + `UNIQUE(station_id, title)` constraint.
+### P8: CSS Variable Scope — `--accent-bg-color` Must Be on `:root`
+Use `:root` selector + `PRIORITY_APPLICATION`.
 
-### P9: Favorites Junk Title Guard
-Gate star action on `not is_junk_title(current_title)`.
+### P9: Invalid Hex Silent No-Op
+Validate hex in Python (`re.fullmatch`) before passing to GTK CSS provider.
 
-### P10: Favorites DB Migration
-`CREATE TABLE IF NOT EXISTS favorites` in `db_init` executescript.
-
-### P11: Radio-Browser Click-Count Side Effect
-Only call `/json/url/{uuid}` on play/save, not on browse display.
+### P10: GNOME 47+ System Accent Overwrites App Override
+Use `PRIORITY_APPLICATION` (600). Reload provider on every change, not just startup.
 
 </details>
 
 ---
 
-*Pitfalls research for: GTK4/Python internet radio — v1.4 Media & Art Polish*
-*Researched: 2026-04-03*
+*Pitfalls research for: MusicStreamer v2.0 Qt/PySide6 port to Linux + Windows*
+*Researched: 2026-04-10*
