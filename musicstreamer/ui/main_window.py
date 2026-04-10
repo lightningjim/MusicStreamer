@@ -965,6 +965,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.title_label.set_text(title)
             self._on_cover_art(title)  # pass RAW title to cover art (iTunes needs real chars)
         preferred_quality = self.repo.get_setting(QUALITY_SETTING_KEY, "")
+        self._show_toast("Connecting\u2026", timeout=4)
         self.player.play(st, on_title=_on_title,
                          preferred_quality=preferred_quality,
                          on_failover=self._on_player_failover,
@@ -1041,6 +1042,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.title_label.set_text(title)
             self._on_cover_art(title)
 
+        self._show_toast("Connecting\u2026", timeout=4)
         self.player.play_stream(
             stream,
             on_title=_on_title,
