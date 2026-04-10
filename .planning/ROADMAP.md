@@ -312,7 +312,7 @@ Plans:
 **Goal:** Fix the deferred failing twitch streamlink args test by forcing the no-token branch, and annotate the stale cookies-test entry in phase 33 deferred-items.md as already resolved in commit b3e066b
 **Requirements**: PHASE-33-DEFERRED
 **Depends on:** Phase 33
-**Plans:** 1 plans
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 34-01-fix-twitch-test-and-cleanup-PLAN.md — Fix test_streamlink_called_with_correct_args via TWITCH_TOKEN_PATH monkeypatch + annotate stale cookies entry in deferred-items.md
+- [x] 34-01-fix-twitch-test-and-cleanup-PLAN.md — Fix test_streamlink_called_with_correct_args via TWITCH_TOKEN_PATH monkeypatch + annotate stale cookies entry in deferred-items.md
