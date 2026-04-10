@@ -278,7 +278,8 @@ class Player:
         def _resolve():
             cmd = ["streamlink", "--stream-url", url, "best"]
             try:
-                token = open(TWITCH_TOKEN_PATH).read().strip()
+                with open(TWITCH_TOKEN_PATH) as fh:
+                    token = fh.read().strip()
                 if token:
                     cmd = ["streamlink",
                            "--twitch-api-header", f"Authorization=OAuth {token}",
