@@ -396,7 +396,7 @@ class AccountsDialog(Adw.Window):
         if not token:
             self._twitch_error_label.set_text("Sign-in failed or was cancelled. Try again.")
             self._twitch_error_label.set_visible(True)
-            return
+            return False
         try:
             os.makedirs(os.path.dirname(TWITCH_TOKEN_PATH), exist_ok=True)
             fd = os.open(TWITCH_TOKEN_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
