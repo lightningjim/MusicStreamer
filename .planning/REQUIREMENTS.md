@@ -15,7 +15,7 @@ Requirements for this polish milestone. New items added as issues are discovered
 - [ ] **FIX-04**: Tag chip container in edit dialog does not overflow or overlap adjacent buttons; chips wrap to multiple lines via FlowBox
 - [ ] **FIX-05**: Provider and tag filter chip containers in main window do not overflow horizontally; chips wrap to multiple lines via FlowBox
 - [ ] **FIX-06**: Standalone Edit button in filter bar replaced with now-playing edit icon button; edit icon sensitive only when a station is playing or paused
-- [ ] **FIX-07**: YouTube streams get a 15s minimum wait window before `_try_next_stream` can fire; a "Connecting…" Adw.Toast fires on every `play()` / `play_stream()` call for all stream types. Sub-criteria:
+- [x] **FIX-07**: YouTube streams get a 15s minimum wait window before `_try_next_stream` can fire; a "Connecting…" Adw.Toast fires on every `play()` / `play_stream()` call for all stream types. Sub-criteria:
   - (a) YT mpv exit at < 15s after attempt start does NOT call `_try_next_stream`
   - (b) YT mpv alive at >= 15s clears `_yt_poll_timer_id` and `_yt_attempt_start_ts`
   - (c) Cookie-retry substitution re-seeds `_yt_attempt_start_ts` so replacement mpv gets its full 15s
@@ -154,7 +154,7 @@ Requirements for this polish milestone. New items added as issues are discovered
 | TAUTH-05 | Phase 32 | Pending |
 | TAUTH-06 | Phase 32 | Pending |
 | TAUTH-07 | Phase 32 | Pending |
-| FIX-07 | Phase 33 | Pending |
+| FIX-07 | Phase 33 | Complete |
 
 **Coverage:**
 - v1.5 requirements: 53 total

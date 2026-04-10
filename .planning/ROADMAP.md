@@ -291,10 +291,18 @@ Plans:
 
 ### Phase 33: Fix YT video playback delay until all streams failed toast
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** YouTube streams get a 15-second minimum wait window before failover can fire; a "Connecting…" toast provides immediate user feedback on every play() and play_stream() call for all stream types
+**Requirements**: FIX-07
 **Depends on:** Phase 32
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. YT mpv exit before 15s after attempt start does NOT trigger _try_next_stream
+  2. YT mpv alive at >=15s clears the poll timer and lets playback continue
+  3. Cookie-retry substitution re-seeds the 15s window for the replacement mpv process
+  4. "Connecting…" Adw.Toast fires immediately on every _on_play and _on_stream_picker_row_activated invocation, auto-dismisses ~4s
+  5. Toast applies to all stream types (GStreamer, YouTube, Twitch)
+  6. No regression in existing failover/twitch/buffer test suites
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 33 to break down)
+- [x] 33-01-PLAN.md — Add FIX-07 + YT_MIN_WAIT_S constant + 4 failing tests, then implement _yt_attempt_start_ts gate in player.py
+- [ ] 33-02-PLAN.md — Connecting toast at both main_window call sites + full regression + manual UAT
