@@ -5,12 +5,21 @@ DATA_DIR = os.path.join(os.path.expanduser("~/.local/share"), "musicstreamer")
 DB_PATH = os.path.join(DATA_DIR, "musicstreamer.sqlite3")
 ASSETS_DIR = os.path.join(DATA_DIR, "assets")
 COOKIES_PATH = os.path.join(DATA_DIR, "cookies.txt")
+TWITCH_TOKEN_PATH = os.path.join(DATA_DIR, "twitch-token.txt")
 
 
 def clear_cookies() -> bool:
     """Delete cookies.txt if it exists. Returns True if file was removed."""
     if os.path.exists(COOKIES_PATH):
         os.remove(COOKIES_PATH)
+        return True
+    return False
+
+
+def clear_twitch_token() -> bool:
+    """Delete twitch-token.txt if it exists. Returns True if removed."""
+    if os.path.exists(TWITCH_TOKEN_PATH):
+        os.remove(TWITCH_TOKEN_PATH)
         return True
     return False
 

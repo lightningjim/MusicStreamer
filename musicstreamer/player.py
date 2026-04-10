@@ -8,7 +8,7 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst, GLib
 from musicstreamer.models import Station, StationStream
-from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES, COOKIES_PATH
+from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES, COOKIES_PATH, TWITCH_TOKEN_PATH
 
 
 def _fix_icy_encoding(s: str) -> str:
@@ -276,10 +276,16 @@ class Player:
             env["PATH"] = local_bin + os.pathsep + env.get("PATH", "")
 
         def _resolve():
-            result = subprocess.run(
-                ["streamlink", "--stream-url", url, "best"],
-                capture_output=True, text=True, env=env,
-            )
+            cmd = ["streamlink", "--stream-url", url, "best"]
+            try:
+                token = open(TWITCH_TOKEN_PATH).read().strip()
+                if token:
+                    cmd = ["streamlink",
+                           "--twitch-api-header", f"Authorization=OAuth {token}",
+                           "--stream-url", url, "best"]
+            except OSError:
+                pass
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
             resolved = result.stdout.strip()
             output = result.stdout + result.stderr
             if result.returncode == 0 and resolved.startswith("http"):
