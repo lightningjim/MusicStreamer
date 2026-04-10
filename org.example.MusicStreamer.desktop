@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=MusicStreamer
+GenericName=Internet Radio
+Exec=musicstreamer
+Icon=org.example.MusicStreamer
+Categories=Audio;Music;Network;
+Comment=Internet radio stream player
+Keywords=radio;stream;music;internet;
+StartupNotify=true
+StartupWMClass=MusicStreamer
