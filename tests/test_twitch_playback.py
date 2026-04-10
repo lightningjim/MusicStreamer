@@ -107,9 +107,18 @@ def test_non_twitch_url_not_routed():
 # streamlink subprocess tests
 # ---------------------------------------------------------------------------
 
-def test_streamlink_called_with_correct_args():
+def test_streamlink_called_with_correct_args(tmp_path, monkeypatch):
     """_play_twitch calls subprocess.run with args ["streamlink", "--stream-url", url, "best"],
     capture_output=True, text=True."""
+    # Force no-token branch: point TWITCH_TOKEN_PATH at a file that does not exist
+    # so open() raises FileNotFoundError (subclass of OSError) and _play_twitch
+    # falls through to the bare `["streamlink", "--stream-url", url, "best"]` cmd.
+    # Without this, a dev-local ~/.local/share/musicstreamer/twitch-token.txt would
+    # cause streamlink to be invoked with --twitch-api-header (phase 32 behavior).
+    monkeypatch.setattr(
+        "musicstreamer.player.TWITCH_TOKEN_PATH",
+        str(tmp_path / "nonexistent-twitch-token.txt"),
+    )
     p = make_player()
     p._pipeline = MagicMock()
     url = "https://www.twitch.tv/testchannel"
