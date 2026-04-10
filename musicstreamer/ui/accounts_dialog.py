@@ -294,7 +294,8 @@ class AccountsDialog(Adw.Window):
 
         # Run WebKit2 login in a background thread — subprocess writes cookies to a
         # temp file and exits, then we pick them up on the GTK main thread.
-        tmp = tempfile.mktemp(suffix="-ms-yt-cookies.txt")
+        with tempfile.NamedTemporaryFile(suffix="-ms-yt-cookies.txt", delete=False) as tf:
+            tmp = tf.name
         t = threading.Thread(
             target=self._run_webkit_subprocess,
             args=(tmp,),
@@ -357,7 +358,8 @@ class AccountsDialog(Adw.Window):
     def _on_twitch_login(self, btn):
         self._twitch_login_btn.set_sensitive(False)
         self._twitch_error_label.set_visible(False)
-        tmp = tempfile.mktemp(suffix="-ms-twitch-token.txt")
+        with tempfile.NamedTemporaryFile(suffix="-ms-twitch-token.txt", delete=False) as tf:
+            tmp = tf.name
         t = threading.Thread(
             target=self._run_twitch_webkit_subprocess,
             args=(tmp,),
