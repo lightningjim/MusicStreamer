@@ -75,7 +75,7 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
 
 **Milestone Goal:** Fix bugs discovered through daily use; close out v1.x before v2.0 revamp.
 
-- [ ] **Phase 21: Panel Layout Fix** - Fix YouTube thumbnail inflating now-playing panel at max/fullscreen
+- [x] **Phase 21: Panel Layout Fix** - Fix YouTube thumbnail inflating now-playing panel at max/fullscreen (completed 2026-04-10)
 - [x] **Phase 22: Import YT Cookies** - Let users import YouTube cookies via file/paste/Google login instead of yt-dlp browser extraction (completed 2024-04-07)
 
 ## Phase Details
@@ -105,7 +105,7 @@ Full details: `.planning/milestones/v1.4-ROADMAP.md`
   6. mpv calls conditionally include --ytdl-raw-options=cookies=<path>
   7. Cookie file has 0o600 permissions
   8. Dialog shows last-imported date; Clear button removes cookies
-**Plans:** 3/3 plans complete
+**Plans:** 1/0 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md — TDD: COOKIES_PATH constant + yt-dlp/mpv flag injection
@@ -136,7 +136,7 @@ Plans:
 | 18. YouTube Thumbnail 16:9 | v1.4 | 1/1 | Complete | 2024-04-05 |
 | 19. Custom Accent Color | v1.4 | 2/2 | Complete | 2024-04-05 |
 | 20. Playback Controls & Media Keys | v1.4 | 2/2 | Complete | 2024-04-05 |
-| 21. Panel Layout Fix | v1.5 | 0/? | Not started | - |
+| 21. Panel Layout Fix | v1.5 | 1/0 | Complete    | 2026-04-10 |
 | 22. Import YT Cookies | v1.5 | 3/3 | Complete    | 2024-04-07 |
 
 ### Phase 23: Fix YouTube stream playback broken on CLI and app
