@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-04-11T23:33:23.850Z"
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-04-11T23:37:18.381Z"
 last_activity: 2026-04-11
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
-  percent: 70
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 36 (Qt Scaffold + GTK Cutover) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-04-11
 
@@ -63,6 +63,8 @@ Key v2.0 decisions already settled:
 - [Phase 35]: Plan 35-02: PEP 562 __getattr__ shim in constants.py preserves backward compat for DATA_DIR/DB_PATH/etc. — re-evaluates paths.* on every access so paths._root_override monkeypatching works
 - [Phase 35]: Spike branch KEEP_MPV: cookie-protected YouTube live fails on yt_dlp library + cookiefile, mpv subprocess retained
 - [Phase 36]: icons.qrc uses file alias attributes so resources resolve at :/icons/<name>.svg (pyside6-rcc otherwise nests prefix + file path)
+- [Phase 36]: Move function-local urllib.parse import to module level in url_helpers.py (only non-verbatim extraction change)
+- [Phase 36]: Delete test_fetch_aa_logo tests in Plan 36-02 alongside test_fetch_yt_thumbnail — both rely on GLib patches that die with ui/ deletion in 36-03; Phase 39 rebuilds with Qt signals
 
 ### Pending Todos
 
@@ -78,6 +80,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-11T23:33:23.847Z
-Stopped at: Completed 36-01-PLAN.md
+Last session: 2026-04-11T23:37:18.377Z
+Stopped at: Completed 36-02-PLAN.md
 Resume file: None
