@@ -10,8 +10,8 @@
 
 ### PORT — Backend isolation & Qt scaffold
 
-- [ ] **PORT-01**: `musicstreamer/player.py` removes all `GLib.idle_add`, `GLib.timeout_add`, `GLib.source_remove`, `dbus-python`, and `DBusGMainLoop` calls; `Player` becomes a `QObject` exposing typed Qt signals for title, failover, offline, and timer events.
-- [ ] **PORT-02**: GStreamer bus messages route to the Qt main thread via a `GLib.MainLoop` daemon thread + `bus.enable_sync_message_emission()` + queued Qt signal connections (no QTimer polling).
+- [x] **PORT-01**: `musicstreamer/player.py` removes all `GLib.idle_add`, `GLib.timeout_add`, `GLib.source_remove`, `dbus-python`, and `DBusGMainLoop` calls; `Player` becomes a `QObject` exposing typed Qt signals for title, failover, offline, and timer events.
+- [x] **PORT-02**: GStreamer bus messages route to the Qt main thread via a `GLib.MainLoop` daemon thread + `bus.enable_sync_message_emission()` + queued Qt signal connections (no QTimer polling).
 - [ ] **PORT-03**: Qt scaffold (`QApplication` + `QMainWindow`) replaces all GTK4/Libadwaita widgets; app launches with an empty window before feature porting begins.
 - [ ] **PORT-04**: `musicstreamer/ui/` (GTK) is deleted; `musicstreamer/ui_qt/` is the only UI package. Hard cutover — no parallel dual-UI period.
 - [x] **PORT-05**: Data directory resolution uses `platformdirs.user_data_dir("musicstreamer")` — XDG on Linux, `%APPDATA%` on Windows. All hard-coded `~/.local/share/musicstreamer` literals removed.
@@ -102,8 +102,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PORT-01 | Phase 35: Backend Isolation | Pending |
-| PORT-02 | Phase 35: Backend Isolation | Pending |
+| PORT-01 | Phase 35: Backend Isolation | Complete |
+| PORT-02 | Phase 35: Backend Isolation | Complete |
 | PORT-05 | Phase 35: Backend Isolation | Complete |
 | PORT-06 | Phase 35: Backend Isolation | Complete |
 | PORT-09 | Phase 35: Backend Isolation | In Progress (spike done, library port pending Plan 35-03) |
