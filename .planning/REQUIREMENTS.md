@@ -65,7 +65,7 @@
 ### QA — Port quality gates
 
 - [ ] **QA-01**: `pytest-qt` with offscreen platform replaces the GTK fake-display test infrastructure; all v1.5 tests ported to Qt equivalents.
-- [ ] **QA-02**: Test count ≥ 265 passing on Linux after the port; zero GTK imports in the test suite.
+- [x] **QA-02**: Test count ≥ 265 passing on Linux after the port; zero GTK imports in the test suite.
 - [ ] **QA-03**: Windows smoke test suite runs on a clean Windows VM or manual UAT before the milestone ships (station playback, YouTube, Twitch, failover, media keys, installer round-trip).
 - [ ] **QA-04**: Per-phase feature-parity checklist gates plan approval — explicit "no new behavior" rule enforced during port phases.
 - [ ] **QA-05**: Widget lifetime audit performed on all dialog and GStreamer callback flows to prevent `RuntimeError: Internal C++ object already deleted`.
@@ -107,7 +107,7 @@
 | PORT-05 | Phase 35: Backend Isolation | Complete |
 | PORT-06 | Phase 35: Backend Isolation | Complete |
 | PORT-09 | Phase 35: Backend Isolation | In Progress (spike done, library port pending Plan 35-03) |
-| QA-02 | Phase 35: Backend Isolation | Pending |
+| QA-02 | Phase 35: Backend Isolation | Complete |
 | PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
 | PORT-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
 | PORT-07 | Phase 36: Qt Scaffold + GTK Cutover | Pending |

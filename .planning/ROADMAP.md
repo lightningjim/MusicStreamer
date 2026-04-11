@@ -98,7 +98,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 **Milestone Goal:** Port MusicStreamer from GTK4/Libadwaita to Qt/PySide6, retire the GTK codebase, and ship a Windows-compatible distributable with feature-parity to v1.5 plus manual settings export/import and cross-platform media keys.
 
-- [ ] **Phase 35: Backend Isolation** - Refactor player.py to QObject + Qt signals; platformdirs data paths; Linux data migration; port yt-dlp/streamlink to library APIs; spike to drop mpv fallback
+- [x] **Phase 35: Backend Isolation** - Refactor player.py to QObject + Qt signals; platformdirs data paths; Linux data migration; port yt-dlp/streamlink to library APIs; spike to drop mpv fallback (completed 2026-04-11)
 - [ ] **Phase 36: Qt Scaffold + GTK Cutover** - Bare QMainWindow launches; GTK deleted; pytest-qt configured
 - [ ] **Phase 37: Station List + Now Playing** - Core loop: grouped station list, now-playing panel, ICY titles, toasts
 - [ ] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view
@@ -127,7 +127,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] 35-02-platformdirs-paths-PLAN.md — paths.py + migration.py helpers, refactor constants.py + call sites (PORT-05, PORT-06)
 - [x] 35-03-ytdlp-and-mpris-stub-PLAN.md — yt_import.py library-API port + mpris.py no-op stub (PORT-09 yt-dlp side, D-09..D-11)
 - [x] 35-04-player-qobject-PLAN.md — Player → QObject + GstBusLoopThread + streamlink library + spike-branched YouTube (PORT-01, PORT-02, PORT-09 player side)
-- [ ] 35-05-headless-entry-and-tests-PLAN.md — headless __main__.py entry + big-bang pytest-qt test port (QA-02)
+- [x] 35-05-headless-entry-and-tests-PLAN.md — headless __main__.py entry + big-bang pytest-qt test port (QA-02)
 
 ### Phase 36: Qt Scaffold + GTK Cutover
 **Goal**: The app is a Qt application: bare QMainWindow launches, GTK codebase is deleted, icons are bundled, and the test harness uses offscreen Qt
@@ -242,7 +242,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1–34 | v1.0–v1.5 | all | Complete | 2026-04-10 |
-| 35. Backend Isolation | v2.0 | 4/5 | In Progress|  |
+| 35. Backend Isolation | v2.0 | 5/5 | Complete   | 2026-04-11 |
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 0/TBD | Not started | - |
 | 37. Station List + Now Playing | v2.0 | 0/TBD | Not started | - |
 | 38. Filter Strip + Favorites | v2.0 | 0/TBD | Not started | - |
