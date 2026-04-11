@@ -30,3 +30,44 @@ Spike was run twice with identical results to confirm reproducibility.
 - `yt_import.py` still ports to `yt_dlp.YoutubeDL.extract_info(extract_flat='in_playlist')` (D-17) — playlist scanning does not need cookies and is unaffected by case (c).
 
 **Followup risk to track:** If a future yt-dlp release fixes the cookies-injection regression for YouTube live, re-run this spike. If case (c) flips to PASS, mpv can be dropped at that time as a separate cleanup plan.
+
+---
+
+## Superseded 2026-04-11 (Plan 35-06)
+
+Further investigation after this spike revealed that the case (c)
+failure was misdiagnosed. The actual root cause is a YouTube
+JavaScript challenge (n-sig decryption) that `yt-dlp` cannot solve
+without a Node.js runtime and the EJS remote-components solver
+script. Once YouTube's anti-bot system began pushing the challenge
+globally (verified the same afternoon as the original spike run),
+even cases (a), (b), and (d) — which had passed without cookies —
+began failing with the same "No video formats found" error. Cookies
+were a red herring on that specific error message.
+
+**Verification (2026-04-11):** With `extractor_args={'youtubepot-jsruntime':
+{'remote_components': ['ejs:github']}}` added to the yt-dlp library
+call, the `LoFi Girl` live URL resolves to a direct HLS manifest in
+library mode (without cookies, under a second), and GStreamer
+`playbin3` plays that URL cleanly. The library API path — with EJS
+enabled — handles every case the spike tested, including the
+cookie-protected one in real-world conditions per user report.
+
+**Critical insight:** mpv provides no *independent* URL resolution
+path. mpv's `ytdl_hook.lua` shells out to the same `yt-dlp`
+extractor code as the library API. When yt-dlp cannot solve the JS
+challenge (because Node.js or the EJS solver script is missing),
+mpv fails for the same reason. The KEEP_MPV branch was therefore
+buying zero functional coverage over a pure library-API approach —
+it was dead weight plus a binary that IT-restricted work machines
+cannot install.
+
+**Resolution:** Plan 35-06 drops mpv entirely, replaces
+`_play_youtube()` with a `yt_dlp.YoutubeDL` worker-thread resolver
+(mirroring the existing `_play_twitch` pattern), deletes
+`musicstreamer/_popen.py`, retires `PKG-05` in `REQUIREMENTS.md`,
+and adds `RUNTIME-01` (Node.js as a documented host prerequisite).
+
+**Files:**
+- `.planning/phases/35-backend-isolation/35-06-drop-mpv-yt-dlp-ejs-PLAN.md`
+- `.planning/phases/35-backend-isolation/35-06-drop-mpv-yt-dlp-ejs-SUMMARY.md`

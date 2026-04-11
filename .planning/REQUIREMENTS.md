@@ -18,7 +18,7 @@
 - [x] **PORT-06**: Existing Linux `~/.local/share/musicstreamer/` data migrates to the new `platformdirs` location on first launch (non-destructive, detects already-migrated state).
 - [ ] **PORT-07**: App forces Qt Fusion style on Windows with explicit dark-mode detection and accent-color handling (avoids the default-style dark-mode regression).
 - [ ] **PORT-08**: Bundled SVG icon set shipped via `.qrc` resource file; `QIcon.fromTheme("name", QIcon(":/icons/name.svg"))` pattern so Linux themes still win and Windows has icons at all.
-- [x] **PORT-09**: `yt_import.py` and `player._play_twitch()` ported from subprocess invocations to the `yt-dlp` and `streamlink` Python library APIs. Subprocess/CLI usage eliminated for these tools. Phase 35 includes a spike task to verify GStreamer `playbin3` can play yt-dlp library-resolved URLs (including HLS manifests and cookie-protected streams); if the spike succeeds, mpv is removed entirely and PKG-05 is retired. If it fails on any edge case, mpv stays as the YouTube fallback (bundled as `mpv.exe` on Windows via PKG-05).
+- [x] **PORT-09**: `yt_import.py`, `player._play_twitch()`, and `player._play_youtube()` all use Python library APIs (`yt_dlp.YoutubeDL`, `streamlink.Streamlink`). Subprocess/CLI usage for yt-dlp, streamlink, and mpv is eliminated. YouTube resolution includes the EJS JavaScript challenge solver via `extractor_args={'youtubepot-jsruntime': {'remote_components': ['ejs:github']}}` (requires Node.js on PATH — see RUNTIME-01). mpv was fully retired in Plan 35-06 after the original spike decision was superseded; see `.planning/phases/35-backend-isolation/35-SPIKE-MPV.md` "Superseded" section and `35-06-drop-mpv-yt-dlp-ejs-PLAN.md` for rationale.
 
 ### UI — Feature-parity port (no new behavior)
 
@@ -57,10 +57,14 @@
 
 - [ ] **PKG-01**: PyInstaller spec bundles the GStreamer Windows runtime DLLs + plugins with HTTPS streams verified working (souphttpsrc SSL CA bundle + libgiognutls.dll included).
 - [ ] **PKG-02**: NSIS (or Inno Setup) installer produces a Windows distributable installing to `%LOCALAPPDATA%\MusicStreamer` with Start Menu shortcut.
-- [ ] **PKG-03**: All subprocess launches (yt-dlp, streamlink, mpv) go through a centralized `_popen()` helper with `CREATE_NO_WINDOW` on Windows; no console window flashes.
+- [ ] **PKG-03**: All subprocess launches that remain (if any — current state is zero after Plan 35-06) go through a centralized `_popen()` helper with `CREATE_NO_WINDOW` on Windows; no console window flashes. As of Plan 35-06, `musicstreamer/` has no subprocess launches, so this requirement may be retired in a later phase if nothing reintroduces subprocess usage.
 - [ ] **PKG-04**: Single-instance enforcement on both platforms (secondary launches forward the activation to the running instance).
-- [ ] **PKG-05**: If mpv is still used after Phase 35, Windows build bundles `mpv.exe` under an `ext/` directory with the subprocess launcher preferring the bundled binary. yt-dlp and streamlink are pulled in as Python dependencies by PyInstaller (see PORT-09) — no separate EXE bundling required.
+- [x] ~~**PKG-05**~~: **RETIRED (Plan 35-06)**. Original intent: bundle `mpv.exe` on Windows as a YouTube fallback. Superseded — mpv was removed entirely after the spike decision was superseded. yt-dlp and streamlink are pulled in as Python dependencies by PyInstaller (see PORT-09) and Node.js is a host-system runtime requirement (RUNTIME-01) rather than a bundled binary.
 - [ ] **PKG-06**: A dedicated GStreamer Windows bundling spike completes before the installer phase begins, with HTTPS stream playback verified on a clean Windows VM.
+
+### RUNTIME — Host-system runtime requirements
+
+- [x] **RUNTIME-01**: A Node.js runtime must be present on `PATH` at app startup. yt-dlp uses it via `--remote-components ejs:github` (library equivalent: `extractor_args={'youtubepot-jsruntime': {'remote_components': ['ejs:github']}}`) to solve YouTube JavaScript challenges (n-sig decryption) for direct stream URL resolution. Added in Plan 35-06. Node.js is NOT bundled by the Windows installer — it is a documented host prerequisite alongside VLC or similar commonly-installed tools. Both target machines for v2.0 already have Node.js installed for unrelated work.
 
 ### QA — Port quality gates
 
@@ -106,7 +110,8 @@
 | PORT-02 | Phase 35: Backend Isolation | Complete |
 | PORT-05 | Phase 35: Backend Isolation | Complete |
 | PORT-06 | Phase 35: Backend Isolation | Complete |
-| PORT-09 | Phase 35: Backend Isolation | In Progress (spike done, library port pending Plan 35-03) |
+| PORT-09 | Phase 35: Backend Isolation | Complete (Plan 35-06 superseded KEEP_MPV — yt-dlp library with EJS solver) |
+| RUNTIME-01 | Phase 35: Backend Isolation | Complete (Plan 35-06) |
 | QA-02 | Phase 35: Backend Isolation | Complete |
 | PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
 | PORT-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
@@ -143,7 +148,7 @@
 | PKG-02 | Phase 44: Windows Packaging + Installer | Pending |
 | PKG-03 | Phase 44: Windows Packaging + Installer | Pending |
 | PKG-04 | Phase 44: Windows Packaging + Installer | Pending |
-| PKG-05 | Phase 44: Windows Packaging + Installer | Pending |
+| PKG-05 | Phase 44: Windows Packaging + Installer | Retired (Plan 35-06) |
 | QA-03 | Phase 44: Windows Packaging + Installer | Pending |
 | QA-05 | Phase 44: Windows Packaging + Installer | Pending |
 
