@@ -12,12 +12,12 @@
 
 - [x] **PORT-01**: `musicstreamer/player.py` removes all `GLib.idle_add`, `GLib.timeout_add`, `GLib.source_remove`, `dbus-python`, and `DBusGMainLoop` calls; `Player` becomes a `QObject` exposing typed Qt signals for title, failover, offline, and timer events.
 - [x] **PORT-02**: GStreamer bus messages route to the Qt main thread via a `GLib.MainLoop` daemon thread + `bus.enable_sync_message_emission()` + queued Qt signal connections (no QTimer polling).
-- [ ] **PORT-03**: Qt scaffold (`QApplication` + `QMainWindow`) replaces all GTK4/Libadwaita widgets; app launches with an empty window before feature porting begins.
+- [x] **PORT-03**: Qt scaffold (`QApplication` + `QMainWindow`) replaces all GTK4/Libadwaita widgets; app launches with an empty window before feature porting begins.
 - [ ] **PORT-04**: `musicstreamer/ui/` (GTK) is deleted; `musicstreamer/ui_qt/` is the only UI package. Hard cutover — no parallel dual-UI period.
 - [x] **PORT-05**: Data directory resolution uses `platformdirs.user_data_dir("musicstreamer")` — XDG on Linux, `%APPDATA%` on Windows. All hard-coded `~/.local/share/musicstreamer` literals removed.
 - [x] **PORT-06**: Existing Linux `~/.local/share/musicstreamer/` data migrates to the new `platformdirs` location on first launch (non-destructive, detects already-migrated state).
-- [ ] **PORT-07**: App forces Qt Fusion style on Windows with explicit dark-mode detection and accent-color handling (avoids the default-style dark-mode regression).
-- [ ] **PORT-08**: Bundled SVG icon set shipped via `.qrc` resource file; `QIcon.fromTheme("name", QIcon(":/icons/name.svg"))` pattern so Linux themes still win and Windows has icons at all.
+- [x] **PORT-07**: App forces Qt Fusion style on Windows with explicit dark-mode detection and accent-color handling (avoids the default-style dark-mode regression).
+- [x] **PORT-08**: Bundled SVG icon set shipped via `.qrc` resource file; `QIcon.fromTheme("name", QIcon(":/icons/name.svg"))` pattern so Linux themes still win and Windows has icons at all.
 - [x] **PORT-09**: `yt_import.py`, `player._play_twitch()`, and `player._play_youtube()` all use Python library APIs (`yt_dlp.YoutubeDL`, `streamlink.Streamlink`). Subprocess/CLI usage for yt-dlp, streamlink, and mpv is eliminated. YouTube resolution includes the EJS JavaScript challenge solver via `extractor_args={'youtubepot-jsruntime': {'remote_components': ['ejs:github']}}` (requires Node.js on PATH — see RUNTIME-01). mpv was fully retired in Plan 35-06 after the original spike decision was superseded; see `.planning/phases/35-backend-isolation/35-SPIKE-MPV.md` "Superseded" section and `35-06-drop-mpv-yt-dlp-ejs-PLAN.md` for rationale.
 
 ### UI — Feature-parity port (no new behavior)
@@ -113,10 +113,10 @@
 | PORT-09 | Phase 35: Backend Isolation | Complete (Plan 35-06 superseded KEEP_MPV — yt-dlp library with EJS solver) |
 | RUNTIME-01 | Phase 35: Backend Isolation | Complete (Plan 35-06) |
 | QA-02 | Phase 35: Backend Isolation | Complete |
-| PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | PORT-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
-| PORT-07 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
-| PORT-08 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| PORT-07 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
+| PORT-08 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | QA-01 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
 | QA-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
 | UI-01 | Phase 37: Station List + Now Playing | Pending |

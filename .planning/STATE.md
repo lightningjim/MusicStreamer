@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 36 context gathered
-last_updated: "2026-04-11T23:27:11.805Z"
-last_activity: 2026-04-11 -- Phase 36 planning complete
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-04-11T23:33:23.850Z"
+last_activity: 2026-04-11
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 10
-  completed_plans: 6
-  percent: 60
+  completed_plans: 7
+  percent: 70
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 35 — Backend Isolation
+**Current focus:** Phase 36 — Qt Scaffold + GTK Cutover
 
 ## Current Position
 
-Phase: 35 (Backend Isolation) — EXECUTING
-Plan: 5 of 5
+Phase: 36 (Qt Scaffold + GTK Cutover) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-04-11 -- Phase 36 planning complete
+Last activity: 2026-04-11
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -62,6 +62,7 @@ Key v2.0 decisions already settled:
 - [Phase 35]: KEEP_MPV: cookie-protected YouTube path fails through yt-dlp library API; mpv subprocess fallback retained for _play_youtube() in Plan 35-04
 - [Phase 35]: Plan 35-02: PEP 562 __getattr__ shim in constants.py preserves backward compat for DATA_DIR/DB_PATH/etc. — re-evaluates paths.* on every access so paths._root_override monkeypatching works
 - [Phase 35]: Spike branch KEEP_MPV: cookie-protected YouTube live fails on yt_dlp library + cookiefile, mpv subprocess retained
+- [Phase 36]: icons.qrc uses file alias attributes so resources resolve at :/icons/<name>.svg (pyside6-rcc otherwise nests prefix + file path)
 
 ### Pending Todos
 
@@ -77,6 +78,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-11T23:08:55.939Z
-Stopped at: Phase 36 context gathered
-Resume file: .planning/phases/36-qt-scaffold-gtk-cutover/36-CONTEXT.md
+Last session: 2026-04-11T23:33:23.847Z
+Stopped at: Completed 36-01-PLAN.md
+Resume file: None
