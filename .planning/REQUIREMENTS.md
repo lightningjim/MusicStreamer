@@ -18,6 +18,7 @@
 - [ ] **PORT-06**: Existing Linux `~/.local/share/musicstreamer/` data migrates to the new `platformdirs` location on first launch (non-destructive, detects already-migrated state).
 - [ ] **PORT-07**: App forces Qt Fusion style on Windows with explicit dark-mode detection and accent-color handling (avoids the default-style dark-mode regression).
 - [ ] **PORT-08**: Bundled SVG icon set shipped via `.qrc` resource file; `QIcon.fromTheme("name", QIcon(":/icons/name.svg"))` pattern so Linux themes still win and Windows has icons at all.
+- [ ] **PORT-09**: `yt_import.py` and `player._play_twitch()` ported from subprocess invocations to the `yt-dlp` and `streamlink` Python library APIs. Subprocess/CLI usage eliminated for these tools. Phase 35 includes a spike task to verify GStreamer `playbin3` can play yt-dlp library-resolved URLs (including HLS manifests and cookie-protected streams); if the spike succeeds, mpv is removed entirely and PKG-05 is retired. If it fails on any edge case, mpv stays as the YouTube fallback (bundled as `mpv.exe` on Windows via PKG-05).
 
 ### UI — Feature-parity port (no new behavior)
 
@@ -58,7 +59,7 @@
 - [ ] **PKG-02**: NSIS (or Inno Setup) installer produces a Windows distributable installing to `%LOCALAPPDATA%\MusicStreamer` with Start Menu shortcut.
 - [ ] **PKG-03**: All subprocess launches (yt-dlp, streamlink, mpv) go through a centralized `_popen()` helper with `CREATE_NO_WINDOW` on Windows; no console window flashes.
 - [ ] **PKG-04**: Single-instance enforcement on both platforms (secondary launches forward the activation to the running instance).
-- [ ] **PKG-05**: Windows build bundles `yt-dlp.exe`, `streamlink.exe`, and `mpv.exe` under an `ext/` directory; subprocess launcher prefers bundled binaries over PATH.
+- [ ] **PKG-05**: If mpv is still used after Phase 35, Windows build bundles `mpv.exe` under an `ext/` directory with the subprocess launcher preferring the bundled binary. yt-dlp and streamlink are pulled in as Python dependencies by PyInstaller (see PORT-09) — no separate EXE bundling required.
 - [ ] **PKG-06**: A dedicated GStreamer Windows bundling spike completes before the installer phase begins, with HTTPS stream playback verified on a clean Windows VM.
 
 ### QA — Port quality gates
@@ -99,8 +100,55 @@
 
 ## Traceability
 
-Filled by the roadmap phase.
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| PORT-01 | Phase 35: Backend Isolation | Pending |
+| PORT-02 | Phase 35: Backend Isolation | Pending |
+| PORT-05 | Phase 35: Backend Isolation | Pending |
+| PORT-06 | Phase 35: Backend Isolation | Pending |
+| PORT-09 | Phase 35: Backend Isolation | Pending |
+| QA-02 | Phase 35: Backend Isolation | Pending |
+| PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| PORT-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| PORT-07 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| PORT-08 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| QA-01 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| QA-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| UI-01 | Phase 37: Station List + Now Playing | Pending |
+| UI-02 | Phase 37: Station List + Now Playing | Pending |
+| UI-12 | Phase 37: Station List + Now Playing | Pending |
+| UI-14 | Phase 37: Station List + Now Playing | Pending |
+| UI-03 | Phase 38: Filter Strip + Favorites | Pending |
+| UI-04 | Phase 38: Filter Strip + Favorites | Pending |
+| UI-05 | Phase 39: Core Dialogs | Pending |
+| UI-06 | Phase 39: Core Dialogs | Pending |
+| UI-07 | Phase 39: Core Dialogs | Pending |
+| UI-13 | Phase 39: Core Dialogs | Pending |
+| UI-08 | Phase 40: Auth Dialogs + Accent | Pending |
+| UI-09 | Phase 40: Auth Dialogs + Accent | Pending |
+| UI-10 | Phase 40: Auth Dialogs + Accent | Pending |
+| UI-11 | Phase 40: Auth Dialogs + Accent | Pending |
+| MEDIA-01 | Phase 41: Platform Media Keys | Pending |
+| MEDIA-02 | Phase 41: Platform Media Keys | Pending |
+| MEDIA-03 | Phase 41: Platform Media Keys | Pending |
+| MEDIA-04 | Phase 41: Platform Media Keys | Pending |
+| MEDIA-05 | Phase 41: Platform Media Keys | Pending |
+| SYNC-01 | Phase 42: Settings Export/Import | Pending |
+| SYNC-02 | Phase 42: Settings Export/Import | Pending |
+| SYNC-03 | Phase 42: Settings Export/Import | Pending |
+| SYNC-04 | Phase 42: Settings Export/Import | Pending |
+| SYNC-05 | Phase 42: Settings Export/Import | Pending |
+| PKG-06 | Phase 43: GStreamer Windows Spike | Pending |
+| PKG-01 | Phase 44: Windows Packaging + Installer | Pending |
+| PKG-02 | Phase 44: Windows Packaging + Installer | Pending |
+| PKG-03 | Phase 44: Windows Packaging + Installer | Pending |
+| PKG-04 | Phase 44: Windows Packaging + Installer | Pending |
+| PKG-05 | Phase 44: Windows Packaging + Installer | Pending |
+| QA-03 | Phase 44: Windows Packaging + Installer | Pending |
+| QA-05 | Phase 44: Windows Packaging + Installer | Pending |
+
+**Coverage: 43/43 requirements mapped** ✓
 
 ---
 
-*Last updated: 2026-04-10 — initial requirements for v2.0 OS Agnostic milestone*
+*Last updated: 2026-04-10 — traceability filled by v2.0 roadmap (phases 35–44)*
