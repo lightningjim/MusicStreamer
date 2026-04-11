@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS Agnostic
-status: defining_requirements
-stopped_at: Milestone v2.0 started
+status: ready_to_plan
+stopped_at: Roadmap created — phases 35–44 defined
 last_updated: "2026-04-10T23:00:00.000Z"
 last_activity: 2026-04-10
 progress:
-  total_phases: 0
+  total_phases: 10
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,29 +18,29 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-05)
+See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 34 — implement-deferred-items-from-phase-33
+**Current focus:** Phase 35 — Backend Isolation (player.py QObject + platformdirs)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-10 — Milestone v2.0 OS Agnostic started
+Phase: 35 of 44 (Backend Isolation)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-04-10 — v2.0 roadmap created; phases 35–44 defined
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
-
-- Total plans completed: 53 (v1.0–v1.4)
-- Average duration: ~14 min
-- Total execution time: ~7 hours
+- Total plans completed: 53 (v1.0–v1.5 combined)
+- Average duration: ~14 min/plan
+- Total execution time: ~12 hours
 
 **Recent Trend:**
-
-- Last 8 plans (v1.4): backend+UI splits across 5 phases
+- Last milestone (v1.5): 21 plans across 14 phases
 - Trend: Stable
 
 *Updated after each plan completion*
@@ -50,9 +50,13 @@ Last activity: 2026-04-10 — Milestone v2.0 OS Agnostic started
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
+Key v2.0 decisions already settled:
 
-- Phase 18: ContentFit.CONTAIN for YouTube 16:9 in 160×160 slot — FIX-01 extends this to maximized/fullscreen
+- GStreamer event loop: GLib.MainLoop daemon thread + bus.enable_sync_message_emission() + Qt queued signals (not QTimer polling)
+- MPRIS2: PySide6.QtDBus replaces dbus-python entirely
+- OAuth: subprocess-isolated QWebEngineView (oauth_helper.py) — avoids 130MB QtWebEngine in main process startup
+- Data paths: platformdirs.user_data_dir("musicstreamer") — XDG on Linux, %APPDATA% on Windows
+- GTK cutover: hard cutover in Phase 36; no parallel dual-UI period
 
 ### Pending Todos
 
@@ -60,36 +64,14 @@ Recent decisions affecting current work:
 - .planning/notes/2026-03-21-sync-config-between-computers.md
 - .planning/notes/2026-03-20-icy-override-per-station.md
 
-### Roadmap Evolution
-
-- Phase 22 added: Import YT cookies separately (avoid GNOME desktop cookie extraction issue)
-- Phase 23 added: Fix YouTube stream playback broken on CLI and app
-- Phase 24 removed: combined UI fix phase — split into 24/25/26
-- Phase 24 added: Fix tag chip scroll overlapping buttons in edit dialog
-- Phase 25 added: Fix filter chip overflow in station filter section
-- Phase 26 added: Fix broken Edit button next to Add Station
-- Phase 27 added: Add multiple streams per station for backup/round-robin and quality selection
-- Phase 28 added: Stream failover logic with server round-robin and quality fallback (depends on 27)
-- Phase 29 added: Move Discover, Import, and accent color into the hamburger menu
-- Phase 30 added: Add time counter showing how long current stream has been actively playing
-- Phase 31 added: Ability to select specific stream to play on now playing (dropdown)
-- Phase 31 added: Integrate Twitch streaming via streamlink
-- Phase 32 added: Add Twitch authentication via streamlink OAuth token
-- Phase 33 added: Fix YT video playback delay until all streams failed toast
-- Phase 34 added: Implement deferred items from phase 33
-
 ### Blockers/Concerns
 
-None — FIX-01 is a targeted layout constraint fix.
-
-### Known Tech Debt (v1.3)
-
-- DISC-03 cosmetic: stale now-playing state after preview close; fix: call `main_window._stop()` in discovery_dialog.py `_on_close_request`
-- `cover_art._parse_artwork_url` (lines 53–64) — dead code; safe to delete
-- Nyquist compliance partial for phases 13–15 — VALIDATION.md files exist but wave_0 incomplete
+- Phase 43 (GStreamer Windows Spike) must complete before Phase 44 can be planned — spike results determine exact PyInstaller spec
+- Phase 41 (SMTC on Windows): winrt async pattern for button_pressed needs real Windows validation before planning
+- Phase 40 (OAuth): QWebEngineCookieStore.cookieAdded in subprocess context needs proof-of-concept before planning
 
 ## Session Continuity
 
-Last session: 2026-04-10T21:58:20.287Z
-Stopped at: Completed 34-01-fix-twitch-test-and-cleanup-PLAN.md
+Last session: 2026-04-10
+Stopped at: Roadmap created — ready to plan Phase 35
 Resume file: None
