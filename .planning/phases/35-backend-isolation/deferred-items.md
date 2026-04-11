@@ -1,47 +1,41 @@
 # Phase 35 Deferred Items
 
-Items discovered out-of-scope during plan execution; tracked here for
-follow-up work.
+*No deferred items. The previously recorded issue has been retracted after verification.*
 
-## From Plan 35-05 (headless-entry-and-tests)
+---
 
-### Bus signal watch context mismatch (blocks Success Criterion #1 live ICY dispatch)
+## Retracted 2026-04-11
 
-**Found in:** Plan 35-05 live smoke test (`python -m musicstreamer <shoutcast-url>`)
-**File:** `musicstreamer/gst_bus_bridge.py` + `musicstreamer/player.py`
-**Severity:** Medium — breaks live-stream ICY title printing in the
-Phase 35 headless entry point, but unit tests pass because they invoke
-`_on_gst_tag` synchronously.
+### ~~Bus signal watch context mismatch~~ — NOT A REAL DEFECT
 
-**Root cause:** `bus.add_signal_watch()` is called from `Player.__init__`
-on the Qt main thread. In Phase 35 the main thread is owned by
-`QCoreApplication`, which does not integrate with the GLib default
-`MainContext`. The `gst-bus-loop` daemon was fixed in Plan 35-05 to
-push its own thread-default `GLib.MainContext` so the loop actually
-runs alongside Qt — but `add_signal_watch()` attached the bus to the
-main thread's default context at the time of the call, not to the
-bridge thread's private context. As a result async bus messages
-(``message::tag``, ``message::error``) never dispatch while running
-under `QCoreApplication` — the bridge loop has nothing attached to
-dispatch.
+**Original claim (Plan 35-05 executor):** Live ICY title dispatch was
+blocked by a `GLib.MainContext` attachment bug where
+`bus.add_signal_watch()` in `Player.__init__` supposedly bound the bus
+watch to the wrong thread-default context under `QCoreApplication`.
 
-**Evidence:**
-- `python -m musicstreamer` starts successfully, Player instantiates,
-  QTimer kicks off play(), GStreamer begins buffering — but no
-  `ICY:` lines ever print to stdout.
-- Unit tests (`tests/test_player_tag.py`) pass because they invoke
-  `_on_gst_tag(bus=None, msg=fake)` directly — no real bus dispatch.
-- `GstBusLoopThread` start/stop is healthy (verified via standalone
-  `python -c "from musicstreamer.gst_bus_bridge import ..."`).
+**Status:** RETRACTED after `35-VERIFICATION.md` review.
 
-**Proposed fix (Phase 36 or earlier):**
-Move `bus.add_signal_watch()` into a callable scheduled ONTO the
-bridge thread via `GLib.idle_source_new().attach(bridge._ctx)` so it
-runs inside the bridge thread's private context. Alternatively, use
-`bus.create_watch()` + explicit `source.attach(bridge._ctx)` from the
-main thread (thread-safe).
+During verification the reviewer reproduced live playback against
+SomaFM Groove Salad (`https://ice1.somafm.com/groovesalad-128-mp3`)
+and confirmed ICY titles DO flow through to stdout correctly. The bus
+bridge dispatches messages to the Qt main thread under
+`QCoreApplication` exactly as designed, and the `playback_error` Qt
+signal fires correctly on dead streams — proving the bus bridge is
+sound on both success and error paths.
 
-**Workaround for Phase 35 verification:** Success Criterion #1 was
-verified structurally — headless Player instantiation + Qt event loop
-startup + QTimer-driven `play()` all succeed. Live ICY title dispatch
-is deferred to Phase 36 along with the rest of the Qt UI integration.
+**True root cause of the false alarm:** The Plan 35-05 executor only
+tested with the hardcoded default URL
+`https://streams.chillhop.com/live?type=.mp3`, which currently returns
+HTTP `-5` from `souphttpsrc` — a dead stream, not a Qt/GLib
+integration bug. The executor attributed the lack of ICY output to a
+context-mismatch theory when the real cause was "the test stream is
+offline."
+
+**Fix applied in this same session:** Default URL in
+`musicstreamer/__main__.py` changed from the dead chillhop endpoint
+to SomaFM Groove Salad so naive `python -m musicstreamer` produces
+visible ICY output.
+
+**No action needed in Phase 36.** The bus bridge works as designed.
+</content>
+</invoke>
