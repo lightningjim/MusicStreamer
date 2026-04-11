@@ -1,0 +1,81 @@
+# Resource object code (Python 3)
+# Created by: object code
+# Created by: The Resource Compiler for Qt version 6.11.0
+# WARNING! All changes made in this file will be lost!
+
+from PySide6 import QtCore
+
+qt_resource_data = b"\
+\x00\x00\x00\xc5\
+<\
+?xml version=\x221.\
+0\x22 encoding=\x22UTF\
+-8\x22?>\x0a<svg xmlns\
+=\x22http://www.w3.\
+org/2000/svg\x22 wi\
+dth=\x2216\x22 height=\
+\x2216\x22 viewBox=\x220 \
+0 16 16\x22>\x0a  <rec\
+t x=\x221\x22 y=\x221\x22 wi\
+dth=\x2214\x22 height=\
+\x2214\x22 rx=\x222\x22 fill\
+=\x22#4a90d9\x22/>\x0a</s\
+vg>\x0a\
+\x00\x00\x01:\
+<\
+?xml version=\x221.\
+0\x22 encoding=\x22UTF\
+-8\x22?>\x0a<svg heigh\
+t=\x2216px\x22 viewBox\
+=\x220 0 16 16\x22 wid\
+th=\x2216px\x22 xmlns=\
+\x22http://www.w3.o\
+rg/2000/svg\x22>\x0a  \
+  <g fill=\x22#2e34\
+36\x22>\x0a        <pa\
+th d=\x22m 1 2 h 14\
+ v 2 h -14 z m 0\
+ 0\x22/>\x0a        <p\
+ath d=\x22m 1 7 h 1\
+4 v 2 h -14 z m \
+0 0\x22/>\x0a        <\
+path d=\x22m 1 12 h\
+ 14 v 2 h -14 z \
+m 0 0\x22/>\x0a    </g\
+>\x0a</svg>\x0a\
+"
+
+qt_resource_name = b"\
+\x00\x05\
+\x00o\xa6S\
+\x00i\
+\x00c\x00o\x00n\x00s\
+\x00\x0c\
+\x07o='\
+\x00a\
+\x00p\x00p\x00-\x00i\x00c\x00o\x00n\x00.\x00s\x00v\x00g\
+\x00\x16\
+\x0e\x9c\x0c\x07\
+\x00o\
+\x00p\x00e\x00n\x00-\x00m\x00e\x00n\x00u\x00-\x00s\x00y\x00m\x00b\x00o\x00l\x00i\
+\x00c\x00.\x00s\x00v\x00g\
+"
+
+qt_resource_struct = b"\
+\x00\x00\x00\x00\x00\x02\x00\x00\x00\x01\x00\x00\x00\x01\
+\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x00\x00\x02\x00\x00\x00\x02\x00\x00\x00\x02\
+\x00\x00\x00\x00\x00\x00\x00\x00\
+\x00\x00\x00\x10\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\
+\x00\x00\x01\x9d~\xe0\xaed\
+\x00\x00\x00.\x00\x00\x00\x00\x00\x01\x00\x00\x00\xc9\
+\x00\x00\x01\x9d~\xe0\xb5\xff\
+"
+
+def qInitResources():
+    QtCore.qRegisterResourceData(0x03, qt_resource_struct, qt_resource_name, qt_resource_data)
+
+def qCleanupResources():
+    QtCore.qUnregisterResourceData(0x03, qt_resource_struct, qt_resource_name, qt_resource_data)
+
+qInitResources()
