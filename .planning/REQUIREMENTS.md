@@ -1,0 +1,106 @@
+# Requirements — v2.0 OS Agnostic
+
+**Milestone goal:** Port MusicStreamer from GTK4/Libadwaita to Qt/PySide6, retire the GTK codebase, and add Windows support. Single cross-platform codebase with feature-parity to v1.5 plus manual settings export/import.
+
+**Scope principle:** Port-only. No new user-facing features beyond SYNC (manual export/import). Per-phase "no new behavior" gate enforced at plan approval.
+
+---
+
+## v2.0 Requirements
+
+### PORT — Backend isolation & Qt scaffold
+
+- [ ] **PORT-01**: `musicstreamer/player.py` removes all `GLib.idle_add`, `GLib.timeout_add`, `GLib.source_remove`, `dbus-python`, and `DBusGMainLoop` calls; `Player` becomes a `QObject` exposing typed Qt signals for title, failover, offline, and timer events.
+- [ ] **PORT-02**: GStreamer bus messages route to the Qt main thread via a `GLib.MainLoop` daemon thread + `bus.enable_sync_message_emission()` + queued Qt signal connections (no QTimer polling).
+- [ ] **PORT-03**: Qt scaffold (`QApplication` + `QMainWindow`) replaces all GTK4/Libadwaita widgets; app launches with an empty window before feature porting begins.
+- [ ] **PORT-04**: `musicstreamer/ui/` (GTK) is deleted; `musicstreamer/ui_qt/` is the only UI package. Hard cutover — no parallel dual-UI period.
+- [ ] **PORT-05**: Data directory resolution uses `platformdirs.user_data_dir("musicstreamer")` — XDG on Linux, `%APPDATA%` on Windows. All hard-coded `~/.local/share/musicstreamer` literals removed.
+- [ ] **PORT-06**: Existing Linux `~/.local/share/musicstreamer/` data migrates to the new `platformdirs` location on first launch (non-destructive, detects already-migrated state).
+- [ ] **PORT-07**: App forces Qt Fusion style on Windows with explicit dark-mode detection and accent-color handling (avoids the default-style dark-mode regression).
+- [ ] **PORT-08**: Bundled SVG icon set shipped via `.qrc` resource file; `QIcon.fromTheme("name", QIcon(":/icons/name.svg"))` pattern so Linux themes still win and Windows has icons at all.
+
+### UI — Feature-parity port (no new behavior)
+
+- [ ] **UI-01**: Station list — provider groups (custom `ExpanderSection` widget), recently-played section at top, per-row logo, click-to-play.
+- [ ] **UI-02**: Now-playing panel — logo, `Name · Provider` label, ICY track title, cover art, elapsed timer, volume slider, star, edit icon, play/pause, stop.
+- [ ] **UI-03**: Filter strip — provider and tag chip rows using a wrapping `FlowLayout`, OR-within-dimension, AND-between-dimension multi-select.
+- [ ] **UI-04**: Favorites view — segmented `Stations`/`Favorites` toggle replacing the station list inline, trash button to remove.
+- [ ] **UI-05**: `EditStationDialog` — provider picker, wrapping tag chip FlowLayout, multi-stream management (reorder, quality presets hi/med/low/custom), ICY disable toggle, delete with playing guard.
+- [ ] **UI-06**: `DiscoveryDialog` — Radio-Browser.info search, tag/country filters, per-row preview play, save-to-library.
+- [ ] **UI-07**: `ImportDialog` — YouTube playlist tab (scan → checklist → import with progress) and AudioAddict tab (API key, quality selector, network import, logo download).
+- [ ] **UI-08**: `AccountsDialog` — Twitch OAuth via a `QWebEngineView` launched in an isolated subprocess helper (`oauth_helper.py`); captured token written to `TWITCH_TOKEN_PATH` with restricted permissions.
+- [ ] **UI-09**: YouTube cookie import — file picker, paste, and Google login (via the same subprocess OAuth helper pattern); stored at the platform-appropriate path with restricted permissions.
+- [ ] **UI-10**: Hamburger menu — Discover, Import, Accent Color, YouTube Cookies, Accounts, Export/Import Settings.
+- [ ] **UI-11**: Accent color picker — 8 presets + hex entry, applied as runtime QSS, persisted in SQLite settings.
+- [ ] **UI-12**: Toast overlay — custom `ToastOverlay` widget (no Adw.Toast equivalent); used for failover, connecting, and error messages on all play paths.
+- [ ] **UI-13**: Stream picker on now-playing panel — manual stream selection dropdown; reflects round-robin and quality fallback state.
+- [ ] **UI-14**: YouTube 16:9 thumbnail displayed via Qt pre-scaled pixmap in a fixed slot (no panel sizing regression).
+
+### MEDIA — Cross-platform media keys
+
+- [ ] **MEDIA-01**: `musicstreamer/media_keys/` package with a platform factory selecting the Linux or Windows backend at runtime based on `sys.platform`.
+- [ ] **MEDIA-02**: Linux MPRIS2 adaptor implemented via `PySide6.QtDBus` + `QDBusAbstractAdaptor`; `dbus-python` dependency removed from the stack.
+- [ ] **MEDIA-03**: Windows SMTC backend implemented via `winrt-Windows.Media.Playback` (System Media Transport Controls).
+- [ ] **MEDIA-04**: Play/pause, stop, next/previous signals from the OS media session wire into `Player` on both platforms.
+- [ ] **MEDIA-05**: Now-playing metadata (station name, track title, cover art pixmap) published to the OS media session and updates on ICY change.
+
+### SYNC — Manual settings export/import
+
+- [ ] **SYNC-01**: Export action produces a single `.zip` containing `settings.json` (stations, streams, favorites, accent, volume, ICY flags) and a `logos/` folder with cached station art.
+- [ ] **SYNC-02**: Export explicitly excludes cookies, Twitch OAuth tokens, and AudioAddict API keys (credential risk).
+- [ ] **SYNC-03**: Import merges by stream URL — replace-on-match, new entries added, user-facing toggle for "replace all" vs "merge".
+- [ ] **SYNC-04**: Import produces a summary dialog (N added, M replaced, K skipped, L errors) before committing.
+- [ ] **SYNC-05**: Export/Import entries accessible from the hamburger menu.
+
+### PACKAGING — Windows distributable
+
+- [ ] **PKG-01**: PyInstaller spec bundles the GStreamer Windows runtime DLLs + plugins with HTTPS streams verified working (souphttpsrc SSL CA bundle + libgiognutls.dll included).
+- [ ] **PKG-02**: NSIS (or Inno Setup) installer produces a Windows distributable installing to `%LOCALAPPDATA%\MusicStreamer` with Start Menu shortcut.
+- [ ] **PKG-03**: All subprocess launches (yt-dlp, streamlink, mpv) go through a centralized `_popen()` helper with `CREATE_NO_WINDOW` on Windows; no console window flashes.
+- [ ] **PKG-04**: Single-instance enforcement on both platforms (secondary launches forward the activation to the running instance).
+- [ ] **PKG-05**: Windows build bundles `yt-dlp.exe`, `streamlink.exe`, and `mpv.exe` under an `ext/` directory; subprocess launcher prefers bundled binaries over PATH.
+- [ ] **PKG-06**: A dedicated GStreamer Windows bundling spike completes before the installer phase begins, with HTTPS stream playback verified on a clean Windows VM.
+
+### QA — Port quality gates
+
+- [ ] **QA-01**: `pytest-qt` with offscreen platform replaces the GTK fake-display test infrastructure; all v1.5 tests ported to Qt equivalents.
+- [ ] **QA-02**: Test count ≥ 265 passing on Linux after the port; zero GTK imports in the test suite.
+- [ ] **QA-03**: Windows smoke test suite runs on a clean Windows VM or manual UAT before the milestone ships (station playback, YouTube, Twitch, failover, media keys, installer round-trip).
+- [ ] **QA-04**: Per-phase feature-parity checklist gates plan approval — explicit "no new behavior" rule enforced during port phases.
+- [ ] **QA-05**: Widget lifetime audit performed on all dialog and GStreamer callback flows to prevent `RuntimeError: Internal C++ object already deleted`.
+
+---
+
+## Future Requirements (deferred to v2.1+)
+
+| Requirement | Reason deferred |
+|-------------|-----------------|
+| Cloud-synced settings (OneDrive/Dropbox folder) | Manual export/import is sufficient for v2.0; revisit after Windows is stable |
+| Auto-update / in-app updater | Personal-scale distribution — unnecessary complexity |
+| Code signing / OV certificate | Personal use accepts SmartScreen friction; revisit if wider distribution emerges |
+| MSIX packaging | NSIS/PyInstaller is sufficient; MSIX adds Store coupling |
+| macOS support | Not in v2.0 target platforms |
+| Tray icon + minimize-to-tray | Differentiator, not table-stakes for a streaming app |
+| System-browser OAuth redirect (vs QWebEngine) | Subprocess-isolated QWebEngine is acceptable; revisit if bundle size is a blocker |
+| SDR / live radio support | Separate initiative, captured in `.planning/notes/2026-03-21-sdr-live-radio-support.md` |
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Qt Multimedia instead of GStreamer | Lacks ICY metadata, HLS, and yt-dlp URL support |
+| Parallel GTK + Qt codebases | Explicitly rejected — doubles maintenance |
+| Libadwaita compatibility layer | Hard cutover; no backward compatibility |
+| dbus-python retained on Linux | QtDBus replaces it entirely; one DBus stack |
+| Auto-update mechanism | Anti-feature for personal-scale app |
+| Cookie/token export in SYNC bundle | Credential risk; explicitly excluded |
+| Keep `~/.local/share/musicstreamer` as Linux data dir | `platformdirs` normalizes both platforms; one-time migration |
+| New user-facing features during the port | "No new behavior" gate — any new feature gets parked for v2.1 |
+
+## Traceability
+
+Filled by the roadmap phase.
+
+---
+
+*Last updated: 2026-04-10 — initial requirements for v2.0 OS Agnostic milestone*
