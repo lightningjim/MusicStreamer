@@ -8,7 +8,8 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, GLib
-from musicstreamer.constants import COOKIES_PATH, clear_cookies, TWITCH_TOKEN_PATH, clear_twitch_token
+from musicstreamer.constants import clear_cookies, clear_twitch_token
+from musicstreamer import paths
 
 
 def _is_valid_cookies_txt(text: str) -> bool:
@@ -48,8 +49,8 @@ class AccountsDialog(Adw.Window):
         self._status_label = Gtk.Label()
         self._status_label.add_css_class("dim-label")
         self._status_label.set_xalign(0)
-        if os.path.exists(COOKIES_PATH):
-            mtime = os.path.getmtime(COOKIES_PATH)
+        if os.path.exists(paths.cookies_path()):
+            mtime = os.path.getmtime(paths.cookies_path())
             dt_str = datetime.fromtimestamp(mtime).strftime("%-d %b %Y")
             self._status_label.set_text(f"Last imported: {dt_str}")
         else:
@@ -114,7 +115,7 @@ class AccountsDialog(Adw.Window):
 
         self._clear_btn = Gtk.Button(label="Clear Cookies")
         self._clear_btn.add_css_class("destructive-action")
-        self._clear_btn.set_sensitive(os.path.exists(COOKIES_PATH))
+        self._clear_btn.set_sensitive(os.path.exists(paths.cookies_path()))
         self._clear_btn.connect("clicked", self._on_clear)
         footer.append(self._clear_btn)
 
@@ -147,7 +148,7 @@ class AccountsDialog(Adw.Window):
         self._twitch_status = Gtk.Label()
         self._twitch_status.add_css_class("dim-label")
         self._twitch_status.set_xalign(0)
-        if os.path.exists(TWITCH_TOKEN_PATH):
+        if os.path.exists(paths.twitch_token_path()):
             self._twitch_status.set_text("Logged in")
         else:
             self._twitch_status.set_text("Not logged in")
@@ -159,7 +160,7 @@ class AccountsDialog(Adw.Window):
 
         self._twitch_logout_btn = Gtk.Button(label="Log out")
         self._twitch_logout_btn.add_css_class("destructive-action")
-        self._twitch_logout_btn.set_sensitive(os.path.exists(TWITCH_TOKEN_PATH))
+        self._twitch_logout_btn.set_sensitive(os.path.exists(paths.twitch_token_path()))
         self._twitch_logout_btn.connect("clicked", self._on_twitch_logout)
         twitch_page.append(self._twitch_logout_btn)
 
@@ -236,9 +237,9 @@ class AccountsDialog(Adw.Window):
                 "Try exporting again with the Get cookies.txt LOCALLY extension."
             )
             return
-        os.makedirs(os.path.dirname(COOKIES_PATH), exist_ok=True)
-        shutil.copy2(path, COOKIES_PATH)
-        os.chmod(COOKIES_PATH, 0o600)
+        os.makedirs(os.path.dirname(paths.cookies_path()), exist_ok=True)
+        shutil.copy2(path, paths.cookies_path())
+        os.chmod(paths.cookies_path(), 0o600)
         self._update_status()
         self._selected_file_path = None
         self._file_entry.set_text("")
@@ -251,10 +252,10 @@ class AccountsDialog(Adw.Window):
                 "Check the format and try again."
             )
             return
-        os.makedirs(os.path.dirname(COOKIES_PATH), exist_ok=True)
-        with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+        os.makedirs(os.path.dirname(paths.cookies_path()), exist_ok=True)
+        with open(paths.cookies_path(), "w", encoding="utf-8") as f:
             f.write(text)
-        os.chmod(COOKIES_PATH, 0o600)
+        os.chmod(paths.cookies_path(), 0o600)
         self._update_status()
         self._paste_view.get_buffer().set_text("")
         self._update_import_sensitive()
@@ -274,13 +275,13 @@ class AccountsDialog(Adw.Window):
     # ------------------------------------------------------------------
 
     def _update_status(self):
-        if os.path.exists(COOKIES_PATH):
-            mtime = os.path.getmtime(COOKIES_PATH)
+        if os.path.exists(paths.cookies_path()):
+            mtime = os.path.getmtime(paths.cookies_path())
             dt_str = datetime.fromtimestamp(mtime).strftime("%-d %b %Y")
             self._status_label.set_text(f"Last imported: {dt_str}")
         else:
             self._status_label.set_text("No cookies imported")
-        self._clear_btn.set_sensitive(os.path.exists(COOKIES_PATH))
+        self._clear_btn.set_sensitive(os.path.exists(paths.cookies_path()))
 
     # ------------------------------------------------------------------
     # Google login — launches WebKit2 subprocess (GTK3-based, separate process)
@@ -334,10 +335,10 @@ class AccountsDialog(Adw.Window):
             self._show_error("Sign-in failed or was cancelled. Try again or use the file method.")
             return
         try:
-            os.makedirs(os.path.dirname(COOKIES_PATH), exist_ok=True)
-            with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+            os.makedirs(os.path.dirname(paths.cookies_path()), exist_ok=True)
+            with open(paths.cookies_path(), "w", encoding="utf-8") as f:
                 f.write(netscape_text)
-            os.chmod(COOKIES_PATH, 0o600)
+            os.chmod(paths.cookies_path(), 0o600)
             self._update_status()
             self._error_label.set_visible(False)
         except Exception:
@@ -398,8 +399,8 @@ class AccountsDialog(Adw.Window):
             self._twitch_error_label.set_visible(True)
             return False
         try:
-            os.makedirs(os.path.dirname(TWITCH_TOKEN_PATH), exist_ok=True)
-            fd = os.open(TWITCH_TOKEN_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            os.makedirs(os.path.dirname(paths.twitch_token_path()), exist_ok=True)
+            fd = os.open(paths.twitch_token_path(), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w") as f:
                 f.write(token)
             self._update_twitch_status()
@@ -415,11 +416,11 @@ class AccountsDialog(Adw.Window):
         self._twitch_logout_btn.set_sensitive(False)
 
     def _update_twitch_status(self):
-        if os.path.exists(TWITCH_TOKEN_PATH):
+        if os.path.exists(paths.twitch_token_path()):
             self._twitch_status.set_text("Logged in")
         else:
             self._twitch_status.set_text("Not logged in")
-        self._twitch_logout_btn.set_sensitive(os.path.exists(TWITCH_TOKEN_PATH))
+        self._twitch_logout_btn.set_sensitive(os.path.exists(paths.twitch_token_path()))
 
 
 # ---------------------------------------------------------------------------

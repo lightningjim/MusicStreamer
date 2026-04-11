@@ -1,27 +1,55 @@
+"""Application-wide constants.
+
+Data-path constants (DATA_DIR, DB_PATH, ASSETS_DIR, COOKIES_PATH,
+TWITCH_TOKEN_PATH) are exposed via PEP 562 ``__getattr__`` so they delegate
+to ``musicstreamer.paths`` on every access. This is intentional — assigning
+them as plain module-level attributes would snapshot the path once at import
+time and break the ``paths._root_override`` test hook.
+
+New code should import from ``musicstreamer.paths`` directly. The
+``__getattr__`` shim exists only to keep existing call sites working without
+churn during the Phase 35 backend isolation.
+"""
 import os
 
+from musicstreamer import paths
+
 APP_ID = "org.example.MusicStreamer"
-DATA_DIR = os.path.join(os.path.expanduser("~/.local/share"), "musicstreamer")
-DB_PATH = os.path.join(DATA_DIR, "musicstreamer.sqlite3")
-ASSETS_DIR = os.path.join(DATA_DIR, "assets")
-COOKIES_PATH = os.path.join(DATA_DIR, "cookies.txt")
-TWITCH_TOKEN_PATH = os.path.join(DATA_DIR, "twitch-token.txt")
+
+
+def __getattr__(name):
+    if name == "DATA_DIR":
+        return paths.data_dir()
+    if name == "DB_PATH":
+        return paths.db_path()
+    if name == "ASSETS_DIR":
+        return paths.assets_dir()
+    if name == "COOKIES_PATH":
+        return paths.cookies_path()
+    if name == "TWITCH_TOKEN_PATH":
+        return paths.twitch_token_path()
+    raise AttributeError(
+        f"module 'musicstreamer.constants' has no attribute {name!r}"
+    )
 
 
 def clear_cookies() -> bool:
     """Delete cookies.txt if it exists. Returns True if file was removed."""
-    if os.path.exists(COOKIES_PATH):
-        os.remove(COOKIES_PATH)
+    p = paths.cookies_path()
+    if os.path.exists(p):
+        os.remove(p)
         return True
     return False
 
 
 def clear_twitch_token() -> bool:
     """Delete twitch-token.txt if it exists. Returns True if file was removed."""
-    if os.path.exists(TWITCH_TOKEN_PATH):
-        os.remove(TWITCH_TOKEN_PATH)
+    p = paths.twitch_token_path()
+    if os.path.exists(p):
+        os.remove(p)
         return True
     return False
+
 
 # GStreamer playbin3 buffer tuning (Phase 16 / STREAM-01)
 BUFFER_DURATION_S = 10                    # seconds; applied as BUFFER_DURATION_S * Gst.SECOND
