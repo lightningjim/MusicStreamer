@@ -1,11 +1,22 @@
 ---
 id: SEED-003
-status: dormant
+status: shipped
 planted: 2026-03-31
 planted_during: v1.3 Phase 13 (Radio-Browser Discovery)
 trigger_when: station management improvements, import enhancements, or network-aware playback
 scope: Medium
+shipped_date: 2026-04-09
+shipped_by: v1.5 Phase 27 (STR-01..14) Multi-Stream Model + v1.5 Phase 28 (D-01..08) Stream Failover
 ---
+
+> **✅ SHIPPED** — Delivered across v1.5 Phase 27 (schema + UI) and
+> Phase 28 (failover). The new `station_streams` table holds 1..N
+> streams per station with quality presets (hi/med/low/custom), the
+> `ManageStreamsDialog` provides add/remove/reorder/quality-edit UX,
+> and the player's failover queue walks streams in order on error.
+> Radio-Browser, YouTube, and AudioAddict imports all populate
+> multi-stream rows. This seed and SEED-004 were effectively the same
+> idea — both retired together.
 
 # SEED-003: Multi-URL / quality selection per station
 
