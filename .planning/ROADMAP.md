@@ -143,7 +143,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Plans**: 4 plans
 - [x] 36-01-PLAN.md — Scaffold ui_qt package + bundled Adwaita icons + rewrite __main__.py (argparse GUI/--smoke split, Windows Fusion palette)
 - [x] 36-02-PLAN.md — Extract pure URL helpers from ui/edit_dialog.py to url_helpers.py and rewire tests (safety valve before GTK delete)
-- [ ] 36-03-PLAN.md — Atomic GTK cutover: delete ui/, mpris.py, test_mpris.py, build/ artifact + grep sweep
+- [x] 36-03-PLAN.md — Atomic GTK cutover: delete ui/, mpris.py, test_mpris.py, build/ artifact + grep sweep
 - [ ] 36-04-PLAN.md — Qt scaffold smoke tests (QA-01 MainWindow render + PORT-08 icon fallback + PORT-07 dark-palette code path)
 **UI hint**: yes
 
@@ -248,7 +248,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 |-------|-----------|----------------|--------|-----------|
 | 1–34 | v1.0–v1.5 | all | Complete | 2026-04-10 |
 | 35. Backend Isolation | v2.0 | 5/5 | Complete   | 2026-04-11 |
-| 36. Qt Scaffold + GTK Cutover | v2.0 | 2/4 | In Progress|  |
+| 36. Qt Scaffold + GTK Cutover | v2.0 | 3/4 | In Progress|  |
 | 37. Station List + Now Playing | v2.0 | 0/TBD | Not started | - |
 | 38. Filter Strip + Favorites | v2.0 | 0/TBD | Not started | - |
 | 39. Core Dialogs | v2.0 | 0/TBD | Not started | - |
