@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 35-05-headless-entry-and-tests-PLAN.md
-last_updated: "2026-04-11T16:11:03.371Z"
+stopped_at: Phase 36 context gathered
+last_updated: "2026-04-11T23:08:55.941Z"
 last_activity: 2026-04-11
 progress:
   total_phases: 10
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -77,6 +77,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-11T16:11:03.369Z
-Stopped at: Completed 35-05-headless-entry-and-tests-PLAN.md
-Resume file: None
+Last session: 2026-04-11T23:08:55.939Z
+Stopped at: Phase 36 context gathered
+Resume file: .planning/phases/36-qt-scaffold-gtk-cutover/36-CONTEXT.md
