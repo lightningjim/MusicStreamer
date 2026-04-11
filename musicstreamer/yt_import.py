@@ -5,16 +5,15 @@ Public API:
   is_yt_playlist_url(url) -> bool
   scan_playlist(url) -> list[dict]   # [{"title", "url", "provider"}, ...]
   import_stations(entries, repo, on_progress=None) -> (imported: int, skipped: int)
-"""
 
-import json
+Uses the yt_dlp Python library API directly (PORT-09 / D-17). No subprocess.
+"""
 import os
 import re
-import shutil
-import subprocess
-import tempfile
 
-from musicstreamer.constants import COOKIES_PATH
+import yt_dlp
+
+from musicstreamer import paths
 
 
 def is_yt_playlist_url(url: str) -> bool:
@@ -25,58 +24,60 @@ def is_yt_playlist_url(url: str) -> bool:
     )
 
 
+def _entry_is_live(entry: dict) -> bool:
+    """RESEARCH.md Pitfall 1 — extract_flat may leave is_live as None for sparse
+    entries. Prefer live_status, fall back to is_live."""
+    status = entry.get("live_status")
+    if status == "is_live":
+        return True
+    if status in ("was_live", "not_live", "post_live"):
+        return False
+    return entry.get("is_live") is True
+
+
 def scan_playlist(url: str) -> list[dict]:
-    """Run yt-dlp flat-playlist scan and return only currently-live entries.
+    """Scan a YouTube playlist/channel tab and return currently-live entries.
 
     Each returned dict has keys: "title", "url", "provider".
-    Raises ValueError for private/unavailable playlists, RuntimeError on other failures.
+    Raises ValueError for private/unavailable playlists.
+    Raises RuntimeError on other yt-dlp failures.
     """
-    local_bin = os.path.expanduser("~/.local/bin")
-    search_path = local_bin + os.pathsep + os.environ.get("PATH", "")
-    ytdlp = shutil.which("yt-dlp", path=search_path) or "yt-dlp"
-    cmd = [ytdlp, "--flat-playlist", "--dump-json", "--no-cookies-from-browser"]
-    cookie_tmp = None
-    if os.path.exists(COOKIES_PATH):
-        try:
-            fd, cookie_tmp = tempfile.mkstemp(suffix=".txt", prefix="ms_cookies_")
-            os.close(fd)
-            shutil.copy2(COOKIES_PATH, cookie_tmp)
-            cmd += ["--cookies", cookie_tmp]
-        except OSError:
-            cookie_tmp = None
-    cmd.append(url)
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    finally:
-        if cookie_tmp and os.path.exists(cookie_tmp):
-            os.unlink(cookie_tmp)
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        if "private" in stderr.lower() or "unavailable" in stderr.lower():
-            raise ValueError("Playlist Not Accessible")
-        raise RuntimeError(stderr or "yt-dlp failed")
+    opts = {
+        "extract_flat": "in_playlist",
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+    }
+    cookies = paths.cookies_path()
+    if os.path.exists(cookies):
+        opts["cookiefile"] = cookies
 
-    entries = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line:
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except yt_dlp.utils.DownloadError as e:
+        msg = str(e).lower()
+        if "private" in msg or "unavailable" in msg or "not accessible" in msg:
+            raise ValueError("Playlist Not Accessible") from e
+        raise RuntimeError(str(e)) from e
+
+    entries = (info or {}).get("entries") or []
+    results: list[dict] = []
+    for entry in entries:
+        if entry is None:
             continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
+        if not _entry_is_live(entry):
             continue
-        if entry.get("is_live") is True:
-            entries.append({
+        results.append(
+            {
                 "title": entry.get("title", "Untitled"),
                 "url": entry.get("url") or entry.get("webpage_url"),
-                "provider": entry.get("playlist_channel") or entry.get("playlist_uploader", ""),
-            })
-    return entries
+                "provider": entry.get("playlist_channel")
+                or entry.get("playlist_uploader")
+                or entry.get("uploader", ""),
+            }
+        )
+    return results
 
 
 def import_stations(entries: list[dict], repo, on_progress=None) -> tuple[int, int]:
