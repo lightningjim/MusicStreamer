@@ -121,7 +121,7 @@ def test_play_stores_legacy_on_title_shim(qtbot):
     player = make_player(qtbot)
     callback = MagicMock()
     station = make_station()
-    with patch.object(player, "_set_uri"), patch.object(player, "_stop_yt_proc"):
+    with patch.object(player, "_set_uri"):
         player.play(station, on_title=callback)
     assert player._on_title_cb is callback
 

@@ -72,8 +72,7 @@ def test_twitch_url_detected(qtbot):
     p._current_station_name = "Test Twitch"
     with patch.object(p, "_play_twitch") as mock_play_twitch, \
          patch.object(p, "_set_uri") as mock_set_uri, \
-         patch.object(p, "_play_youtube") as mock_play_youtube, \
-         patch.object(p, "_stop_yt_proc"):
+         patch.object(p, "_play_youtube") as mock_play_youtube:
         p._try_next_stream()
     mock_play_twitch.assert_called_once_with(twitch_stream.url)
     mock_set_uri.assert_not_called()
@@ -86,8 +85,7 @@ def test_non_twitch_url_not_routed(qtbot):
     p._streams_queue = [regular_stream]
     p._current_station_name = "Test Regular"
     with patch.object(p, "_play_twitch") as mock_play_twitch, \
-         patch.object(p, "_set_uri"), \
-         patch.object(p, "_stop_yt_proc"):
+         patch.object(p, "_set_uri"):
         p._try_next_stream()
     mock_play_twitch.assert_not_called()
 
@@ -227,7 +225,7 @@ def test_failover_timer_not_armed_for_twitch(qtbot):
     twitch_stream = make_twitch_stream()
     p._streams_queue = [twitch_stream]
     p._current_station_name = "Test Twitch"
-    with patch.object(p, "_play_twitch"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_play_twitch"):
         p._try_next_stream()
     assert not p._failover_timer.isActive()
 
@@ -242,6 +240,6 @@ def test_resolve_counter_resets_on_station_change(qtbot):
     p._twitch_resolve_attempts = 1
     twitch_stream = make_twitch_stream()
     station = make_station_with_streams([twitch_stream])
-    with patch.object(p, "_play_twitch"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_play_twitch"):
         p.play(station)
     assert p._twitch_resolve_attempts == 0

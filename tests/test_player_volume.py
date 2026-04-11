@@ -44,8 +44,13 @@ def test_set_volume_clamps_low(qtbot):
     p._pipeline.set_property.assert_called_with("volume", 0.0)
 
 
-def test_set_volume_stores_for_mpv(qtbot):
-    """After set_volume(0.6), _volume attribute equals 0.6."""
+def test_set_volume_stores_on_player(qtbot):
+    """After set_volume(0.6), the _volume attribute equals 0.6.
+
+    Plan 35-06: the stored value is no longer used to build an external
+    player command line; it's just kept in sync with the GStreamer
+    pipeline volume property for future reference.
+    """
     p = make_player(qtbot)
     p.set_volume(0.6)
     assert p._volume == 0.6

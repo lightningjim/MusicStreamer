@@ -1,9 +1,8 @@
-"""Tests for Player.pause() — pipeline state, yt_proc, and timer handling.
+"""Tests for Player.pause() — pipeline state and timer handling.
 
-Phase 35 port: the pre-rewrite ``_on_title`` callback attribute is gone
-(replaced by the ``title_changed`` Qt Signal and a legacy shim attribute
-``_on_title_cb``). ``pause()`` now calls ``_cancel_timers()`` and routes
-subprocess termination through ``_stop_yt_proc``. No GTK / GLib imports.
+Plan 35-06: all subprocess-related pause paths are gone. pause() now
+only cancels timers, clears the failover queue, and sets the pipeline
+to NULL. No more mpv / yt_proc termination.
 """
 from unittest.mock import MagicMock, patch
 
@@ -42,14 +41,16 @@ def test_pause_stops_failover_timer(qtbot):
     assert not p._failover_timer.isActive()
 
 
-def test_pause_kills_yt_proc(qtbot):
-    """pause() terminates a running _yt_proc."""
+def test_pause_clears_streams_queue(qtbot):
+    """pause() clears the failover streams queue (D-04)."""
     p = make_player(qtbot)
-    mock_proc = MagicMock()
-    mock_proc.poll.return_value = None  # process is running
-    p._yt_proc = mock_proc
+    from musicstreamer.models import StationStream
+    p._streams_queue = [
+        StationStream(id=1, station_id=1, url="http://a/", quality="hi", position=1),
+        StationStream(id=2, station_id=2, url="http://b/", quality="med", position=2),
+    ]
     p.pause()
-    mock_proc.terminate.assert_called_once()
+    assert p._streams_queue == []
 
 
 def test_stop_after_pause(qtbot):
@@ -64,5 +65,4 @@ def test_stop_after_pause(qtbot):
 def test_pause_does_not_error_when_stopped(qtbot):
     """Calling pause() when nothing is playing does not raise."""
     p = make_player(qtbot)
-    p._yt_proc = None
     p.pause()  # should not raise
