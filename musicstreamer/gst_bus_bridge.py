@@ -31,6 +31,7 @@ class GstBusLoopThread:
 
     def __init__(self) -> None:
         self._loop: GLib.MainLoop | None = None
+        self._ctx: GLib.MainContext | None = None
         self._thread: threading.Thread | None = None
         self._ready = threading.Event()
 
@@ -45,32 +46,45 @@ class GstBusLoopThread:
             raise RuntimeError("GstBusLoopThread failed to start within timeout")
 
     def _run(self) -> None:
-        # Use the default main context -- simpler than pushing a thread-default,
-        # and sufficient because this process has no other GLib code that would
-        # race on the default context (RESEARCH.md anti-patterns section).
-        self._loop = GLib.MainLoop.new(None, False)
+        # Push a thread-default MainContext so this loop does NOT share the
+        # default GLib context with PySide6/Qt. Qt's event dispatcher is
+        # installed on the default context in the main thread and blocks
+        # our loop from being scheduled. A dedicated per-thread context
+        # keeps the two worlds isolated (Pitfall: GLib default-context vs
+        # Qt main event loop deadlock).
+        ctx = GLib.MainContext.new()
+        ctx.push_thread_default()
+        self._ctx = ctx
+        self._loop = GLib.MainLoop.new(ctx, False)
         # Signal readiness from INSIDE the loop so callers that poll
         # is_running immediately after start() see True (the loop has
         # actually entered its run state, not merely been constructed).
-        def _signal_ready() -> bool:
+        def _signal_ready(*_: object) -> bool:
             self._ready.set()
             return False  # one-shot
-        GLib.idle_add(_signal_ready)
+        src = GLib.idle_source_new()
+        src.set_callback(_signal_ready)
+        src.attach(ctx)
         self._loop.run()
 
     def stop(self) -> None:
-        if self._loop and self._loop.is_running():
-            # quit from inside the loop via an idle source -- the only
-            # GLib.idle_add call permitted in Phase 35 code (it lives outside
-            # player.py so PORT-01's player.py grep gate is unaffected).
-            GLib.idle_add(self._loop.quit)
+        if self._loop and self._loop.is_running() and self._ctx is not None:
+            # Schedule the quit on the bridge thread's own MainContext (NOT
+            # the default) so it actually dispatches. Attaching a source to
+            # the loop's private context is the equivalent of GLib.idle_add
+            # for the default context. This is the only cross-thread GLib
+            # scheduling in Phase 35 code and it lives outside player.py so
+            # the PORT-01 player.py grep gate is unaffected.
+            src = GLib.idle_source_new()
+            src.set_callback(lambda *_: (self._loop.quit(), False)[1])
+            src.attach(self._ctx)
 
     @property
     def is_running(self) -> bool:
         return self._loop is not None and self._loop.is_running()
 
 
-def attach_bus(bus) -> None:
+def attach_bus(bus, bridge: "GstBusLoopThread | None" = None) -> None:
     """Wire a GStreamer bus to the bridge-thread main loop per D-07.
 
     Call ORDER matters: sync emission must be enabled before add_signal_watch()

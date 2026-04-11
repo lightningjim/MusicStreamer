@@ -1,24 +1,29 @@
-"""Tests for Twitch playback via streamlink — URL detection, resolution, offline/error handling."""
-from unittest.mock import MagicMock, patch, call
-import gi
-gi.require_version("Gst", "1.0")
-from gi.repository import Gst
+"""Tests for Twitch playback via the streamlink library API.
 
-from musicstreamer.player import Player
+Phase 35 port: ``_play_twitch`` spawns a worker thread that calls
+``streamlink.session.Streamlink().streams(url)``. On success the worker
+emits the queued ``twitch_resolved`` Qt signal, which is connected to
+``_on_twitch_resolved`` on the main thread. Tests drive the worker
+directly (bypassing the Thread start) so assertions are synchronous.
+"""
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from musicstreamer.models import Station, StationStream
+from musicstreamer.player import Player
 
 
-# ---------------------------------------------------------------------------
-# Helpers (mirrored from test_player_failover.py)
-# ---------------------------------------------------------------------------
-
-def make_player():
-    """Create a Player with GStreamer pipeline mocked out."""
+def make_player(qtbot):
     mock_pipeline = MagicMock()
     mock_bus = MagicMock()
     mock_pipeline.get_bus.return_value = mock_bus
-    with patch("musicstreamer.player.Gst.ElementFactory.make", return_value=mock_pipeline):
+    with patch(
+        "musicstreamer.player.Gst.ElementFactory.make",
+        return_value=mock_pipeline,
+    ):
         player = Player()
+    player._pipeline = MagicMock()
     return player
 
 
@@ -56,337 +61,187 @@ def make_station_with_streams(streams):
 
 
 # ---------------------------------------------------------------------------
-# URL detection tests
+# URL detection — routing path
 # ---------------------------------------------------------------------------
 
-def test_twitch_url_detected():
-    """Given a stream with url containing 'twitch.tv', _try_next_stream calls _play_twitch
-    (not _set_uri, not _play_youtube)."""
-    p = make_player()
-    p._pipeline = MagicMock()
+def test_twitch_url_detected(qtbot):
+    """A stream with 'twitch.tv' routes to _play_twitch, not _set_uri/_play_youtube."""
+    p = make_player(qtbot)
     twitch_stream = make_twitch_stream()
     p._streams_queue = [twitch_stream]
     p._current_station_name = "Test Twitch"
-    p._on_title = MagicMock()
-
     with patch.object(p, "_play_twitch") as mock_play_twitch, \
          patch.object(p, "_set_uri") as mock_set_uri, \
          patch.object(p, "_play_youtube") as mock_play_youtube, \
-         patch.object(p, "_stop_yt_proc"), \
-         patch("musicstreamer.player.GLib") as mock_glib:
-        mock_glib.timeout_add.return_value = 99
-        mock_glib.idle_add.side_effect = lambda fn, *args: fn(*args)
+         patch.object(p, "_stop_yt_proc"):
         p._try_next_stream()
-
     mock_play_twitch.assert_called_once_with(twitch_stream.url)
     mock_set_uri.assert_not_called()
     mock_play_youtube.assert_not_called()
 
 
-def test_non_twitch_url_not_routed():
-    """Given a stream with url 'http://example.com/stream', _play_twitch is NOT called."""
-    p = make_player()
-    p._pipeline = MagicMock()
+def test_non_twitch_url_not_routed(qtbot):
+    p = make_player(qtbot)
     regular_stream = make_stream(1, 1, "hi", url="http://example.com/stream/")
     p._streams_queue = [regular_stream]
     p._current_station_name = "Test Regular"
-    p._on_title = MagicMock()
-
     with patch.object(p, "_play_twitch") as mock_play_twitch, \
          patch.object(p, "_set_uri"), \
-         patch.object(p, "_stop_yt_proc"), \
-         patch("musicstreamer.player.GLib") as mock_glib:
-        mock_glib.timeout_add.return_value = 99
-        mock_glib.idle_add.side_effect = lambda fn, *args: fn(*args)
+         patch.object(p, "_stop_yt_proc"):
         p._try_next_stream()
-
     mock_play_twitch.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# streamlink subprocess tests
+# streamlink library API — success path
 # ---------------------------------------------------------------------------
 
-def test_streamlink_called_with_correct_args(tmp_path, monkeypatch):
-    """_play_twitch calls subprocess.run with args ["streamlink", "--stream-url", url, "best"],
-    capture_output=True, text=True."""
-    # Force no-token branch: point TWITCH_TOKEN_PATH at a file that does not exist
-    # so open() raises FileNotFoundError (subclass of OSError) and _play_twitch
-    # falls through to the bare `["streamlink", "--stream-url", url, "best"]` cmd.
-    # Without this, a dev-local ~/.local/share/musicstreamer/twitch-token.txt would
-    # cause streamlink to be invoked with --twitch-api-header (phase 32 behavior).
+class _FakeStream:
+    def __init__(self, url):
+        self.url = url
+
+
+def _fake_session_with_streams(streams_dict):
+    """Build a MagicMock streamlink Session that returns ``streams_dict``."""
+    session = MagicMock()
+    session.streams.return_value = streams_dict
+    return session
+
+
+def test_twitch_resolves_via_library(qtbot, tmp_path, monkeypatch):
+    """Worker calls Streamlink().streams(url) and emits twitch_resolved."""
     monkeypatch.setattr(
-        "musicstreamer.player.TWITCH_TOKEN_PATH",
-        str(tmp_path / "nonexistent-twitch-token.txt"),
+        "musicstreamer.paths.twitch_token_path",
+        lambda: str(tmp_path / "nonexistent-token"),
     )
-    p = make_player()
-    p._pipeline = MagicMock()
-    url = "https://www.twitch.tv/testchannel"
-
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "https://example.m3u8\n"
-    mock_result.stderr = ""
-
-    mock_thread = MagicMock()
-
-    with patch("musicstreamer.player.subprocess.run", return_value=mock_result) as mock_run, \
-         patch("musicstreamer.player.threading.Thread") as mock_thread_cls, \
-         patch("musicstreamer.player.GLib"):
-        # Intercept the thread and run its target directly
-        captured_target = []
-        def capture_thread(**kwargs):
-            captured_target.append(kwargs.get("target"))
-            t = MagicMock()
-            t.start = lambda: captured_target[0]() if captured_target else None
-            return t
-        mock_thread_cls.side_effect = capture_thread
-        p._play_twitch(url)
-
-    mock_run.assert_called_once()
-    call_args = mock_run.call_args
-    assert call_args[0][0] == ["streamlink", "--stream-url", url, "best"]
-    assert call_args[1].get("capture_output") is True
-    assert call_args[1].get("text") is True
+    p = make_player(qtbot)
+    session = _fake_session_with_streams(
+        {"best": _FakeStream("https://example.m3u8")}
+    )
+    with patch("streamlink.session.Streamlink", return_value=session):
+        with qtbot.waitSignal(p.twitch_resolved, timeout=2000) as blocker:
+            p._twitch_resolve_worker("https://www.twitch.tv/testchannel")
+    assert blocker.args == ["https://example.m3u8"]
+    session.streams.assert_called_once_with("https://www.twitch.tv/testchannel")
 
 
-def test_streamlink_env_includes_local_bin():
-    """The env dict passed to subprocess.run has ~/.local/bin in PATH."""
-    import os
-    p = make_player()
-    p._pipeline = MagicMock()
-    url = "https://www.twitch.tv/testchannel"
-
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = "https://example.m3u8\n"
-    mock_result.stderr = ""
-
-    local_bin = os.path.expanduser("~/.local/bin")
-
-    with patch("musicstreamer.player.subprocess.run", return_value=mock_result) as mock_run, \
-         patch("musicstreamer.player.threading.Thread") as mock_thread_cls, \
-         patch("musicstreamer.player.GLib"):
-        captured_target = []
-        def capture_thread(**kwargs):
-            captured_target.append(kwargs.get("target"))
-            t = MagicMock()
-            t.start = lambda: captured_target[0]() if captured_target else None
-            return t
-        mock_thread_cls.side_effect = capture_thread
-        p._play_twitch(url)
-
-    call_args = mock_run.call_args
-    env = call_args[1].get("env", {})
-    assert local_bin in env.get("PATH", "").split(os.pathsep)
+def test_twitch_offline_emits_offline_signal(qtbot, tmp_path, monkeypatch):
+    """Empty streams dict (channel offline) emits the offline signal."""
+    monkeypatch.setattr(
+        "musicstreamer.paths.twitch_token_path",
+        lambda: str(tmp_path / "nonexistent-token"),
+    )
+    p = make_player(qtbot)
+    session = _fake_session_with_streams({})
+    with patch("streamlink.session.Streamlink", return_value=session):
+        with qtbot.waitSignal(p.offline, timeout=2000) as blocker:
+            p._twitch_resolve_worker("https://www.twitch.tv/testchannel")
+    assert blocker.args == ["testchannel"]
 
 
-# ---------------------------------------------------------------------------
-# Live / offline / error state tests
-# ---------------------------------------------------------------------------
-
-def test_live_channel_calls_set_uri():
-    """When subprocess.run returns exit 0 with stdout='https://example.m3u8\\n',
-    GLib.idle_add is called with _on_twitch_resolved which calls _set_uri."""
-    p = make_player()
-    p._pipeline = MagicMock()
-    p._current_station_name = "Twitch Test"
-    p._on_title = MagicMock()
-    url = "https://www.twitch.tv/testchannel"
-    resolved_url = "https://example.m3u8"
-
-    mock_result = MagicMock()
-    mock_result.returncode = 0
-    mock_result.stdout = resolved_url + "\n"
-
-    idle_calls = []
-
-    def fake_idle_add(fn, *args):
-        idle_calls.append((fn, args))
-        return fn(*args)
-
-    with patch("musicstreamer.player.subprocess.run", return_value=mock_result), \
-         patch("musicstreamer.player.threading.Thread") as mock_thread_cls, \
-         patch("musicstreamer.player.GLib") as mock_glib, \
-         patch.object(p, "_set_uri") as mock_set_uri:
-        mock_glib.idle_add.side_effect = fake_idle_add
-        captured_target = []
-        def capture_thread(**kwargs):
-            captured_target.append(kwargs.get("target"))
-            t = MagicMock()
-            t.start = lambda: captured_target[0]() if captured_target else None
-            return t
-        mock_thread_cls.side_effect = capture_thread
-        p._play_twitch(url)
-
-    # _set_uri should have been called with the resolved URL
-    mock_set_uri.assert_called_once_with(resolved_url, p._current_station_name, p._on_title)
+def test_twitch_plugin_error_offline_emits_offline(qtbot, tmp_path, monkeypatch):
+    """streamlink PluginError whose message contains 'offline' → offline signal."""
+    from streamlink.exceptions import PluginError
+    monkeypatch.setattr(
+        "musicstreamer.paths.twitch_token_path",
+        lambda: str(tmp_path / "nonexistent-token"),
+    )
+    p = make_player(qtbot)
+    session = MagicMock()
+    session.streams.side_effect = PluginError("channel is offline")
+    with patch("streamlink.session.Streamlink", return_value=session):
+        with qtbot.waitSignal(p.offline, timeout=2000) as blocker:
+            p._twitch_resolve_worker("https://www.twitch.tv/testchannel")
+    assert blocker.args == ["testchannel"]
 
 
-def test_offline_channel_calls_on_offline():
-    """When subprocess.run returns exit 1 with stdout containing 'No playable streams found',
-    on_offline is called and _try_next_stream is NOT called."""
-    p = make_player()
-    p._pipeline = MagicMock()
-    url = "https://www.twitch.tv/testchannel"
-    on_offline = MagicMock()
-    p._on_offline = on_offline
-
-    mock_result = MagicMock()
-    mock_result.returncode = 1
-    mock_result.stdout = "error: No playable streams found on this URL: https://www.twitch.tv/testchannel"
-    mock_result.stderr = ""
-
-    idle_calls = []
-
-    def fake_idle_add(fn, *args):
-        idle_calls.append((fn, args))
-        return fn(*args)
-
-    with patch("musicstreamer.player.subprocess.run", return_value=mock_result), \
-         patch("musicstreamer.player.threading.Thread") as mock_thread_cls, \
-         patch("musicstreamer.player.GLib") as mock_glib, \
-         patch.object(p, "_try_next_stream") as mock_try_next:
-        mock_glib.idle_add.side_effect = fake_idle_add
-        captured_target = []
-        def capture_thread(**kwargs):
-            captured_target.append(kwargs.get("target"))
-            t = MagicMock()
-            t.start = lambda: captured_target[0]() if captured_target else None
-            return t
-        mock_thread_cls.side_effect = capture_thread
-        p._play_twitch(url)
-
-    on_offline.assert_called_once_with("testchannel")
-    mock_try_next.assert_not_called()
+def test_twitch_plugin_error_other_emits_playback_error(qtbot, tmp_path, monkeypatch):
+    """streamlink PluginError with a non-offline message → playback_error."""
+    from streamlink.exceptions import PluginError
+    monkeypatch.setattr(
+        "musicstreamer.paths.twitch_token_path",
+        lambda: str(tmp_path / "nonexistent-token"),
+    )
+    p = make_player(qtbot)
+    session = MagicMock()
+    session.streams.side_effect = PluginError("bogus stream error")
+    with patch("streamlink.session.Streamlink", return_value=session):
+        with qtbot.waitSignal(p.playback_error, timeout=2000) as blocker:
+            p._twitch_resolve_worker("https://www.twitch.tv/testchannel")
+    assert "bogus stream error" in blocker.args[0]
 
 
-def test_non_offline_error_calls_try_next():
-    """When subprocess.run returns exit 1 with stdout NOT containing 'No playable streams found',
-    _try_next_stream IS called."""
-    p = make_player()
-    p._pipeline = MagicMock()
-    url = "https://www.twitch.tv/testchannel"
-
-    mock_result = MagicMock()
-    mock_result.returncode = 1
-    mock_result.stdout = "error: Failed to open segment 1/1\n"
-    mock_result.stderr = ""
-
-    idle_calls = []
-
-    def fake_idle_add(fn, *args):
-        idle_calls.append((fn, args))
-        return fn(*args)
-
-    with patch("musicstreamer.player.subprocess.run", return_value=mock_result), \
-         patch("musicstreamer.player.threading.Thread") as mock_thread_cls, \
-         patch("musicstreamer.player.GLib") as mock_glib, \
-         patch.object(p, "_try_next_stream") as mock_try_next:
-        mock_glib.idle_add.side_effect = fake_idle_add
-        captured_target = []
-        def capture_thread(**kwargs):
-            captured_target.append(kwargs.get("target"))
-            t = MagicMock()
-            t.start = lambda: captured_target[0]() if captured_target else None
-            return t
-        mock_thread_cls.side_effect = capture_thread
-        p._play_twitch(url)
-
-    mock_try_next.assert_called_once()
+def test_twitch_no_plugin_emits_playback_error(qtbot, tmp_path, monkeypatch):
+    """NoPluginError → playback_error signal."""
+    from streamlink.exceptions import NoPluginError
+    monkeypatch.setattr(
+        "musicstreamer.paths.twitch_token_path",
+        lambda: str(tmp_path / "nonexistent-token"),
+    )
+    p = make_player(qtbot)
+    session = MagicMock()
+    session.streams.side_effect = NoPluginError("no plugin")
+    with patch("streamlink.session.Streamlink", return_value=session):
+        with qtbot.waitSignal(p.playback_error, timeout=2000) as blocker:
+            p._twitch_resolve_worker("https://www.twitch.tv/testchannel")
+    assert "no plugin" in blocker.args[0]
 
 
 # ---------------------------------------------------------------------------
-# GStreamer error re-resolve tests
+# GStreamer error re-resolve tests (rebuilt against new API)
 # ---------------------------------------------------------------------------
 
-def test_gst_error_twitch_re_resolves():
-    """When _on_gst_error fires and _current_stream.url contains 'twitch.tv',
-    _play_twitch is called (not _try_next_stream directly)."""
-    p = make_player()
-    p._pipeline = MagicMock()
+def test_gst_error_twitch_re_resolves(qtbot):
+    """On GStreamer error with a Twitch current stream, _play_twitch is re-invoked."""
+    p = make_player(qtbot)
     p._current_stream = make_twitch_stream()
     p._twitch_resolve_attempts = 0
     p._streams_queue = []
-
-    mock_msg = MagicMock()
-    mock_msg.parse_error.return_value = (Exception("stream error"), "debug")
-
     with patch.object(p, "_play_twitch") as mock_play_twitch, \
-         patch.object(p, "_try_next_stream") as mock_try_next, \
-         patch("musicstreamer.player.GLib") as mock_glib:
-        mock_glib.source_remove = MagicMock()
-        p._on_gst_error(None, mock_msg)
-
+         patch.object(p, "_try_next_stream") as mock_try_next:
+        p._handle_gst_error_recovery()
     mock_play_twitch.assert_called_once_with(p._current_stream.url)
     mock_try_next.assert_not_called()
 
 
-def test_re_resolve_bounded_to_one():
-    """After one re-resolve attempt on the same stream, a second GStreamer error calls
-    _try_next_stream instead of re-resolving again."""
-    p = make_player()
-    p._pipeline = MagicMock()
+def test_re_resolve_bounded_to_one(qtbot):
+    """After one re-resolve, a second error falls through to _try_next_stream."""
+    p = make_player(qtbot)
     p._current_stream = make_twitch_stream()
-    p._twitch_resolve_attempts = 1  # already used one attempt
+    p._twitch_resolve_attempts = 1
     p._streams_queue = []
-
-    mock_msg = MagicMock()
-    mock_msg.parse_error.return_value = (Exception("stream error"), "debug")
-
     with patch.object(p, "_play_twitch") as mock_play_twitch, \
-         patch.object(p, "_try_next_stream") as mock_try_next, \
-         patch("musicstreamer.player.GLib") as mock_glib:
-        mock_glib.source_remove = MagicMock()
-        p._on_gst_error(None, mock_msg)
-
+         patch.object(p, "_try_next_stream") as mock_try_next:
+        p._handle_gst_error_recovery()
     mock_play_twitch.assert_not_called()
     mock_try_next.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
-# Failover timer tests
+# Failover timer not armed for Twitch (resolver handles its own timing)
 # ---------------------------------------------------------------------------
 
-def test_failover_timer_not_armed_for_twitch():
-    """After _try_next_stream processes a twitch.tv URL, _failover_timer_id remains None."""
-    p = make_player()
-    p._pipeline = MagicMock()
+def test_failover_timer_not_armed_for_twitch(qtbot):
+    """After _try_next_stream routes a Twitch URL, _failover_timer is NOT active."""
+    p = make_player(qtbot)
     twitch_stream = make_twitch_stream()
     p._streams_queue = [twitch_stream]
     p._current_station_name = "Test Twitch"
-    p._on_title = MagicMock()
-
-    with patch.object(p, "_play_twitch"), \
-         patch.object(p, "_stop_yt_proc"), \
-         patch("musicstreamer.player.GLib") as mock_glib:
-        mock_glib.timeout_add.return_value = 99
+    with patch.object(p, "_play_twitch"), patch.object(p, "_stop_yt_proc"):
         p._try_next_stream()
-
-    # timeout_add should NOT have been called for a Twitch URL
-    mock_glib.timeout_add.assert_not_called()
-    assert p._failover_timer_id is None
+    assert not p._failover_timer.isActive()
 
 
 # ---------------------------------------------------------------------------
-# Station change reset tests
+# Station change reset
 # ---------------------------------------------------------------------------
 
-def test_resolve_counter_resets_on_station_change():
-    """After a station change (new play() call), _twitch_resolve_attempts resets to 0."""
-    p = make_player()
-    p._pipeline = MagicMock()
-    p._twitch_resolve_attempts = 1  # simulate previous resolve attempt
-
+def test_resolve_counter_resets_on_station_change(qtbot):
+    """Starting a new station resets _twitch_resolve_attempts to 0."""
+    p = make_player(qtbot)
+    p._twitch_resolve_attempts = 1
     twitch_stream = make_twitch_stream()
     station = make_station_with_streams([twitch_stream])
-
-    with patch.object(p, "_play_twitch"), \
-         patch.object(p, "_stop_yt_proc"), \
-         patch("musicstreamer.player.GLib") as mock_glib:
-        mock_glib.source_remove = MagicMock()
-        mock_glib.timeout_add.return_value = 99
-        mock_glib.idle_add.side_effect = lambda fn, *args: fn(*args)
-        p.play(station, MagicMock())
-
+    with patch.object(p, "_play_twitch"), patch.object(p, "_stop_yt_proc"):
+        p.play(station)
     assert p._twitch_resolve_attempts == 0

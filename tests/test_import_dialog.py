@@ -1,53 +1,63 @@
-import json
-import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 
 # ---------------------------------------------------------------------------
-# Test data
+# Test data (library-API format — dicts from yt_dlp.extract_info)
 # ---------------------------------------------------------------------------
 
-LIVE_ENTRY = json.dumps({
+LIVE_ENTRY = {
     "title": "Lofi Radio",
     "url": "https://www.youtube.com/watch?v=abc123",
     "is_live": True,
     "playlist_channel": "Lofi Girl",
     "playlist_uploader": "Lofi Girl",
-})
+}
 
-NON_LIVE_ENTRY = json.dumps({
+NON_LIVE_ENTRY = {
     "title": "Old Video",
     "url": "https://www.youtube.com/watch?v=xyz789",
     "is_live": None,
     "playlist_channel": "Lofi Girl",
     "playlist_uploader": "Lofi Girl",
-})
+}
 
-WAS_LIVE_ENTRY = json.dumps({
+WAS_LIVE_ENTRY = {
     "title": "Past Stream",
     "url": "https://www.youtube.com/watch?v=def456",
     "is_live": False,
     "playlist_channel": "Lofi Girl",
     "playlist_uploader": "Lofi Girl",
-})
+}
 
-SECOND_LIVE_ENTRY = json.dumps({
+SECOND_LIVE_ENTRY = {
     "title": "Jazz Live",
     "url": "https://www.youtube.com/watch?v=jjj999",
     "is_live": True,
     "playlist_channel": "Jazz Channel",
     "playlist_uploader": "Jazz Channel",
-})
+}
 
 
-def _make_completed_process(stdout="", returncode=0, stderr=""):
-    result = MagicMock()
-    result.stdout = stdout
-    result.returncode = returncode
-    result.stderr = stderr
-    return result
+def _fake_ydl_returning(entries):
+    """Build a fake yt_dlp.YoutubeDL class that returns ``entries`` as a
+    playlist ``info`` dict on ``extract_info``."""
+
+    class FakeYDL:
+        def __init__(self, opts):
+            self.opts = opts
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def extract_info(self, url, download=False):
+            return {"entries": list(entries)}
+
+    return FakeYDL
 
 
 # ---------------------------------------------------------------------------
@@ -55,13 +65,11 @@ def _make_completed_process(stdout="", returncode=0, stderr=""):
 # ---------------------------------------------------------------------------
 
 def test_scan_filters_live_only():
-    """scan_playlist returns only entries where is_live == True (not None, not False)."""
+    """scan_playlist returns only entries where live_status/is_live indicates live."""
     from musicstreamer.yt_import import scan_playlist
 
-    mixed_output = "\n".join([LIVE_ENTRY, NON_LIVE_ENTRY, WAS_LIVE_ENTRY])
-    mock_result = _make_completed_process(stdout=mixed_output)
-
-    with patch("subprocess.run", return_value=mock_result):
+    fake_ydl = _fake_ydl_returning([LIVE_ENTRY, NON_LIVE_ENTRY, WAS_LIVE_ENTRY])
+    with patch("musicstreamer.yt_import.yt_dlp.YoutubeDL", fake_ydl):
         entries = scan_playlist("https://www.youtube.com/playlist?list=PL123")
 
     assert len(entries) == 1
@@ -77,10 +85,8 @@ def test_parse_flat_playlist_json():
     """scan_playlist produces list of dicts with 'title', 'url', 'provider' keys."""
     from musicstreamer.yt_import import scan_playlist
 
-    output = "\n".join([LIVE_ENTRY, SECOND_LIVE_ENTRY])
-    mock_result = _make_completed_process(stdout=output)
-
-    with patch("subprocess.run", return_value=mock_result):
+    fake_ydl = _fake_ydl_returning([LIVE_ENTRY, SECOND_LIVE_ENTRY])
+    with patch("musicstreamer.yt_import.yt_dlp.YoutubeDL", fake_ydl):
         entries = scan_playlist("https://www.youtube.com/playlist?list=PL123")
 
     assert len(entries) == 2
@@ -98,28 +104,24 @@ def test_provider_from_playlist_channel():
     """Provider comes from playlist_channel; falls back to playlist_uploader if empty."""
     from musicstreamer.yt_import import scan_playlist
 
-    # Entry with playlist_channel set
-    entry_with_channel = json.dumps({
+    entry_with_channel = {
         "title": "Live Stream",
         "url": "https://www.youtube.com/watch?v=aaaaa1",
         "is_live": True,
         "playlist_channel": "Lofi Girl",
         "playlist_uploader": "SomeOtherName",
-    })
+    }
 
-    # Entry with empty playlist_channel — should fall back to playlist_uploader
-    entry_no_channel = json.dumps({
+    entry_no_channel = {
         "title": "Another Stream",
         "url": "https://www.youtube.com/watch?v=bbbbb2",
         "is_live": True,
         "playlist_channel": "",
         "playlist_uploader": "FallbackName",
-    })
+    }
 
-    output = "\n".join([entry_with_channel, entry_no_channel])
-    mock_result = _make_completed_process(stdout=output)
-
-    with patch("subprocess.run", return_value=mock_result):
+    fake_ydl = _fake_ydl_returning([entry_with_channel, entry_no_channel])
+    with patch("musicstreamer.yt_import.yt_dlp.YoutubeDL", fake_ydl):
         entries = scan_playlist("https://www.youtube.com/playlist?list=PL123")
 
     assert entries[0]["provider"] == "Lofi Girl"
