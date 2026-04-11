@@ -14,11 +14,11 @@
 - [ ] **PORT-02**: GStreamer bus messages route to the Qt main thread via a `GLib.MainLoop` daemon thread + `bus.enable_sync_message_emission()` + queued Qt signal connections (no QTimer polling).
 - [ ] **PORT-03**: Qt scaffold (`QApplication` + `QMainWindow`) replaces all GTK4/Libadwaita widgets; app launches with an empty window before feature porting begins.
 - [ ] **PORT-04**: `musicstreamer/ui/` (GTK) is deleted; `musicstreamer/ui_qt/` is the only UI package. Hard cutover — no parallel dual-UI period.
-- [ ] **PORT-05**: Data directory resolution uses `platformdirs.user_data_dir("musicstreamer")` — XDG on Linux, `%APPDATA%` on Windows. All hard-coded `~/.local/share/musicstreamer` literals removed.
-- [ ] **PORT-06**: Existing Linux `~/.local/share/musicstreamer/` data migrates to the new `platformdirs` location on first launch (non-destructive, detects already-migrated state).
+- [x] **PORT-05**: Data directory resolution uses `platformdirs.user_data_dir("musicstreamer")` — XDG on Linux, `%APPDATA%` on Windows. All hard-coded `~/.local/share/musicstreamer` literals removed.
+- [x] **PORT-06**: Existing Linux `~/.local/share/musicstreamer/` data migrates to the new `platformdirs` location on first launch (non-destructive, detects already-migrated state).
 - [ ] **PORT-07**: App forces Qt Fusion style on Windows with explicit dark-mode detection and accent-color handling (avoids the default-style dark-mode regression).
 - [ ] **PORT-08**: Bundled SVG icon set shipped via `.qrc` resource file; `QIcon.fromTheme("name", QIcon(":/icons/name.svg"))` pattern so Linux themes still win and Windows has icons at all.
-- [ ] **PORT-09**: `yt_import.py` and `player._play_twitch()` ported from subprocess invocations to the `yt-dlp` and `streamlink` Python library APIs. Subprocess/CLI usage eliminated for these tools. Phase 35 includes a spike task to verify GStreamer `playbin3` can play yt-dlp library-resolved URLs (including HLS manifests and cookie-protected streams); if the spike succeeds, mpv is removed entirely and PKG-05 is retired. If it fails on any edge case, mpv stays as the YouTube fallback (bundled as `mpv.exe` on Windows via PKG-05).
+- [x] **PORT-09**: `yt_import.py` and `player._play_twitch()` ported from subprocess invocations to the `yt-dlp` and `streamlink` Python library APIs. Subprocess/CLI usage eliminated for these tools. Phase 35 includes a spike task to verify GStreamer `playbin3` can play yt-dlp library-resolved URLs (including HLS manifests and cookie-protected streams); if the spike succeeds, mpv is removed entirely and PKG-05 is retired. If it fails on any edge case, mpv stays as the YouTube fallback (bundled as `mpv.exe` on Windows via PKG-05).
 
 ### UI — Feature-parity port (no new behavior)
 
@@ -104,8 +104,8 @@
 |-------------|-------|--------|
 | PORT-01 | Phase 35: Backend Isolation | Pending |
 | PORT-02 | Phase 35: Backend Isolation | Pending |
-| PORT-05 | Phase 35: Backend Isolation | Pending |
-| PORT-06 | Phase 35: Backend Isolation | Pending |
+| PORT-05 | Phase 35: Backend Isolation | Complete |
+| PORT-06 | Phase 35: Backend Isolation | Complete |
 | PORT-09 | Phase 35: Backend Isolation | In Progress (spike done, library port pending Plan 35-03) |
 | QA-02 | Phase 35: Backend Isolation | Pending |
 | PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Pending |

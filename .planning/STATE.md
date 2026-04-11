@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 35-01-mpv-spike-PLAN.md
-last_updated: "2026-04-11T15:27:29.112Z"
+stopped_at: Completed 35-03-ytdlp-and-mpris-stub-PLAN.md
+last_updated: "2026-04-11T15:34:08.258Z"
 last_activity: 2026-04-11
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
-  percent: 20
+  completed_plans: 3
+  percent: 60
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 35 (Backend Isolation) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-04-11
 
@@ -60,6 +60,7 @@ Key v2.0 decisions already settled:
 - Data paths: platformdirs.user_data_dir("musicstreamer") — XDG on Linux, %APPDATA% on Windows
 - GTK cutover: hard cutover in Phase 36; no parallel dual-UI period
 - [Phase 35]: KEEP_MPV: cookie-protected YouTube path fails through yt-dlp library API; mpv subprocess fallback retained for _play_youtube() in Plan 35-04
+- [Phase 35]: Plan 35-02: PEP 562 __getattr__ shim in constants.py preserves backward compat for DATA_DIR/DB_PATH/etc. — re-evaluates paths.* on every access so paths._root_override monkeypatching works
 
 ### Pending Todos
 
@@ -75,6 +76,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-11T15:27:29.110Z
-Stopped at: Completed 35-01-mpv-spike-PLAN.md
+Last session: 2026-04-11T15:33:46.842Z
+Stopped at: Completed 35-03-ytdlp-and-mpris-stub-PLAN.md
 Resume file: None
