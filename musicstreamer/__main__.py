@@ -20,7 +20,7 @@ from musicstreamer import migration
 from musicstreamer.models import Station, StationStream
 from musicstreamer.player import Player
 
-DEFAULT_SMOKE_URL = "https://streams.chillhop.com/live?type=.mp3"
+DEFAULT_SMOKE_URL = "https://ice1.somafm.com/groovesalad-128-mp3"
 
 
 def main(argv: list[str] | None = None) -> int:
