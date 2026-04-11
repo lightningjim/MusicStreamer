@@ -63,7 +63,7 @@ def test_preferred_stream_first(qtbot):
         make_stream(3, 3, "med"),
     ]
     station = make_station_with_streams(streams)
-    with patch.object(p, "_set_uri"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri"):
         p.play(station, preferred_quality="hi")
     assert p._current_stream is not None
     assert p._current_stream.quality == "hi"
@@ -80,7 +80,7 @@ def test_no_preferred_quality_uses_position_order(qtbot):
         make_stream(2, 2, "med"),
     ]
     station = make_station_with_streams(streams)
-    with patch.object(p, "_set_uri"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri"):
         p.play(station, preferred_quality="")
     assert p._current_stream.position == 1
     assert p._streams_queue[0].position == 2
@@ -91,7 +91,7 @@ def test_preferred_stream_not_duplicated(qtbot):
     p = make_player(qtbot)
     streams = [make_stream(1, 1, "low"), make_stream(2, 2, "hi")]
     station = make_station_with_streams(streams)
-    with patch.object(p, "_set_uri"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri"):
         p.play(station, preferred_quality="hi")
     assert p._current_stream.id == 2
     all_ids = [p._current_stream.id] + [s.id for s in p._streams_queue]
@@ -115,8 +115,7 @@ def test_gst_error_triggers_failover(qtbot):
     mock_msg = MagicMock()
     mock_msg.parse_error.return_value = (Exception("test error"), "debug info")
 
-    with patch.object(p, "_set_uri") as mock_set_uri, \
-         patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri") as mock_set_uri:
         # Call the recovery path directly — _on_gst_error schedules it via
         # QTimer.singleShot(0, ...), which the test does not need to spin
         # an event loop for because we can invoke the handler synchronously.
@@ -135,8 +134,7 @@ def test_timeout_triggers_failover(qtbot):
     stream_b = make_stream(2, 2, "med")
     p._streams_queue = [stream_b]
     p._current_station_name = "Test"
-    with patch.object(p, "_set_uri") as mock_set_uri, \
-         patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri") as mock_set_uri:
         p._on_timeout()
     assert p._current_stream == stream_b
     mock_set_uri.assert_called_once()
@@ -179,7 +177,7 @@ def test_failover_signal_fires_on_attempt(qtbot):
     p._streams_queue = [stream_b]
     p._current_station_name = "Test"
     p._is_first_attempt = False
-    with patch.object(p, "_set_uri"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri"):
         with qtbot.waitSignal(p.failover, timeout=1000) as blocker:
             p._try_next_stream()
     assert blocker.args == [stream_b]
@@ -213,7 +211,7 @@ def test_new_play_cancels_previous_failover(qtbot):
     p._streams_queue = [make_stream(9, 9, "low")]
     streams = [make_stream(1, 1, "hi")]
     station = make_station_with_streams(streams)
-    with patch.object(p, "_set_uri"), patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri"):
         p.play(station)
     assert p._current_stream is not None
     assert p._current_stream.id == 1
@@ -230,8 +228,7 @@ def test_play_stream_bypasses_queue(qtbot):
     p._streams_queue = [make_stream(2, 2, "med"), make_stream(3, 3, "low")]
     p._current_station_name = "Test"
     target_stream = make_stream(5, 5, "hi")
-    with patch.object(p, "_set_uri") as mock_set_uri, \
-         patch.object(p, "_stop_yt_proc"):
+    with patch.object(p, "_set_uri") as mock_set_uri:
         p.play_stream(target_stream)
     assert p._current_stream == target_stream
     assert len(p._streams_queue) == 0
@@ -239,102 +236,96 @@ def test_play_stream_bypasses_queue(qtbot):
 
 
 # ---------------------------------------------------------------------------
-# YouTube failover (KEEP_MPV branch)
+# YouTube playback via yt-dlp library (Plan 35-06)
 # ---------------------------------------------------------------------------
 
-def test_youtube_starts_poll_timer(qtbot):
-    """For a YouTube URL, _play_youtube arms the yt_poll_timer."""
+def test_youtube_resolve_success_sets_uri_and_arms_failover(qtbot):
+    """Happy path: _youtube_resolve_worker returns an HLS URL, the queued
+    youtube_resolved handler calls _set_uri and arms the failover timer."""
     p = make_player(qtbot)
-    yt_stream = StationStream(
-        id=1, station_id=1,
-        url="https://www.youtube.com/watch?v=test",
-        quality="hi", position=1,
-    )
-    backup_stream = make_stream(2, 2, "med")
-    station = make_station_with_streams([yt_stream, backup_stream])
 
-    mock_proc = MagicMock()
-    mock_proc.poll.return_value = None  # still running
-    with patch("musicstreamer.player._popen", return_value=mock_proc), \
-         patch("musicstreamer.player.os.path.exists", return_value=False):
-        p.play(station)
-    assert p._yt_poll_timer.isActive()
+    class FakeYDL:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def extract_info(self, url, download=False):
+            return {"url": "http://resolved.example/stream.m3u8"}
+
+    import yt_dlp
+    with patch.object(yt_dlp, "YoutubeDL", FakeYDL), \
+         patch.object(p, "_set_uri") as mock_set_uri:
+        # Call worker directly so the signal fires synchronously in tests
+        with qtbot.waitSignal(p.youtube_resolved, timeout=3000) as blocker:
+            p._youtube_resolve_worker("https://www.youtube.com/watch?v=test")
+        assert blocker.args == ["http://resolved.example/stream.m3u8"]
+        # The queued slot runs on the main thread via qtbot's event processing
+        qtbot.wait(50)
+
+    mock_set_uri.assert_called_with("http://resolved.example/stream.m3u8")
+    assert p._failover_timer.isActive()
 
 
-# ---------------------------------------------------------------------------
-# Phase 33 / FIX-07 — 15s YT minimum wait window (behavior preserved)
-# ---------------------------------------------------------------------------
-
-def test_yt_premature_exit_does_not_failover_before_15s(qtbot):
-    """FIX-07(a): mpv exit <15s keeps polling — no failover."""
+def test_youtube_resolve_failure_emits_error_and_advances_queue(qtbot):
+    """Sad path: yt_dlp raises -> youtube_resolution_failed -> playback_error
+    fires and _try_next_stream is invoked."""
     p = make_player(qtbot)
-    p._yt_proc = MagicMock()
-    p._yt_proc.poll.return_value = 1  # exited nonzero
-    p._yt_attempt_start_ts = 1000.0
 
-    with patch("musicstreamer.player.time.monotonic", return_value=1001.0), \
+    import yt_dlp
+    from yt_dlp.utils import DownloadError
+
+    class FailingYDL:
+        def __init__(self, opts):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def extract_info(self, url, download=False):
+            raise DownloadError("boom")
+
+    with patch.object(yt_dlp, "YoutubeDL", FailingYDL), \
          patch.object(p, "_try_next_stream") as mock_next:
-        # Arm poll timer then invoke callback directly
-        p._yt_poll_timer.start()
-        p._yt_poll_cb()
+        with qtbot.waitSignal(p.youtube_resolution_failed, timeout=3000):
+            p._youtube_resolve_worker("https://www.youtube.com/watch?v=test")
+        qtbot.wait(50)
 
-    mock_next.assert_not_called()
-    assert p._yt_poll_timer.isActive()
-
-
-def test_yt_alive_at_window_close_succeeds(qtbot):
-    """FIX-07(b): mpv still alive at >=15s → stop poll timer, success."""
-    p = make_player(qtbot)
-    p._yt_proc = MagicMock()
-    p._yt_proc.poll.return_value = None  # still running
-    p._yt_attempt_start_ts = 1000.0
-
-    with patch("musicstreamer.player.time.monotonic", return_value=1015.1):
-        p._yt_poll_timer.start()
-        p._yt_poll_cb()
-
-    assert not p._yt_poll_timer.isActive()
-    assert p._yt_attempt_start_ts is None
+    mock_next.assert_called_once()
 
 
-def test_cookie_retry_reseeds_yt_window(qtbot):
-    """FIX-07(c): cookie-retry substitutes new mpv and re-seeds _yt_attempt_start_ts."""
+def test_play_youtube_spawns_resolver_thread(qtbot):
+    """_play_youtube schedules a resolver thread and does not block."""
+    import threading as _threading
     p = make_player(qtbot)
     p._current_station_name = "Test"
-    first_proc = MagicMock()
-    first_proc.poll.return_value = 1  # exited immediately
-    second_proc = MagicMock()
-    second_proc.poll.return_value = None  # still running
 
-    popen_returns = iter([first_proc, second_proc])
-    monotonic_values = iter([1000.0, 1002.0])
+    started = {"count": 0, "target": None}
+    real_thread_init = _threading.Thread.__init__
 
-    def fake_monotonic():
-        return next(monotonic_values)
+    def fake_init(self, *args, target=None, **kwargs):
+        started["count"] += 1
+        started["target"] = target
+        # Bypass real thread execution; just capture
+        real_thread_init(self, target=lambda: None, daemon=kwargs.get("daemon", False))
 
-    with patch("musicstreamer.player._popen", side_effect=lambda *a, **k: next(popen_returns)), \
-         patch("musicstreamer.player.os.path.exists", return_value=True), \
-         patch("musicstreamer.player.tempfile.mkstemp", return_value=(0, "/tmp/fake_cookies.txt")), \
-         patch("musicstreamer.player.os.close"), \
-         patch("musicstreamer.player.os.unlink"), \
-         patch("musicstreamer.player.shutil.copy2"), \
-         patch("musicstreamer.player.time.monotonic", side_effect=fake_monotonic):
+    with patch.object(_threading.Thread, "__init__", fake_init):
         p._play_youtube("https://www.youtube.com/watch?v=test")
-        # Directly trigger the cookie retry
-        p._check_cookie_retry({
-            "url": "https://www.youtube.com/watch?v=test",
-            "cmd": ["mpv", "--ytdl-raw-options=cookies=/tmp/fake_cookies.txt", "url"],
-            "env": {},
-        })
 
-    assert p._yt_attempt_start_ts == 1002.0
+    assert started["count"] == 1
+    assert started["target"] is not None
 
 
-def test_cancel_clears_yt_attempt_ts(qtbot):
-    """_cancel_timers clears _yt_attempt_start_ts and stops the poll timer."""
+def test_cancel_stops_failover_timer(qtbot):
+    """_cancel_timers stops the failover timer (no more yt poll timer)."""
     p = make_player(qtbot)
-    p._yt_attempt_start_ts = 5.0
-    p._yt_poll_timer.start()
+    p._failover_timer.start(10000)
     p._cancel_timers()
-    assert p._yt_attempt_start_ts is None
-    assert not p._yt_poll_timer.isActive()
+    assert not p._failover_timer.isActive()
