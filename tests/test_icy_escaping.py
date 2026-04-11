@@ -1,11 +1,18 @@
-"""Unit tests for ICY title escaping using GLib.markup_escape_text."""
-import gi
-gi.require_version("GLib", "2.0")
-from gi.repository import GLib
+"""Unit tests for ICY title escaping.
+
+Phase 35 port: the original helper was ``GLib.markup_escape_text``.
+Tests now use Python's ``xml.sax.saxutils.escape`` with the same entity
+map (``&``, ``<``, ``>``, and ``"``) so the behavioral contract is
+preserved without an ``import gi`` dependency in the test suite (D-26).
+"""
+from xml.sax.saxutils import escape
+
+
+_ENTITIES = {'"': "&quot;"}
 
 
 def _escape(s: str) -> str:
-    return GLib.markup_escape_text(s, -1)
+    return escape(s, _ENTITIES)
 
 
 def test_escape_ampersand():
