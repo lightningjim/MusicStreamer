@@ -68,7 +68,7 @@
 
 ### QA — Port quality gates
 
-- [ ] **QA-01**: `pytest-qt` with offscreen platform replaces the GTK fake-display test infrastructure; all v1.5 tests ported to Qt equivalents.
+- [x] **QA-01**: `pytest-qt` with offscreen platform replaces the GTK fake-display test infrastructure; all v1.5 tests ported to Qt equivalents.
 - [x] **QA-02**: Test count ≥ 265 passing on Linux after the port; zero GTK imports in the test suite.
 - [ ] **QA-03**: Windows smoke test suite runs on a clean Windows VM or manual UAT before the milestone ships (station playback, YouTube, Twitch, failover, media keys, installer round-trip).
 - [x] **QA-04**: Per-phase feature-parity checklist gates plan approval — explicit "no new behavior" rule enforced during port phases.
@@ -117,7 +117,7 @@
 | PORT-04 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | PORT-07 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | PORT-08 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
-| QA-01 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
+| QA-01 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | QA-04 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | UI-01 | Phase 37: Station List + Now Playing | Pending |
 | UI-02 | Phase 37: Station List + Now Playing | Pending |
