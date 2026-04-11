@@ -1,11 +1,21 @@
 ---
 id: SEED-002
-status: dormant
+status: shipped
 planted: 2026-03-27
 planted_during: v1.3 Discovery & Favorites (pre-planning)
 trigger_when: any milestone focused on theming, appearance, or UI customization
 scope: medium
+shipped_date: 2026-04-05
+shipped_by: v1.4 Phase 19 (ACCENT-01) — Custom Accent Color
 ---
+
+> **✅ SHIPPED** — Delivered as v1.4 Phase 19. Exact match to the seed
+> proposal: 8 preset swatches + hex entry field, persisted in SQLite
+> settings, CSS injection via `Gtk.CssProvider` at `PRIORITY_USER` so
+> it overrides theme tokens. Key code:
+> `musicstreamer/ui/accent_dialog.py`, `musicstreamer/accent_utils.py`.
+> See SEED-006 for the follow-up (visual color wheel picker — still
+> dormant).
 
 # SEED-002: Custom highlight/accent color with presets + hex input
 

@@ -1,11 +1,23 @@
 ---
 id: SEED-004
-status: dormant
+status: shipped
 planted: 2026-04-03
 planted_during: v1.3 Phase 15 (AudioAddict Import)
 trigger_when: v1.4 / next milestone planning
 scope: Large
+shipped_date: 2026-04-09
+shipped_by: v1.5 Phase 27 (STR-01..14) Multi-Stream Model + v1.5 Phase 28 (D-01..08) Stream Failover
 ---
+
+> **✅ SHIPPED** — Delivered by the same v1.5 Phase 27+28 work that
+> closed SEED-003. The "2 servers × 3 qualities = 6 streams" model
+> described here is exactly what the `station_streams` schema captures:
+> multiple URLs per station in priority order, each tagged with a
+> quality preset. The failover queue (D-01..08) walks the priority list
+> on error, satisfying the "backup servers" half. The
+> `ManageStreamsDialog` in the edit flow satisfies the per-station
+> override half. SEED-003 and SEED-004 were duplicates planted 3 days
+> apart — both retired together.
 
 # SEED-004: One station with multiple streams (backup servers + per-quality URLs)
 

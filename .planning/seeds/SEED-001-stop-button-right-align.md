@@ -1,11 +1,19 @@
 ---
 id: SEED-001
-status: dormant
+status: shipped
 planted: 2026-03-27
 planted_during: v1.3 Discovery & Favorites (pre-planning)
 trigger_when: any milestone with UI layout or player controls phases
 scope: small
+shipped_date: 2026-04-10
+shipped_by: v1.4 Phase 20 (CTRL-01) + v1.5 Phase 26 (FIX-06) — controls_box layout rework
 ---
+
+> **✅ SHIPPED** — `musicstreamer/ui/main_window.py:149` sets
+> `controls_box.set_halign(Gtk.Align.END)`, right-aligning the whole
+> controls cluster (star, edit, pause, stop, stream) to the panel's
+> right edge. Delivered incidentally as part of the v1.4/v1.5 now-playing
+> controls rework, not as a dedicated fix.
 
 # SEED-001: Right-align the Stop button in the now-playing panel
 
