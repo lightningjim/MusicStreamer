@@ -28,3 +28,6 @@ musicstreamer = "musicstreamer.__main__:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["musicstreamer*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

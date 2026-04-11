@@ -1,80 +1,68 @@
-import sys
-import gi
-gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
-gi.require_version("Gst", "1.0")
-from gi.repository import Adw, Gst, Gtk, Gdk
+"""Phase 35 headless entry — QCoreApplication + Player only.
 
-from musicstreamer.constants import APP_ID, ACCENT_COLOR_DEFAULT
-from musicstreamer.accent_utils import build_accent_css
-from musicstreamer.repo import db_connect, db_init, Repo
-from musicstreamer.assets import ensure_dirs
-from musicstreamer.ui.main_window import MainWindow
+Success Criterion #1: ``python -m musicstreamer <stream_url>`` plays the
+stream via GStreamer and prints ICY titles to stdout.
 
-Gst.init(None)  # MUST be here, before any Player instantiation
-
-_APP_CSS = """
-.now-playing-panel {
-    background: linear-gradient(
-        to bottom,
-        shade(@card_bg_color, 1.04),
-        shade(@card_bg_color, 0.97)
-    );
-    border-radius: 12px;
-}
-
-.station-list-row {
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
-
-.now-playing-art {
-    border-radius: 5px;
-    background-color: transparent;
-    overflow: hidden;
-}
-
-.favorites-list-row {
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
+Phase 36 will replace this with a QApplication + QMainWindow entry point.
+The old GTK entry (``main.py``) stays on disk until Phase 36 deletes it
+per PORT-04 / D-06.
 """
+from __future__ import annotations
+
+import sys
+
+import gi
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst
+from PySide6.QtCore import QCoreApplication, QTimer
+
+from musicstreamer import migration
+from musicstreamer.models import Station, StationStream
+from musicstreamer.player import Player
+
+DEFAULT_SMOKE_URL = "https://streams.chillhop.com/live?type=.mp3"
 
 
-class App(Adw.Application):
-    def __init__(self):
-        super().__init__(application_id=APP_ID)
+def main(argv: list[str] | None = None) -> int:
+    argv = list(argv) if argv is not None else list(sys.argv)
 
-    def do_activate(self):
-        ensure_dirs()  # MUST be first — creates DATA_DIR before db_connect
-        con = db_connect()
-        db_init(con)
-        repo = Repo(con)
-        self.repo = repo
-        win = MainWindow(self, repo)
-        css_provider = Gtk.CssProvider()
-        css_provider.load_from_string(_APP_CSS)
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+    # GStreamer must be initialized before any pipeline construction.
+    Gst.init(None)
+
+    # PORT-06: first-launch data migration (no-op on Linux, writes marker).
+    migration.run_migration()
+
+    app = QCoreApplication(argv)
+    player = Player()
+
+    player.title_changed.connect(lambda t: print(f"ICY: {t}", flush=True))
+    player.playback_error.connect(lambda m: print(f"ERROR: {m}", flush=True))
+    player.failover.connect(
+        lambda s: print(
+            f"FAILOVER: {'exhausted' if s is None else s.url}", flush=True
         )
-        accent_provider = Gtk.CssProvider()
-        accent_hex = repo.get_setting("accent_color", ACCENT_COLOR_DEFAULT)
-        accent_provider.load_from_string(build_accent_css(accent_hex))
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            accent_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_USER,
-        )
-        self.accent_provider = accent_provider
-        win.present()
+    )
+    player.offline.connect(lambda ch: print(f"OFFLINE: {ch}", flush=True))
 
+    url = argv[1] if len(argv) > 1 else DEFAULT_SMOKE_URL
+    stream = StationStream(
+        id=0, station_id=0, url=url, quality="hi", position=0
+    )
+    station = Station(
+        id=0,
+        name="Smoke Test",
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        streams=[stream],
+    )
 
-def main():
-    app = App()
-    app.run(sys.argv)
+    # Kick off AFTER the event loop starts so queued signal connections are live.
+    QTimer.singleShot(0, lambda: player.play(station))
+    return app.exec()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
