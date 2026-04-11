@@ -122,7 +122,12 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
   4. No `GLib.idle_add`, `GLib.timeout_add`, or `dbus-python` imports remain in `player.py`
   5. `yt_import.py` and `player._play_twitch()` use `yt-dlp` and `streamlink` Python APIs (no `subprocess.Popen` calls to those tools); a YouTube live stream plays end-to-end via the library path
   6. mpv fallback spike result documented — either mpv code paths removed (preferred) or mpv retained with spike failure notes
-**Plans**: TBD
+**Plans**: 5 plans
+- [x] 35-01-mpv-spike-PLAN.md — Install Phase 35 deps + run mpv-drop spike, record DROP_MPV/KEEP_MPV decision
+- [ ] 35-02-platformdirs-paths-PLAN.md — paths.py + migration.py helpers, refactor constants.py + call sites (PORT-05, PORT-06)
+- [ ] 35-03-ytdlp-and-mpris-stub-PLAN.md — yt_import.py library-API port + mpris.py no-op stub (PORT-09 yt-dlp side, D-09..D-11)
+- [ ] 35-04-player-qobject-PLAN.md — Player → QObject + GstBusLoopThread + streamlink library + spike-branched YouTube (PORT-01, PORT-02, PORT-09 player side)
+- [ ] 35-05-headless-entry-and-tests-PLAN.md — headless __main__.py entry + big-bang pytest-qt test port (QA-02)
 
 ### Phase 36: Qt Scaffold + GTK Cutover
 **Goal**: The app is a Qt application: bare QMainWindow launches, GTK codebase is deleted, icons are bundled, and the test harness uses offscreen Qt
@@ -237,7 +242,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 1–34 | v1.0–v1.5 | all | Complete | 2026-04-10 |
-| 35. Backend Isolation | v2.0 | 0/TBD | Not started | - |
+| 35. Backend Isolation | v2.0 | 1/5 | In Progress|  |
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 0/TBD | Not started | - |
 | 37. Station List + Now Playing | v2.0 | 0/TBD | Not started | - |
 | 38. Filter Strip + Favorites | v2.0 | 0/TBD | Not started | - |

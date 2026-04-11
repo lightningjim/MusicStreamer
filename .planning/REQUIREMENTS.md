@@ -106,7 +106,7 @@
 | PORT-02 | Phase 35: Backend Isolation | Pending |
 | PORT-05 | Phase 35: Backend Isolation | Pending |
 | PORT-06 | Phase 35: Backend Isolation | Pending |
-| PORT-09 | Phase 35: Backend Isolation | Pending |
+| PORT-09 | Phase 35: Backend Isolation | In Progress (spike done, library port pending Plan 35-03) |
 | QA-02 | Phase 35: Backend Isolation | Pending |
 | PORT-03 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
 | PORT-04 | Phase 36: Qt Scaffold + GTK Cutover | Pending |
