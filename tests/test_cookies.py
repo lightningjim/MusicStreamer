@@ -154,10 +154,11 @@ def test_mpv_no_cookies_when_absent(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_clear_removes_cookies_file(tmp_path, monkeypatch):
-    """clear_cookies() deletes COOKIES_PATH if it exists and returns True."""
+    """clear_cookies() deletes the cookies file under paths.cookies_path() and returns True."""
+    from musicstreamer import paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     cookies_file = tmp_path / "cookies.txt"
     cookies_file.write_text("some cookies")
-    monkeypatch.setattr("musicstreamer.constants.COOKIES_PATH", str(cookies_file))
 
     from musicstreamer.constants import clear_cookies
     result = clear_cookies()
@@ -167,9 +168,9 @@ def test_clear_removes_cookies_file(tmp_path, monkeypatch):
 
 def test_clear_returns_false_when_absent(tmp_path, monkeypatch):
     """clear_cookies() returns False when cookies.txt does not exist."""
-    cookies_file = tmp_path / "cookies.txt"
+    from musicstreamer import paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     # Do NOT create the file
-    monkeypatch.setattr("musicstreamer.constants.COOKIES_PATH", str(cookies_file))
 
     from musicstreamer.constants import clear_cookies
     result = clear_cookies()

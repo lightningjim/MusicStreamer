@@ -2,11 +2,11 @@ import sqlite3
 from typing import Optional, List
 
 from musicstreamer.models import Station, Provider, Favorite, StationStream
-from musicstreamer.constants import DB_PATH
+from musicstreamer import paths
 
 
 def db_connect() -> sqlite3.Connection:
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(paths.db_path())
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON;")
     return con

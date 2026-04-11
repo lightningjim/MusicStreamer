@@ -37,10 +37,11 @@ def test_twitch_token_path_constant():
 # ---------------------------------------------------------------------------
 
 def test_clear_twitch_token_removes_file(tmp_path, monkeypatch):
-    """clear_twitch_token() deletes TWITCH_TOKEN_PATH if it exists and returns True."""
+    """clear_twitch_token() deletes the token file under paths.twitch_token_path() and returns True."""
+    from musicstreamer import paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     token_file = tmp_path / "twitch-token.txt"
     token_file.write_text("abc123")
-    monkeypatch.setattr("musicstreamer.constants.TWITCH_TOKEN_PATH", str(token_file))
 
     from musicstreamer.constants import clear_twitch_token
     result = clear_twitch_token()
@@ -50,9 +51,9 @@ def test_clear_twitch_token_removes_file(tmp_path, monkeypatch):
 
 def test_clear_twitch_token_returns_false_when_absent(tmp_path, monkeypatch):
     """clear_twitch_token() returns False when twitch-token.txt does not exist."""
-    token_file = tmp_path / "twitch-token.txt"
+    from musicstreamer import paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     # Do NOT create the file
-    monkeypatch.setattr("musicstreamer.constants.TWITCH_TOKEN_PATH", str(token_file))
 
     from musicstreamer.constants import clear_twitch_token
     result = clear_twitch_token()
