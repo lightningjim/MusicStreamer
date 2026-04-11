@@ -128,6 +128,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] 35-03-ytdlp-and-mpris-stub-PLAN.md — yt_import.py library-API port + mpris.py no-op stub (PORT-09 yt-dlp side, D-09..D-11)
 - [x] 35-04-player-qobject-PLAN.md — Player → QObject + GstBusLoopThread + streamlink library + spike-branched YouTube (PORT-01, PORT-02, PORT-09 player side)
 - [x] 35-05-headless-entry-and-tests-PLAN.md — headless __main__.py entry + big-bang pytest-qt test port (QA-02)
+- [x] 35-06-drop-mpv-yt-dlp-ejs-PLAN.md — Supersedes KEEP_MPV: drop mpv entirely, resolve YouTube via yt-dlp library with EJS JS challenge solver. Adds RUNTIME-01 (Node.js runtime requirement). Retires PKG-05.
 
 ### Phase 36: Qt Scaffold + GTK Cutover
 **Goal**: The app is a Qt application: bare QMainWindow launches, GTK codebase is deleted, icons are bundled, and the test harness uses offscreen Qt
@@ -226,15 +227,15 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Plans**: TBD
 
 ### Phase 44: Windows Packaging + Installer
-**Goal**: A Windows installer EXE is produced that installs MusicStreamer with all dependencies; single-instance enforcement works; no console windows appear; bundled external tools are used
+**Goal**: A Windows installer EXE is produced that installs MusicStreamer with all dependencies; single-instance enforcement works; no console windows appear; Node.js is documented as a host prerequisite (not bundled)
 **Depends on**: Phase 43
-**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, PKG-05, QA-03, QA-05
+**Requirements**: PKG-01, PKG-02, PKG-03, PKG-04, QA-03, QA-05 (PKG-05 retired by Plan 35-06)
 **Success Criteria** (what must be TRUE):
   1. NSIS (or Inno Setup) installer EXE installs the app to `%LOCALAPPDATA%\MusicStreamer` with a Start Menu shortcut
   2. Launching a second instance activates the running window instead of opening a duplicate
-  3. Any remaining subprocess calls (mpv if retained) run without a console window flash on Windows via the centralized `_popen()` helper with `CREATE_NO_WINDOW`
-  4. If mpv is still used after the Phase 35 spike, bundled `ext/mpv.exe` is preferred over PATH; otherwise PKG-05 is retired as satisfied-by-removal
-  5. Windows smoke test passes: station playback, YouTube, Twitch, failover, media keys, and installer round-trip all verified on a clean VM
+  3. Installer documents the Node.js host prerequisite (required by yt-dlp's EJS JS challenge solver — see RUNTIME-01) and fails gracefully at first launch if Node.js is not on PATH
+  4. PKG-03 is a no-op at ship time (Plan 35-06 eliminated all subprocess launches in `musicstreamer/`); if any reappear before Phase 44, they must go through a centralized `_popen()` helper with `CREATE_NO_WINDOW`
+  5. Windows smoke test passes: station playback (ShoutCast + HLS), YouTube via yt-dlp library + EJS, Twitch via streamlink library, failover, media keys, and installer round-trip all verified on a clean VM
 **Plans**: TBD
 
 ## Progress
