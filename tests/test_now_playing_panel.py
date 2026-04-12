@@ -57,12 +57,28 @@ class FakePlayer(QObject):
 class FakeRepo:
     def __init__(self, settings: Optional[dict] = None) -> None:
         self._settings = dict(settings or {})
+        self._favorites: list = []
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         return self._settings.get(key, default)
 
     def set_setting(self, key: str, value: str) -> None:
         self._settings[key] = value
+
+    def is_favorited(self, station_name: str, track_title: str) -> bool:
+        return any(
+            f == (station_name, track_title) for f in self._favorites
+        )
+
+    def add_favorite(self, station_name: str, provider_name: str, track_title: str, genre: str) -> None:
+        key = (station_name, track_title)
+        if key not in self._favorites:
+            self._favorites.append(key)
+
+    def remove_favorite(self, station_name: str, track_title: str) -> None:
+        key = (station_name, track_title)
+        if key in self._favorites:
+            self._favorites.remove(key)
 
 
 def _station(name: str = "Drone Zone", provider: Optional[str] = "SomaFM",
@@ -281,3 +297,76 @@ def test_new_icons_load(qtbot):
         ":/icons/media-playback-stop-symbolic.svg",
     ]:
         assert not QIcon(p).isNull(), f"icon missing from resource: {p}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 38-02: Track star button tests
+# ---------------------------------------------------------------------------
+
+
+def test_star_btn_disabled_without_icy(qtbot):
+    """star_btn is disabled initially (no station, no ICY title)."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    assert hasattr(panel, "star_btn"), "NowPlayingPanel must have star_btn"
+    assert not panel.star_btn.isEnabled()
+
+
+def test_star_btn_enabled_after_title(qtbot):
+    """star_btn becomes enabled after binding a station and receiving an ICY title."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station())
+    panel.on_title_changed("Artist - Song")
+    assert panel.star_btn.isEnabled()
+
+
+def test_star_btn_toggle(qtbot):
+    """Clicking star saves to favorites; clicking again removes it."""
+    repo = FakeRepo({"volume": "80"})
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    station = _station()
+    panel.bind_station(station)
+    panel.on_title_changed("Artist - Song")
+
+    # Not favorited yet
+    assert not repo.is_favorited(station.name, "Artist - Song")
+
+    # Click star → should favorite
+    panel.star_btn.click()
+    assert repo.is_favorited(station.name, "Artist - Song")
+
+    # Click again → should unfavorite
+    panel.star_btn.click()
+    assert not repo.is_favorited(station.name, "Artist - Song")
+
+
+def test_star_btn_disabled_after_stop(qtbot):
+    """star_btn is disabled after stop is clicked."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station())
+    panel.on_title_changed("Artist - Song")
+    assert panel.star_btn.isEnabled()
+    panel._on_stop_clicked()
+    assert not panel.star_btn.isEnabled()
+
+
+def test_star_btn_track_starred_signal(qtbot):
+    """Clicking star emits track_starred signal with correct args."""
+    repo = FakeRepo({"volume": "80"})
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    station = _station("Groove Salad", "SomaFM")
+    panel.bind_station(station)
+    panel.on_title_changed("DJ Mix")
+
+    with qtbot.waitSignal(panel.track_starred, timeout=500) as blocker:
+        panel.star_btn.click()
+
+    station_name, track_title, provider, is_fav = blocker.args
+    assert station_name == "Groove Salad"
+    assert track_title == "DJ Mix"
+    assert provider == "SomaFM"
+    assert is_fav is True

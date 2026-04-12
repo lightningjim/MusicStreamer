@@ -75,6 +75,9 @@ class NowPlayingPanel(QWidget):
     # to ``_on_cover_art_ready`` so the slot runs on the main thread.
     cover_art_ready = Signal(str)
 
+    # Emitted on track star toggle: (station_name, track_title, provider_name, is_now_favorited)
+    track_starred = Signal(str, str, str, bool)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -83,6 +86,7 @@ class NowPlayingPanel(QWidget):
         self._cover_fetch_token: int = 0
         self._last_cover_icy: Optional[str] = None
         self._is_playing: bool = False
+        self._last_icy_title: str = ""
 
         self.setMinimumWidth(560)
 
@@ -170,7 +174,18 @@ class NowPlayingPanel(QWidget):
         # Plan 39: insert edit button + stream picker here
         controls.addWidget(self.stop_btn)
 
-        # Plan 38: insert star button here
+        # Plan 38: track star button (D-08, D-11)
+        self.star_btn = QToolButton(self)
+        self.star_btn.setIconSize(QSize(20, 20))
+        self.star_btn.setFixedSize(28, 28)
+        self.star_btn.setCheckable(True)
+        self.star_btn.setEnabled(False)  # disabled until station + ICY title available
+        self.star_btn.setIcon(
+            QIcon.fromTheme("non-starred-symbolic", QIcon(":/icons/non-starred-symbolic.svg"))
+        )
+        self.star_btn.clicked.connect(self._on_star_clicked)
+        controls.addWidget(self.star_btn)
+
         self.volume_slider = QSlider(Qt.Horizontal, self)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setFixedWidth(120)
@@ -227,6 +242,9 @@ class NowPlayingPanel(QWidget):
             self.name_provider_label.setText(station.name)
         self.icy_label.setText("")
         self._last_cover_icy = None
+        self._last_icy_title = ""
+        self.star_btn.setChecked(False)
+        self._update_star_enabled()
         self._show_station_logo()
         self._show_station_logo_in_cover_slot()
 
@@ -236,6 +254,18 @@ class NowPlayingPanel(QWidget):
 
     def on_title_changed(self, title: str) -> None:
         self.icy_label.setText(title or "")
+        self._last_icy_title = title or ""
+        self._update_star_enabled()
+        if self._station and title:
+            is_fav = self._repo.is_favorited(self._station.name, title)
+            self.star_btn.setChecked(is_fav)
+            icon_name = "starred-symbolic" if is_fav else "non-starred-symbolic"
+            self.star_btn.setIcon(
+                QIcon.fromTheme(icon_name, QIcon(f":/icons/{icon_name}.svg"))
+            )
+            self.star_btn.setToolTip(
+                "Remove track from favorites" if is_fav else "Save track to favorites"
+            )
         if (
             title
             and not is_junk_title(title)
@@ -272,6 +302,7 @@ class NowPlayingPanel(QWidget):
                 )
             )
             self.play_pause_btn.setToolTip("Play")
+        self._update_star_enabled()
 
     # ----------------------------------------------------------------------
     # Internal slots
@@ -289,12 +320,55 @@ class NowPlayingPanel(QWidget):
         self._player.stop()
         self.on_playing_state_changed(False)
         self._station = None
+        self._last_icy_title = ""
+        self.star_btn.setChecked(False)
+        self._update_star_enabled()
         self.name_provider_label.setText("")
         self.icy_label.setText("No station playing")
         self.elapsed_label.setText("0:00")
         self._last_cover_icy = None
         self.logo_label.clear()
         self.cover_label.clear()
+
+    def _update_star_enabled(self) -> None:
+        """Enable star_btn only when a station is playing and an ICY title is available."""
+        has_track = self._station is not None and bool(self._last_icy_title)
+        self.star_btn.setEnabled(has_track)
+        if not has_track:
+            if self._station is not None:
+                self.star_btn.setToolTip("No track to favorite")
+            else:
+                self.star_btn.setToolTip("")
+
+    def _on_star_clicked(self) -> None:
+        if self._station is None or not self._last_icy_title:
+            return
+        is_fav = self._repo.is_favorited(self._station.name, self._last_icy_title)
+        if is_fav:
+            self._repo.remove_favorite(self._station.name, self._last_icy_title)
+            self.star_btn.setChecked(False)
+            self.star_btn.setIcon(
+                QIcon.fromTheme("non-starred-symbolic", QIcon(":/icons/non-starred-symbolic.svg"))
+            )
+            self.star_btn.setToolTip("Save track to favorites")
+            self.track_starred.emit(
+                self._station.name, self._last_icy_title,
+                self._station.provider_name or "", False
+            )
+        else:
+            self._repo.add_favorite(
+                self._station.name, self._station.provider_name or "",
+                self._last_icy_title, ""
+            )
+            self.star_btn.setChecked(True)
+            self.star_btn.setIcon(
+                QIcon.fromTheme("starred-symbolic", QIcon(":/icons/starred-symbolic.svg"))
+            )
+            self.star_btn.setToolTip("Remove track from favorites")
+            self.track_starred.emit(
+                self._station.name, self._last_icy_title,
+                self._station.provider_name or "", True
+            )
 
     def _on_volume_changed_live(self, value: int) -> None:
         self._player.set_volume(value / 100.0)

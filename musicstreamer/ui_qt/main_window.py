@@ -103,6 +103,12 @@ class MainWindow(QMainWindow):
         self._player.offline.connect(self._on_offline)
         self._player.playback_error.connect(self._on_playback_error)
 
+        # Track star → toast (D-10)
+        self.now_playing.track_starred.connect(self._on_track_starred)
+
+        # Station star → toast (D-10)
+        self.station_panel.station_favorited.connect(self._on_station_favorited)
+
     # ----------------------------------------------------------------------
     # Public helpers
     # ----------------------------------------------------------------------
@@ -140,3 +146,11 @@ class MainWindow(QMainWindow):
         """Called by Player.playback_error(str)."""
         truncated = message[:80] + "\u2026" if len(message) > 80 else message
         self.show_toast(f"Playback error: {truncated}")
+
+    def _on_track_starred(self, station_name: str, track_title: str, provider: str, is_fav: bool) -> None:
+        """Called when the track star button is toggled in NowPlayingPanel."""
+        self.show_toast("Saved to favorites" if is_fav else "Removed from favorites")
+
+    def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
+        """Called when a station star is toggled in StationListPanel."""
+        self.show_toast("Station added to favorites" if is_fav else "Station removed from favorites")

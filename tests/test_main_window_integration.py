@@ -81,6 +81,27 @@ class FakeRepo:
         self._last_played_ids: list = getattr(self, "_last_played_ids", [])
         self._last_played_ids.append(station_id)
 
+    def set_station_favorite(self, station_id: int, is_favorite: bool) -> None:
+        pass
+
+    def is_favorite_station(self, station_id: int) -> bool:
+        return False
+
+    def list_favorite_stations(self) -> list:
+        return []
+
+    def list_favorites(self) -> list:
+        return []
+
+    def is_favorited(self, station_name: str, track_title: str) -> bool:
+        return False
+
+    def add_favorite(self, station_name: str, provider_name: str, track_title: str, genre: str) -> None:
+        pass
+
+    def remove_favorite(self, station_name: str, track_title: str) -> None:
+        pass
+
 
 def _make_station(name="Test Station", provider="TestFM") -> Station:
     return Station(
