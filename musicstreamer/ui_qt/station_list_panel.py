@@ -1,17 +1,18 @@
-"""Phase 37-01 / Phase 38-01: StationListPanel.
+"""Phase 37-01 / Phase 38-01 / Phase 38-02: StationListPanel.
 
 Left-panel widget containing:
-  1. "Recently Played" label + QListView (top, max 160px tall)
-  2. QFrame.HLine separator
-  3. Filter strip — search box, provider chip row, tag chip row, clear-all button
-  4. Provider-grouped QTreeView backed by StationTreeModel + StationFilterProxyModel (stretch)
+  1. Segmented control [Stations | Favorites] (always visible, top)
+  2. QStackedWidget:
+     - Page 0 (Stations): Recently Played + filter strip (search, chips, clear-all) + tree
+     - Page 1 (Favorites): FavoritesView (starred stations + tracks)
 
-Emits `station_activated(Station)` when the user clicks either a recent row
-or a station row in the tree. Provider group rows are non-selectable and
-click events on them are ignored (D-03).
+Emits `station_activated(Station)` when user clicks a station in tree, recently
+played, or the favorites view. Provider group rows in the tree are non-selectable.
 
-Signal connections use bound methods only (no self-capturing lambdas) to
-stay clear of the QA-05 widget-lifetime pitfall.
+Emits `station_favorited(Station, bool)` when a station star is toggled in the
+tree (for MainWindow to show toast).
+
+Signal connections use bound methods only (no self-capturing lambdas) per QA-05.
 """
 from __future__ import annotations
 
@@ -26,6 +27,8 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListView,
     QPushButton,
+    QSizePolicy,
+    QStackedWidget,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -38,6 +41,8 @@ from musicstreamer.models import Station
 from musicstreamer.ui_qt.station_tree_model import StationTreeModel
 from musicstreamer.ui_qt.station_filter_proxy import StationFilterProxyModel
 from musicstreamer.ui_qt.flow_layout import FlowLayout
+from musicstreamer.ui_qt.favorites_view import FavoritesView
+from musicstreamer.ui_qt.station_star_delegate import StationStarDelegate
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -79,10 +84,25 @@ def _load_station_icon(station: Station) -> QIcon:
     return QIcon(pix)
 
 
+_SEG_QSS = """
+QPushButton[segState="active"] {
+    background-color: palette(highlight);
+    color: palette(highlighted-text);
+    border-radius: 4px;
+}
+QPushButton[segState="inactive"] {
+    background-color: transparent;
+    color: palette(button-text);
+    border-radius: 4px;
+}
+"""
+
+
 class StationListPanel(QWidget):
-    """Left-panel widget — Recently Played + filter strip + provider-grouped station tree."""
+    """Left-panel widget — segmented control + QStackedWidget (Stations | Favorites)."""
 
     station_activated = Signal(Station)
+    station_favorited = Signal(Station, bool)  # (station, is_now_favorite)
 
     def __init__(self, repo, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -94,101 +114,124 @@ class StationListPanel(QWidget):
         layout.setSpacing(0)
 
         # ------------------------------------------------------------------
-        # Recently Played section (D-02)
+        # Segmented control [Stations | Favorites] (D-05, D-12) — always visible
         # ------------------------------------------------------------------
+        seg_row = QWidget(self)
+        seg_layout = QHBoxLayout(seg_row)
+        seg_layout.setContentsMargins(16, 8, 16, 8)
+        seg_layout.setSpacing(0)
+
+        self._stations_btn = QPushButton("Stations", seg_row)
+        self._favorites_btn = QPushButton("Favorites", seg_row)
+
+        for btn in (self._stations_btn, self._favorites_btn):
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn.setFixedHeight(32)
+            btn.setStyleSheet(_SEG_QSS)
+
+        self._seg_group = QButtonGroup(self)
+        self._seg_group.setExclusive(True)
+        self._seg_group.addButton(self._stations_btn, 0)
+        self._seg_group.addButton(self._favorites_btn, 1)
+
+        seg_layout.addWidget(self._stations_btn)
+        seg_layout.addWidget(self._favorites_btn)
+        layout.addWidget(seg_row)
+
+        # Set initial state
+        self._set_seg_state(self._stations_btn, True)
+        self._set_seg_state(self._favorites_btn, False)
+
+        # ------------------------------------------------------------------
+        # QStackedWidget (D-15)
+        # ------------------------------------------------------------------
+        self._stack = QStackedWidget(self)
+        layout.addWidget(self._stack, stretch=1)
+
+        # -- Page 0: Stations mode ----------------------------------------
+        stations_page = QWidget()
+        sp_layout = QVBoxLayout(stations_page)
+        sp_layout.setContentsMargins(0, 0, 0, 0)
+        sp_layout.setSpacing(0)
+
+        # Recently Played section (D-02)
         recent_label = QLabel("Recently Played")
         recent_label.setContentsMargins(16, 0, 16, 4)
-        # UI-SPEC Typography — Label role: 9pt Normal.
         rlabel_font = QFont()
         rlabel_font.setPointSize(9)
         rlabel_font.setWeight(QFont.Normal)
         recent_label.setFont(rlabel_font)
-        layout.addWidget(recent_label)
+        sp_layout.addWidget(recent_label)
 
-        self.recent_view = QListView(self)
+        self.recent_view = QListView(stations_page)
         self._recent_model = QStandardItemModel(self.recent_view)
         self.recent_view.setModel(self._recent_model)
         self.recent_view.setIconSize(QSize(32, 32))
-        self.recent_view.setMaximumHeight(160)  # UI-SPEC
+        self.recent_view.setMaximumHeight(160)
         self.recent_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.recent_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.recent_view.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.recent_view.clicked.connect(self._on_recent_clicked)
-        layout.addWidget(self.recent_view)
+        sp_layout.addWidget(self.recent_view)
 
         self._populate_recent()
 
-        # ------------------------------------------------------------------
         # Separator
-        # ------------------------------------------------------------------
-        sep = QFrame(self)
+        sep = QFrame(stations_page)
         sep.setFrameShape(QFrame.HLine)
         sep.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(sep)
+        sp_layout.addWidget(sep)
 
-        # ------------------------------------------------------------------
         # Filter strip — Search box (D-12)
-        # ------------------------------------------------------------------
-        self._search_box = QLineEdit(self)
+        self._search_box = QLineEdit(stations_page)
         self._search_box.setPlaceholderText("Search stations\u2026")
         self._search_box.setClearButtonEnabled(True)
-        self._search_box.setContentsMargins(16, 4, 16, 4)
-        # Apply L/R margins via wrapper widget with a layout
-        search_wrapper = QWidget(self)
+        search_wrapper = QWidget(stations_page)
         sw_layout = QHBoxLayout(search_wrapper)
         sw_layout.setContentsMargins(16, 4, 16, 4)
         sw_layout.addWidget(self._search_box)
-        layout.addWidget(search_wrapper)
+        sp_layout.addWidget(search_wrapper)
         self._search_box.textChanged.connect(self._on_search_changed)
 
-        # ------------------------------------------------------------------
-        # Provider chip row (D-13, D-02)
-        # ------------------------------------------------------------------
+        # Provider chip row (D-13)
         self._provider_chip_group = QButtonGroup(self)
         self._provider_chip_group.setExclusive(False)
-        provider_chip_container = QWidget(self)
+        provider_chip_container = QWidget(stations_page)
         provider_chip_layout = FlowLayout(provider_chip_container, h_spacing=4, v_spacing=8)
-        provider_chip_container.setContentsMargins(16, 0, 16, 0)
-        provider_chip_wrapper = QWidget(self)
+        provider_chip_wrapper = QWidget(stations_page)
         pcw_layout = QHBoxLayout(provider_chip_wrapper)
         pcw_layout.setContentsMargins(16, 4, 16, 0)
         pcw_layout.addWidget(provider_chip_container)
-        layout.addWidget(provider_chip_wrapper)
+        sp_layout.addWidget(provider_chip_wrapper)
 
         self._provider_chip_container = provider_chip_container
         self._provider_chip_layout = provider_chip_layout
 
-        # ------------------------------------------------------------------
-        # Tag chip row (D-13, D-02)
-        # ------------------------------------------------------------------
+        # Tag chip row (D-13)
         self._tag_chip_group = QButtonGroup(self)
         self._tag_chip_group.setExclusive(False)
-        tag_chip_container = QWidget(self)
+        tag_chip_container = QWidget(stations_page)
         tag_chip_layout = FlowLayout(tag_chip_container, h_spacing=4, v_spacing=8)
-        tag_chip_wrapper = QWidget(self)
+        tag_chip_wrapper = QWidget(stations_page)
         tcw_layout = QHBoxLayout(tag_chip_wrapper)
         tcw_layout.setContentsMargins(16, 4, 16, 0)
         tcw_layout.addWidget(tag_chip_container)
-        layout.addWidget(tag_chip_wrapper)
+        sp_layout.addWidget(tag_chip_wrapper)
 
         self._tag_chip_container = tag_chip_container
         self._tag_chip_layout = tag_chip_layout
 
-        # Populate chips after layouts are set up
         self._build_chip_rows()
 
-        # Connect chip group signals
         self._provider_chip_group.buttonClicked.connect(self._on_provider_chip_clicked)
         self._tag_chip_group.buttonClicked.connect(self._on_tag_chip_clicked)
 
-        # ------------------------------------------------------------------
-        # "Clear all" button (D-14) — right-aligned
-        # ------------------------------------------------------------------
-        clear_row = QWidget(self)
+        # "Clear all" button (D-14)
+        clear_row = QWidget(stations_page)
         clear_layout = QHBoxLayout(clear_row)
         clear_layout.setContentsMargins(16, 4, 16, 4)
         clear_layout.addStretch(1)
-        self._clear_btn = QPushButton(self)
+        self._clear_btn = QPushButton(stations_page)
         self._clear_btn.setToolTip("Clear all filters")
         clear_icon = QIcon(":/icons/edit-clear-all-symbolic.svg")
         if not clear_icon.isNull():
@@ -196,13 +239,11 @@ class StationListPanel(QWidget):
         else:
             self._clear_btn.setText("\u2715 Clear")
         clear_layout.addWidget(self._clear_btn)
-        layout.addWidget(clear_row)
+        sp_layout.addWidget(clear_row)
         self._clear_btn.clicked.connect(self._clear_all_filters)
 
-        # ------------------------------------------------------------------
-        # Main provider-grouped station tree (D-01) + proxy
-        # ------------------------------------------------------------------
-        self.tree = QTreeView(self)
+        # Provider-grouped station tree (D-01) + proxy
+        self.tree = QTreeView(stations_page)
         self.model = StationTreeModel(self._repo.list_stations())
         self._proxy = StationFilterProxyModel(parent=self)
         self._proxy.setSourceModel(self.model)
@@ -216,10 +257,26 @@ class StationListPanel(QWidget):
         self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tree.expandAll()
-        # QA-05: bound methods only, never self-capturing lambdas.
         self.tree.clicked.connect(self._on_tree_activated)
         self.tree.doubleClicked.connect(self._on_tree_activated)
-        layout.addWidget(self.tree, stretch=1)
+        sp_layout.addWidget(self.tree, stretch=1)
+
+        # Station star delegate (D-09)
+        self._star_delegate = StationStarDelegate(self._repo, parent=self.tree)
+        self.tree.setItemDelegate(self._star_delegate)
+        self._star_delegate.star_toggled.connect(self._on_station_star_toggled)
+
+        self._stack.addWidget(stations_page)  # index 0
+
+        # -- Page 1: Favorites mode ----------------------------------------
+        self._favorites_view = FavoritesView(self._repo, parent=self._stack)
+        self._favorites_view.station_activated.connect(self.station_activated.emit)
+        self._favorites_view.favorites_changed.connect(self._on_favorites_changed)
+        self._stack.addWidget(self._favorites_view)  # index 1
+
+        # Wire segmented control
+        self._stations_btn.clicked.connect(self._on_stations_clicked)
+        self._favorites_btn.clicked.connect(self._on_favorites_clicked)
 
     # ----------------------------------------------------------------------
     # Population
@@ -324,3 +381,41 @@ class StationListPanel(QWidget):
         station = index.data(Qt.UserRole)
         if isinstance(station, Station):
             self.station_activated.emit(station)
+
+    # ------------------------------------------------------------------
+    # Segmented control helpers (D-05, D-15)
+    # ------------------------------------------------------------------
+
+    def _set_seg_state(self, btn: QPushButton, active: bool) -> None:
+        btn.setProperty("segState", "active" if active else "inactive")
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
+        btn.update()
+
+    def _on_stations_clicked(self) -> None:
+        self._stack.setCurrentIndex(0)
+        self._set_seg_state(self._stations_btn, True)
+        self._set_seg_state(self._favorites_btn, False)
+
+    def _on_favorites_clicked(self) -> None:
+        self._stack.setCurrentIndex(1)
+        self._set_seg_state(self._favorites_btn, True)
+        self._set_seg_state(self._stations_btn, False)
+        self._favorites_view.refresh()
+
+    def _on_favorites_changed(self) -> None:
+        """Slot called when FavoritesView removes a favorite — no-op here, view handles itself."""
+        pass
+
+    # ------------------------------------------------------------------
+    # Station star delegate slot (D-09)
+    # ------------------------------------------------------------------
+
+    def _on_station_star_toggled(self, station: Station) -> None:
+        new_fav = not self._repo.is_favorite_station(station.id)
+        self._repo.set_station_favorite(station.id, new_fav)
+        self.tree.viewport().update()
+        self.station_favorited.emit(station, new_fav)
+        # Refresh favorites view if it's active
+        if self._stack.currentIndex() == 1:
+            self._favorites_view.refresh()
