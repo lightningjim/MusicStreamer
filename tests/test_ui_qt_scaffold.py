@@ -31,6 +31,13 @@ class _FakeRepo:
     def list_recently_played(self, n=3): return []
     def get_setting(self, key, default=None): return default
     def set_setting(self, key, value): pass
+    def set_station_favorite(self, station_id, is_favorite): pass
+    def is_favorite_station(self, station_id): return False
+    def list_favorite_stations(self): return []
+    def list_favorites(self): return []
+    def is_favorited(self, station_name, track_title): return False
+    def add_favorite(self, station_name, provider_name, track_title, genre): pass
+    def remove_favorite(self, station_name, track_title): pass
 
 
 def _make_window():
