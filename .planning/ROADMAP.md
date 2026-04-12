@@ -100,7 +100,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 - [x] **Phase 35: Backend Isolation** - Refactor player.py to QObject + Qt signals; platformdirs data paths; Linux data migration; port yt-dlp/streamlink to library APIs; spike to drop mpv fallback (completed 2026-04-11)
 - [x] **Phase 36: Qt Scaffold + GTK Cutover** - Bare QMainWindow launches; GTK deleted; pytest-qt configured (completed 2026-04-11)
-- [ ] **Phase 37: Station List + Now Playing** - Core loop: grouped station list, now-playing panel, ICY titles, toasts
+- [x] **Phase 37: Station List + Now Playing** - Core loop: grouped station list, now-playing panel, ICY titles, toasts (completed 2026-04-12)
 - [ ] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view
 - [ ] **Phase 39: Core Dialogs** - EditStation, DiscoveryDialog, ImportDialog, stream picker
 - [ ] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu
@@ -160,8 +160,8 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Plans**: 4 plans
 - [x] 37-01-PLAN.md — StationListPanel: StationTreeModel + provider-grouped QTreeView + Recently Played section + audio-x-generic-symbolic icon (UI-01)
 - [x] 37-02-PLAN.md — NowPlayingPanel: 3-column layout + control row + cover art slot + volume persistence + 3 media-playback icons (UI-02, UI-14)
-- [ ] 37-03-PLAN.md — ToastOverlay: frameless fade-in/hold/fade-out widget with parent-resize re-anchor (UI-12)
-- [ ] 37-04-PLAN.md — MainWindow integration: QSplitter + Player wiring + signal routing + FakePlayer integration tests (UI-01, UI-02, UI-12, UI-14)
+- [x] 37-03-PLAN.md — ToastOverlay: frameless fade-in/hold/fade-out widget with parent-resize re-anchor (UI-12)
+- [x] 37-04-PLAN.md — MainWindow integration: QSplitter + Player wiring + signal routing + FakePlayer integration tests (UI-01, UI-02, UI-12, UI-14)
 **UI hint**: yes
 
 ### Phase 38: Filter Strip + Favorites
@@ -253,7 +253,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | 1–34 | v1.0–v1.5 | all | Complete | 2026-04-10 |
 | 35. Backend Isolation | v2.0 | 5/5 | Complete   | 2026-04-11 |
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 4/4 | Complete   | 2026-04-11 |
-| 37. Station List + Now Playing | v2.0 | 2/4 | In Progress|  |
+| 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
 | 38. Filter Strip + Favorites | v2.0 | 0/TBD | Not started | - |
 | 39. Core Dialogs | v2.0 | 0/TBD | Not started | - |
 | 40. Auth Dialogs + Accent | v2.0 | 0/TBD | Not started | - |
