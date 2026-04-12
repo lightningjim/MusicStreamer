@@ -4,5 +4,8 @@
     <file alias="app-icon.svg">icons/app-icon.svg</file>
     <file alias="open-menu-symbolic.svg">icons/open-menu-symbolic.svg</file>
     <file alias="audio-x-generic-symbolic.svg">icons/audio-x-generic-symbolic.svg</file>
+    <file alias="media-playback-start-symbolic.svg">icons/media-playback-start-symbolic.svg</file>
+    <file alias="media-playback-pause-symbolic.svg">icons/media-playback-pause-symbolic.svg</file>
+    <file alias="media-playback-stop-symbolic.svg">icons/media-playback-stop-symbolic.svg</file>
   </qresource>
 </RCC>
