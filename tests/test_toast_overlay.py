@@ -39,11 +39,11 @@ def test_2_show_toast_sets_text_and_visible(qtbot, parent_widget):
     assert toast.isVisible() is True
 
 
-def test_3_fade_in_running_on_windowOpacity(qtbot, parent_widget):
+def test_3_fade_in_running_on_opacity(qtbot, parent_widget):
     toast = ToastOverlay(parent_widget)
     toast.show_toast("X")
     assert toast._fade_in.state() == QAbstractAnimation.Running
-    assert toast._fade_in.propertyName() == b"windowOpacity"
+    assert toast._fade_in.propertyName() == b"opacity"
     assert toast._fade_in.startValue() == 0.0
     assert toast._fade_in.endValue() == 1.0
     assert toast._fade_in.duration() == 150

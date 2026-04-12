@@ -166,7 +166,7 @@ class NowPlayingPanel(QWidget):
             )
         )
         self.stop_btn.setToolTip("Stop")
-        self.stop_btn.clicked.connect(self._player.stop)
+        self.stop_btn.clicked.connect(self._on_stop_clicked)
         # Plan 39: insert edit button + stream picker here
         controls.addWidget(self.stop_btn)
 
@@ -284,6 +284,17 @@ class NowPlayingPanel(QWidget):
         elif self._station is not None:
             self._player.play(self._station)
             self.on_playing_state_changed(True)
+
+    def _on_stop_clicked(self) -> None:
+        self._player.stop()
+        self.on_playing_state_changed(False)
+        self._station = None
+        self.name_provider_label.setText("")
+        self.icy_label.setText("No station playing")
+        self.elapsed_label.setText("0:00")
+        self._last_cover_icy = None
+        self.logo_label.clear()
+        self.cover_label.clear()
 
     def _on_volume_changed_live(self, value: int) -> None:
         self._player.set_volume(value / 100.0)
