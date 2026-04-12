@@ -7,5 +7,9 @@
     <file alias="media-playback-start-symbolic.svg">icons/media-playback-start-symbolic.svg</file>
     <file alias="media-playback-pause-symbolic.svg">icons/media-playback-pause-symbolic.svg</file>
     <file alias="media-playback-stop-symbolic.svg">icons/media-playback-stop-symbolic.svg</file>
+    <file alias="starred-symbolic.svg">icons/starred-symbolic.svg</file>
+    <file alias="non-starred-symbolic.svg">icons/non-starred-symbolic.svg</file>
+    <file alias="user-trash-symbolic.svg">icons/user-trash-symbolic.svg</file>
+    <file alias="edit-clear-all-symbolic.svg">icons/edit-clear-all-symbolic.svg</file>
   </qresource>
 </RCC>

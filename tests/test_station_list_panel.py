@@ -91,9 +91,9 @@ def test_all_provider_groups_expanded_after_construction(qtbot):
     panel = StationListPanel(_sample_repo())
     qtbot.addWidget(panel)
 
-    # At least the first provider group is expanded
-    first_group = panel.model.index(0, 0)
-    assert panel.tree.isExpanded(first_group) is True
+    # At least the first provider group is expanded (proxy index)
+    first_group_proxy = panel._proxy.index(0, 0)
+    assert panel.tree.isExpanded(first_group_proxy) is True
 
 
 def test_tree_click_on_station_emits_station_activated(qtbot):
@@ -101,14 +101,16 @@ def test_tree_click_on_station_emits_station_activated(qtbot):
     panel = StationListPanel(repo)
     qtbot.addWidget(panel)
 
-    # Pick any station row index.
-    provider_idx = panel.model.index(0, 0)
-    station_idx = panel.model.index(0, 0, provider_idx)
-    expected = panel.model.station_for_index(station_idx)
+    # Use proxy model indexes (what the view sees)
+    provider_proxy_idx = panel._proxy.index(0, 0)
+    station_proxy_idx = panel._proxy.index(0, 0, provider_proxy_idx)
+    # Map to source to get expected station
+    source_idx = panel._proxy.mapToSource(station_proxy_idx)
+    expected = panel.model.station_for_index(source_idx)
     assert expected is not None
 
     with qtbot.waitSignal(panel.station_activated, timeout=500) as blocker:
-        panel.tree.clicked.emit(station_idx)
+        panel.tree.clicked.emit(station_proxy_idx)
 
     emitted = blocker.args[0]
     assert emitted is expected
@@ -118,11 +120,50 @@ def test_tree_click_on_provider_does_not_emit(qtbot):
     panel = StationListPanel(_sample_repo())
     qtbot.addWidget(panel)
 
-    provider_idx = panel.model.index(0, 0)
+    provider_proxy_idx = panel._proxy.index(0, 0)
     received: list[Station] = []
     panel.station_activated.connect(received.append)
-    panel.tree.clicked.emit(provider_idx)
+    panel.tree.clicked.emit(provider_proxy_idx)
     assert received == []
+
+
+def test_tree_click_via_proxy_emits_station_activated(qtbot):
+    """Proxy index mapping: click on proxy station index emits correct Station."""
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # Get first station via proxy (what the tree actually uses)
+    provider_proxy_idx = panel._proxy.index(0, 0)
+    station_proxy_idx = panel._proxy.index(0, 0, provider_proxy_idx)
+    source_idx = panel._proxy.mapToSource(station_proxy_idx)
+    expected = panel.model.station_for_index(source_idx)
+    assert expected is not None
+
+    with qtbot.waitSignal(panel.station_activated, timeout=500) as blocker:
+        panel.tree.clicked.emit(station_proxy_idx)
+
+    assert blocker.args[0] is expected
+
+
+def test_search_filters_tree(qtbot):
+    """Setting search text reduces visible proxy row count."""
+    panel = StationListPanel(_sample_repo())
+    qtbot.addWidget(panel)
+
+    # Count visible station rows before search
+    def _count_stations():
+        total = 0
+        for p_row in range(panel._proxy.rowCount()):
+            p_idx = panel._proxy.index(p_row, 0)
+            total += panel._proxy.rowCount(p_idx)
+        return total
+
+    before = _count_stations()
+    panel._search_box.setText("Drone")
+    after = _count_stations()
+    assert after < before
+    assert after >= 1  # "Drone Zone" still visible
 
 
 def test_recently_played_populated(qtbot):
