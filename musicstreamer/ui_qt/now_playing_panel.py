@@ -280,8 +280,10 @@ class NowPlayingPanel(QWidget):
     def _on_play_pause_clicked(self) -> None:
         if self._is_playing:
             self._player.pause()
+            self.on_playing_state_changed(False)
         elif self._station is not None:
             self._player.play(self._station)
+            self.on_playing_state_changed(True)
 
     def _on_volume_changed_live(self, value: int) -> None:
         self._player.set_volume(value / 100.0)
