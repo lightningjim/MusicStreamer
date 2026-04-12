@@ -173,7 +173,10 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
   2. Provider and tag chip rows wrap on narrow windows; multi-select composes with AND-between / OR-within logic
   3. Toggling the Stations/Favorites control switches to the favorites list inline; trash button removes entries
   4. Star button on now-playing panel saves an ICY track title to favorites
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 38-01-PLAN.md — DB migration + StationFilterProxyModel + FlowLayout + filter strip UI + icons
+- [ ] 38-02-PLAN.md — Segmented control + FavoritesView + station star delegate + track star button + wiring
 **UI hint**: yes
 
 ### Phase 39: Core Dialogs
