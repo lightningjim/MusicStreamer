@@ -22,7 +22,7 @@
 
 ### UI — Feature-parity port (no new behavior)
 
-- [ ] **UI-01**: Station list — provider groups (custom `ExpanderSection` widget), recently-played section at top, per-row logo, click-to-play.
+- [x] **UI-01**: Station list — provider groups (custom `ExpanderSection` widget), recently-played section at top, per-row logo, click-to-play.
 - [ ] **UI-02**: Now-playing panel — logo, `Name · Provider` label, ICY track title, cover art, elapsed timer, volume slider, star, edit icon, play/pause, stop.
 - [ ] **UI-03**: Filter strip — provider and tag chip rows using a wrapping `FlowLayout`, OR-within-dimension, AND-between-dimension multi-select.
 - [ ] **UI-04**: Favorites view — segmented `Stations`/`Favorites` toggle replacing the station list inline, trash button to remove.
@@ -119,7 +119,7 @@
 | PORT-08 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | QA-01 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | QA-04 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
-| UI-01 | Phase 37: Station List + Now Playing | Pending |
+| UI-01 | Phase 37: Station List + Now Playing | Complete |
 | UI-02 | Phase 37: Station List + Now Playing | Pending |
 | UI-12 | Phase 37: Station List + Now Playing | Pending |
 | UI-14 | Phase 37: Station List + Now Playing | Pending |
