@@ -35,12 +35,25 @@ class FakeRepo:
     def __init__(self, stations: list[Station], recent: list[Station]) -> None:
         self._stations = stations
         self._recent = recent
+        self._station_favs: dict = {}
 
     def list_stations(self) -> list[Station]:
         return list(self._stations)
 
     def list_recently_played(self, n: int = 3) -> list[Station]:
         return list(self._recent[:n])
+
+    def set_station_favorite(self, station_id: int, is_favorite: bool) -> None:
+        self._station_favs[station_id] = is_favorite
+
+    def is_favorite_station(self, station_id: int) -> bool:
+        return self._station_favs.get(station_id, False)
+
+    def list_favorite_stations(self) -> list[Station]:
+        return [s for s in self._stations if self._station_favs.get(s.id, False)]
+
+    def list_favorites(self) -> list:
+        return []
 
 
 def _sample_repo() -> FakeRepo:
@@ -193,3 +206,111 @@ def test_recent_view_max_height_and_icon_size(qtbot):
     qtbot.addWidget(panel)
     assert panel.recent_view.maximumHeight() == 160
     assert panel.recent_view.iconSize() == QSize(32, 32)
+
+
+# ---------------------------------------------------------------------------
+# Phase 38-02: Segmented control + QStackedWidget tests
+# ---------------------------------------------------------------------------
+
+
+class FakeRepoWithFavorites(FakeRepo):
+    """Extended fake repo with favorites support for 38-02 tests."""
+
+    def __init__(self, stations, recent, favorites=None, fav_stations=None):
+        super().__init__(stations, recent)
+        self._favorites = list(favorites or [])
+        self._fav_stations = list(fav_stations or [])
+        self._station_favs: dict = {}
+
+    def add_favorite(self, station_name, provider_name, track_title, genre):
+        from musicstreamer.models import Favorite
+        self._favorites.append(
+            Favorite(id=len(self._favorites) + 1, station_name=station_name,
+                     provider_name=provider_name, track_title=track_title, genre=genre)
+        )
+
+    def remove_favorite(self, station_name, track_title):
+        self._favorites = [
+            f for f in self._favorites
+            if not (f.station_name == station_name and f.track_title == track_title)
+        ]
+
+    def list_favorites(self):
+        return list(reversed(self._favorites))
+
+    def is_favorited(self, station_name, track_title):
+        return any(
+            f.station_name == station_name and f.track_title == track_title
+            for f in self._favorites
+        )
+
+    def set_station_favorite(self, station_id, is_favorite):
+        self._station_favs[station_id] = is_favorite
+
+    def is_favorite_station(self, station_id):
+        return self._station_favs.get(station_id, False)
+
+    def list_favorite_stations(self):
+        return [s for s in self._stations if self._station_favs.get(s.id, False)]
+
+
+def _make_station_with_is_fav(sid, name, provider, is_fav=False):
+    return Station(
+        id=sid, name=name, provider_id=None, provider_name=provider,
+        tags="", station_art_path=None, album_fallback_path=None,
+        icy_disabled=False, streams=[], last_played_at=None, is_favorite=is_fav,
+    )
+
+
+def _sample_repo_with_favorites():
+    stations = [
+        _make_station_with_is_fav(1, "Groove Salad", "SomaFM"),
+        _make_station_with_is_fav(2, "Drone Zone", "SomaFM"),
+        _make_station_with_is_fav(3, "Chillout", "DI.fm"),
+    ]
+    recent = [stations[0]]
+    return FakeRepoWithFavorites(stations, recent)
+
+
+def test_segmented_control_switches_stack(qtbot):
+    """Clicking 'Favorites' switches QStackedWidget to page 1; 'Stations' back to page 0."""
+    from PySide6.QtWidgets import QStackedWidget
+    panel = StationListPanel(_sample_repo_with_favorites())
+    qtbot.addWidget(panel)
+
+    assert hasattr(panel, "_stack"), "StationListPanel must have _stack QStackedWidget"
+    assert isinstance(panel._stack, QStackedWidget)
+    # Initially on Stations page (0)
+    assert panel._stack.currentIndex() == 0
+
+    # Click "Favorites" button
+    panel._favorites_btn.click()
+    assert panel._stack.currentIndex() == 1
+
+    # Click "Stations" button
+    panel._stations_btn.click()
+    assert panel._stack.currentIndex() == 0
+
+
+def test_filter_strip_hidden_in_favorites_mode(qtbot):
+    """Search box and chip rows are on page 0; not visible when page 1 is active."""
+    from PySide6.QtWidgets import QStackedWidget
+    panel = StationListPanel(_sample_repo_with_favorites())
+    qtbot.addWidget(panel)
+
+    # In Stations mode, search box is on page 0
+    assert panel._stack.currentIndex() == 0
+    assert panel._search_box.isVisibleTo(panel), "search box should be visible in Stations mode"
+
+    # Switch to Favorites
+    panel._favorites_btn.click()
+    assert panel._stack.currentIndex() == 1
+    # Search box is on page 0 of the stack, so it's not visible
+    assert not panel._search_box.isVisibleTo(panel), "search box should not be visible in Favorites mode"
+
+
+def test_station_panel_has_station_favorited_signal(qtbot):
+    """StationListPanel must expose station_favorited = Signal(Station, bool)."""
+    panel = StationListPanel(_sample_repo_with_favorites())
+    qtbot.addWidget(panel)
+    assert hasattr(panel, "station_favorited")

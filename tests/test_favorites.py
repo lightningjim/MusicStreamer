@@ -121,6 +121,80 @@ def test_parse_itunes_result_empty():
     assert result == {"artwork_url": None, "genre": ""}
 
 
+# ---------------------------------------------------------------------------
+# Phase 38-02: FavoritesView widget tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_repo_for_view(tmp_path):
+    """Repo with some track favorites for FavoritesView tests."""
+    con = sqlite3.connect(str(tmp_path / "view.db"))
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON;")
+    from musicstreamer.repo import db_init
+    db_init(con)
+    r = Repo(con)
+    r.add_favorite("Station A", "Provider X", "Track 1", "Pop")
+    r.add_favorite("Station A", "Provider X", "Track 2", "Pop")
+    return r
+
+
+@pytest.fixture
+def empty_repo(tmp_path):
+    con = sqlite3.connect(str(tmp_path / "empty.db"))
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON;")
+    from musicstreamer.repo import db_init
+    db_init(con)
+    return Repo(con)
+
+
+def test_favorites_view_shows_tracks(qtbot, fake_repo_for_view):
+    """FavoritesView._tracks_list shows track favorites from repo."""
+    from musicstreamer.ui_qt.favorites_view import FavoritesView
+    view = FavoritesView(fake_repo_for_view)
+    qtbot.addWidget(view)
+    view.refresh()
+    # Two tracks were added
+    assert view._tracks_list.count() == 2
+
+
+def test_favorites_view_empty_state(qtbot, empty_repo):
+    """FavoritesView shows 'No favorites yet' when no favorites exist."""
+    from musicstreamer.ui_qt.favorites_view import FavoritesView
+    view = FavoritesView(empty_repo)
+    qtbot.addWidget(view)
+    view.show()
+    view.refresh()
+    # Empty state widget should be visible; content widget hidden
+    assert not view._empty_widget.isHidden(), "_empty_widget should not be hidden when no favorites"
+    assert view._content_widget.isHidden(), "_content_widget should be hidden when no favorites"
+    assert "No favorites yet" in view._empty_label.text()
+
+
+def test_favorites_view_trash_removes(qtbot, fake_repo_for_view):
+    """Clicking trash on a track row removes it from DB and list."""
+    from musicstreamer.ui_qt.favorites_view import FavoritesView
+    view = FavoritesView(fake_repo_for_view)
+    qtbot.addWidget(view)
+    view.refresh()
+    count_before = view._tracks_list.count()
+    assert count_before >= 1
+
+    # Get the item widget for row 0 and click its trash button
+    item = view._tracks_list.item(0)
+    widget = view._tracks_list.itemWidget(item)
+    assert widget is not None
+    # Find the trash button in the widget
+    from PySide6.QtWidgets import QToolButton
+    trash_btns = widget.findChildren(QToolButton)
+    assert trash_btns, "Row widget must contain a QToolButton (trash)"
+    trash_btns[0].click()
+
+    assert view._tracks_list.count() == count_before - 1
+
+
 def test_parse_itunes_result_no_genre():
     data = {
         "resultCount": 1,
