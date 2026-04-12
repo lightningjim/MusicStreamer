@@ -515,17 +515,19 @@ ASVS V5 (Input Validation): The star button saves the current ICY label text to 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Station model `is_favorite` field**
+1. **Station model `is_favorite` field** — RESOLVED: Eager-load in `list_stations()`.
    - What we know: `Station` dataclass is in `models.py`; adding `is_favorite: bool = False` is safe (dataclass default).
    - What's unclear: Whether `repo.list_stations()` should eager-load this or defer to `is_favorite_station(id)` per row.
    - Recommendation: Add `is_favorite` field to `Station`, populate in `repo.list_stations()` query — avoids N+1 queries when building chip data.
+   - Resolution: Plan 38-01 Task 1 prescribes eager-loading `is_favorite` via LEFT JOIN in all `list_stations()` queries.
 
-2. **StationStarDelegate: editorEvent vs mouseReleaseEvent**
+2. **StationStarDelegate: editorEvent vs mouseReleaseEvent** — RESOLVED: Use `editorEvent`.
    - What we know: PySide6 docs describe `editorEvent` for handling events in delegates. [ASSUMED]
    - What's unclear: Whether the tree view consumes the click before the delegate sees it.
    - Recommendation: Implement with `editorEvent` first; if tree selection interferes, switch to overriding `mousePressEvent` on the view with manual hit-testing.
+   - Resolution: Plan 38-02 Task 1 uses `editorEvent` with MouseButtonRelease; fallback documented.
 
 ---
 
