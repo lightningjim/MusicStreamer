@@ -32,6 +32,7 @@ class Station:
     icy_disabled: bool = False
     streams: List[StationStream] = field(default_factory=list)
     last_played_at: Optional[str] = None
+    is_favorite: bool = False
 
 
 @dataclass

@@ -76,6 +76,12 @@ def db_init(con: sqlite3.Connection):
         pass  # column already exists
 
     try:
+        con.execute("ALTER TABLE stations ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+    try:
         con.execute(
             "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
         )
@@ -227,6 +233,7 @@ class Repo:
                     album_fallback_path=r["album_fallback_path"],
                     icy_disabled=bool(r["icy_disabled"]),
                     last_played_at=r["last_played_at"],
+                    is_favorite=bool(r["is_favorite"]),
                     streams=self.list_streams(r["id"]),
                 )
             )
@@ -261,6 +268,7 @@ class Repo:
             album_fallback_path=r["album_fallback_path"],
             icy_disabled=bool(r["icy_disabled"]),
             last_played_at=r["last_played_at"],
+            is_favorite=bool(r["is_favorite"]),
             streams=self.list_streams(station_id),
         )
 
@@ -320,6 +328,7 @@ class Repo:
                 album_fallback_path=r["album_fallback_path"],
                 icy_disabled=bool(r["icy_disabled"]),
                 last_played_at=r["last_played_at"],
+                is_favorite=bool(r["is_favorite"]),
                 streams=self.list_streams(r["id"]),
             )
             for r in rows
@@ -395,6 +404,46 @@ class Repo:
         if url:
             self.insert_stream(station_id, url)
         return station_id
+
+    def set_station_favorite(self, station_id: int, is_favorite: bool) -> None:
+        self.con.execute(
+            "UPDATE stations SET is_favorite = ? WHERE id = ?",
+            (int(is_favorite), station_id),
+        )
+        self.con.commit()
+
+    def is_favorite_station(self, station_id: int) -> bool:
+        row = self.con.execute(
+            "SELECT is_favorite FROM stations WHERE id = ?", (station_id,)
+        ).fetchone()
+        return bool(row["is_favorite"]) if row else False
+
+    def list_favorite_stations(self) -> List[Station]:
+        rows = self.con.execute(
+            """
+            SELECT s.*, p.name AS provider_name
+            FROM stations s
+            LEFT JOIN providers p ON p.id = s.provider_id
+            WHERE s.is_favorite = 1
+            ORDER BY COALESCE(p.name,''), s.name
+            """
+        ).fetchall()
+        return [
+            Station(
+                id=r["id"],
+                name=r["name"],
+                provider_id=r["provider_id"],
+                provider_name=r["provider_name"],
+                tags=r["tags"] or "",
+                station_art_path=r["station_art_path"],
+                album_fallback_path=r["album_fallback_path"],
+                icy_disabled=bool(r["icy_disabled"]),
+                last_played_at=r["last_played_at"],
+                is_favorite=True,
+                streams=self.list_streams(r["id"]),
+            )
+            for r in rows
+        ]
 
     def update_station_art(self, station_id: int, art_path: str) -> None:
         self.con.execute(
