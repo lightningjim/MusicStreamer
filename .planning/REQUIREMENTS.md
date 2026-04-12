@@ -23,7 +23,7 @@
 ### UI — Feature-parity port (no new behavior)
 
 - [x] **UI-01**: Station list — provider groups (custom `ExpanderSection` widget), recently-played section at top, per-row logo, click-to-play.
-- [ ] **UI-02**: Now-playing panel — logo, `Name · Provider` label, ICY track title, cover art, elapsed timer, volume slider, star, edit icon, play/pause, stop.
+- [x] **UI-02**: Now-playing panel — logo, `Name · Provider` label, ICY track title, cover art, elapsed timer, volume slider, star, edit icon, play/pause, stop.
 - [ ] **UI-03**: Filter strip — provider and tag chip rows using a wrapping `FlowLayout`, OR-within-dimension, AND-between-dimension multi-select.
 - [ ] **UI-04**: Favorites view — segmented `Stations`/`Favorites` toggle replacing the station list inline, trash button to remove.
 - [ ] **UI-05**: `EditStationDialog` — provider picker, wrapping tag chip FlowLayout, multi-stream management (reorder, quality presets hi/med/low/custom), ICY disable toggle, delete with playing guard.
@@ -35,7 +35,7 @@
 - [ ] **UI-11**: Accent color picker — 8 presets + hex entry, applied as runtime QSS, persisted in SQLite settings.
 - [ ] **UI-12**: Toast overlay — custom `ToastOverlay` widget (no Adw.Toast equivalent); used for failover, connecting, and error messages on all play paths.
 - [ ] **UI-13**: Stream picker on now-playing panel — manual stream selection dropdown; reflects round-robin and quality fallback state.
-- [ ] **UI-14**: YouTube 16:9 thumbnail displayed via Qt pre-scaled pixmap in a fixed slot (no panel sizing regression).
+- [x] **UI-14**: YouTube 16:9 thumbnail displayed via Qt pre-scaled pixmap in a fixed slot (no panel sizing regression).
 
 ### MEDIA — Cross-platform media keys
 
@@ -120,9 +120,9 @@
 | QA-01 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | QA-04 | Phase 36: Qt Scaffold + GTK Cutover | Complete |
 | UI-01 | Phase 37: Station List + Now Playing | Complete |
-| UI-02 | Phase 37: Station List + Now Playing | Pending |
+| UI-02 | Phase 37: Station List + Now Playing | Complete |
 | UI-12 | Phase 37: Station List + Now Playing | Pending |
-| UI-14 | Phase 37: Station List + Now Playing | Pending |
+| UI-14 | Phase 37: Station List + Now Playing | Complete |
 | UI-03 | Phase 38: Filter Strip + Favorites | Pending |
 | UI-04 | Phase 38: Filter Strip + Favorites | Pending |
 | UI-05 | Phase 39: Core Dialogs | Pending |
