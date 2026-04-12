@@ -296,16 +296,21 @@ class NowPlayingPanel(QWidget):
 
     def _fetch_cover_art_async(self, icy_title: str) -> None:
         self._cover_fetch_token += 1
+        token = self._cover_fetch_token
 
         emit = self.cover_art_ready.emit  # bound Signal.emit — no self-capture
 
         def _cb(path_or_none):
             # Runs on worker thread — emit only, no widget access.
-            emit(path_or_none or "")
+            # Pack token so _on_cover_art_ready can discard stale responses.
+            emit(f"{token}:{path_or_none or ''}")
 
         fetch_cover_art(icy_title, _cb)
 
-    def _on_cover_art_ready(self, path: str) -> None:
+    def _on_cover_art_ready(self, payload: str) -> None:
+        token_str, _, path = payload.partition(":")
+        if int(token_str) != self._cover_fetch_token:
+            return  # stale response — a newer fetch is in flight
         if not path:
             self._show_station_logo_in_cover_slot()
             return
