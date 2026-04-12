@@ -248,7 +248,8 @@ def test_cover_art_ready_signal_missing_path_falls_back(qtbot):
     qtbot.addWidget(panel)
     panel.bind_station(_station())
     # Empty path → station logo fallback, no crash
-    panel._on_cover_art_ready("")
+    # Token 0 matches the initial _cover_fetch_token value.
+    panel._on_cover_art_ready("0:")
     assert panel.cover_label.size() == QSize(160, 160)
 
 
