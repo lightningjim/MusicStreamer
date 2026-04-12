@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     QTimer,
     Qt,
 )
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel, QVBoxLayout, QWidget
 
 
 class ToastOverlay(QWidget):
@@ -51,14 +51,20 @@ class ToastOverlay(QWidget):
             "}"
         )
 
+        # Opacity effect — windowOpacity only works on top-level windows;
+        # as a child widget we use QGraphicsOpacityEffect instead.
+        self._opacity = QGraphicsOpacityEffect(self)
+        self._opacity.setOpacity(0.0)
+        self.setGraphicsEffect(self._opacity)
+
         # Animations — pass `self` as third arg so Qt parent-owns them and they
         # are not GC'd mid-flight (Pitfall §6).
-        self._fade_in = QPropertyAnimation(self, b"windowOpacity", self)
+        self._fade_in = QPropertyAnimation(self._opacity, b"opacity", self)
         self._fade_in.setDuration(self._FADE_IN_MS)
         self._fade_in.setStartValue(0.0)
         self._fade_in.setEndValue(1.0)
 
-        self._fade_out = QPropertyAnimation(self, b"windowOpacity", self)
+        self._fade_out = QPropertyAnimation(self._opacity, b"opacity", self)
         self._fade_out.setDuration(self._FADE_OUT_MS)
         self._fade_out.setStartValue(1.0)
         self._fade_out.setEndValue(0.0)
@@ -81,7 +87,7 @@ class ToastOverlay(QWidget):
         self.label.setText(text)
         self.adjustSize()
         self._reposition()
-        self.setWindowOpacity(0.0)
+        self._opacity.setOpacity(0.0)
         self.show()
         self.raise_()
         self._fade_in.start()

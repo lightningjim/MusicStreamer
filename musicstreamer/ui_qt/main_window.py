@@ -61,6 +61,7 @@ class MainWindow(QMainWindow):
         # Central widget: QSplitter (D-06, UI-SPEC Layout Contracts)
         # ------------------------------------------------------------------
         self._splitter = QSplitter(Qt.Horizontal, self)
+        self._splitter.setChildrenCollapsible(False)
 
         self.station_panel = StationListPanel(repo, parent=self._splitter)
         self.station_panel.setMinimumWidth(280)
@@ -80,7 +81,7 @@ class MainWindow(QMainWindow):
         # Toast overlay — parented to centralWidget, anchored bottom-centre.
         # D-09/D-10: constructed AFTER centralWidget is set.
         # ------------------------------------------------------------------
-        self._toast = ToastOverlay(self._splitter)
+        self._toast = ToastOverlay(self)
 
         # ------------------------------------------------------------------
         # Status bar
