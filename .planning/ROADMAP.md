@@ -157,7 +157,11 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
   3. Cover art loads from iTunes; YouTube 16:9 thumbnails display without panel sizing regression
   4. Volume slider adjusts playback volume and persists across restarts
   5. Toast notifications appear for failover and connecting states
-**Plans**: TBD
+**Plans**: 4 plans
+- [x] 37-01-PLAN.md — StationListPanel: StationTreeModel + provider-grouped QTreeView + Recently Played section + audio-x-generic-symbolic icon (UI-01)
+- [ ] 37-02-PLAN.md — NowPlayingPanel: 3-column layout + control row + cover art slot + volume persistence + 3 media-playback icons (UI-02, UI-14)
+- [ ] 37-03-PLAN.md — ToastOverlay: frameless fade-in/hold/fade-out widget with parent-resize re-anchor (UI-12)
+- [ ] 37-04-PLAN.md — MainWindow integration: QSplitter + Player wiring + signal routing + FakePlayer integration tests (UI-01, UI-02, UI-12, UI-14)
 **UI hint**: yes
 
 ### Phase 38: Filter Strip + Favorites
@@ -249,7 +253,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | 1–34 | v1.0–v1.5 | all | Complete | 2026-04-10 |
 | 35. Backend Isolation | v2.0 | 5/5 | Complete   | 2026-04-11 |
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 4/4 | Complete   | 2026-04-11 |
-| 37. Station List + Now Playing | v2.0 | 0/TBD | Not started | - |
+| 37. Station List + Now Playing | v2.0 | 1/4 | In Progress|  |
 | 38. Filter Strip + Favorites | v2.0 | 0/TBD | Not started | - |
 | 39. Core Dialogs | v2.0 | 0/TBD | Not started | - |
 | 40. Auth Dialogs + Accent | v2.0 | 0/TBD | Not started | - |
