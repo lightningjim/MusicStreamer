@@ -3,5 +3,6 @@
   <qresource prefix="/icons">
     <file alias="app-icon.svg">icons/app-icon.svg</file>
     <file alias="open-menu-symbolic.svg">icons/open-menu-symbolic.svg</file>
+    <file alias="audio-x-generic-symbolic.svg">icons/audio-x-generic-symbolic.svg</file>
   </qresource>
 </RCC>
