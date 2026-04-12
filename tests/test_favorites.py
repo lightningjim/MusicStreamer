@@ -51,6 +51,46 @@ def test_is_favorited_false(repo):
     assert repo.is_favorited("NoStation", "NoTrack") is False
 
 
+# --- Station favorites (is_favorite column) ---
+
+def test_station_favorite_add_remove(repo):
+    """set_station_favorite(id, True) then is_favorite_station(id) returns True; set False returns False."""
+    repo.con.execute("INSERT INTO providers(name) VALUES ('TestProvider')")
+    repo.con.commit()
+    provider_id = repo.con.execute("SELECT id FROM providers WHERE name='TestProvider'").fetchone()["id"]
+    repo.con.execute(
+        "INSERT INTO stations(id, name, provider_id) VALUES (101, 'Test Station', ?)",
+        (provider_id,),
+    )
+    repo.con.commit()
+
+    repo.set_station_favorite(101, True)
+    assert repo.is_favorite_station(101) is True
+
+    repo.set_station_favorite(101, False)
+    assert repo.is_favorite_station(101) is False
+
+
+def test_list_favorite_stations(repo):
+    """After favoriting 2 of 3 stations, list_favorite_stations returns exactly those 2."""
+    repo.con.execute("INSERT INTO providers(name) VALUES ('FavProvider')")
+    repo.con.commit()
+    pid = repo.con.execute("SELECT id FROM providers WHERE name='FavProvider'").fetchone()["id"]
+    for sid, name in [(201, "Alpha"), (202, "Beta"), (203, "Gamma")]:
+        repo.con.execute(
+            "INSERT INTO stations(id, name, provider_id) VALUES (?, ?, ?)", (sid, name, pid)
+        )
+    repo.con.commit()
+
+    repo.set_station_favorite(201, True)
+    repo.set_station_favorite(203, True)
+
+    favs = repo.list_favorite_stations()
+    fav_names = {s.name for s in favs}
+    assert fav_names == {"Alpha", "Gamma"}
+    assert all(s.is_favorite for s in favs)
+
+
 def test_db_init_idempotent(repo):
     db_init(repo.con)
     assert isinstance(repo.list_favorites(), list)

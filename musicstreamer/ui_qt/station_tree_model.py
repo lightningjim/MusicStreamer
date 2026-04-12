@@ -167,4 +167,6 @@ class StationTreeModel(QAbstractItemModel):
             f.setBold(True)
             f.setPointSize(13)
             return f
+        if role == Qt.UserRole and node.kind == "station":
+            return node.station
         return None
