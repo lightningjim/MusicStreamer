@@ -77,6 +77,10 @@ class FakeRepo:
     def set_setting(self, key: str, value) -> None:
         self._settings[key] = value
 
+    def update_last_played(self, station_id: int) -> None:
+        self._last_played_ids: list = getattr(self, "_last_played_ids", [])
+        self._last_played_ids.append(station_id)
+
 
 def _make_station(name="Test Station", provider="TestFM") -> Station:
     return Station(
@@ -184,6 +188,12 @@ def test_station_activated_sets_playing_state(qtbot, window):
     station = _make_station()
     window.station_panel.station_activated.emit(station)
     assert window.now_playing._is_playing is True
+
+
+def test_station_activated_updates_last_played(qtbot, window, fake_repo):
+    station = _make_station()
+    window.station_panel.station_activated.emit(station)
+    assert fake_repo._last_played_ids == [station.id]
 
 
 # ---------------------------------------------------------------------------

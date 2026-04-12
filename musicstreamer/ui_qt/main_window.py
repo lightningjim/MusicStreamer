@@ -118,6 +118,7 @@ class MainWindow(QMainWindow):
         """Called when the user selects a station in StationListPanel."""
         self.now_playing.bind_station(station)
         self._player.play(station)
+        self._repo.update_last_played(station.id)
         self.now_playing.on_playing_state_changed(True)
         self.show_toast("Connecting\u2026")  # UI-SPEC copywriting: U+2026
 
