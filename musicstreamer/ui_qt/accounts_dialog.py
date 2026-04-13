@@ -10,6 +10,7 @@ import os
 import sys
 
 from PySide6.QtCore import QProcess, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -45,6 +46,9 @@ class AccountsDialog(QDialog):
 
         self._status_label = QLabel(self)
         self._status_label.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04: no rich-text injection
+        status_font = QFont()
+        status_font.setPointSize(10)
+        self._status_label.setFont(status_font)
         twitch_layout.addWidget(self._status_label)
 
         self._action_btn = QPushButton(self)
@@ -56,6 +60,8 @@ class AccountsDialog(QDialog):
         btn_box.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(8)
         layout.addWidget(twitch_box)
         layout.addWidget(btn_box)
 

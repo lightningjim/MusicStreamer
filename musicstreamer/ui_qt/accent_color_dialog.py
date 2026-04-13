@@ -83,6 +83,7 @@ class AccentColorDialog(QDialog):
         for idx, hex_val in enumerate(ACCENT_PRESETS):
             btn = QPushButton()
             btn.setFixedSize(32, 32)
+            btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet(
                 f"background-color: {hex_val}; border-radius: 4px;"
                 f" border: 2px solid transparent;"
