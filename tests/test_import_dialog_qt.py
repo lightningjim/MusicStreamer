@@ -14,7 +14,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from musicstreamer.ui_qt.import_dialog import ImportDialog
+from musicstreamer.ui_qt.import_dialog import ImportDialog, _format_import_summary
 
 
 # ---------------------------------------------------------------------------
@@ -112,9 +112,9 @@ def test_youtube_import_calls_import_stations(dialog, toast_cb):
 
     with patch("musicstreamer.ui_qt.import_dialog.yt_import") as mock_yt:
         mock_yt.import_stations.return_value = (1, 0)
-        dialog._on_yt_import_complete(1)
+        dialog._on_yt_import_complete(1, 0)
 
-    toast_cb.assert_called_once_with("Imported 1 stations")
+    toast_cb.assert_called_once_with("Imported 1 new")
 
 
 # ---------------------------------------------------------------------------
@@ -222,3 +222,55 @@ def test_yt_scan_passes_through(qtbot, monkeypatch, dialog):
     assert dialog._yt_list.count() == 2
     titles = {dialog._yt_list.item(i).text() for i in range(dialog._yt_list.count())}
     assert titles == {"Stream A", "Stream B"}
+
+
+# ---------------------------------------------------------------------------
+# Regression (Phase 40.1-03): _format_import_summary + (imported, skipped)
+# signal signatures for AA and YT import workers.
+# ---------------------------------------------------------------------------
+
+
+def test_format_import_summary_imported_only():
+    assert _format_import_summary(5, 0) == "Imported 5 new"
+
+
+def test_format_import_summary_skipped_only():
+    assert _format_import_summary(0, 12) == "All 12 already in library"
+
+
+def test_format_import_summary_mixed():
+    assert _format_import_summary(3, 2) == "Imported 3 new, 2 skipped (already in library)"
+
+
+def test_aa_import_emits_imported_and_skipped(dialog, toast_cb):
+    """AA handler renders mixed-case wording to inline label + toast."""
+    dialog._tabs.setCurrentIndex(1)
+    dialog._on_aa_import_complete(3, 7)
+    assert dialog._aa_status.text() == "Imported 3 new, 7 skipped (already in library)"
+    assert dialog._aa_status.isVisible() is True
+    toast_cb.assert_called_once_with("Imported 3 new, 7 skipped (already in library)")
+
+
+def test_aa_import_all_deduped(dialog, toast_cb):
+    """AA handler renders skipped-only wording with no 'Imported 0' framing."""
+    dialog._tabs.setCurrentIndex(1)
+    dialog._on_aa_import_complete(0, 12)
+    assert dialog._aa_status.text() == "All 12 already in library"
+    assert "Imported 0" not in dialog._aa_status.text()
+    toast_cb.assert_called_once_with("All 12 already in library")
+
+
+def test_yt_import_emits_imported_and_skipped(dialog, toast_cb):
+    """YT handler renders mixed-case wording to inline label + toast."""
+    dialog._on_yt_import_complete(4, 1)
+    assert dialog._yt_status.text() == "Imported 4 new, 1 skipped (already in library)"
+    assert dialog._yt_status.isVisible() is True
+    toast_cb.assert_called_once_with("Imported 4 new, 1 skipped (already in library)")
+
+
+def test_yt_import_new_only_no_skip_clause(dialog, toast_cb):
+    """YT handler renders imported-only wording without 'skipped' clause."""
+    dialog._on_yt_import_complete(5, 0)
+    assert dialog._yt_status.text() == "Imported 5 new"
+    assert "skipped" not in dialog._yt_status.text()
+    toast_cb.assert_called_once_with("Imported 5 new")
