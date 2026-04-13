@@ -356,6 +356,50 @@ def test_star_btn_disabled_after_stop(qtbot):
     assert not panel.star_btn.isEnabled()
 
 
+# ---------------------------------------------------------------------------
+# Phase 40.1-04: Logo render regression (D-11, D-14)
+# ---------------------------------------------------------------------------
+
+
+def test_logo_loads_via_abs_path(qtbot, tmp_path, monkeypatch):
+    """Relative station_art_path resolves against paths.data_dir() before QPixmap load."""
+    import os
+    from musicstreamer import paths as _paths
+    monkeypatch.setattr(_paths, "_root_override", str(tmp_path))
+    # Write a real PNG so QPixmap load succeeds.
+    asset_dir = os.path.join(str(tmp_path), "assets", "42")
+    os.makedirs(asset_dir, exist_ok=True)
+    pix = QPixmap(16, 16)
+    pix.fill(Qt.red)
+    asset_path = os.path.join(asset_dir, "station_art.png")
+    assert pix.save(asset_path, "PNG")
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    station = _station(art="assets/42/station_art.png")
+    station.id = 42
+    panel.bind_station(station)
+
+    pm = panel.logo_label.pixmap()
+    assert pm is not None
+    assert not pm.isNull(), "logo pixmap must load from abs resolved path"
+    # Must match our red source — not the fallback SVG. Fallback renders with
+    # transparent / neutral pixels, never pure red at center.
+    img = pm.toImage()
+    center = img.pixelColor(img.width() // 2, img.height() // 2)
+    assert (center.red(), center.green(), center.blue()) == (255, 0, 0), \
+        f"expected red from resolved abs path, got {center.getRgb()} (likely fallback icon)"
+
+
+def test_logo_none_when_path_missing(qtbot):
+    """station_art_path=None → fallback icon, no crash."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station(art=None))
+    # Should not raise — fallback icon rendered.
+    assert panel.logo_label.size() == QSize(180, 180)
+
+
 def test_star_btn_track_starred_signal(qtbot):
     """Clicking star emits track_starred signal with correct args."""
     repo = FakeRepo({"volume": "80"})
