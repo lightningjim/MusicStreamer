@@ -110,7 +110,8 @@ def test_invalid_paste_shows_error(qtbot):
     dlg._paste_edit.setPlainText(".example.com\tFALSE\t/\tFALSE\t0\tCOOKIE\tvalue")
     dlg._paste_import_btn.click()
 
-    assert dlg._error_label.isVisible()
+    # isHidden() checks the widget's own explicit flag (not parent propagation)
+    assert not dlg._error_label.isHidden()
     assert "Invalid cookies" in dlg._error_label.text()
 
 
@@ -120,7 +121,7 @@ def test_error_label_hidden_initially(qtbot):
     dlg = CookieImportDialog(toast_callback=lambda msg: None)
     qtbot.addWidget(dlg)
 
-    assert not dlg._error_label.isVisible()
+    assert dlg._error_label.isHidden()
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +215,7 @@ def test_file_import_shows_error_on_empty_file(tmp_path, monkeypatch, qtbot):
 
     dlg._on_file_import()
 
-    assert dlg._error_label.isVisible()
+    assert not dlg._error_label.isHidden()
     assert "File is empty" in dlg._error_label.text()
 
 
