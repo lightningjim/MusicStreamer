@@ -37,7 +37,7 @@ from musicstreamer.ui_qt.import_dialog import ImportDialog
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
 from musicstreamer.ui_qt.toast import ToastOverlay
-from musicstreamer.accent_utils import apply_accent_palette
+from musicstreamer.accent_utils import apply_accent_palette, _is_valid_hex
 
 
 class MainWindow(QMainWindow):
@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
 
         # D-12: apply saved accent color on startup (UI-11)
         _saved_accent = self._repo.get_setting("accent_color", "")
-        if _saved_accent:
+        if _saved_accent and _is_valid_hex(_saved_accent):
             from PySide6.QtWidgets import QApplication
             apply_accent_palette(QApplication.instance(), _saved_accent)
 
