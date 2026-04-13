@@ -14,7 +14,13 @@ def _is_valid_hex(value: str) -> bool:
 
 
 def build_accent_css(hex_value: str) -> str:
-    """Return CSS that overrides accent-colored widgets with the given hex color."""
+    """Return CSS that overrides accent-colored widgets with the given hex color.
+
+    Validates hex_value with _is_valid_hex before interpolating (T-40-01).
+    Returns empty string for invalid input.
+    """
+    if not _is_valid_hex(hex_value):
+        return ""
     return (
         f"button.suggested-action {{\n"
         f"    background-color: {hex_value};\n"
