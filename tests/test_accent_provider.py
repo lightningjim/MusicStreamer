@@ -82,3 +82,37 @@ def test_presets_all_valid():
 
 def test_default_in_presets():
     assert ACCENT_COLOR_DEFAULT in ACCENT_PRESETS
+
+
+# --- build_accent_qss ---
+
+def test_build_accent_qss_contains_slider():
+    from musicstreamer.accent_utils import build_accent_qss
+    qss = build_accent_qss("#3584e4")
+    assert "QSlider::sub-page:horizontal" in qss
+    assert "background-color: #3584e4" in qss
+
+
+def test_build_accent_qss_all_presets():
+    from musicstreamer.accent_utils import build_accent_qss
+    for hex_val in ACCENT_PRESETS:
+        qss = build_accent_qss(hex_val)
+        assert qss, f"build_accent_qss returned empty for {hex_val!r}"
+
+
+# --- apply_accent_palette / reset_accent_palette ---
+
+def test_apply_accent_palette_changes_highlight(qapp):
+    from musicstreamer.accent_utils import apply_accent_palette
+    from PySide6.QtGui import QPalette, QColor
+    apply_accent_palette(qapp, "#e62d42")
+    assert qapp.palette().color(QPalette.ColorRole.Highlight) == QColor("#e62d42")
+
+
+def test_reset_accent_palette_restores(qapp):
+    from musicstreamer.accent_utils import apply_accent_palette, reset_accent_palette
+    from PySide6.QtGui import QPalette
+    original = qapp.palette()
+    apply_accent_palette(qapp, "#e62d42")
+    reset_accent_palette(qapp, original)
+    assert qapp.palette().color(QPalette.ColorRole.Highlight) == original.color(QPalette.ColorRole.Highlight)
