@@ -331,7 +331,7 @@ class NowPlayingPanel(QWidget):
                 )
             )
             self.play_pause_btn.setToolTip("Play")
-        self.edit_btn.setEnabled(self._is_playing and self._station is not None)
+        self.edit_btn.setEnabled(self._station is not None)
         self._update_star_enabled()
 
     # ----------------------------------------------------------------------
@@ -349,9 +349,8 @@ class NowPlayingPanel(QWidget):
     def _on_stop_clicked(self) -> None:
         self._player.stop()
         self.on_playing_state_changed(False)
-        self.edit_btn.setEnabled(False)
+        # Keep _station so edit button remains functional after stop (UAT #3 fix)
         self.stream_combo.setVisible(False)
-        self._station = None
         self._last_icy_title = ""
         self.star_btn.setChecked(False)
         self._update_star_enabled()

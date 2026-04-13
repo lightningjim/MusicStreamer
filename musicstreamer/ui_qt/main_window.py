@@ -166,8 +166,13 @@ class MainWindow(QMainWindow):
 
     def _on_edit_requested(self, station: Station) -> None:
         """Open EditStationDialog for the given station (D-08)."""
-        dlg = EditStationDialog(station, self._player, self._repo, parent=self)
+        # Re-fetch from DB so edits saved moments ago are visible (UAT #2 fix)
+        fresh = self._repo.get_station(station.id)
+        if fresh is None:
+            return
+        dlg = EditStationDialog(fresh, self._player, self._repo, parent=self)
         dlg.station_saved.connect(self._refresh_station_list)
+        dlg.station_saved.connect(lambda: self._sync_now_playing_station(fresh.id))
         dlg.station_deleted.connect(self._on_station_deleted)
         dlg.exec()
 
@@ -176,6 +181,12 @@ class MainWindow(QMainWindow):
         self._refresh_station_list()
         if self.now_playing.current_station and self.now_playing.current_station.id == station_id:
             self.now_playing._on_stop_clicked()
+
+    def _sync_now_playing_station(self, station_id: int) -> None:
+        """Re-fetch station from DB and update the now-playing panel's cached copy."""
+        fresh = self._repo.get_station(station_id)
+        if fresh is not None:
+            self.now_playing._station = fresh
 
     def _refresh_station_list(self) -> None:
         """Reload station list model after edit/delete/import."""
