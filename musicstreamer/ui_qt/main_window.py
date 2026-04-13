@@ -28,12 +28,16 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer.models import Station
+from musicstreamer.ui_qt.accent_color_dialog import AccentColorDialog
+from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
 from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
 from musicstreamer.ui_qt.discovery_dialog import DiscoveryDialog
 from musicstreamer.ui_qt.import_dialog import ImportDialog
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
 from musicstreamer.ui_qt.toast import ToastOverlay
+from musicstreamer.accent_utils import apply_accent_palette
 
 
 class MainWindow(QMainWindow):
@@ -55,10 +59,45 @@ class MainWindow(QMainWindow):
         )
         self.resize(1200, 800)
 
-        # D-03: menubar placeholder — one empty menu, zero QActions.
-        # Phase 40 (UI-10) wires real menu actions.
+        # UI-10 hamburger menu (D-13)
         menubar: QMenuBar = self.menuBar()
-        menubar.addMenu("\u2261")  # ≡ hamburger placeholder
+        self._menu = menubar.addMenu("\u2261")
+
+        # Group 1: Discovery + Import (D-14, D-15)
+        act_discover = self._menu.addAction("Discover Stations")
+        act_discover.triggered.connect(self._open_discovery_dialog)
+
+        act_import = self._menu.addAction("Import Stations")
+        act_import.triggered.connect(self._open_import_dialog)
+
+        self._menu.addSeparator()
+
+        # Group 2: Settings dialogs (D-16, D-17, D-18)
+        act_accent = self._menu.addAction("Accent Color")
+        act_accent.triggered.connect(self._open_accent_dialog)
+
+        act_cookies = self._menu.addAction("YouTube Cookies")
+        act_cookies.triggered.connect(self._open_cookie_dialog)
+
+        act_accounts = self._menu.addAction("Accounts")
+        act_accounts.triggered.connect(self._open_accounts_dialog)
+
+        self._menu.addSeparator()
+
+        # Group 3: Export/Import Settings — disabled placeholders (D-19)
+        act_export = self._menu.addAction("Export Settings")
+        act_export.setEnabled(False)
+        act_export.setToolTip("Coming in a future update")
+
+        act_import_settings = self._menu.addAction("Import Settings")
+        act_import_settings.setEnabled(False)
+        act_import_settings.setToolTip("Coming in a future update")
+
+        # D-12: apply saved accent color on startup (UI-11)
+        _saved_accent = self._repo.get_setting("accent_color", "")
+        if _saved_accent:
+            from PySide6.QtWidgets import QApplication
+            apply_accent_palette(QApplication.instance(), _saved_accent)
 
         # ------------------------------------------------------------------
         # Central widget: QSplitter (D-06, UI-SPEC Layout Contracts)
@@ -193,3 +232,30 @@ class MainWindow(QMainWindow):
     def _refresh_station_list(self) -> None:
         """Reload station list model after edit/delete/import."""
         self.station_panel.refresh_model()
+
+    def _open_discovery_dialog(self) -> None:
+        """D-14: Open DiscoveryDialog from hamburger menu."""
+        dlg = DiscoveryDialog(self._player, self._repo, self.show_toast, parent=self)
+        dlg.exec()
+        self._refresh_station_list()
+
+    def _open_import_dialog(self) -> None:
+        """D-15: Open ImportDialog from hamburger menu."""
+        dlg = ImportDialog(self.show_toast, parent=self)
+        dlg.import_complete.connect(self._refresh_station_list)
+        dlg.exec()
+
+    def _open_accent_dialog(self) -> None:
+        """D-16: Open AccentColorDialog from hamburger menu."""
+        dlg = AccentColorDialog(self._repo, parent=self)
+        dlg.exec()
+
+    def _open_cookie_dialog(self) -> None:
+        """D-17: Open CookieImportDialog from hamburger menu."""
+        dlg = CookieImportDialog(self.show_toast, parent=self)
+        dlg.exec()
+
+    def _open_accounts_dialog(self) -> None:
+        """D-18: Open AccountsDialog from hamburger menu."""
+        dlg = AccountsDialog(parent=self)
+        dlg.exec()
