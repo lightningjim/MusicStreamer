@@ -29,18 +29,18 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (Phase 38 complete — 2026-04-13)
+## Current State (Phase 39 complete — 2026-04-13)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
-- **LOC:** ~11,500 Python total (source + tests) | **Tests:** 350 passing, 0 failures
+- **LOC:** ~13,000 Python total (source + tests) | **Tests:** 399 passing, 1 pre-existing failure
 - **Stack:** Python + PySide6 + GStreamer + SQLite + yt-dlp + streamlink + urllib (iTunes API, Radio-Browser API, AudioAddict API). GTK4/Libadwaita deleted in Phase 36. Node.js runtime for yt-dlp EJS solver. mpv removed in Phase 35.
 - **Station list:** Provider-grouped tree + recently played section; collapsible filter strip with search box, provider/tag chip rows (FlowLayout wrapping, OR-within/AND-between), clear-all; segmented Stations/Favorites toggle; station star delegate on tree rows
-- **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites
+- **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop+StreamPicker | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites; edit button opens EditStationDialog; stream picker QComboBox syncs with failover
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
-- **Station management:** ComboRow provider picker, tag chip FlowBox (wrapping, inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch, AA logo auto-fetch
-- **Favorites:** Star ICY track titles, store in SQLite with station/provider/genre context, toggle Favorites/Stations view inline via Adw.ToggleGroup, remove with trash button
-- **Discovery:** DiscoveryDialog — search Radio-Browser.info by name, filter by tag/country, preview live, save to library; resolves PLS/M3U to direct stream URL
-- **Import:** ImportDialog (tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress feedback); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution, logo download)
+- **Station management:** EditStationDialog (Qt) — editable provider combo, FlowLayout tag chips, multi-stream QTableWidget (add/remove/reorder, quality presets), ICY disable toggle, delete with playing guard, YouTube/AA thumbnail auto-fetch
+- **Favorites:** Star ICY track titles, store in SQLite with station/provider/genre context, toggle Favorites/Stations view inline, remove with trash button; star stations from tree rows
+- **Discovery:** DiscoveryDialog (Qt) — search Radio-Browser.info by name, filter by tag/country, inline preview play via main Player, save to library with url_resolved preference
+- **Import:** ImportDialog (Qt, tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress bar); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution, logo download, progress bar)
 - **Playback:** GStreamer buffer tuned (10s/10MB); pause keeps station selected; MPRIS2 D-Bus service for OS media keys
 - **Personalization:** Custom accent color picker (8 presets + hex), CSS provider at PRIORITY_USER, persisted in SQLite
 - **YouTube Cookies:** Import cookies via file picker, paste, or Google login (WebKit2 subprocess); stored at ~/.local/share/musicstreamer/cookies.txt with 0o600 permissions; yt-dlp always gets --no-cookies-from-browser; both yt-dlp and mpv use --cookies when file exists
@@ -256,4 +256,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-10 — v2.0 OS Agnostic milestone started (Qt/PySide6 port to Windows + Linux)*
+*Last updated: 2026-04-13 — Phase 39 Core Dialogs complete (EditStation, Discovery, Import dialogs + stream picker)*
