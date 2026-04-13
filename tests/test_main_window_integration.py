@@ -105,6 +105,12 @@ class FakeRepo:
     def list_streams(self, station_id: int) -> list:
         return []
 
+    def get_station(self, station_id: int):
+        for s in self._stations:
+            if s.id == station_id:
+                return s
+        return None
+
 
 def _make_station(name="Test Station", provider="TestFM") -> Station:
     return Station(
