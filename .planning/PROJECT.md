@@ -29,12 +29,12 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (Phase 37 complete — 2026-04-12)
+## Current State (Phase 38 complete — 2026-04-13)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
-- **LOC:** ~10,500 Python total (source + tests) | **Tests:** 340 passing, 0 failures
+- **LOC:** ~11,500 Python total (source + tests) | **Tests:** 350 passing, 0 failures
 - **Stack:** Python + PySide6 + GStreamer + SQLite + yt-dlp + streamlink + urllib (iTunes API, Radio-Browser API, AudioAddict API). GTK4/Libadwaita deleted in Phase 36. Node.js runtime for yt-dlp EJS solver. mpv removed in Phase 35.
-- **Station list:** Provider-grouped ExpanderRows + recently played section; multi-select chip filters (OR-within/AND-between); search composes with all filters
+- **Station list:** Provider-grouped tree + recently played section; collapsible filter strip with search box, provider/tag chip rows (FlowLayout wrapping, OR-within/AND-between), clear-all; segmented Stations/Favorites toggle; station star delegate on tree rows
 - **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
 - **Station management:** ComboRow provider picker, tag chip FlowBox (wrapping, inline creation), delete (playing guard), ICY disable, YouTube thumbnail + title auto-fetch, AA logo auto-fetch
