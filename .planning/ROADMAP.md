@@ -103,7 +103,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 37: Station List + Now Playing** - Core loop: grouped station list, now-playing panel, ICY titles, toasts (completed 2026-04-12)
 - [x] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view (completed 2026-04-13)
 - [x] **Phase 39: Core Dialogs** - EditStation, DiscoveryDialog, ImportDialog, stream picker (completed 2026-04-13)
-- [ ] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu
+- [x] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu (completed 2026-04-13)
 - [ ] **Phase 41: Platform Media Keys** - media_keys/ factory: MPRIS2 (Linux) + SMTC (Windows)
 - [ ] **Phase 42: Settings Export/Import** - ZIP export/import with merge dialog
 - [ ] **Phase 43: GStreamer Windows Spike** - Validate GStreamer DLL bundling on clean Windows VM
@@ -208,10 +208,10 @@ Plans:
   4. Hamburger menu exposes Discover, Import, Accent Color, YouTube Cookies, Accounts, and Export/Import Settings
 **Plans**: 4 plans
 Plans:
-- [ ] 40-01-PLAN.md — AccentColorDialog: build_accent_qss + palette helper + dialog with 8 presets + hex entry (UI-11)
-- [ ] 40-02-PLAN.md — oauth_helper.py subprocess + AccountsDialog with QProcess Twitch OAuth (UI-08)
-- [ ] 40-03-PLAN.md — CookieImportDialog: file/paste/Google login tabs with validation (UI-09)
-- [ ] 40-04-PLAN.md — Hamburger menu wiring + accent startup load + subprocess_utils (UI-10, UI-11 startup)
+- [x] 40-01-PLAN.md — AccentColorDialog: build_accent_qss + palette helper + dialog with 8 presets + hex entry (UI-11)
+- [x] 40-02-PLAN.md — oauth_helper.py subprocess + AccountsDialog with QProcess Twitch OAuth (UI-08)
+- [x] 40-03-PLAN.md — CookieImportDialog: file/paste/Google login tabs with validation (UI-09)
+- [x] 40-04-PLAN.md — Hamburger menu wiring + accent startup load + subprocess_utils (UI-10, UI-11 startup)
 **UI hint**: yes
 
 ### Phase 41: Platform Media Keys
@@ -269,11 +269,21 @@ Plans:
 | 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
-| 40. Auth Dialogs + Accent | v2.0 | 0/4 | Not started | - |
+| 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete   | 2026-04-13 |
 | 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
+
+### Phase 45: Fix station logos as none has worked since migration to 2.0
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 44
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 45 to break down)
 
 ---
 *Last updated: 2026-04-13 — Phase 40 plans created (4 plans in 2 waves)*
