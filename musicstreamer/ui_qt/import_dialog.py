@@ -46,6 +46,25 @@ from musicstreamer.repo import Repo, db_connect
 
 
 # ---------------------------------------------------------------------------
+# Import summary formatter (Phase 40.1-03 D-10)
+# ---------------------------------------------------------------------------
+
+
+def _format_import_summary(imported: int, skipped: int) -> str:
+    """Context-sensitive wording for AA/YT import results.
+
+    - imported>0, skipped==0 → "Imported N new"
+    - imported==0, skipped>0 → "All M already in library"
+    - otherwise              → "Imported N new, M skipped (already in library)"
+    """
+    if imported > 0 and skipped == 0:
+        return f"Imported {imported} new"
+    if imported == 0 and skipped > 0:
+        return f"All {skipped} already in library"
+    return f"Imported {imported} new, {skipped} skipped (already in library)"
+
+
+# ---------------------------------------------------------------------------
 # Worker threads
 # ---------------------------------------------------------------------------
 
@@ -67,7 +86,7 @@ class _YtScanWorker(QThread):
 
 
 class _YtImportWorker(QThread):
-    finished = Signal(int)
+    finished = Signal(int, int)
     error = Signal(str)
 
     def __init__(self, entries: list, parent=None):
@@ -79,8 +98,11 @@ class _YtImportWorker(QThread):
             repo = Repo(db_connect())
             result = yt_import.import_stations(self._entries, repo)
             # import_stations returns (imported, skipped) tuple
-            count = result[0] if isinstance(result, tuple) else result
-            self.finished.emit(count)
+            if isinstance(result, tuple):
+                imported, skipped = int(result[0]), int(result[1])
+            else:
+                imported, skipped = int(result), 0
+            self.finished.emit(imported, skipped)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -105,7 +127,7 @@ class _AaFetchWorker(QThread):
 
 class _AaImportWorker(QThread):
     progress = Signal(int, int)  # current, total
-    finished = Signal(int)
+    finished = Signal(int, int)
     error = Signal(str)
 
     def __init__(self, channels: list, api_key: str, parent=None):
@@ -121,8 +143,11 @@ class _AaImportWorker(QThread):
                 repo,
                 on_progress=lambda cur, tot: self.progress.emit(cur, tot),
             )
-            count = result[0] if isinstance(result, tuple) else result
-            self.finished.emit(count)
+            if isinstance(result, tuple):
+                imported, skipped = int(result[0]), int(result[1])
+            else:
+                imported, skipped = int(result), 0
+            self.finished.emit(imported, skipped)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -343,10 +368,14 @@ class ImportDialog(QDialog):
         self._yt_import_worker.error.connect(self._on_yt_import_error, Qt.QueuedConnection)
         self._yt_import_worker.start()
 
-    def _on_yt_import_complete(self, count: int):
+    def _on_yt_import_complete(self, imported: int, skipped: int) -> None:
         self._yt_progress.setVisible(False)
         self._set_yt_busy(False)
-        self._toast(f"Imported {count} stations")
+        msg = _format_import_summary(imported, skipped)
+        self._yt_status.setStyleSheet("")
+        self._yt_status.setText(msg)
+        self._yt_status.setVisible(True)
+        self._toast(msg)
         self.import_complete.emit()
 
     def _on_yt_import_error(self, msg: str):
@@ -421,11 +450,14 @@ class ImportDialog(QDialog):
         self._aa_status.setStyleSheet("")
         self._aa_status.setVisible(True)
 
-    def _on_aa_import_complete(self, count: int):
+    def _on_aa_import_complete(self, imported: int, skipped: int) -> None:
         self._aa_progress.setVisible(False)
         self._set_aa_busy(False)
-        self._aa_status.setVisible(False)
-        self._toast(f"Imported {count} channels")
+        msg = _format_import_summary(imported, skipped)
+        self._aa_status.setStyleSheet("")
+        self._aa_status.setText(msg)
+        self._aa_status.setVisible(True)
+        self._toast(msg)
         self.import_complete.emit()
 
     def _on_aa_import_error(self, msg: str):
