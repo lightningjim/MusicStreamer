@@ -59,7 +59,7 @@ Source: `now_playing_panel.py`, `station_list_panel.py` — measured from existi
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 10pt | Normal (QFont.Normal) | 1.4 | Elapsed timer (TypeWriter hint for tabular digits), table cell content, stream picker label, progress status labels |
-| Label | 9pt | Normal (QFont.Normal) | 1.4 | Name · Provider line, form field labels, dialog section subheadings, combo box entries |
+| Label | 8pt | Normal (QFont.Normal) | 1.4 | Name · Provider line, form field labels, dialog section subheadings, combo box entries |
 | Heading | 13pt | DemiBold (QFont.DemiBold) | 1.2 | ICY track title, dialog title bar text (Qt default), section headings within dialogs |
 | Display | — | — | — | Not used in Phase 39 |
 
@@ -67,6 +67,7 @@ Notes:
 - Font family: Qt system default (no explicit family set — matches established Phase 37 pattern)
 - TypeWriter hint (`QFont.setStyleHint(QFont.TypeWriter)`) applied only to elapsed timer and monospace values (stream URLs in table)
 - `Qt.PlainText` enforced on all labels displaying untrusted station metadata (station name, ICY title, provider name, search results) — per RESEARCH.md security section
+- Label size reduced from 9pt to 8pt to widen the typographic scale gap vs. Body (10pt → 8pt = 2pt gap, previously 1pt)
 
 Source: `now_playing_panel.py` lines 118–141 — extracted from existing code.
 
@@ -79,7 +80,8 @@ Source: `now_playing_panel.py` lines 118–141 — extracted from existing code.
 | Dominant (60%) | `palette(window)` / `palette(base)` | Dialog backgrounds, QDialog content area, QTableWidget background |
 | Secondary (30%) | `palette(alternateBase)` / `palette(button)` | Alternating table rows, QTabWidget tab bar, QProgressBar trough, unselected chip background |
 | Accent (10%) | `palette(highlight)` | Selected chip border + fill, segmented control active state, focused input border, selected table row |
-| Destructive | `palette(mid)` + explicit disable | Delete button — disabled (grayed) when station playing; enabled state uses standard button palette |
+| Destructive (enabled) | `#c0392b` (muted red) | Delete Station button — enabled state (station not playing); set via `QPushButton { color: #c0392b; }` QSS scoped to button |
+| Destructive (disabled) | `palette(mid)` | Delete Station button — disabled when station playing |
 
 Accent reserved for:
 - Selected filter chips (`background-color: palette(highlight); color: palette(highlighted-text)`)
@@ -140,27 +142,32 @@ Source: `toast.py` line 45, `station_list_panel.py` lines 51–65 — extracted 
 
 ### EditStationDialog
 
+Focal point: QFormLayout content area (center of dialog; eye lands on Name field first, scrolls to stream table).
+
 ```
 QDialog (modal, min 640x480)
 ├── QFormLayout (contentsMargins 16px all, spacing 8px)
 │   ├── "Name:"         QLineEdit
 │   ├── "URL:"          QLineEdit (primary stream URL; auto-fetch thumbnail on paste)
 │   ├── "Provider:"     QComboBox (editable, populated from repo.list_providers())
-│   ├── "Tags:"         FlowLayout chip area + QLineEdit("New tag…") + QPushButton("Add")
+│   ├── "Tags:"         FlowLayout chip area + QLineEdit("New tag…") + QPushButton("Add Tag")
 │   ├── "ICY metadata:" QCheckBox("Disable ICY metadata")  [maps to station.icy_disabled]
 │   └── "Streams:"      QTableWidget (4 cols: URL, Quality, Codec, Position)
 │                       + QHBoxLayout buttons: Add | Remove | Move Up | Move Down
 └── QDialogButtonBox
-    ├── QPushButton("Save")    — right side (AcceptRole)
-    ├── QPushButton("Cancel")  — right side (RejectRole)
-    └── QPushButton("Delete Station")  — left side (DestructiveRole), disabled when playing
+    ├── QPushButton("Save Station")  — right side (AcceptRole)
+    ├── QPushButton("Discard")       — right side (RejectRole)
+    └── QPushButton("Delete Station") — left side (DestructiveRole), disabled when playing
+        QSS: color: #c0392b when enabled; palette(mid) when disabled
 ```
 
 Stream table column widths: URL stretch (fill remaining), Quality 80px fixed, Codec 80px fixed, Position 60px fixed. Header: `QHeaderView.ResizeToContents` for Quality/Codec/Position, `Stretch` for URL. Alternating row colors enabled (`setAlternatingRowColors(True)`).
 
-Tag chip area: `FlowLayout` with 4px spacing. Selected chip = assigned to station. `QLineEdit("New tag…")` + "Add" button below the chip flow. Chips are `QPushButton` with `chipState` property using `_CHIP_QSS`.
+Tag chip area: `FlowLayout` with 4px spacing. Selected chip = assigned to station. `QLineEdit("New tag…")` + "Add Tag" button below the chip flow. Chips are `QPushButton` with `chipState` property using `_CHIP_QSS`.
 
 ### DiscoveryDialog
+
+Focal point: QTableView results area (takes up majority of dialog height; search bar is entry point but results table is where the user spends time).
 
 ```
 QDialog (non-modal, min 720x520)
@@ -168,7 +175,7 @@ QDialog (non-modal, min 720x520)
 │   ├── QLineEdit (placeholder "Search stations…", stretch 1)
 │   ├── QComboBox (tag filter, populated async on open)
 │   ├── QComboBox (country filter, populated async on open)
-│   └── QPushButton("Search")
+│   └── QPushButton("Search Stations")
 ├── QProgressBar (indeterminate: setRange(0,0); hidden when idle)
 ├── QTableView (results, stretch to fill, read-only selection)
 │   Columns: Name (stretch), Tags (160px), Country (80px), Bitrate (80px)
@@ -178,15 +185,17 @@ QDialog (non-modal, min 720x520)
 
 Results table: `QHeaderView.Stretch` for Name, `ResizeToContents` for Tags/Country/Bitrate. Alternating row colors on. Row selection: single-row, `SelectRows`. Save button disables after save (no duplicate adds).
 
-Play/Stop per-row: toggle icon column using `QStyledItemDelegate`. Playing row shows `media-playback-stop-symbolic`; idle rows show `media-playback-start-symbolic`. Icon size 20x20px inside delegate.
+Play/Stop per-row: toggle icon column using `QStyledItemDelegate`. Playing row shows `media-playback-stop-symbolic`; idle rows show `media-playback-start-symbolic`. Icon size 20x20px inside delegate. Accessible names: play icon tooltip "Play preview", stop icon tooltip "Stop preview" — set via `QTableView.setToolTip` on delegate paint or via `accessibleName` on the action.
 
 ### ImportDialog
+
+Focal point: active tab content area (QTabWidget body — either YouTube checklist or AudioAddict form fills the attention zone).
 
 ```
 QDialog (modal, min 600x440)
 └── QTabWidget
     ├── Tab "YouTube"
-    │   ├── QHBoxLayout: QLineEdit(placeholder "YouTube playlist URL") + QPushButton("Scan")
+    │   ├── QHBoxLayout: QLineEdit(placeholder "YouTube playlist URL") + QPushButton("Scan Playlist")
     │   ├── QProgressBar (determinate during scan + import; hidden when idle)
     │   ├── QLabel (status text: "Scanning…" / "N streams found" / error copy)
     │   ├── QListWidget (checkable items, hidden until scan completes)
@@ -197,7 +206,7 @@ QDialog (modal, min 600x440)
         │   └── "Quality:"  QComboBox [hi | med | low]
         ├── QProgressBar (indeterminate fetch → determinate import)
         ├── QLabel (status text: inline errors + progress copy)
-        └── QDialogButtonBox row: QPushButton("Import") + QPushButton("Close")
+        └── QDialogButtonBox row: QPushButton("Import Channels") + QPushButton("Close")
 ```
 
 Inputs disabled during active import (scan / fetch / import in-flight). Close button always enabled.
@@ -218,10 +227,14 @@ Stream combo label format: `"{quality} — {codec}"` if codec present, else qual
 
 | Element | Copy |
 |---------|------|
-| Primary CTA — EditStation save | "Save" |
-| Primary CTA — Discovery save | "Save to Library" (button in results delegate tooltip) |
-| Primary CTA — Import YouTube | "Import Selected" |
-| Primary CTA — Import AudioAddict | "Import" |
+| Primary CTA — EditStation save | "Save Station" |
+| Primary CTA — EditStation discard | "Discard" |
+| Primary CTA — Discovery search | "Search Stations" |
+| Primary CTA — Discovery save row | "Save to Library" (button in results delegate tooltip) |
+| Primary CTA — Import YouTube scan | "Scan Playlist" |
+| Primary CTA — Import YouTube import | "Import Selected" |
+| Primary CTA — Import AudioAddict import | "Import Channels" |
+| Primary CTA — EditStation tag add | "Add Tag" |
 | Empty state — Discovery no results | "No stations found. Try a different search or filter." |
 | Empty state — YouTube scan no live streams | "No live streams found in this playlist." |
 | Empty state — stream picker (single stream) | (widget hidden — no copy) |
@@ -252,26 +265,26 @@ Source: `main_window.py` existing toast copy; D-05, D-12, D-15–D-18 for new el
 - Opens modal on edit button click (D-08). Populated with current station data.
 - URL field: `textChanged` triggers thumbnail auto-fetch on a daemon thread (D-07). Fetch fires 500ms after last keypress (debounce via `QTimer.singleShot`).
 - Provider combo: `setEditable(True)`. `currentText()` value takes precedence over dropdown selection on save (D-02).
-- Tag chips: clicking toggles `chipState` property and triggers `setStyleSheet` refresh. "Add" button appends a new chip in selected state if text is non-empty and not a duplicate.
+- Tag chips: clicking toggles `chipState` property and triggers `setStyleSheet` refresh. "Add Tag" button appends a new chip in selected state if text is non-empty and not a duplicate.
 - Delete button: disabled (`setEnabled(False)`) when `self._player._current_station_name == station.name`. Tooltip: "Stop playback before deleting". On click: `QMessageBox.question` confirmation (copy above); on Yes: `repo.delete_station()` → emit signal to refresh station list → close dialog.
-- Save: `repo.ensure_provider()` → `repo.update_station()` → `repo.reorder_streams()` for any reordered streams → close dialog → parent refreshes station list.
-- Cancel: closes without writing; no confirmation needed (no destructive data loss).
+- Save Station: `repo.ensure_provider()` → `repo.update_station()` → `repo.reorder_streams()` for any reordered streams → close dialog → parent refreshes station list.
+- Discard: closes without writing; no confirmation needed (no destructive data loss).
 
 ### DiscoveryDialog
 
 - Non-modal (user can interact with main window while open).
 - Tag/country combos: populated on open via daemon thread; combos show "Loading…" placeholder during fetch, then populated.
-- Search button + Return key both trigger search. Search runs on daemon thread (D-13). During search: button disabled, progress bar shown (indeterminate), table cleared.
-- Per-row Play: uses main Player instance. Playing a preview stops any currently-playing library station. Rows not currently previewing show play icon; active preview row shows stop icon.
+- "Search Stations" button + Return key both trigger search. Search runs on daemon thread (D-13). During search: button disabled, progress bar shown (indeterminate), table cleared.
+- Per-row Play: uses main Player instance. Playing a preview stops any currently-playing library station. Rows not currently previewing show play icon (tooltip "Play preview"); active preview row shows stop icon (tooltip "Stop preview").
 - Per-row Save: `repo.insert_station()` with `url_resolved` preference (D-12). Toast fires. Save action for that row disables.
 - Close: stops any active preview playback before closing.
 
 ### ImportDialog
 
 - Modal.
-- YouTube tab: "Scan" button and URL field disabled during scan. On scan complete: checklist populates; "Import Selected" enabled only when ≥1 item checked. Progress bar shows determinate progress during import (N/M). On complete: toast + inputs re-enabled.
-- AudioAddict tab: "Import" disabled during fetch/import. Progress bar: indeterminate during `fetch_channels_multi`, switches to determinate during `import_stations_multi` (uses `on_progress` callback). On complete: toast + inputs re-enabled.
-- Both tabs: errors shown in inline `QLabel` (red text, `palette(link-visited)` or explicit red — keep consistent with existing error patterns). Network errors additionally show toast.
+- YouTube tab: "Scan Playlist" button and URL field disabled during scan. On scan complete: checklist populates; "Import Selected" enabled only when ≥1 item checked. Progress bar shows determinate progress during import (N/M). On complete: toast + inputs re-enabled.
+- AudioAddict tab: "Import Channels" disabled during fetch/import. Progress bar: indeterminate during `fetch_channels_multi`, switches to determinate during `import_stations_multi` (uses `on_progress` callback). On complete: toast + inputs re-enabled.
+- Both tabs: errors shown in inline `QLabel` (red text, `#c0392b` — consistent with destructive color token). Network errors additionally show toast.
 
 ### Stream Picker (NowPlayingPanel)
 
