@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer import yt_import, aa_import
+from musicstreamer.yt_import import is_yt_playlist_url
 from musicstreamer.repo import Repo, db_connect
 
 
@@ -119,7 +120,7 @@ class _AaImportWorker(QThread):
             result = aa_import.import_stations_multi(
                 self._channels,
                 repo,
-                on_progress=lambda cur, tot: self.progress.emit(cur + tot - tot, tot),
+                on_progress=lambda cur, tot: self.progress.emit(cur, tot),
             )
             count = result[0] if isinstance(result, tuple) else result
             self.finished.emit(count)
@@ -262,6 +263,11 @@ class ImportDialog(QDialog):
     def _on_yt_scan_clicked(self):
         url = self._yt_url.text().strip()
         if not url:
+            return
+        if not is_yt_playlist_url(url):
+            self._yt_status.setStyleSheet("color: #c0392b;")
+            self._yt_status.setText("Not a valid YouTube playlist URL.")
+            self._yt_status.setVisible(True)
             return
         self._set_yt_busy(True)
         self._yt_list.clear()
