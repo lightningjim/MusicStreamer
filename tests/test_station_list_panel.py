@@ -314,3 +314,69 @@ def test_station_panel_has_station_favorited_signal(qtbot):
     panel = StationListPanel(_sample_repo_with_favorites())
     qtbot.addWidget(panel)
     assert hasattr(panel, "station_favorited")
+
+
+# ---------------------------------------------------------------------------
+# Phase 40.1-04: Per-row logo rendering (D-11)
+# ---------------------------------------------------------------------------
+
+
+def test_station_row_logo_loads_via_abs_path(qtbot, tmp_path, monkeypatch):
+    """_load_station_icon resolves relative station_art_path against paths.data_dir()."""
+    import os
+    from PySide6.QtGui import QPixmap, QPixmapCache
+    from musicstreamer import paths as _paths
+    from musicstreamer.ui_qt.station_list_panel import _load_station_icon
+
+    monkeypatch.setattr(_paths, "_root_override", str(tmp_path))
+    QPixmapCache.clear()
+
+    asset_dir = os.path.join(str(tmp_path), "assets", "7")
+    os.makedirs(asset_dir, exist_ok=True)
+    pix = QPixmap(16, 16)
+    pix.fill(0xFF00FF00)
+    asset_path = os.path.join(asset_dir, "station_art.png")
+    assert pix.save(asset_path, "PNG")
+
+    station = make_station(7, "Row Station", "Prov", art="assets/7/station_art.png")
+    icon = _load_station_icon(station)
+    loaded = icon.pixmap(32, 32)
+    # Non-null pixmap from our real PNG (not fallback). Assert the source
+    # green reaches the scaled output — fallback SVG will not be green.
+    assert not loaded.isNull()
+    img = loaded.toImage()
+    center = img.pixelColor(img.width() // 2, img.height() // 2)
+    assert (center.red(), center.green(), center.blue()) == (0, 255, 0), \
+        f"expected green from resolved abs path, got {center.getRgb()} (likely fallback)"
+
+
+def test_cache_invalidation_on_logo_change(qtbot, tmp_path, monkeypatch):
+    """After logo path changes, panel refresh picks up new pixmap (cache keyed on abs)."""
+    import os
+    from PySide6.QtGui import QPixmap, QPixmapCache
+    from musicstreamer import paths as _paths
+    from musicstreamer.ui_qt.station_list_panel import _load_station_icon
+
+    monkeypatch.setattr(_paths, "_root_override", str(tmp_path))
+    QPixmapCache.clear()
+
+    # Two distinct logos on disk.
+    for sub, color in (("a", 0xFFFF0000), ("b", 0xFF0000FF)):
+        d = os.path.join(str(tmp_path), "assets", sub)
+        os.makedirs(d, exist_ok=True)
+        p = QPixmap(16, 16)
+        p.fill(color)
+        assert p.save(os.path.join(d, "station_art.png"), "PNG")
+
+    station = make_station(9, "S", "P", art="assets/a/station_art.png")
+    icon_a = _load_station_icon(station)
+    pix_a = icon_a.pixmap(32, 32)
+    assert not pix_a.isNull()
+
+    # Change path -> reload -> expect different (non-null) pixmap.
+    station.station_art_path = "assets/b/station_art.png"
+    icon_b = _load_station_icon(station)
+    pix_b = icon_b.pixmap(32, 32)
+    assert not pix_b.isNull()
+    # Cache should not return the stale a-path pixmap bytes:
+    assert pix_a.toImage() != pix_b.toImage()

@@ -246,3 +246,123 @@ def test_icy_checkbox_maps_to_icy_disabled(qtbot, dialog, repo, station):
     args = repo.update_station.call_args[0]
     # icy_disabled is positional arg 6 (index 6)
     assert args[6] is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 40.1-04: Logo picker + preview + auto-fetch (D-12, D-13, D-14)
+# ---------------------------------------------------------------------------
+
+
+def test_logo_row_shows_preview(qtbot, tmp_path, monkeypatch, player, repo):
+    """Dialog shows 64x64 preview of current station logo."""
+    import os
+    from PySide6.QtGui import QPixmap
+    from musicstreamer import paths as _paths
+
+    monkeypatch.setattr(_paths, "_root_override", str(tmp_path))
+    asset_dir = os.path.join(str(tmp_path), "assets", "1")
+    os.makedirs(asset_dir, exist_ok=True)
+    pix = QPixmap(32, 32)
+    pix.fill(0xFF00AA00)
+    asset_rel = "assets/1/station_art.png"
+    assert pix.save(os.path.join(str(tmp_path), asset_rel), "PNG")
+
+    st = Station(
+        id=1, name="Test FM", provider_id=1, provider_name="TestProvider",
+        tags="", station_art_path=asset_rel, album_fallback_path=None, icy_disabled=False,
+    )
+    d = EditStationDialog(st, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert hasattr(d, "_logo_preview")
+    assert d._logo_preview.size().width() == 64
+    assert d._logo_preview.size().height() == 64
+    pm = d._logo_preview.pixmap()
+    assert pm is not None and not pm.isNull()
+
+
+def test_logo_picker_copies_via_assets(qtbot, tmp_path, monkeypatch, dialog, station):
+    """Choose File button copies selected image via assets.copy_asset_for_station()."""
+    from unittest.mock import MagicMock
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtWidgets import QFileDialog
+
+    # Create source image file.
+    src = tmp_path / "new_logo.png"
+    pix = QPixmap(32, 32)
+    pix.fill(0xFFAABBCC)
+    assert pix.save(str(src), "PNG")
+
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName",
+        staticmethod(lambda *a, **kw: (str(src), "Images (*.png *.jpg *.jpeg *.webp *.svg)")),
+    )
+
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+    mock_copy = MagicMock(return_value="assets/1/station_art.png")
+    monkeypatch.setattr(esd_mod.assets, "copy_asset_for_station", mock_copy)
+
+    assert hasattr(dialog, "_choose_logo_btn")
+    dialog._choose_logo_btn.click()
+
+    mock_copy.assert_called_once()
+    call_args = mock_copy.call_args[0]
+    assert call_args[0] == station.id
+    assert call_args[1] == str(src)
+    assert dialog._logo_path == "assets/1/station_art.png"
+
+
+def test_save_persists_new_logo_path(qtbot, dialog, repo):
+    """On save, repo.update_station gets the new _logo_path, not the stale station.station_art_path."""
+    dialog._logo_path = "assets/5/new_art.png"
+    dialog.button_box.accepted.emit()
+
+    args = repo.update_station.call_args[0]
+    # station_art_path is positional arg 4 (index 4) per _on_save
+    assert args[4] == "assets/5/new_art.png"
+
+
+def test_auto_fetch_worker_starts_on_url_change(qtbot, monkeypatch, dialog):
+    """Timeout handler instantiates _LogoFetchWorker and starts it."""
+    from unittest.mock import MagicMock
+
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    fake_worker_instance = MagicMock()
+    fake_worker_instance.isRunning.return_value = False
+    fake_worker_cls = MagicMock(return_value=fake_worker_instance)
+    monkeypatch.setattr(esd_mod, "_LogoFetchWorker", fake_worker_cls)
+
+    dialog.url_edit.setText("https://www.youtube.com/watch?v=abc")
+    # Fire the timer-timeout slot directly
+    assert hasattr(dialog, "_on_url_timer_timeout")
+    dialog._on_url_timer_timeout()
+
+    fake_worker_cls.assert_called_once()
+    assert "youtube.com" in fake_worker_cls.call_args[0][0]
+    fake_worker_instance.start.assert_called_once()
+
+
+def test_auto_fetch_completion_copies_via_assets(qtbot, tmp_path, monkeypatch, dialog, station):
+    """When the fetch worker emits finished(path), dialog copies via assets."""
+    from unittest.mock import MagicMock
+    from PySide6.QtGui import QPixmap
+
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    fetched = tmp_path / "fetched.jpg"
+    pix = QPixmap(16, 16)
+    pix.fill(0xFF112233)
+    assert pix.save(str(fetched), "PNG")
+
+    mock_copy = MagicMock(return_value="assets/1/station_art.jpg")
+    monkeypatch.setattr(esd_mod.assets, "copy_asset_for_station", mock_copy)
+
+    assert hasattr(dialog, "_on_logo_fetched")
+    dialog._on_logo_fetched(str(fetched))
+
+    mock_copy.assert_called_once()
+    args = mock_copy.call_args[0]
+    assert args[0] == station.id
+    assert args[1] == str(fetched)
+    assert dialog._logo_path == "assets/1/station_art.jpg"
