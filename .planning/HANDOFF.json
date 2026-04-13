@@ -18,7 +18,9 @@
     {"id": 5, "name": "icy-disable-toggle", "status": "not_started", "wave": 3, "depends_on": ["04"]},
     {"id": 6, "name": "playing-timer", "status": "not_started", "wave": 4, "depends_on": ["05"]}
   ],
-  "blockers": [],
+  "blockers": [
+    {"description": "EditStationDialog logo auto-fetch from URL (both AudioAddict and YouTube) does not appear to be present/wired during user testing. Preview + file picker work correctly. AA branch was intentionally deferred per D-12, but YT auto-fetch should be visible. Verify edit_station_dialog.py _LogoFetchWorker + URL field signal wiring on resume.", "type": "technical", "workaround": "Manual file picker works"}
+  ],
   "human_actions_pending": [],
   "decisions": [
     {"decision": "Dispatch worktree executors sequentially with run_in_background:true", "rationale": "Parallel dispatch in a single message races on .git/config.lock", "phase": "40.1"},
