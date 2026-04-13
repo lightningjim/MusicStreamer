@@ -214,15 +214,23 @@ Plans:
 - [x] 40-04-PLAN.md — Hamburger menu wiring + accent startup load + subprocess_utils (UI-10, UI-11 startup)
 **UI hint**: yes
 
-### Phase 40.1: Fix YouTube live stream detection in import, Discovery play/stop icons, AA import summary feedback (INSERTED)
+### Phase 40.1: Bug-fix sweep — YT import, Discovery icons, AA feedback, station logos, ICY disable (INSERTED, EXPANDED 2026-04-13)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Fix five v2.0 Qt-port regressions in one sweep:
+1. YouTube playlist import drops all live streams (double-filter bug in `_YtScanWorker`)
+2. Discovery preview buttons show text "Play"/"Stop" — switch to icon toggles
+3. AudioAddict import shows "Imported 0 channels" with no dedup feedback
+4. Station logos don't render anywhere (placeholder shows for all stations); EditStationDialog has no logo upload or auto-fetch on URL paste
+5. "Disable ICY" toggle has no effect — iTunes cover art and ICY track titles still update
+
+**Requirements**: TBD (regression fixes; no new requirement IDs)
 **Depends on:** Phase 40
 **Plans:** 0 plans
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 40.1 to break down)
+
+Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 2026-04-13. See `40.1-CONTEXT.md` for full decisions.
 
 ### Phase 41: Platform Media Keys
 **Goal**: OS media keys (play/pause, stop, next/previous) control the player on both Linux and Windows; now-playing metadata is visible to the OS media session
@@ -285,15 +293,9 @@ Plans:
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
-### Phase 45: Fix station logos + ICY disable regression
+### Phase 45: ~~Fix station logos + ICY disable regression~~ — RETIRED 2026-04-13
 
-**Goal:** Fix station logos (none working since v2.0 migration) and fix "disable ICY" toggle (not working)
-**Requirements**: TBD
-**Depends on:** Phase 44
-**Plans:** 4/4 plans complete
-
-Plans:
-- [ ] TBD (run /gsd-plan-phase 45 to break down)
+**Status:** Folded into Phase 40.1. See `.planning/phases/40.1-fix-youtube-live-stream-detection-in-import-discovery-play-s/40.1-CONTEXT.md` for full scope and decisions.
 
 ---
 *Last updated: 2026-04-13 — Phase 40 plans created (4 plans in 2 waves)*
