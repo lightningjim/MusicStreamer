@@ -102,7 +102,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 36: Qt Scaffold + GTK Cutover** - Bare QMainWindow launches; GTK deleted; pytest-qt configured (completed 2026-04-11)
 - [x] **Phase 37: Station List + Now Playing** - Core loop: grouped station list, now-playing panel, ICY titles, toasts (completed 2026-04-12)
 - [x] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view (completed 2026-04-13)
-- [ ] **Phase 39: Core Dialogs** - EditStation, DiscoveryDialog, ImportDialog, stream picker
+- [x] **Phase 39: Core Dialogs** - EditStation, DiscoveryDialog, ImportDialog, stream picker (completed 2026-04-13)
 - [ ] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu
 - [ ] **Phase 41: Platform Media Keys** - media_keys/ factory: MPRIS2 (Linux) + SMTC (Windows)
 - [ ] **Phase 42: Settings Export/Import** - ZIP export/import with merge dialog
@@ -191,10 +191,10 @@ Plans:
   5. Stream picker dropdown on the now-playing panel switches the active stream manually
 **Plans**: 4 plans
 Plans:
-- [ ] 39-01-PLAN.md — EditStationDialog: station CRUD + tag chips + multi-stream table + delete guard (UI-05)
-- [ ] 39-02-PLAN.md — DiscoveryDialog: Radio-Browser search + preview play + save-to-library (UI-06)
-- [ ] 39-03-PLAN.md — ImportDialog: YouTube scan/import + AudioAddict fetch/import with progress (UI-07)
-- [ ] 39-04-PLAN.md — Edit button + stream picker on NowPlayingPanel + MainWindow dialog wiring (UI-13)
+- [x] 39-01-PLAN.md — EditStationDialog: station CRUD + tag chips + multi-stream table + delete guard (UI-05)
+- [x] 39-02-PLAN.md — DiscoveryDialog: Radio-Browser search + preview play + save-to-library (UI-06)
+- [x] 39-03-PLAN.md — ImportDialog: YouTube scan/import + AudioAddict fetch/import with progress (UI-07)
+- [x] 39-04-PLAN.md — Edit button + stream picker on NowPlayingPanel + MainWindow dialog wiring (UI-13)
 **UI hint**: yes
 
 ### Phase 40: Auth Dialogs + Accent
@@ -263,7 +263,7 @@ Plans:
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 4/4 | Complete   | 2026-04-11 |
 | 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
-| 39. Core Dialogs | v2.0 | 0/4 | Not started | - |
+| 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 0/TBD | Not started | - |
 | 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
