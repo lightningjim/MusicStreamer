@@ -214,6 +214,16 @@ Plans:
 - [x] 40-04-PLAN.md — Hamburger menu wiring + accent startup load + subprocess_utils (UI-10, UI-11 startup)
 **UI hint**: yes
 
+### Phase 40.1: Fix YouTube live stream detection in import, Discovery play/stop icons, AA import summary feedback (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 40
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 40.1 to break down)
+
 ### Phase 41: Platform Media Keys
 **Goal**: OS media keys (play/pause, stop, next/previous) control the player on both Linux and Windows; now-playing metadata is visible to the OS media session
 **Depends on**: Phase 40
