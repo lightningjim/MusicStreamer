@@ -211,3 +211,34 @@ def test_search_error_shows_toast(dialog, toast_calls, qtbot):
     dialog._on_search_error("Connection refused")
     assert len(toast_calls) == 1
     assert "Connection refused" in toast_calls[0] or "error" in toast_calls[0].lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 40.1-02: Play buttons use icons (D-03/D-04/D-05)
+# ---------------------------------------------------------------------------
+
+def test_play_button_uses_icon(dialog, qtbot):
+    """Play button in results table is icon-only (no text) with accessibleName."""
+    dialog._on_search_finished(FAKE_RESULTS)
+    btn = dialog._play_buttons[0]
+    assert btn.text() == ""
+    assert not btn.icon().isNull()
+    assert btn.accessibleName() == "Play preview"
+
+
+def test_play_button_toggles_icon_on_click(dialog, qtbot):
+    """Clicking play toggles icon + accessibleName between Play/Stop preview."""
+    dialog._on_search_finished(FAKE_RESULTS)
+    btn = dialog._play_buttons[0]
+    key0 = btn.icon().cacheKey()
+
+    # Start preview
+    dialog._on_play_row(0)
+    assert dialog._previewing_row == 0
+    assert btn.icon().cacheKey() != key0
+    assert btn.accessibleName() == "Stop preview"
+
+    # Stop preview
+    dialog._on_play_row(0)
+    assert dialog._previewing_row == -1
+    assert btn.accessibleName() == "Play preview"
