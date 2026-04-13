@@ -292,3 +292,103 @@ def test_widget_lifetime_no_runtime_error(qtbot):
         # Clean up — triggers Qt object deletion
         w.close()
         w.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# Phase 40-04: Hamburger menu wiring + accent startup load
+# ---------------------------------------------------------------------------
+
+EXPECTED_ACTION_TEXTS = [
+    "Discover Stations",
+    "Import Stations",
+    "Accent Color",
+    "YouTube Cookies",
+    "Accounts",
+    "Export Settings",
+    "Import Settings",
+]
+
+
+def test_hamburger_menu_actions(window):
+    """Hamburger menu contains exactly 7 non-separator actions with correct text."""
+    menu = window._menu
+    actions = [a for a in menu.actions() if not a.isSeparator()]
+    texts = [a.text() for a in actions]
+    assert texts == EXPECTED_ACTION_TEXTS
+
+
+def test_hamburger_menu_separators(window):
+    """Hamburger menu has exactly 2 separators (3 groups)."""
+    menu = window._menu
+    separators = [a for a in menu.actions() if a.isSeparator()]
+    assert len(separators) == 2
+
+
+def test_sync_actions_disabled(window):
+    """Export Settings and Import Settings are disabled."""
+    menu = window._menu
+    actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
+    assert actions["Export Settings"].isEnabled() is False
+    assert actions["Import Settings"].isEnabled() is False
+
+
+def test_sync_actions_tooltip(window):
+    """Disabled sync actions have the expected tooltip."""
+    menu = window._menu
+    actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
+    assert actions["Export Settings"].toolTip() == "Coming in a future update"
+    assert actions["Import Settings"].toolTip() == "Coming in a future update"
+
+
+def test_accent_loaded_on_startup(qtbot, fake_player):
+    """When repo has saved accent_color, MainWindow applies it on startup."""
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QColor
+
+    accent_hex = "#e62d42"
+    repo = FakeRepo(settings={"accent_color": accent_hex})
+    app = QApplication.instance()
+    # Reset to default palette before test
+    default_palette = app.palette()
+
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+
+    highlight = app.palette().color(app.palette().ColorRole.Highlight)
+    assert highlight == QColor(accent_hex)
+
+    # Restore default palette to avoid polluting other tests
+    app.setPalette(default_palette)
+    app.setStyleSheet("")
+
+
+def test_discover_action_opens_dialog(qtbot, window, monkeypatch):
+    """Triggering Discover Stations opens DiscoveryDialog."""
+    from musicstreamer.ui_qt import discovery_dialog
+    called = []
+
+    def fake_exec(self):
+        called.append(True)
+        return 0
+
+    monkeypatch.setattr(discovery_dialog.DiscoveryDialog, "exec", fake_exec)
+    menu = window._menu
+    actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
+    actions["Discover Stations"].trigger()
+    assert called == [True]
+
+
+def test_import_action_opens_dialog(qtbot, window, monkeypatch):
+    """Triggering Import Stations opens ImportDialog."""
+    from musicstreamer.ui_qt import import_dialog
+    called = []
+
+    def fake_exec(self):
+        called.append(True)
+        return 0
+
+    monkeypatch.setattr(import_dialog.ImportDialog, "exec", fake_exec)
+    menu = window._menu
+    actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
+    actions["Import Stations"].trigger()
+    assert called == [True]
