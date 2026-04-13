@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
+from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer import filter_utils
 from musicstreamer.models import Station
 from musicstreamer.ui_qt.station_tree_model import StationTreeModel
@@ -73,11 +74,13 @@ def _load_station_icon(station: Station) -> QIcon:
     module-level helper so RecentlyPlayedView can reuse it without coupling
     to the tree model internals.
     """
-    path = station.station_art_path or _FALLBACK_ICON
-    key = f"station-logo:{path}"
+    rel = station.station_art_path or None
+    abs_path = abs_art_path(rel)
+    load_path = abs_path or _FALLBACK_ICON
+    key = f"station-logo:{load_path}"
     pix = QPixmap()
     if not QPixmapCache.find(key, pix):
-        pix = QPixmap(path)
+        pix = QPixmap(load_path)
         if pix.isNull():
             pix = QPixmap(_FALLBACK_ICON)
         pix = pix.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)
