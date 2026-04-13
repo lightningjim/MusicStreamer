@@ -269,7 +269,7 @@ Plans:
 | 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
-| 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete   | 2026-04-13 |
+| 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
@@ -280,7 +280,7 @@ Plans:
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 44
-**Plans:** 0 plans
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 45 to break down)
