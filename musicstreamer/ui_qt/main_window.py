@@ -114,6 +114,8 @@ class MainWindow(QMainWindow):
 
         # Plan 39: edit button → dialog launch
         self.now_playing.edit_requested.connect(self._on_edit_requested)
+        # Right-click edit from station list
+        self.station_panel.edit_requested.connect(self._on_edit_requested)
 
         # Plan 39: failover → stream picker sync
         self._player.failover.connect(self.now_playing._sync_stream_picker)

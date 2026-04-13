@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListView,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -103,6 +104,7 @@ class StationListPanel(QWidget):
 
     station_activated = Signal(Station)
     station_favorited = Signal(Station, bool)  # (station, is_now_favorite)
+    edit_requested = Signal(Station)
 
     def __init__(self, repo, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -279,6 +281,8 @@ class StationListPanel(QWidget):
         self.tree.expandAll()
         self.tree.clicked.connect(self._on_tree_activated)
         self.tree.doubleClicked.connect(self._on_tree_activated)
+        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         sp_layout.addWidget(self.tree, stretch=1)
 
         # Station star delegate (D-09)
@@ -416,6 +420,20 @@ class StationListPanel(QWidget):
             if _star_rect(vis_rect).contains(cursor_pos):
                 return
             self.station_activated.emit(station)
+
+    def _on_tree_context_menu(self, pos) -> None:
+        index = self.tree.indexAt(pos)
+        if not index.isValid():
+            return
+        source_idx = self._proxy.mapToSource(index)
+        station = self.model.station_for_index(source_idx)
+        if station is None:
+            return
+        menu = QMenu(self)
+        edit_action = menu.addAction("Edit Station")
+        action = menu.exec(self.tree.viewport().mapToGlobal(pos))
+        if action is edit_action:
+            self.edit_requested.emit(station)
 
     def _on_recent_clicked(self, index: QModelIndex) -> None:
         if not index.isValid():
