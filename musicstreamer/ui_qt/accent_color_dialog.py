@@ -164,6 +164,8 @@ class AccentColorDialog(QDialog):
         else:
             if text:  # Only show error styling when there's actual invalid input
                 self._hex_edit.setStyleSheet("border: 1px solid #c0392b;")
+            else:
+                self._hex_edit.setStyleSheet("")  # clear error when field is emptied
 
     def _on_apply(self) -> None:
         """Save accent_color to repo, write QSS file, accept dialog."""
