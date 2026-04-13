@@ -269,14 +269,16 @@ class CookieImportDialog(QDialog):
         )
 
     def _on_google_process_finished(self, exit_code: int, exit_status: object) -> None:
+        proc = self._google_process   # capture before clearing
+        self._google_process = None   # clear immediately to avoid stale reference
         self._google_btn.setEnabled(True)
         self._google_status_label.setVisible(False)
 
-        if exit_code != 0 or self._google_process is None:
+        if exit_code != 0 or proc is None:
             QMessageBox.warning(self, "Google Login", "Google login failed.")
             return
 
-        stdout_bytes = self._google_process.readAllStandardOutput().data()
+        stdout_bytes = proc.readAllStandardOutput().data()
         text = stdout_bytes.decode("utf-8", errors="replace").strip()
 
         if not text:
