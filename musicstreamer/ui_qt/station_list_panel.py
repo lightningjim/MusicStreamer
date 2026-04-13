@@ -302,6 +302,17 @@ class StationListPanel(QWidget):
     # ----------------------------------------------------------------------
     # Population
     # ----------------------------------------------------------------------
+    # Public refresh API
+    # ----------------------------------------------------------------------
+
+    def refresh_model(self) -> None:
+        """Reload station tree and recently played after external changes (edit/delete/import)."""
+        self.model.refresh(self._repo.list_stations())
+        self.tree.expandAll()
+        self._populate_recent()
+        self._build_chip_rows()
+
+    # ----------------------------------------------------------------------
 
     def _populate_recent(self) -> None:
         self._recent_model.clear()

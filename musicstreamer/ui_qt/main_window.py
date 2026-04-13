@@ -28,6 +28,9 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer.models import Station
+from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+from musicstreamer.ui_qt.discovery_dialog import DiscoveryDialog
+from musicstreamer.ui_qt.import_dialog import ImportDialog
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
 from musicstreamer.ui_qt.toast import ToastOverlay
@@ -109,6 +112,12 @@ class MainWindow(QMainWindow):
         # Station star → toast (D-10)
         self.station_panel.station_favorited.connect(self._on_station_favorited)
 
+        # Plan 39: edit button → dialog launch
+        self.now_playing.edit_requested.connect(self._on_edit_requested)
+
+        # Plan 39: failover → stream picker sync
+        self._player.failover.connect(self.now_playing._sync_stream_picker)
+
     # ----------------------------------------------------------------------
     # Public helpers
     # ----------------------------------------------------------------------
@@ -154,3 +163,20 @@ class MainWindow(QMainWindow):
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
         """Called when a station star is toggled in StationListPanel."""
         self.show_toast("Station added to favorites" if is_fav else "Station removed from favorites")
+
+    def _on_edit_requested(self, station: Station) -> None:
+        """Open EditStationDialog for the given station (D-08)."""
+        dlg = EditStationDialog(station, self._player, self._repo, parent=self)
+        dlg.station_saved.connect(self._refresh_station_list)
+        dlg.station_deleted.connect(self._on_station_deleted)
+        dlg.exec()
+
+    def _on_station_deleted(self, station_id: int) -> None:
+        """After station deletion, refresh list and clear now-playing if needed."""
+        self._refresh_station_list()
+        if self.now_playing._station and self.now_playing._station.id == station_id:
+            self.now_playing._on_stop_clicked()
+
+    def _refresh_station_list(self) -> None:
+        """Reload station list model after edit/delete/import."""
+        self.station_panel.refresh_model()

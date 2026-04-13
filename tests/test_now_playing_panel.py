@@ -80,6 +80,9 @@ class FakeRepo:
         if key in self._favorites:
             self._favorites.remove(key)
 
+    def list_streams(self, station_id: int) -> list:
+        return []
+
 
 def _station(name: str = "Drone Zone", provider: Optional[str] = "SomaFM",
              art: Optional[str] = None) -> Station:

@@ -30,6 +30,7 @@ from typing import Optional
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QSlider,
@@ -78,6 +79,9 @@ class NowPlayingPanel(QWidget):
     # Emitted on track star toggle: (station_name, track_title, provider_name, is_now_favorited)
     track_starred = Signal(str, str, str, bool)
 
+    # Emitted when user clicks edit button — passes current Station to MainWindow.
+    edit_requested = Signal(object)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -87,6 +91,7 @@ class NowPlayingPanel(QWidget):
         self._last_cover_icy: Optional[str] = None
         self._is_playing: bool = False
         self._last_icy_title: str = ""
+        self._streams: list = []
 
         self.setMinimumWidth(560)
 
@@ -171,8 +176,26 @@ class NowPlayingPanel(QWidget):
         )
         self.stop_btn.setToolTip("Stop")
         self.stop_btn.clicked.connect(self._on_stop_clicked)
-        # Plan 39: insert edit button + stream picker here
         controls.addWidget(self.stop_btn)
+
+        # Plan 39: edit button (D-08)
+        self.edit_btn = QToolButton(self)
+        self.edit_btn.setIconSize(QSize(24, 24))
+        self.edit_btn.setFixedSize(36, 36)
+        self.edit_btn.setIcon(
+            QIcon.fromTheme("document-edit-symbolic", QIcon(":/icons/document-edit-symbolic.svg"))
+        )
+        self.edit_btn.setToolTip("Edit station")
+        self.edit_btn.setEnabled(False)
+        self.edit_btn.clicked.connect(self._on_edit_clicked)
+        controls.addWidget(self.edit_btn)
+
+        # Plan 39: stream picker (D-19..D-22)
+        self.stream_combo = QComboBox(self)
+        self.stream_combo.setMinimumWidth(140)
+        self.stream_combo.setVisible(False)
+        self.stream_combo.currentIndexChanged.connect(self._on_stream_selected)
+        controls.addWidget(self.stream_combo)
 
         # Plan 38: track star button (D-08, D-11)
         self.star_btn = QToolButton(self)
@@ -247,6 +270,7 @@ class NowPlayingPanel(QWidget):
         self._update_star_enabled()
         self._show_station_logo()
         self._show_station_logo_in_cover_slot()
+        self._populate_stream_picker(station)
 
     # ----------------------------------------------------------------------
     # Player signal slots (wired by MainWindow in 37-04)
@@ -302,6 +326,7 @@ class NowPlayingPanel(QWidget):
                 )
             )
             self.play_pause_btn.setToolTip("Play")
+        self.edit_btn.setEnabled(self._is_playing and self._station is not None)
         self._update_star_enabled()
 
     # ----------------------------------------------------------------------
@@ -319,6 +344,8 @@ class NowPlayingPanel(QWidget):
     def _on_stop_clicked(self) -> None:
         self._player.stop()
         self.on_playing_state_changed(False)
+        self.edit_btn.setEnabled(False)
+        self.stream_combo.setVisible(False)
         self._station = None
         self._last_icy_title = ""
         self.star_btn.setChecked(False)
@@ -369,6 +396,44 @@ class NowPlayingPanel(QWidget):
                 self._station.name, self._last_icy_title,
                 self._station.provider_name or "", True
             )
+
+    def _populate_stream_picker(self, station) -> None:
+        """Populate stream picker combo for the bound station (D-19, D-20)."""
+        streams = self._repo.list_streams(station.id)
+        self._streams = streams
+        self.stream_combo.blockSignals(True)
+        self.stream_combo.clear()
+        for s in streams:
+            label = f"{s.quality} \u2014 {s.codec}" if s.codec else s.quality or s.label or "stream"
+            self.stream_combo.addItem(label, userData=s.id)
+        self.stream_combo.blockSignals(False)
+        self.stream_combo.setVisible(len(streams) > 1)
+
+    def _on_stream_selected(self, index: int) -> None:
+        """User manually selected a stream from the picker (D-21)."""
+        if index < 0 or not self._streams:
+            return
+        stream_id = self.stream_combo.itemData(index)
+        for s in self._streams:
+            if s.id == stream_id:
+                self._player.play_stream(s)
+                break
+
+    def _sync_stream_picker(self, active_stream) -> None:
+        """Sync stream picker to reflect failover-selected stream (D-22)."""
+        if active_stream is None:
+            return
+        self.stream_combo.blockSignals(True)
+        for i in range(self.stream_combo.count()):
+            if self.stream_combo.itemData(i) == active_stream.id:
+                self.stream_combo.setCurrentIndex(i)
+                break
+        self.stream_combo.blockSignals(False)
+
+    def _on_edit_clicked(self) -> None:
+        """Emit signal to open EditStationDialog for current station (D-08)."""
+        if self._station is not None:
+            self.edit_requested.emit(self._station)
 
     def _on_volume_changed_live(self, value: int) -> None:
         self._player.set_volume(value / 100.0)
