@@ -184,3 +184,41 @@ def test_inputs_disabled_during_import(dialog):
     dialog._set_yt_busy(False)
     assert dialog._yt_url.isEnabled()
     assert dialog._yt_scan_btn.isEnabled()
+
+
+# ---------------------------------------------------------------------------
+# Regression (Phase 40.1-01): _YtScanWorker must pass scan_playlist results
+# through unchanged. scan_playlist() already filters live entries via
+# _entry_is_live() and returns dicts WITHOUT an "is_live" key; a secondary
+# `e.get("is_live") is True` filter therefore drops every entry.
+# ---------------------------------------------------------------------------
+
+
+def test_yt_scan_passes_through(qtbot, monkeypatch, dialog):
+    """Worker must emit scan_playlist results unchanged — no secondary filter.
+
+    Mirrors real scan_playlist() output shape: dicts with title/url/provider
+    only (no "is_live" key). The buggy double-filter drops both entries.
+    """
+    from musicstreamer.ui_qt.import_dialog import _YtScanWorker
+
+    scan_results = [
+        {"title": "Stream A", "url": "https://youtube.com/watch?v=a", "provider": "youtube"},
+        {"title": "Stream B", "url": "https://youtube.com/watch?v=b", "provider": "youtube"},
+    ]
+    monkeypatch.setattr(
+        "musicstreamer.yt_import.scan_playlist",
+        lambda url: scan_results,
+    )
+
+    # Wire worker finished signal to the dialog handler that populates the list
+    worker = _YtScanWorker("https://youtube.com/playlist?list=dummy")
+    worker.finished.connect(dialog._on_yt_scan_complete)
+
+    with qtbot.waitSignal(worker.finished, timeout=3000):
+        worker.start()
+
+    # Both pass-through entries must reach the QListWidget
+    assert dialog._yt_list.count() == 2
+    titles = {dialog._yt_list.item(i).text() for i in range(dialog._yt_list.count())}
+    assert titles == {"Stream A", "Stream B"}
