@@ -206,7 +206,12 @@ Plans:
   2. YouTube cookie import works via file picker, paste, and Google login (subprocess OAuth helper); cookies stored at the platform-appropriate path with 0o600 permissions
   3. Accent color picker applies 8 presets or hex entry as live QSS; persists across restarts
   4. Hamburger menu exposes Discover, Import, Accent Color, YouTube Cookies, Accounts, and Export/Import Settings
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 40-01-PLAN.md — AccentColorDialog: build_accent_qss + palette helper + dialog with 8 presets + hex entry (UI-11)
+- [ ] 40-02-PLAN.md — oauth_helper.py subprocess + AccountsDialog with QProcess Twitch OAuth (UI-08)
+- [ ] 40-03-PLAN.md — CookieImportDialog: file/paste/Google login tabs with validation (UI-09)
+- [ ] 40-04-PLAN.md — Hamburger menu wiring + accent startup load + subprocess_utils (UI-10, UI-11 startup)
 **UI hint**: yes
 
 ### Phase 41: Platform Media Keys
@@ -264,11 +269,11 @@ Plans:
 | 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
-| 40. Auth Dialogs + Accent | v2.0 | 0/TBD | Not started | - |
+| 40. Auth Dialogs + Accent | v2.0 | 0/4 | Not started | - |
 | 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-04-13 — Phase 39 plans created (4 plans in 2 waves)*
+*Last updated: 2026-04-13 — Phase 40 plans created (4 plans in 2 waves)*
