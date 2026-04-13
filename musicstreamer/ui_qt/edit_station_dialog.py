@@ -16,17 +16,22 @@ player._current_station_name == station.name (T-39-03).
 """
 from __future__ import annotations
 
+import os
+import tempfile
 from typing import Optional
 
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QThread
+from PySide6.QtGui import QPixmap, QPixmapCache
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -36,8 +41,44 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from musicstreamer import assets
 from musicstreamer.models import Station
+from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.ui_qt.flow_layout import FlowLayout
+
+
+class _LogoFetchWorker(QThread):
+    """Background thumbnail fetcher for station URL (YT-only in this phase).
+
+    Emits finished(str) with a temp file path, or "" on failure/unsupported URL.
+    AA CDN branch intentionally no-ops — Choose File picker covers that case
+    until a later phase wires channel-key derivation.
+    """
+    finished = Signal(str)
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self._url = url
+
+    def run(self):
+        try:
+            url = self._url or ""
+            if "youtube.com" in url or "youtu.be" in url:
+                import yt_dlp
+                with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                thumb = info.get("thumbnail") if info else None
+                if thumb:
+                    import urllib.request
+                    fd, tmp = tempfile.mkstemp(suffix=".jpg")
+                    os.close(fd)
+                    urllib.request.urlretrieve(thumb, tmp)
+                    self.finished.emit(tmp)
+                    return
+            # AA branch deliberately no-ops this phase (see plan D-12 notes).
+            self.finished.emit("")
+        except Exception:
+            self.finished.emit("")
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +141,25 @@ class EditStationDialog(QDialog):
         outer.setContentsMargins(16, 16, 16, 16)
         outer.setSpacing(8)
 
+        # Logo row (Plan 40.1-04): 64x64 preview + Choose File + Clear, above form.
+        self._logo_path: Optional[str] = self._station.station_art_path
+        self._logo_fetch_worker: Optional[_LogoFetchWorker] = None
+        logo_row = QHBoxLayout()
+        logo_row.setContentsMargins(0, 0, 0, 0)
+        logo_row.setSpacing(8)
+        self._logo_preview = QLabel(self)
+        self._logo_preview.setFixedSize(64, 64)
+        self._logo_preview.setAlignment(Qt.AlignCenter)
+        self._choose_logo_btn = QPushButton("Choose File\u2026", self)
+        self._clear_logo_btn = QPushButton("Clear", self)
+        logo_row.addWidget(self._logo_preview)
+        logo_row.addWidget(self._choose_logo_btn)
+        logo_row.addWidget(self._clear_logo_btn)
+        logo_row.addStretch(1)
+        outer.addLayout(logo_row)
+        self._choose_logo_btn.clicked.connect(self._on_choose_logo)
+        self._clear_logo_btn.clicked.connect(self._on_clear_logo)
+
         form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
         form.setSpacing(8)
@@ -115,6 +175,7 @@ class EditStationDialog(QDialog):
         self._url_timer.setSingleShot(True)
         self._url_timer.setInterval(500)
         self.url_edit.textChanged.connect(self._on_url_text_changed)
+        self._url_timer.timeout.connect(self._on_url_timer_timeout)
         form.addRow("URL:", self.url_edit)
 
         # Provider
@@ -242,6 +303,9 @@ class EditStationDialog(QDialog):
         is_playing = getattr(self._player, "_current_station_name", "") == station.name
         self.delete_btn.setEnabled(not is_playing)
 
+        # Logo preview (Plan 40.1-04)
+        self._refresh_logo_preview()
+
     # ------------------------------------------------------------------
     # Chip helpers
     # ------------------------------------------------------------------
@@ -335,6 +399,89 @@ class EditStationDialog(QDialog):
     def _on_url_text_changed(self) -> None:
         self._url_timer.start()
 
+    def _on_url_timer_timeout(self) -> None:
+        """Debounced: kick off a _LogoFetchWorker for the current URL."""
+        url = self.url_edit.text().strip()
+        if not url:
+            return
+        if self._logo_fetch_worker is not None and self._logo_fetch_worker.isRunning():
+            try:
+                self._logo_fetch_worker.finished.disconnect()
+            except Exception:
+                pass
+        self._logo_fetch_worker = _LogoFetchWorker(url, self)
+        self._logo_fetch_worker.finished.connect(self._on_logo_fetched)
+        self._logo_fetch_worker.start()
+
+    # ------------------------------------------------------------------
+    # Logo row (Plan 40.1-04)
+    # ------------------------------------------------------------------
+
+    def _refresh_logo_preview(self) -> None:
+        resolved = abs_art_path(self._logo_path)
+        if resolved and os.path.exists(resolved):
+            pix = QPixmap(resolved)
+            if not pix.isNull():
+                self._logo_preview.setPixmap(
+                    pix.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
+                return
+        self._logo_preview.clear()
+
+    def _on_choose_logo(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose station logo", "",
+            "Images (*.png *.jpg *.jpeg *.webp *.svg)",
+        )
+        if not path:
+            return
+        old_path = self._logo_path
+        rel = assets.copy_asset_for_station(self._station.id, path, "station_art")
+        self._logo_path = rel
+        self._refresh_logo_preview()
+        self._invalidate_cache_for(old_path)
+
+    def _on_clear_logo(self) -> None:
+        old_path = self._logo_path
+        self._logo_path = None
+        self._refresh_logo_preview()
+        self._invalidate_cache_for(old_path)
+
+    def _on_logo_fetched(self, tmp_path: str) -> None:
+        if not tmp_path or not os.path.exists(tmp_path):
+            return
+        old_path = self._logo_path
+        rel = assets.copy_asset_for_station(self._station.id, tmp_path, "station_art")
+        self._logo_path = rel
+        self._refresh_logo_preview()
+        self._invalidate_cache_for(old_path)
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+    def _invalidate_cache_for(self, rel_path: Optional[str]) -> None:
+        if not rel_path:
+            return
+        resolved = abs_art_path(rel_path)
+        QPixmapCache.remove(f"station-logo:{resolved}")
+
+    def closeEvent(self, event):  # noqa: N802 (Qt override)
+        if self._logo_fetch_worker is not None and self._logo_fetch_worker.isRunning():
+            try:
+                self._logo_fetch_worker.finished.disconnect()
+            except Exception:
+                pass
+        super().closeEvent(event)
+
+    def reject(self) -> None:
+        if self._logo_fetch_worker is not None and self._logo_fetch_worker.isRunning():
+            try:
+                self._logo_fetch_worker.finished.disconnect()
+            except Exception:
+                pass
+        super().reject()
+
     # ------------------------------------------------------------------
     # Save
     # ------------------------------------------------------------------
@@ -364,10 +511,12 @@ class EditStationDialog(QDialog):
             name,
             provider_id,
             tags_csv,
-            station.station_art_path,
+            self._logo_path,
             station.album_fallback_path,
             icy_disabled,
         )
+        # Keep in-memory Station consistent for any station_saved consumers.
+        station.station_art_path = self._logo_path
 
         # Persist streams
         ordered_ids: list[int] = []
