@@ -275,9 +275,9 @@ Plans:
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
-### Phase 45: Fix station logos as none has worked since migration to 2.0
+### Phase 45: Fix station logos + ICY disable regression
 
-**Goal:** [To be planned]
+**Goal:** Fix station logos (none working since v2.0 migration) and fix "disable ICY" toggle (not working)
 **Requirements**: TBD
 **Depends on:** Phase 44
 **Plans:** 4/4 plans complete
