@@ -102,6 +102,9 @@ class FakeRepo:
     def remove_favorite(self, station_name: str, track_title: str) -> None:
         pass
 
+    def list_streams(self, station_id: int) -> list:
+        return []
+
 
 def _make_station(name="Test Station", provider="TestFM") -> Station:
     return Station(

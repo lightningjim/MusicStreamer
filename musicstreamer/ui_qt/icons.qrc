@@ -11,5 +11,6 @@
     <file alias="non-starred-symbolic.svg">icons/non-starred-symbolic.svg</file>
     <file alias="user-trash-symbolic.svg">icons/user-trash-symbolic.svg</file>
     <file alias="edit-clear-all-symbolic.svg">icons/edit-clear-all-symbolic.svg</file>
+    <file alias="document-edit-symbolic.svg">icons/document-edit-symbolic.svg</file>
   </qresource>
 </RCC>

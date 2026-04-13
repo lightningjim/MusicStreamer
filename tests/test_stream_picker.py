@@ -168,13 +168,15 @@ def test_stream_combo_hidden_for_single_stream(panel):
     """Test 4: stream_combo is hidden when station has only 1 stream."""
     assert hasattr(panel, "stream_combo"), "NowPlayingPanel must have stream_combo attribute"
     panel.bind_station(single_stream_station)
-    assert not panel.stream_combo.isVisible(), "stream_combo must be hidden for single-stream station"
+    # isHidden() checks the explicit hide flag regardless of parent visibility
+    assert panel.stream_combo.isHidden(), "stream_combo must be hidden for single-stream station"
 
 
 def test_stream_combo_visible_for_multi_stream(panel):
     """Test 5: stream_combo is visible when station has 2+ streams."""
     panel.bind_station(multi_stream_station)
-    assert panel.stream_combo.isVisible(), "stream_combo must be visible for multi-stream station"
+    # isHidden() is False when setVisible(True) was called, even in offscreen tests
+    assert not panel.stream_combo.isHidden(), "stream_combo must not be hidden for multi-stream station"
 
 
 def test_stream_combo_populated_with_labels(panel):
