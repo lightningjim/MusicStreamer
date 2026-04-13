@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Callable, List, Optional
 
 from PySide6.QtCore import QThread, Qt, Signal
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -37,6 +37,26 @@ from PySide6.QtWidgets import (
 
 from musicstreamer import radio_browser
 from musicstreamer.models import Station, StationStream
+from musicstreamer.ui_qt import icons_rc  # noqa: F401  # register :/icons/* resources
+
+
+# ---------------------------------------------------------------------------
+# Icon helpers (Phase 40.1-02: D-03/D-04/D-05 icon-only play toggle)
+# ---------------------------------------------------------------------------
+
+
+def _play_icon() -> QIcon:
+    return QIcon.fromTheme(
+        "media-playback-start-symbolic",
+        QIcon(":/icons/media-playback-start-symbolic.svg"),
+    )
+
+
+def _stop_icon() -> QIcon:
+    return QIcon.fromTheme(
+        "media-playback-stop-symbolic",
+        QIcon(":/icons/media-playback-stop-symbolic.svg"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +358,10 @@ class DiscoveryDialog(QDialog):
                  play_placeholder, save_placeholder]
             )
 
-            play_btn = QPushButton("Play", self._results_table)
+            play_btn = QPushButton(self._results_table)
+            play_btn.setIcon(_play_icon())
+            play_btn.setAccessibleName("Play preview")
+            play_btn.setToolTip("Play preview")
             play_btn.clicked.connect(self._make_play_slot(row_idx))
             self._play_buttons.append(play_btn)
 
@@ -419,11 +442,17 @@ class DiscoveryDialog(QDialog):
             self._player.stop()
             self._previewing_row = -1
             if row_index < len(self._play_buttons):
-                self._play_buttons[row_index].setText("Play")
+                btn = self._play_buttons[row_index]
+                btn.setIcon(_play_icon())
+                btn.setAccessibleName("Play preview")
+                btn.setToolTip("Play preview")
         else:
             # Reset icon on previously-previewing row
             if self._previewing_row >= 0 and self._previewing_row < len(self._play_buttons):
-                self._play_buttons[self._previewing_row].setText("Play")
+                prev_btn = self._play_buttons[self._previewing_row]
+                prev_btn.setIcon(_play_icon())
+                prev_btn.setAccessibleName("Play preview")
+                prev_btn.setToolTip("Play preview")
 
             stream_url = result.get("url_resolved") or result.get("url", "")
             temp_station = Station(
@@ -441,7 +470,10 @@ class DiscoveryDialog(QDialog):
             self._player.play(temp_station)
             self._previewing_row = row_index
             if row_index < len(self._play_buttons):
-                self._play_buttons[row_index].setText("Stop")
+                btn = self._play_buttons[row_index]
+                btn.setIcon(_stop_icon())
+                btn.setAccessibleName("Stop preview")
+                btn.setToolTip("Stop preview")
 
     # ------------------------------------------------------------------
     # Close / reject — stop any active preview
