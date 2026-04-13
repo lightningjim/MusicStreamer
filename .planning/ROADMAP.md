@@ -189,7 +189,12 @@ Plans:
   3. ImportDialog YouTube tab scans a playlist and imports selected live streams with progress feedback
   4. ImportDialog AudioAddict tab accepts an API key, selects quality, and imports all channels with logos
   5. Stream picker dropdown on the now-playing panel switches the active stream manually
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 39-01-PLAN.md — EditStationDialog: station CRUD + tag chips + multi-stream table + delete guard (UI-05)
+- [ ] 39-02-PLAN.md — DiscoveryDialog: Radio-Browser search + preview play + save-to-library (UI-06)
+- [ ] 39-03-PLAN.md — ImportDialog: YouTube scan/import + AudioAddict fetch/import with progress (UI-07)
+- [ ] 39-04-PLAN.md — Edit button + stream picker on NowPlayingPanel + MainWindow dialog wiring (UI-13)
 **UI hint**: yes
 
 ### Phase 40: Auth Dialogs + Accent
@@ -258,7 +263,7 @@ Plans:
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 4/4 | Complete   | 2026-04-11 |
 | 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
-| 39. Core Dialogs | v2.0 | 0/TBD | Not started | - |
+| 39. Core Dialogs | v2.0 | 0/4 | Not started | - |
 | 40. Auth Dialogs + Accent | v2.0 | 0/TBD | Not started | - |
 | 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
@@ -266,4 +271,4 @@ Plans:
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-04-10 — v2.0 OS-Agnostic Revamp roadmap created (phases 35–44)*
+*Last updated: 2026-04-13 — Phase 39 plans created (4 plans in 2 waves)*
