@@ -254,6 +254,11 @@ class NowPlayingPanel(QWidget):
     # Public API — station binding
     # ----------------------------------------------------------------------
 
+    @property
+    def current_station(self) -> Optional[Station]:
+        """Read-only access to the currently bound station."""
+        return self._station
+
     def bind_station(self, station: Station) -> None:
         """Attach a Station and reset the panel for playback of that station."""
         self._station = station

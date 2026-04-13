@@ -174,7 +174,7 @@ class MainWindow(QMainWindow):
     def _on_station_deleted(self, station_id: int) -> None:
         """After station deletion, refresh list and clear now-playing if needed."""
         self._refresh_station_list()
-        if self.now_playing._station and self.now_playing._station.id == station_id:
+        if self.now_playing.current_station and self.now_playing.current_station.id == station_id:
             self.now_playing._on_stop_clicked()
 
     def _refresh_station_list(self) -> None:
