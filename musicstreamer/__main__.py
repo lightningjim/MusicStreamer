@@ -105,13 +105,22 @@ def _run_gui(argv: list[str]) -> int:
     from PySide6.QtWidgets import QApplication
     from musicstreamer.ui_qt import icons_rc  # noqa: F401  (D-24 side-effect resource import)
     from musicstreamer.ui_qt.main_window import MainWindow
+    from musicstreamer.player import Player
+    from musicstreamer.repo import Repo, db_connect, db_init
 
     app = QApplication(argv)
+    app.setApplicationName("MusicStreamer")
+    app.setDesktopFileName("org.example.MusicStreamer")
     if sys.platform == "win32":
         app.setStyle("Fusion")          # D-14: BEFORE widget construction
         _apply_windows_palette(app)     # D-15: dark-mode palette if applicable
 
-    window = MainWindow()
+    con = db_connect()
+    db_init(con)
+    player = Player()
+    repo = Repo(con)
+
+    window = MainWindow(player, repo)
     window.show()
     return app.exec()
 

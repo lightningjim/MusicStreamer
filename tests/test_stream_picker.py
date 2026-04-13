@@ -156,12 +156,12 @@ def test_edit_btn_enabled_when_playing(panel):
     assert panel.edit_btn.isEnabled(), "edit_btn must be enabled when a station is playing"
 
 
-def test_edit_btn_disabled_when_stopped(panel):
-    """Test 3: edit_btn disabled after on_playing_state_changed(False)."""
+def test_edit_btn_enabled_when_stopped_with_station(panel):
+    """Test 3: edit_btn stays enabled after stop if station is bound (UAT #3 fix)."""
     panel.bind_station(single_stream_station)
     panel.on_playing_state_changed(True)
     panel.on_playing_state_changed(False)
-    assert not panel.edit_btn.isEnabled(), "edit_btn must be disabled when playback stops"
+    assert panel.edit_btn.isEnabled(), "edit_btn must stay enabled when station is bound"
 
 
 def test_stream_combo_hidden_for_single_stream(panel):
