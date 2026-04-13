@@ -16,7 +16,7 @@ Signal connections use bound methods only (no self-capturing lambdas) per QA-05.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QSize, Qt, Signal
 from PySide6.QtGui import QFont, QIcon, QPixmap, QPixmapCache, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -42,7 +42,7 @@ from musicstreamer.ui_qt.station_tree_model import StationTreeModel
 from musicstreamer.ui_qt.station_filter_proxy import StationFilterProxyModel
 from musicstreamer.ui_qt.flow_layout import FlowLayout
 from musicstreamer.ui_qt.favorites_view import FavoritesView
-from musicstreamer.ui_qt.station_star_delegate import StationStarDelegate
+from musicstreamer.ui_qt.station_star_delegate import StationStarDelegate, _star_rect
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -182,27 +182,43 @@ class StationListPanel(QWidget):
         sep.setFrameShadow(QFrame.Sunken)
         sp_layout.addWidget(sep)
 
+        # Filter strip toggle button
+        self._filter_toggle = QPushButton("\u25b6 Filters", stations_page)
+        self._filter_toggle.setFlat(True)
+        self._filter_toggle.setFixedHeight(24)
+        self._filter_toggle.setStyleSheet(
+            "QPushButton { text-align: left; padding-left: 16px; color: palette(highlight); }"
+        )
+        self._filter_toggle.clicked.connect(self._toggle_filter_strip)
+        sp_layout.addWidget(self._filter_toggle)
+
+        # Collapsible filter strip container
+        self._filter_strip = QWidget(stations_page)
+        fs_layout = QVBoxLayout(self._filter_strip)
+        fs_layout.setContentsMargins(0, 0, 0, 0)
+        fs_layout.setSpacing(0)
+
         # Filter strip — Search box (D-12)
-        self._search_box = QLineEdit(stations_page)
+        self._search_box = QLineEdit(self._filter_strip)
         self._search_box.setPlaceholderText("Search stations\u2026")
         self._search_box.setClearButtonEnabled(True)
-        search_wrapper = QWidget(stations_page)
+        search_wrapper = QWidget(self._filter_strip)
         sw_layout = QHBoxLayout(search_wrapper)
         sw_layout.setContentsMargins(16, 4, 16, 4)
         sw_layout.addWidget(self._search_box)
-        sp_layout.addWidget(search_wrapper)
+        fs_layout.addWidget(search_wrapper)
         self._search_box.textChanged.connect(self._on_search_changed)
 
         # Provider chip row (D-13)
         self._provider_chip_group = QButtonGroup(self)
         self._provider_chip_group.setExclusive(False)
-        provider_chip_container = QWidget(stations_page)
+        provider_chip_container = QWidget(self._filter_strip)
         provider_chip_layout = FlowLayout(provider_chip_container, h_spacing=4, v_spacing=8)
-        provider_chip_wrapper = QWidget(stations_page)
+        provider_chip_wrapper = QWidget(self._filter_strip)
         pcw_layout = QHBoxLayout(provider_chip_wrapper)
         pcw_layout.setContentsMargins(16, 4, 16, 0)
         pcw_layout.addWidget(provider_chip_container)
-        sp_layout.addWidget(provider_chip_wrapper)
+        fs_layout.addWidget(provider_chip_wrapper)
 
         self._provider_chip_container = provider_chip_container
         self._provider_chip_layout = provider_chip_layout
@@ -210,13 +226,13 @@ class StationListPanel(QWidget):
         # Tag chip row (D-13)
         self._tag_chip_group = QButtonGroup(self)
         self._tag_chip_group.setExclusive(False)
-        tag_chip_container = QWidget(stations_page)
+        tag_chip_container = QWidget(self._filter_strip)
         tag_chip_layout = FlowLayout(tag_chip_container, h_spacing=4, v_spacing=8)
-        tag_chip_wrapper = QWidget(stations_page)
+        tag_chip_wrapper = QWidget(self._filter_strip)
         tcw_layout = QHBoxLayout(tag_chip_wrapper)
         tcw_layout.setContentsMargins(16, 4, 16, 0)
         tcw_layout.addWidget(tag_chip_container)
-        sp_layout.addWidget(tag_chip_wrapper)
+        fs_layout.addWidget(tag_chip_wrapper)
 
         self._tag_chip_container = tag_chip_container
         self._tag_chip_layout = tag_chip_layout
@@ -227,11 +243,11 @@ class StationListPanel(QWidget):
         self._tag_chip_group.buttonClicked.connect(self._on_tag_chip_clicked)
 
         # "Clear all" button (D-14)
-        clear_row = QWidget(stations_page)
+        clear_row = QWidget(self._filter_strip)
         clear_layout = QHBoxLayout(clear_row)
         clear_layout.setContentsMargins(16, 4, 16, 4)
         clear_layout.addStretch(1)
-        self._clear_btn = QPushButton(stations_page)
+        self._clear_btn = QPushButton(self._filter_strip)
         self._clear_btn.setToolTip("Clear all filters")
         clear_icon = QIcon(":/icons/edit-clear-all-symbolic.svg")
         if not clear_icon.isNull():
@@ -239,8 +255,12 @@ class StationListPanel(QWidget):
         else:
             self._clear_btn.setText("\u2715 Clear")
         clear_layout.addWidget(self._clear_btn)
-        sp_layout.addWidget(clear_row)
+        fs_layout.addWidget(clear_row)
         self._clear_btn.clicked.connect(self._clear_all_filters)
+
+        # Start collapsed
+        self._filter_strip.setVisible(False)
+        sp_layout.addWidget(self._filter_strip)
 
         # Provider-grouped station tree (D-01) + proxy
         self.tree = QTreeView(stations_page)
@@ -264,7 +284,8 @@ class StationListPanel(QWidget):
         # Station star delegate (D-09)
         self._star_delegate = StationStarDelegate(self._repo, parent=self.tree)
         self.tree.setItemDelegate(self._star_delegate)
-        self._star_delegate.star_toggled.connect(self._on_station_star_toggled)
+        # editorEvent won't fire with NoEditTriggers, so use viewport event filter
+        self.tree.viewport().installEventFilter(self)
 
         self._stack.addWidget(stations_page)  # index 0
 
@@ -358,6 +379,11 @@ class StationListPanel(QWidget):
         }
         self._proxy.set_tags(tag_set)
 
+    def _toggle_filter_strip(self) -> None:
+        visible = not self._filter_strip.isVisible()
+        self._filter_strip.setVisible(visible)
+        self._filter_toggle.setText(("\u25bc Filters" if visible else "\u25b6 Filters"))
+
     def _clear_all_filters(self) -> None:
         self._search_box.clear()
         for btn in self._provider_chip_group.buttons():
@@ -373,6 +399,11 @@ class StationListPanel(QWidget):
         source_idx = self._proxy.mapToSource(index)
         station = self.model.station_for_index(source_idx)
         if station is not None:
+            # Skip if click was on the star area — eventFilter handles that
+            vis_rect = self.tree.visualRect(index)
+            cursor_pos = self.tree.viewport().mapFromGlobal(self.tree.cursor().pos())
+            if _star_rect(vis_rect).contains(cursor_pos):
+                return
             self.station_activated.emit(station)
 
     def _on_recent_clicked(self, index: QModelIndex) -> None:
@@ -406,6 +437,25 @@ class StationListPanel(QWidget):
     def _on_favorites_changed(self) -> None:
         """Slot called when FavoritesView removes a favorite — no-op here, view handles itself."""
         pass
+
+    # ------------------------------------------------------------------
+    # Viewport event filter — star click detection (D-09)
+    # editorEvent won't fire with NoEditTriggers, so intercept here.
+    # ------------------------------------------------------------------
+
+    def eventFilter(self, obj, event) -> bool:
+        if obj is self.tree.viewport() and event.type() == QEvent.MouseButtonRelease:
+            pos = event.position().toPoint()
+            index = self.tree.indexAt(pos)
+            if index.isValid():
+                source_idx = self._proxy.mapToSource(index)
+                station = self.model.station_for_index(source_idx)
+                if station is not None:
+                    vis_rect = self.tree.visualRect(index)
+                    if _star_rect(vis_rect).contains(pos):
+                        self._on_station_star_toggled(station)
+                        return True
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------
     # Station star delegate slot (D-09)
