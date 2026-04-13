@@ -61,8 +61,7 @@ class _YtScanWorker(QThread):
     def run(self):
         try:
             results = yt_import.scan_playlist(self._url)
-            live = [e for e in results if e.get("is_live") is True]
-            self.finished.emit(live)
+            self.finished.emit(results)
         except Exception as exc:
             self.error.emit(str(exc))
 
