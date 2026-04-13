@@ -36,27 +36,24 @@ notes: Position column numbers don't visually update after reorder — cosmetic 
 
 ### 5. Discovery — Search and Results
 expected: Open the Discovery dialog. Type a station name, click "Search Stations". Results appear in a table.
-result: blocked
-blocked_by: prior-phase
-reason: "No UI entry point to open DiscoveryDialog — hamburger menu is Phase 40 (UI-10)"
+result: pass
+notes: Works via hamburger menu. User prefers play/stop icons instead of text buttons in results table.
 
 ### 6. Discovery — Preview and Save
 expected: In Discovery results, click Play/Save on a row.
-result: blocked
-blocked_by: prior-phase
-reason: "Same as test 5 — no launch point for DiscoveryDialog"
+result: pass
+notes: Works. Play/stop buttons should use icons instead of words (cosmetic).
 
 ### 7. Import — YouTube Playlist
 expected: Open Import dialog, YouTube tab. Scan and import live streams.
-result: blocked
-blocked_by: prior-phase
-reason: "No UI entry point to open ImportDialog — hamburger menu is Phase 40 (UI-10)"
+result: issue
+reported: "Fails with 'No live streams detected' even though there are live streams in playlist https://www.youtube.com/playlist?list=PL6NdkXsPL07Il2hEQGcLI4dg_LTg7xA2L"
+severity: major
 
 ### 8. Import — AudioAddict
 expected: Open Import dialog, AudioAddict tab. Import channels with progress.
-result: blocked
-blocked_by: prior-phase
-reason: "Same as test 7 — no launch point for ImportDialog"
+result: pass
+notes: Worked but very slow. Came back empty — user already had all AA stations imported (dedup). Consider showing "0 new, N skipped" instead of empty result.
 
 ### 9. Stream Picker — Visibility
 expected: Stream picker hidden for single-stream stations, visible for multi-stream stations.
@@ -69,21 +66,35 @@ result: pass
 ## Summary
 
 total: 10
-passed: 4
-issues: 2
+passed: 7
+issues: 3
 pending: 0
 skipped: 0
-blocked: 4
+blocked: 0
 
 ## Gaps
 
 - truth: "Re-opening edit dialog for the same station (without replaying) should show current DB data"
-  status: failed
-  reason: "User reported: dialog constructs from stale in-memory Station object, not re-fetched from DB"
+  status: resolved
+  reason: "Fixed: dialog now re-fetches from DB before opening"
   severity: major
   test: 2
   artifacts: [musicstreamer/ui_qt/main_window.py]
-  missing: [re-fetch station from repo before constructing EditStationDialog]
+
+- truth: "User should be able to edit any station, not just the currently playing one"
+  status: resolved
+  reason: "Fixed: right-click context menu on station list"
+  severity: major
+  test: 3
+  artifacts: [musicstreamer/ui_qt/station_list_panel.py]
+
+- truth: "YouTube playlist import should detect live streams in valid playlists"
+  status: failed
+  reason: "User reported: 'No live streams detected' for playlist with live streams (PL6NdkXsPL07Il2hEQGcLI4dg_LTg7xA2L)"
+  severity: major
+  test: 7
+  artifacts: [musicstreamer/ui_qt/import_dialog.py, musicstreamer/yt_import.py]
+  missing: [investigate _entry_is_live filter logic — may reject entries with live_status not set in extract_flat mode]
 
 - truth: "User should be able to edit any station, not just the currently playing one"
   status: failed
