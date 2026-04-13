@@ -101,7 +101,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 35: Backend Isolation** - Refactor player.py to QObject + Qt signals; platformdirs data paths; Linux data migration; port yt-dlp/streamlink to library APIs; spike to drop mpv fallback (completed 2026-04-11)
 - [x] **Phase 36: Qt Scaffold + GTK Cutover** - Bare QMainWindow launches; GTK deleted; pytest-qt configured (completed 2026-04-11)
 - [x] **Phase 37: Station List + Now Playing** - Core loop: grouped station list, now-playing panel, ICY titles, toasts (completed 2026-04-12)
-- [ ] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view
+- [x] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view (completed 2026-04-13)
 - [ ] **Phase 39: Core Dialogs** - EditStation, DiscoveryDialog, ImportDialog, stream picker
 - [ ] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu
 - [ ] **Phase 41: Platform Media Keys** - media_keys/ factory: MPRIS2 (Linux) + SMTC (Windows)
@@ -175,8 +175,8 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
   4. Star button on now-playing panel saves an ICY track title to favorites
 **Plans**: 2 plans
 Plans:
-- [ ] 38-01-PLAN.md — DB migration + StationFilterProxyModel + FlowLayout + filter strip UI + icons
-- [ ] 38-02-PLAN.md — Segmented control + FavoritesView + station star delegate + track star button + wiring
+- [x] 38-01-PLAN.md — DB migration + StationFilterProxyModel + FlowLayout + filter strip UI + icons
+- [x] 38-02-PLAN.md — Segmented control + FavoritesView + station star delegate + track star button + wiring
 **UI hint**: yes
 
 ### Phase 39: Core Dialogs
@@ -257,7 +257,7 @@ Plans:
 | 35. Backend Isolation | v2.0 | 5/5 | Complete   | 2026-04-11 |
 | 36. Qt Scaffold + GTK Cutover | v2.0 | 4/4 | Complete   | 2026-04-11 |
 | 37. Station List + Now Playing | v2.0 | 4/4 | Complete    | 2026-04-12 |
-| 38. Filter Strip + Favorites | v2.0 | 0/TBD | Not started | - |
+| 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 0/TBD | Not started | - |
 | 40. Auth Dialogs + Accent | v2.0 | 0/TBD | Not started | - |
 | 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
