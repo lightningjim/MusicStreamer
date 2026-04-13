@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
+from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.models import Station
 
@@ -54,9 +55,10 @@ def _load_scaled_pixmap(path: Optional[str], size: QSize) -> QPixmap:
     Falls back to the bundled generic audio icon on load failure. The returned
     pixmap is never null.
     """
+    resolved = abs_art_path(path)
     pix = QPixmap()
-    if path:
-        pix = QPixmap(path)
+    if resolved:
+        pix = QPixmap(resolved)
     if pix.isNull():
         pix = QPixmap(_FALLBACK_ICON)
     return pix.scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
