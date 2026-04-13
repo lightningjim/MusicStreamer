@@ -344,6 +344,9 @@ class EditStationDialog(QDialog):
         repo = self._repo
 
         name = self.name_edit.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Validation", "Station name cannot be empty.")
+            return
         provider_name = self.provider_combo.currentText().strip()
         icy_disabled = self.icy_checkbox.isChecked()
 
