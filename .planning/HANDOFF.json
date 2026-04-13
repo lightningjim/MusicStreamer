@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-13T23:26:41.845Z",
+  "phase": "40.1",
+  "phase_name": "bug-fix-sweep",
+  "phase_dir": ".planning/phases/40.1-fix-youtube-live-stream-detection-in-import-discovery-play-s",
+  "plan": 5,
+  "task": 0,
+  "total_tasks": 6,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "yt-import-fix", "status": "done", "commit": "3f01514"},
+    {"id": 2, "name": "discovery-icons", "status": "done", "commit": "a0a3cef"},
+    {"id": 3, "name": "aa-yt-import-feedback", "status": "done", "commit": "45703ac"},
+    {"id": 4, "name": "station-logos", "status": "done", "commit": "ab489fe"}
+  ],
+  "remaining_tasks": [
+    {"id": 5, "name": "icy-disable-toggle", "status": "not_started", "wave": 3, "depends_on": ["04"]},
+    {"id": 6, "name": "playing-timer", "status": "not_started", "wave": 4, "depends_on": ["05"]}
+  ],
+  "blockers": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Dispatch worktree executors sequentially with run_in_background:true", "rationale": "Parallel dispatch in a single message races on .git/config.lock", "phase": "40.1"},
+    {"decision": "Drop post-merge --amend of STATE.md/ROADMAP.md after worktree merge", "rationale": "Wave 1 merge script triggered a cwd-loss fault that rewound main; simple sequential merges without amend worked cleanly in Wave 2", "phase": "40.1"}
+  ],
+  "uncommitted_files": [".planning/STATE.md", ".planning/ROADMAP.md"],
+  "next_action": "Spawn gsd-executor for plan 05 (icy-disable-toggle) in a worktree, base HEAD=9188c9f. Then plan 06 (playing-timer) in wave 4.",
+  "context_notes": "Waves 1 and 2 complete (4 plans merged into main). Main HEAD: 9188c9f. Plans 05 and 06 remaining. Wave 3: plan 05 alone (depends_on 04). Wave 4: plan 06 alone (depends_on 05). Auto-chain flag still active (workflow._auto_chain_active=true) so resume will auto-advance to verify after execution."
+}

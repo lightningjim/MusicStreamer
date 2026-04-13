@@ -225,7 +225,7 @@ Plans:
 
 **Requirements**: TBD (regression fixes; no new requirement IDs)
 **Depends on:** Phase 40
-**Plans:** 0 plans
+**Plans:** 4/6 plans executed
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 40.1 to break down)
