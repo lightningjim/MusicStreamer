@@ -36,6 +36,7 @@ def toast_cb():
 def dialog(qtbot, toast_cb):
     dlg = ImportDialog(toast_callback=toast_cb)
     qtbot.addWidget(dlg)
+    dlg.show()
     return dlg
 
 
@@ -143,12 +144,14 @@ def test_audioaddict_quality_combo(dialog):
 
 
 def test_audioaddict_invalid_key_shows_error(dialog):
+    dialog._tabs.setCurrentIndex(1)  # switch to AA tab so status label is visible
     dialog._on_aa_fetch_error("no_channels")
     assert dialog._aa_status.isVisible()
     assert "expired" in dialog._aa_status.text().lower() or "api key" in dialog._aa_status.text().lower()
 
 
 def test_audioaddict_invalid_key_error_text(dialog):
+    dialog._tabs.setCurrentIndex(1)  # switch to AA tab
     dialog._on_aa_fetch_error("invalid_key")
     assert dialog._aa_status.isVisible()
     assert "invalid" in dialog._aa_status.text().lower() or "api key" in dialog._aa_status.text().lower()
