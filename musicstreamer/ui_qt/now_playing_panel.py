@@ -270,7 +270,10 @@ class NowPlayingPanel(QWidget):
             )
         else:
             self.name_provider_label.setText(station.name)
-        self.icy_label.setText("")
+        if station is not None and getattr(station, "icy_disabled", False):
+            self.icy_label.setText(station.name or "")
+        else:
+            self.icy_label.setText("")
         self._last_cover_icy = None
         self._last_icy_title = ""
         self.star_btn.setChecked(False)
@@ -284,6 +287,11 @@ class NowPlayingPanel(QWidget):
     # ----------------------------------------------------------------------
 
     def on_title_changed(self, title: str) -> None:
+        if self._station is not None and self._station.icy_disabled:
+            # Per-station ICY disable (D-15, D-16, D-17): do not display ICY
+            # titles or trigger iTunes cover-art lookup. icy_label keeps the
+            # station name fallback set by bind_station().
+            return
         self.icy_label.setText(title or "")
         self._last_icy_title = title or ""
         self._update_star_enabled()
