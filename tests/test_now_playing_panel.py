@@ -417,3 +417,124 @@ def test_star_btn_track_starred_signal(qtbot):
     assert track_title == "DJ Mix"
     assert provider == "SomaFM"
     assert is_fav is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 40.1-05: icy_disabled suppression regression tests (D-15, D-16, D-17)
+# ---------------------------------------------------------------------------
+
+
+def _icy_disabled_station(name: str = "My Station") -> Station:
+    return Station(
+        id=1,
+        name=name,
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=True,
+        streams=[StationStream(id=1, station_id=1, url="http://x/s", label="hi",
+                               quality="hi", position=1, stream_type="shoutcast",
+                               codec="MP3")],
+    )
+
+
+def test_icy_disabled_suppresses_all(qtbot, monkeypatch):
+    """When icy_disabled=True, on_title_changed must not overwrite icy_label
+    or call _fetch_cover_art_async. bind_station must show station name."""
+    from unittest.mock import MagicMock
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+
+    station = _icy_disabled_station("My Station")
+    panel.bind_station(station)
+
+    # After bind, the station name should appear in icy_label (fallback per D-15).
+    assert panel.icy_label.text() == "My Station"
+
+    # Patch _fetch_cover_art_async on the instance — capture any call.
+    fetch_mock = MagicMock()
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", fetch_mock)
+
+    panel.on_title_changed("Some Artist - Some Track")
+
+    assert fetch_mock.call_count == 0, (
+        "icy_disabled=True must suppress cover-art fetch"
+    )
+    assert panel.icy_label.text() == "My Station", (
+        "icy_disabled=True must keep station name in icy_label, not overwrite with ICY title"
+    )
+
+
+def test_icy_disabled_suppresses_itunes_call(qtbot, monkeypatch):
+    """When icy_disabled=True, cover_art.fetch_cover_art must never be invoked."""
+    from unittest.mock import MagicMock
+    import musicstreamer.cover_art as cover_art_mod
+
+    fetch_spy = MagicMock()
+    monkeypatch.setattr(cover_art_mod, "fetch_cover_art", fetch_spy)
+    # Also patch the symbol already imported into the panel module.
+    import musicstreamer.ui_qt.now_playing_panel as npp_mod
+    monkeypatch.setattr(npp_mod, "fetch_cover_art", fetch_spy)
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_icy_disabled_station("My Station"))
+
+    panel.on_title_changed("Foo - Bar")
+    qtbot.wait(200)
+
+    assert fetch_spy.call_count == 0, (
+        "icy_disabled=True must not trigger iTunes cover-art lookup"
+    )
+
+
+def test_icy_enabled_still_updates_title(qtbot, monkeypatch):
+    """Control test: icy_disabled=False preserves existing behavior."""
+    from unittest.mock import MagicMock
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+
+    station = _station("On-Air", "SomaFM")  # icy_disabled=False
+    panel.bind_station(station)
+
+    fetch_mock = MagicMock()
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", fetch_mock)
+
+    panel.on_title_changed("Artist - Track")
+
+    assert panel.icy_label.text() == "Artist - Track"
+    fetch_mock.assert_called_once_with("Artist - Track")
+
+
+def test_icy_disabled_rebind_takes_effect(qtbot, monkeypatch):
+    """Rebinding with a fresh icy_disabled=True Station must suppress subsequent titles."""
+    from unittest.mock import MagicMock
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+
+    # Start with icy_disabled=False
+    s_enabled = _station("S", None)
+    panel.bind_station(s_enabled)
+
+    fetch_mock = MagicMock()
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", fetch_mock)
+
+    panel.on_title_changed("T")
+    assert panel.icy_label.text() == "T"
+
+    # Rebind with a fresh station instance, icy_disabled=True, same name "S"
+    s_disabled = _icy_disabled_station("S")
+    panel.bind_station(s_disabled)
+
+    # Re-patch because bind_station didn't reassign but keep the mock.
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", fetch_mock)
+
+    panel.on_title_changed("T2")
+    assert panel.icy_label.text() == "S", (
+        "After rebind to icy_disabled=True station, icy_label must show station name, not 'T2'"
+    )
