@@ -64,7 +64,7 @@ class Player(QObject):
     youtube_resolved           = Signal(str)     # internal: resolved YouTube HLS URL -- queued back to main thread
     youtube_resolution_failed  = Signal(str)     # internal: yt-dlp error message -- queued back to main thread
     playback_error             = Signal(str)     # GStreamer error text
-    elapsed_updated            = Signal(int)     # seconds since playback start (Phase 30 reserved)
+    elapsed_updated            = Signal(int)     # wall-clock seconds since play began (40.1-06)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -97,6 +97,17 @@ class Player(QObject):
         self._failover_timer = QTimer(self)
         self._failover_timer.setSingleShot(True)
         self._failover_timer.timeout.connect(self._on_timeout)
+
+        # Elapsed-time display (v1.5 parity; v2.0 Qt-port regression fix,
+        # Plan 40.1-06). Wall-clock seconds since the user pressed play --
+        # does NOT reset on failover (transparent to the user). Main-thread
+        # QTimer; emits once per second while the pipeline is intended to
+        # be PLAYING. Kept OUT of _cancel_timers so bus-handler failover
+        # recovery does not pause the elapsed counter.
+        self._elapsed_seconds: int = 0
+        self._elapsed_timer = QTimer(self)
+        self._elapsed_timer.setInterval(1000)
+        self._elapsed_timer.timeout.connect(self._on_elapsed_tick)
 
         # Internal: twitch_resolved / youtube_resolved / youtube_resolution_failed
         # are emitted from worker threads; queued connections marshal the slot
@@ -181,11 +192,14 @@ class Player(QObject):
     def pause(self) -> None:
         """Stop audio output without clearing station context (D-04)."""
         self._cancel_timers()
+        self._elapsed_timer.stop()
         self._streams_queue = []
         self._pipeline.set_state(Gst.State.NULL)
 
     def stop(self) -> None:
         self._cancel_timers()
+        self._elapsed_timer.stop()
+        self._elapsed_seconds = 0
         self._streams_queue = []
         self._pipeline.set_state(Gst.State.NULL)
 
@@ -268,6 +282,11 @@ class Player(QObject):
         """Failover timeout: no audio arrived within BUFFER_DURATION_S seconds."""
         self._try_next_stream()
 
+    def _on_elapsed_tick(self) -> None:
+        """1Hz tick: increment counter and emit elapsed_updated(seconds)."""
+        self._elapsed_seconds += 1
+        self.elapsed_updated.emit(self._elapsed_seconds)
+
     # ------------------------------------------------------------------ #
     # Failover queue
     # ------------------------------------------------------------------ #
@@ -285,6 +304,11 @@ class Player(QObject):
         # Notify about failover attempt (not on first play)
         if not self._is_first_attempt:
             self.failover.emit(stream)
+        if self._is_first_attempt:
+            # Seed the elapsed-time timer ONLY on a fresh user-initiated play.
+            # Failover keeps the counter running (transparent to the user).
+            self._elapsed_seconds = 0
+            self._elapsed_timer.start()
         self._is_first_attempt = False
         url = stream.url.strip()
         if "youtube.com" in url or "youtu.be" in url:
