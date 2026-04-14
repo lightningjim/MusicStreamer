@@ -50,15 +50,19 @@ from musicstreamer.ui_qt.flow_layout import FlowLayout
 class _LogoFetchWorker(QThread):
     """Background thumbnail fetcher for station URL. Handles YT and AudioAddict.
 
-    Emits finished(str) with a temp file path, or "" on failure/unsupported URL.
+    Emits finished(tmp_path, token) where tmp_path is a temp file path or ""
+    on failure/unsupported URL. The token mirrors NowPlayingPanel._cover_fetch_token
+    so the slot can discard stale responses (and unlink their tmp files).
     """
-    finished = Signal(str)
+    finished = Signal(str, int)
 
-    def __init__(self, url: str, parent=None):
+    def __init__(self, url: str, token: int, parent=None):
         super().__init__(parent)
         self._url = url
+        self._token = token
 
     def run(self):
+        token = self._token
         try:
             url = self._url or ""
             if "youtube.com" in url or "youtu.be" in url:
@@ -71,9 +75,9 @@ class _LogoFetchWorker(QThread):
                     fd, tmp = tempfile.mkstemp(suffix=".jpg")
                     os.close(fd)
                     urllib.request.urlretrieve(thumb, tmp)
-                    self.finished.emit(tmp)
+                    self.finished.emit(tmp, token)
                     return
-                self.finished.emit("")
+                self.finished.emit("", token)
                 return
 
             from musicstreamer.url_helpers import (
@@ -85,23 +89,23 @@ class _LogoFetchWorker(QThread):
                 slug = _aa_slug_from_url(url)
                 channel_key = _aa_channel_key_from_url(url, slug=slug)
                 if not slug or not channel_key:
-                    self.finished.emit("")
+                    self.finished.emit("", token)
                     return
                 img_map = _fetch_image_map(slug)
                 image_url = img_map.get(channel_key)
                 if not image_url:
-                    self.finished.emit("")
+                    self.finished.emit("", token)
                     return
                 ext = os.path.splitext(image_url.split("?")[0])[1] or ".png"
                 fd, tmp = tempfile.mkstemp(suffix=ext)
                 os.close(fd)
                 urllib.request.urlretrieve(image_url, tmp)
-                self.finished.emit(tmp)
+                self.finished.emit(tmp, token)
                 return
 
-            self.finished.emit("")
+            self.finished.emit("", token)
         except Exception:
-            self.finished.emit("")
+            self.finished.emit("", token)
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +171,9 @@ class EditStationDialog(QDialog):
         # Logo row (Plan 40.1-04): 64x64 preview + Choose File + Clear, above form.
         self._logo_path: Optional[str] = self._station.station_art_path
         self._logo_fetch_worker: Optional[_LogoFetchWorker] = None
+        # Monotonic token so stale worker emissions can be discarded / cleaned up
+        # (mirrors NowPlayingPanel._cover_fetch_token). See WR-01/WR-02/IN-01.
+        self._logo_fetch_token: int = 0
         logo_row = QHBoxLayout()
         logo_row.setContentsMargins(0, 0, 0, 0)
         logo_row.setSpacing(8)
@@ -428,18 +435,20 @@ class EditStationDialog(QDialog):
         self._url_timer.start()
 
     def _on_url_timer_timeout(self) -> None:
-        """Debounced: kick off a _LogoFetchWorker for the current URL."""
+        """Debounced: kick off a _LogoFetchWorker for the current URL.
+
+        Uses a monotonic token so any prior in-flight worker's emission is
+        recognized as stale by _on_logo_fetched (which unlinks its tmp file).
+        No disconnect needed — the slot always runs.
+        """
         url = self.url_edit.text().strip()
         if not url:
             return
-        if self._logo_fetch_worker is not None and self._logo_fetch_worker.isRunning():
-            try:
-                self._logo_fetch_worker.finished.disconnect()
-            except Exception:
-                pass
+        self._logo_fetch_token += 1
+        token = self._logo_fetch_token
         self._logo_status.setText("Fetching\u2026")
         self._fetch_logo_btn.setEnabled(False)
-        self._logo_fetch_worker = _LogoFetchWorker(url, self)
+        self._logo_fetch_worker = _LogoFetchWorker(url, token, self)
         self._logo_fetch_worker.finished.connect(self._on_logo_fetched)
         self._logo_fetch_worker.start()
 
@@ -486,7 +495,18 @@ class EditStationDialog(QDialog):
         self._refresh_logo_preview()
         self._invalidate_cache_for(old_path)
 
-    def _on_logo_fetched(self, tmp_path: str) -> None:
+    def _on_logo_fetched(self, tmp_path: str, token: int = 0) -> None:
+        # Stale response: a newer fetch has been started. Unlink the stale tmp
+        # file (if any) so we do not leak temp files under rapid URL typing.
+        # See WR-01.
+        if token and token != self._logo_fetch_token:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+            return
+
         self._fetch_logo_btn.setEnabled(True)
         if not tmp_path or not os.path.exists(tmp_path):
             from musicstreamer.url_helpers import _is_aa_url
@@ -496,17 +516,28 @@ class EditStationDialog(QDialog):
                 self._logo_status.setText("Fetch failed")
             else:
                 self._logo_status.setText("Fetch not supported for this URL")
+            # Defensive: truthy-but-missing tmp_path shouldn't happen, but
+            # attempt cleanup in case of race / external deletion. See WR-03.
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
             return
-        old_path = self._logo_path
-        rel = assets.copy_asset_for_station(self._station.id, tmp_path, "station_art")
-        self._logo_path = rel
-        self._refresh_logo_preview()
-        self._invalidate_cache_for(old_path)
-        self._logo_status.setText("Fetched")
         try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
+            old_path = self._logo_path
+            rel = assets.copy_asset_for_station(self._station.id, tmp_path, "station_art")
+            self._logo_path = rel
+            self._refresh_logo_preview()
+            self._invalidate_cache_for(old_path)
+            self._logo_status.setText("Fetched")
+        finally:
+            # Always unlink the tmp file — even on exception from copy_asset.
+            # See WR-03.
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     def _invalidate_cache_for(self, rel_path: Optional[str]) -> None:
         if not rel_path:
@@ -514,20 +545,29 @@ class EditStationDialog(QDialog):
         resolved = abs_art_path(rel_path)
         QPixmapCache.remove(f"station-logo:{resolved}")
 
+    def _shutdown_logo_fetch_worker(self) -> None:
+        """Bound-wait for the logo fetch worker so tmp files are cleaned up.
+
+        Capped at 2s to keep UI close snappy. If the worker completes during
+        the wait, its queued emission will not be delivered (the dialog is
+        tearing down); we rely on stale-token branch logic in the next fetch
+        to avoid leaks when the dialog is reused. See WR-02.
+        """
+        worker = self._logo_fetch_worker
+        if worker is None or not worker.isRunning():
+            return
+        try:
+            worker.finished.disconnect()
+        except Exception:
+            pass
+        worker.wait(2000)
+
     def closeEvent(self, event):  # noqa: N802 (Qt override)
-        if self._logo_fetch_worker is not None and self._logo_fetch_worker.isRunning():
-            try:
-                self._logo_fetch_worker.finished.disconnect()
-            except Exception:
-                pass
+        self._shutdown_logo_fetch_worker()
         super().closeEvent(event)
 
     def reject(self) -> None:
-        if self._logo_fetch_worker is not None and self._logo_fetch_worker.isRunning():
-            try:
-                self._logo_fetch_worker.finished.disconnect()
-            except Exception:
-                pass
+        self._shutdown_logo_fetch_worker()
         super().reject()
 
     # ------------------------------------------------------------------
