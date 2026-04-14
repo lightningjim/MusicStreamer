@@ -295,6 +295,12 @@ class Player(QObject):
         """Pop next stream from queue and attempt playback. On empty queue,
         emit failover(None)."""
         self._pipeline.set_state(Gst.State.NULL)
+        # Wait for NULL to complete so playbin3's internal streamsynchronizer
+        # fully resets before we reconfigure.  Without this, rapid
+        # teardown→replay (e.g. YouTube resolve failure → failover) can leave
+        # duplicate pad names in streamsynchronizer, triggering GStreamer
+        # CRITICAL assertions that abort the process.
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         if not self._streams_queue:
             # All streams exhausted
             self.failover.emit(None)
@@ -322,6 +328,7 @@ class Player(QObject):
 
     def _set_uri(self, uri: str) -> None:
         self._pipeline.set_state(Gst.State.NULL)
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         self._pipeline.set_property("uri", uri)
         self._pipeline.set_state(Gst.State.PLAYING)
 
