@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
 stopped_at: Phase 40.1 context gathered
-last_updated: "2026-04-13T23:11:48.951Z"
+last_updated: "2026-04-14T12:57:52.150Z"
 last_activity: 2026-04-13 -- Phase 40.1 execution started
 progress:
   total_phases: 12
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 30
-  completed_plans: 24
-  percent: 80
+  completed_plans: 30
+  percent: 100
 ---
 
 # Project State
@@ -66,6 +66,10 @@ Key v2.0 decisions already settled:
 - [Phase 36]: Move function-local urllib.parse import to module level in url_helpers.py (only non-verbatim extraction change)
 - [Phase 36]: Delete test_fetch_aa_logo tests in Plan 36-02 alongside test_fetch_yt_thumbnail — both rely on GLib patches that die with ui/ deletion in 36-03; Phase 39 rebuilds with Qt signals
 - [Phase 36]: Atomic GTK cutover: deleted musicstreamer/ui/, mpris.py, test_mpris.py, and stale build/ artifact in a single commit. No ripple fixes required thanks to 36-02 url_helpers extraction.
+
+### Roadmap Evolution
+
+- Phase 46 added: Unify station-icon loader — dedup station_tree_model + favorites_view + station_list_panel paths into a shared _art_paths helper; fixes broken station-list logo rendering
 
 ### Pending Todos
 

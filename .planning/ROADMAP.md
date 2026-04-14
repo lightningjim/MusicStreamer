@@ -293,9 +293,15 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
-### Phase 45: ~~Fix station logos + ICY disable regression~~ — RETIRED 2026-04-13
+### Phase 45: Unify station-icon loader — dedup station_tree_model + favorites_view + station_list_panel paths into a shared _art_paths helper; fixes broken station-list logo rendering where raw relative station_art_path is passed to QPixmap() without abs_art_path resolution
 
-**Status:** Folded into Phase 40.1. See `.planning/phases/40.1-fix-youtube-live-stream-detection-in-import-discovery-play-s/40.1-CONTEXT.md` for full scope and decisions.
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 45
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 46 to break down)
 
 ---
 *Last updated: 2026-04-13 — Phase 40 plans created (4 plans in 2 waves)*
