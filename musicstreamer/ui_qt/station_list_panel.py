@@ -17,7 +17,7 @@ Signal connections use bound methods only (no self-capturing lambdas) per QA-05.
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QModelIndex, QSize, Qt, Signal
-from PySide6.QtGui import QFont, QIcon, QPixmap, QPixmapCache, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QFont, QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
-from musicstreamer.ui_qt._art_paths import abs_art_path
+from musicstreamer.ui_qt._art_paths import load_station_icon
 from musicstreamer import filter_utils
 from musicstreamer.models import Station
 from musicstreamer.ui_qt.station_tree_model import StationTreeModel
@@ -46,8 +46,6 @@ from musicstreamer.ui_qt.flow_layout import FlowLayout
 from musicstreamer.ui_qt.favorites_view import FavoritesView
 from musicstreamer.ui_qt.station_star_delegate import StationStarDelegate, _star_rect
 
-
-_FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
 
 # UI-SPEC: chip QSS for selected/unselected states (D-13)
 _CHIP_QSS = """
@@ -65,27 +63,6 @@ QPushButton[chipState="selected"] {
     padding: 4px 8px;
 }
 """
-
-
-def _load_station_icon(station: Station) -> QIcon:
-    """QPixmapCache-backed 32x32 station icon with fallback.
-
-    Shared with StationTreeModel._icon_for_station semantics; kept as a
-    module-level helper so RecentlyPlayedView can reuse it without coupling
-    to the tree model internals.
-    """
-    rel = station.station_art_path or None
-    abs_path = abs_art_path(rel)
-    load_path = abs_path or _FALLBACK_ICON
-    key = f"station-logo:{load_path}"
-    pix = QPixmap()
-    if not QPixmapCache.find(key, pix):
-        pix = QPixmap(load_path)
-        if pix.isNull():
-            pix = QPixmap(_FALLBACK_ICON)
-        pix = pix.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        QPixmapCache.insert(key, pix)
-    return QIcon(pix)
 
 
 _SEG_QSS = """
@@ -326,7 +303,7 @@ class StationListPanel(QWidget):
         stations = self._repo.list_recently_played(3)
         for station in stations:
             item = QStandardItem(station.name)
-            item.setIcon(_load_station_icon(station))
+            item.setIcon(load_station_icon(station))
             item.setEditable(False)
             item.setData(station, Qt.UserRole)
             self._recent_model.appendRow(item)
