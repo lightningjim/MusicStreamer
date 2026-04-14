@@ -48,11 +48,9 @@ from musicstreamer.ui_qt.flow_layout import FlowLayout
 
 
 class _LogoFetchWorker(QThread):
-    """Background thumbnail fetcher for station URL (YT-only in this phase).
+    """Background thumbnail fetcher for station URL. Handles YT and AudioAddict.
 
     Emits finished(str) with a temp file path, or "" on failure/unsupported URL.
-    AA CDN branch intentionally no-ops — Choose File picker covers that case
-    until a later phase wires channel-key derivation.
     """
     finished = Signal(str)
 
@@ -75,7 +73,32 @@ class _LogoFetchWorker(QThread):
                     urllib.request.urlretrieve(thumb, tmp)
                     self.finished.emit(tmp)
                     return
-            # AA branch deliberately no-ops this phase (see plan D-12 notes).
+                self.finished.emit("")
+                return
+
+            from musicstreamer.url_helpers import (
+                _is_aa_url, _aa_slug_from_url, _aa_channel_key_from_url,
+            )
+            if _is_aa_url(url):
+                from musicstreamer.aa_import import _fetch_image_map
+                import urllib.request
+                slug = _aa_slug_from_url(url)
+                channel_key = _aa_channel_key_from_url(url, slug=slug)
+                if not slug or not channel_key:
+                    self.finished.emit("")
+                    return
+                img_map = _fetch_image_map(slug)
+                image_url = img_map.get(channel_key)
+                if not image_url:
+                    self.finished.emit("")
+                    return
+                ext = os.path.splitext(image_url.split("?")[0])[1] or ".png"
+                fd, tmp = tempfile.mkstemp(suffix=ext)
+                os.close(fd)
+                urllib.request.urlretrieve(image_url, tmp)
+                self.finished.emit(tmp)
+                return
+
             self.finished.emit("")
         except Exception:
             self.finished.emit("")
@@ -152,13 +175,18 @@ class EditStationDialog(QDialog):
         self._logo_preview.setAlignment(Qt.AlignCenter)
         self._choose_logo_btn = QPushButton("Choose File\u2026", self)
         self._clear_logo_btn = QPushButton("Clear", self)
+        self._fetch_logo_btn = QPushButton("Fetch from URL", self)
+        self._logo_status = QLabel("", self)
         logo_row.addWidget(self._logo_preview)
         logo_row.addWidget(self._choose_logo_btn)
         logo_row.addWidget(self._clear_logo_btn)
+        logo_row.addWidget(self._fetch_logo_btn)
+        logo_row.addWidget(self._logo_status)
         logo_row.addStretch(1)
         outer.addLayout(logo_row)
         self._choose_logo_btn.clicked.connect(self._on_choose_logo)
         self._clear_logo_btn.clicked.connect(self._on_clear_logo)
+        self._fetch_logo_btn.clicked.connect(self._on_fetch_logo_clicked)
 
         form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
@@ -409,9 +437,20 @@ class EditStationDialog(QDialog):
                 self._logo_fetch_worker.finished.disconnect()
             except Exception:
                 pass
+        self._logo_status.setText("Fetching\u2026")
+        self._fetch_logo_btn.setEnabled(False)
         self._logo_fetch_worker = _LogoFetchWorker(url, self)
         self._logo_fetch_worker.finished.connect(self._on_logo_fetched)
         self._logo_fetch_worker.start()
+
+    def _on_fetch_logo_clicked(self) -> None:
+        """Manual trigger — bypass debounce and fetch now."""
+        self._url_timer.stop()
+        url = self.url_edit.text().strip()
+        if not url:
+            self._logo_status.setText("Enter a URL first")
+            return
+        self._on_url_timer_timeout()
 
     # ------------------------------------------------------------------
     # Logo row (Plan 40.1-04)
@@ -448,13 +487,22 @@ class EditStationDialog(QDialog):
         self._invalidate_cache_for(old_path)
 
     def _on_logo_fetched(self, tmp_path: str) -> None:
+        self._fetch_logo_btn.setEnabled(True)
         if not tmp_path or not os.path.exists(tmp_path):
+            from musicstreamer.url_helpers import _is_aa_url
+            url = self.url_edit.text().strip()
+            lower = url.lower()
+            if "youtube.com" in lower or "youtu.be" in lower or _is_aa_url(url):
+                self._logo_status.setText("Fetch failed")
+            else:
+                self._logo_status.setText("Fetch not supported for this URL")
             return
         old_path = self._logo_path
         rel = assets.copy_asset_for_station(self._station.id, tmp_path, "station_art")
         self._logo_path = rel
         self._refresh_logo_preview()
         self._invalidate_cache_for(old_path)
+        self._logo_status.setText("Fetched")
         try:
             os.unlink(tmp_path)
         except Exception:
