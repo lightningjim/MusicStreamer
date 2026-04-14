@@ -224,10 +224,18 @@ class MainWindow(QMainWindow):
             self.now_playing._on_stop_clicked()
 
     def _sync_now_playing_station(self, station_id: int) -> None:
-        """Re-fetch station from DB and update the now-playing panel's cached copy."""
-        fresh = self._repo.get_station(station_id)
-        if fresh is not None:
-            self.now_playing._station = fresh
+        """Re-fetch station from DB and rebind the now-playing panel.
+
+        If the edited station is the one currently bound to the now-playing
+        panel, call bind_station() on the refreshed copy so field changes
+        (notably icy_disabled, D-15/16/17) take effect without a restart.
+        """
+        updated_station = self._repo.get_station(station_id)
+        if updated_station is None:
+            return
+        current = getattr(self.now_playing, "_station", None)
+        if current is not None and current.id == updated_station.id:
+            self.now_playing.bind_station(updated_station)
 
     def _refresh_station_list(self) -> None:
         """Reload station list model after edit/delete/import."""
