@@ -475,7 +475,13 @@ class NowPlayingPanel(QWidget):
 
     def _on_cover_art_ready(self, payload: str) -> None:
         token_str, _, path = payload.partition(":")
-        if int(token_str) != self._cover_fetch_token:
+        try:
+            token = int(token_str)
+        except ValueError:
+            # Malformed payload — drop it rather than raising out of a Qt slot.
+            # Slots-never-raise contract for queued connections. See WR-04.
+            return
+        if token != self._cover_fetch_token:
             return  # stale response — a newer fetch is in flight
         if not path:
             self._show_station_logo_in_cover_slot()
