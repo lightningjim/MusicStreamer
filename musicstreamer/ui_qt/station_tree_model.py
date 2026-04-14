@@ -17,11 +17,10 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt
-from PySide6.QtGui import QFont, QIcon, QPixmap, QPixmapCache
+from PySide6.QtGui import QFont
 
-# Side-effect import: registers :/icons/ resource prefix before QPixmap lookups.
-from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.models import Station
+from musicstreamer.ui_qt._art_paths import load_station_icon
 
 
 @dataclass
@@ -35,8 +34,6 @@ class _TreeNode:
 
 class StationTreeModel(QAbstractItemModel):
     """Provider-grouped station tree backing QTreeView (D-01)."""
-
-    FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
 
     def __init__(self, stations: list[Station], parent=None) -> None:
         super().__init__(parent)
@@ -85,20 +82,6 @@ class StationTreeModel(QAbstractItemModel):
         # D-04: append (N) count suffix to each provider label
         for grp in self._root.children:
             grp.label = f"{grp.label} ({len(grp.children)})"
-
-    def _icon_for_station(self, station: Station) -> QIcon:
-        path = station.station_art_path or self.FALLBACK_ICON
-        key = f"station-logo:{path}"
-        pix = QPixmap()
-        if not QPixmapCache.find(key, pix):
-            pix = QPixmap(path)
-            if pix.isNull():
-                pix = QPixmap(self.FALLBACK_ICON)
-            pix = pix.scaled(
-                32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
-            QPixmapCache.insert(key, pix)
-        return QIcon(pix)
 
     # ------------------------------------------------------------------
     # QAbstractItemModel overrides
@@ -160,7 +143,7 @@ class StationTreeModel(QAbstractItemModel):
         if role == Qt.DisplayRole:
             return node.label
         if role == Qt.DecorationRole and node.kind == "station":
-            return self._icon_for_station(node.station)
+            return load_station_icon(node.station)
         if role == Qt.FontRole and node.kind == "provider":
             # UI-SPEC: 13pt DemiBold for provider group headers.
             f = QFont()

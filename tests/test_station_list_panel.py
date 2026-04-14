@@ -326,7 +326,7 @@ def test_station_row_logo_loads_via_abs_path(qtbot, tmp_path, monkeypatch):
     import os
     from PySide6.QtGui import QPixmap, QPixmapCache
     from musicstreamer import paths as _paths
-    from musicstreamer.ui_qt.station_list_panel import _load_station_icon
+    from musicstreamer.ui_qt._art_paths import load_station_icon as _load_station_icon
 
     monkeypatch.setattr(_paths, "_root_override", str(tmp_path))
     QPixmapCache.clear()
@@ -355,7 +355,7 @@ def test_cache_invalidation_on_logo_change(qtbot, tmp_path, monkeypatch):
     import os
     from PySide6.QtGui import QPixmap, QPixmapCache
     from musicstreamer import paths as _paths
-    from musicstreamer.ui_qt.station_list_panel import _load_station_icon
+    from musicstreamer.ui_qt._art_paths import load_station_icon as _load_station_icon
 
     monkeypatch.setattr(_paths, "_root_override", str(tmp_path))
     QPixmapCache.clear()

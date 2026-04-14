@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFont, QIcon, QPixmap, QPixmapCache
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -33,22 +33,7 @@ from PySide6.QtWidgets import (
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.models import Station
-
-_FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
-
-
-def _load_station_icon(station: Station) -> QIcon:
-    """QPixmapCache-backed 32x32 station icon with fallback."""
-    path = station.station_art_path or _FALLBACK_ICON
-    key = f"station-logo:{path}"
-    pix = QPixmap()
-    if not QPixmapCache.find(key, pix):
-        pix = QPixmap(path)
-        if pix.isNull():
-            pix = QPixmap(_FALLBACK_ICON)
-        pix = pix.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        QPixmapCache.insert(key, pix)
-    return QIcon(pix)
+from musicstreamer.ui_qt._art_paths import load_station_icon
 
 
 class FavoritesView(QWidget):
@@ -164,7 +149,7 @@ class FavoritesView(QWidget):
         self._stations_list.clear()
         for station in self._repo.list_favorite_stations():
             item = QListWidgetItem(station.name)
-            item.setIcon(_load_station_icon(station))
+            item.setIcon(load_station_icon(station))
             item.setSizeHint(QSize(0, 40))
             item.setData(Qt.UserRole, station)
             self._stations_list.addItem(item)
