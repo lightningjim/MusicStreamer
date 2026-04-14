@@ -184,6 +184,31 @@ def test_icy_title_update(qtbot):
     assert panel.icy_label.text() == "Artist - Song"
 
 
+def test_elapsed_label_advances_on_signal(qtbot):
+    """Plan 40.1-06 regression: elapsed_label advances when Player emits
+    elapsed_updated via Qt signal path (not just direct slot call)."""
+    fp = FakePlayer()
+    panel = NowPlayingPanel(fp, FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    # Mirror the main_window wiring (the panel does not self-connect; this
+    # plan intentionally leaves NowPlayingPanel untouched).
+    fp.elapsed_updated.connect(panel.on_elapsed_updated)
+
+    assert panel.elapsed_label.text() == "0:00"
+
+    fp.elapsed_updated.emit(1)
+    assert panel.elapsed_label.text() == "0:01"
+
+    fp.elapsed_updated.emit(2)
+    assert panel.elapsed_label.text() == "0:02"
+
+    fp.elapsed_updated.emit(65)
+    assert panel.elapsed_label.text() == "1:05"
+
+    fp.elapsed_updated.emit(3725)
+    assert panel.elapsed_label.text() == "1:02:05"
+
+
 def test_elapsed_format_mm_ss(qtbot):
     panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
     qtbot.addWidget(panel)
