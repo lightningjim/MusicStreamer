@@ -243,7 +243,10 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
   4. `dbus-python` is not imported anywhere in the codebase
   5. MPRIS2 failure modes (no session bus, D-Bus unavailable) log a warning and return a no-op backend — app startup never blocks on this
 **Scope split note**: MEDIA-03 (Windows SMTC) and the Windows slice of MEDIA-04/05 deferred to Phase 43.1 because the winrt `button_pressed` async pattern needs live Windows validation (see Phase 43 spike findings).
-**Plans**: TBD
+**Plans**: 3 plans
+- [x] 41-01-PLAN.md — Scaffold media_keys package (base class, NoOp fallback, factory, Windows stub)
+- [ ] 41-02-PLAN.md — LinuxMprisBackend (QtDBus adaptors + cover-art PNG cache)
+- [ ] 41-03-PLAN.md — MainWindow wiring + UAT checkpoint (playerctl + keyboard media keys)
 
 ### Phase 42: Settings Export/Import
 **Goal**: User can export all stations, streams, favorites, and config to a portable ZIP file and import it on another machine with merge control
@@ -304,7 +307,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
-| 41. Linux Media Keys (MPRIS2) | v2.0 | 0/TBD | Not started | - |
+| 41. Linux Media Keys (MPRIS2) | v2.0 | 1/3 | In Progress|  |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
@@ -315,7 +318,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 **Goal:** Single shared `load_station_icon` helper in `musicstreamer/ui_qt/_art_paths.py` replaces three duplicate loaders, restoring real station logos in both the main station tree and the favorites list (currently both fall back to the generic music-note icon because they skip `abs_art_path()`).
 **Requirements**: PHASE-45-UNIFY-LOADER, PHASE-45-FIX-LIST-LOGO, PHASE-45-FIX-FAVES-LOGO
 **Depends on:** none (independent bugfix/refactor)
-**Plans:** 1 plan
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 45-01-PLAN.md — Add shared `load_station_icon` to `_art_paths.py` (TDD), migrate three UI call sites, delete duplicates, manual UAT
