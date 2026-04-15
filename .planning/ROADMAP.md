@@ -295,6 +295,17 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 
 ### Phase 45: Unify station-icon loader — dedup station_tree_model + favorites_view + station_list_panel paths into a shared _art_paths helper; fixes broken station-list logo rendering where raw relative station_art_path is passed to QPixmap() without abs_art_path resolution
 
+**Goal:** Single shared `load_station_icon` helper in `musicstreamer/ui_qt/_art_paths.py` replaces three duplicate loaders, restoring real station logos in both the main station tree and the favorites list (currently both fall back to the generic music-note icon because they skip `abs_art_path()`).
+**Requirements**: PHASE-45-UNIFY-LOADER, PHASE-45-FIX-LIST-LOGO, PHASE-45-FIX-FAVES-LOGO
+**Depends on:** none (independent bugfix/refactor)
+**Plans:** 1 plan
+
+Plans:
+- [ ] 45-01-PLAN.md — Add shared `load_station_icon` to `_art_paths.py` (TDD), migrate three UI call sites, delete duplicates, manual UAT
+
+
+### Phase 46: UI polish — theme tokens + logo status cleanup: centralize hardcoded error-red #c0392b into a theme constant (6+ sites, blocks dark mode); distinguish 'AA URL, use Choose File' from 'truly unsupported URL' in EditStationDialog fetch status; auto-clear _logo_status label after 3s or on next textChanged; export STATION_ICON_SIZE constant from _art_paths.py; add fetch-in-flight spinner and logo empty-state glyph (from 40.1 + 45 UI-REVIEW findings)
+
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 45
@@ -302,6 +313,16 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 46 to break down)
+
+### Phase 47: Stats for nerds + AutoEQ import — harvest SEED-005 (live GStreamer buffer-fill indicator in now-playing panel, wired to message::buffering) and SEED-007 (in-app parametric EQ with AutoEQ ParametricEQ.txt profile import via GStreamer equalizer-nbands element; unlocks headphone EQ on work PC where Equalizer APO is blocked)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 46
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 47 to break down)
 
 ---
 *Last updated: 2026-04-13 — Phase 40 plans created (4 plans in 2 waves)*

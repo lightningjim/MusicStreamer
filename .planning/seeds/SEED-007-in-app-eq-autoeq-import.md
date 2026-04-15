@@ -1,6 +1,8 @@
 ---
 id: SEED-007
-status: dormant
+status: harvested
+harvested_into: Phase 47
+harvested_date: 2026-04-14
 planted: 2026-04-11
 planted_during: v2.0 Phase 35 — Backend Isolation (discuss-phase context for 35-06)
 trigger_when: v2.0 Windows build ships OR user starts a "quality-of-life / audio enhancement" milestone OR Plan 35-06 lands and user wants to test the new GStreamer-only audio path with a system EQ substitute
