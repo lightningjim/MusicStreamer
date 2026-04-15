@@ -499,6 +499,23 @@ class NowPlayingPanel(QWidget):
         self.cover_label.setPixmap(scaled)
 
     # ----------------------------------------------------------------------
+    # Public accessor for cover pixmap (used by MainWindow media-keys bridge)
+    # ----------------------------------------------------------------------
+
+    def current_cover_pixmap(self) -> QPixmap | None:
+        """Return the current cover-art pixmap, or None if label has no valid pixmap.
+
+        Called by MainWindow._on_title_changed_for_media_keys to pass the
+        cover art to the media-keys backend on every ICY title update (D-05).
+        Returns None when the label's pixmap is null so callers can distinguish
+        "no cover loaded" from "cover is present".
+        """
+        pix = self.cover_label.pixmap()
+        if pix is None or pix.isNull():
+            return None
+        return pix
+
+    # ----------------------------------------------------------------------
     # Station-logo fallbacks
     # ----------------------------------------------------------------------
 
