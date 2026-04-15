@@ -31,3 +31,6 @@ include = ["musicstreamer*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests requiring live services (e.g. D-Bus + playerctl)",
+]
