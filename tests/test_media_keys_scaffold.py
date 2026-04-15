@@ -21,7 +21,7 @@ def test_noop_instantiates_and_methods_return_none(qtbot):
     """Test 1: NoOpMediaKeysBackend() instantiates; all three abstract methods return None."""
     from musicstreamer.media_keys import NoOpMediaKeysBackend
     backend = NoOpMediaKeysBackend()
-    qtbot.addWidget(backend)
+    # QObject, not QWidget — do not call qtbot.addWidget
     assert backend.publish_metadata(None, "title", None) is None
     assert backend.set_playback_state("playing") is None
     assert backend.shutdown() is None
@@ -31,7 +31,7 @@ def test_signal_observable_via_qtbot(qtbot):
     """Test 2: play_pause_requested signal is observable via qtbot.waitSignal."""
     from musicstreamer.media_keys import NoOpMediaKeysBackend
     backend = NoOpMediaKeysBackend()
-    qtbot.addWidget(backend)
+    # QObject, not QWidget — do not call qtbot.addWidget
     with qtbot.waitSignal(backend.play_pause_requested, timeout=1000):
         backend.play_pause_requested.emit()
 
@@ -40,7 +40,7 @@ def test_invalid_playback_state_raises_value_error(qtbot):
     """Test 3: set_playback_state("invalid") raises ValueError."""
     from musicstreamer.media_keys import NoOpMediaKeysBackend
     backend = NoOpMediaKeysBackend()
-    qtbot.addWidget(backend)
+    # QObject, not QWidget — do not call qtbot.addWidget
     with pytest.raises(ValueError):
         backend.set_playback_state("invalid")
 
@@ -60,7 +60,7 @@ def test_create_returns_media_keys_backend_on_linux(qtbot):
     """Test 5: On Linux, create(None, None) returns a MediaKeysBackend instance."""
     from musicstreamer.media_keys import create, MediaKeysBackend
     backend = create(None, None)
-    qtbot.addWidget(backend)
+    # QObject, not QWidget — do not call qtbot.addWidget
     assert isinstance(backend, MediaKeysBackend)
 
 
@@ -69,7 +69,7 @@ def test_create_returns_noop_on_win32(monkeypatch, qtbot):
     monkeypatch.setattr(sys, "platform", "win32")
     from musicstreamer.media_keys import create, NoOpMediaKeysBackend
     backend = create(None, None)
-    qtbot.addWidget(backend)
+    # QObject, not QWidget — do not call qtbot.addWidget
     assert isinstance(backend, NoOpMediaKeysBackend)
 
 
@@ -78,7 +78,7 @@ def test_create_returns_noop_on_freebsd(monkeypatch, qtbot):
     monkeypatch.setattr(sys, "platform", "freebsd")
     from musicstreamer.media_keys import create, NoOpMediaKeysBackend
     backend = create(None, None)
-    qtbot.addWidget(backend)
+    # QObject, not QWidget — do not call qtbot.addWidget
     assert isinstance(backend, NoOpMediaKeysBackend)
 
 
