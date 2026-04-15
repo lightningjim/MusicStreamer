@@ -232,15 +232,17 @@ Plans:
 
 Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 2026-04-13. See `40.1-CONTEXT.md` for full decisions.
 
-### Phase 41: Platform Media Keys
-**Goal**: OS media keys (play/pause, stop, next/previous) control the player on both Linux and Windows; now-playing metadata is visible to the OS media session
+### Phase 41: Linux Media Keys (MPRIS2)
+**Goal**: OS media keys control the Player on Linux via MPRIS2; now-playing metadata (station + ICY title + cover art) visible to the OS media session; platform factory scaffolded so Phase 43.1 can drop in the Windows backend later
 **Depends on**: Phase 40
-**Requirements**: MEDIA-01, MEDIA-02, MEDIA-03, MEDIA-04, MEDIA-05
+**Requirements**: MEDIA-01 (factory), MEDIA-02 (QtDBus MPRIS2 impl), MEDIA-04 (Linux slice), MEDIA-05 (Linux slice)
 **Success Criteria** (what must be TRUE):
-  1. On Linux, pressing the keyboard media-play key pauses/resumes the stream; MPRIS2 service is visible to `playerctl`
-  2. On Windows, the system media session overlay shows the station name and current ICY track title
-  3. Media key events (play/pause, stop) control the Player on both platforms via the same `media_keys/` factory interface
+  1. `musicstreamer/media_keys/` package with a `create(player, repo)` factory selecting backend by `sys.platform`; Linux backend implemented, Windows stub raises `NotImplementedError` pending Phase 43.1
+  2. Pressing the keyboard media-play key pauses/resumes the stream; `playerctl status` and `playerctl metadata` show the running service
+  3. Station name, ICY track title, and cover art pixmap are published to MPRIS2 and update on every `title_changed` signal
   4. `dbus-python` is not imported anywhere in the codebase
+  5. MPRIS2 failure modes (no session bus, D-Bus unavailable) log a warning and return a no-op backend — app startup never blocks on this
+**Scope split note**: MEDIA-03 (Windows SMTC) and the Windows slice of MEDIA-04/05 deferred to Phase 43.1 because the winrt `button_pressed` async pattern needs live Windows validation (see Phase 43 spike findings).
 **Plans**: TBD
 
 ### Phase 42: Settings Export/Import
@@ -265,6 +267,19 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
   3. The spike documents exact GStreamer DLLs, plugin list, and `.spec` Tree() blocks needed for Phase 44
 **Plans**: TBD
 
+### Phase 43.1: Windows Media Keys (SMTC)
+**Goal**: Windows system media session (SMTC) controls the Player via the same `media_keys/` factory scaffolded in Phase 41; station + ICY + cover art visible in the Windows overlay; validated live on user's Windows VM
+**Depends on**: Phase 41 (factory + Linux backend), Phase 43 (confirmed Windows runtime)
+**Requirements**: MEDIA-03 (winrt SMTC impl), MEDIA-04 (Windows slice), MEDIA-05 (Windows slice)
+**Success Criteria** (what must be TRUE):
+  1. `WindowsMediaKeysBackend` implemented via `winrt-Windows.Media.Playback`; factory returns it when `sys.platform == "win32"`
+  2. `winrt-Windows.Media.Playback` is declared under `[project.optional-dependencies].windows` in `pyproject.toml` so Linux installs don't pull it; imports guarded by `sys.platform`
+  3. Pressing Windows media keys (keyboard or on-screen overlay) triggers play/pause/stop on the Player; validated manually on user's Windows VM
+  4. SMTC overlay shows station name, ICY track title, and cover art pixmap; updates on every `title_changed`
+  5. SMTC COM/winrt initialization failure logs a warning and falls back to no-op backend — app startup never blocks on this
+**Scope split note**: Split out of original Phase 41 on 2026-04-14 because the winrt `button_pressed` async pattern needed live Windows validation, which requires Phase 43's confirmed Windows runtime.
+**Plans**: TBD
+
 ### Phase 44: Windows Packaging + Installer
 **Goal**: A Windows installer EXE is produced that installs MusicStreamer with all dependencies; single-instance enforcement works; no console windows appear; Node.js is documented as a host prerequisite (not bundled)
 **Depends on**: Phase 43
@@ -275,6 +290,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
   3. Installer documents the Node.js host prerequisite (required by yt-dlp's EJS JS challenge solver — see RUNTIME-01) and fails gracefully at first launch if Node.js is not on PATH
   4. PKG-03 is a no-op at ship time (Plan 35-06 eliminated all subprocess launches in `musicstreamer/`); if any reappear before Phase 44, they must go through a centralized `_popen()` helper with `CREATE_NO_WINDOW`
   5. Windows smoke test passes: station playback (ShoutCast + HLS), YouTube via yt-dlp library + EJS, Twitch via streamlink library, failover, media keys, and installer round-trip all verified on a clean VM
+  6. Phase 42 settings export round-trip UAT: export on Linux → import on Windows (and reverse) preserves stations, streams, favorites, tag chips, and logo paths correctly via `platformdirs.user_data_dir()` resolution at each end
 **Plans**: TBD
 
 ## Progress
@@ -288,9 +304,10 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
-| 41. Platform Media Keys | v2.0 | 0/TBD | Not started | - |
+| 41. Linux Media Keys (MPRIS2) | v2.0 | 0/TBD | Not started | - |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
+| 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
 ### Phase 45: Unify station-icon loader — dedup station_tree_model + favorites_view + station_list_panel paths into a shared _art_paths helper; fixes broken station-list logo rendering where raw relative station_art_path is passed to QPixmap() without abs_art_path resolution
