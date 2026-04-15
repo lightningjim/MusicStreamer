@@ -195,6 +195,7 @@ class Player(QObject):
         self._elapsed_timer.stop()
         self._streams_queue = []
         self._pipeline.set_state(Gst.State.NULL)
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
     def stop(self) -> None:
         self._cancel_timers()
@@ -202,6 +203,7 @@ class Player(QObject):
         self._elapsed_seconds = 0
         self._streams_queue = []
         self._pipeline.set_state(Gst.State.NULL)
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
     # ------------------------------------------------------------------ #
     # Legacy callback shim -- lets main_window.py keep its old signature
@@ -344,6 +346,7 @@ class Player(QObject):
         Requires a Node.js runtime on PATH for yt-dlp's EJS solver.
         """
         self._pipeline.set_state(Gst.State.NULL)
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         # Fallback title shows the station name immediately while the resolver runs.
         if self._current_station_name:
             self.title_changed.emit(self._current_station_name)
@@ -405,6 +408,7 @@ class Player(QObject):
         set the resolved HLS URL on playbin3 via the queued twitch_resolved
         signal."""
         self._pipeline.set_state(Gst.State.NULL)
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         threading.Thread(
             target=self._twitch_resolve_worker, args=(url,), daemon=True
         ).start()
