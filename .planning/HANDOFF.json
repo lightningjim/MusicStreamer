@@ -1,32 +1,33 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-13T23:26:41.845Z",
-  "phase": "40.1",
-  "phase_name": "bug-fix-sweep",
-  "phase_dir": ".planning/phases/40.1-fix-youtube-live-stream-detection-in-import-discovery-play-s",
-  "plan": 5,
+  "timestamp": "2026-04-15T01:48:07.282Z",
+  "phase": "41",
+  "phase_name": "Linux Media Keys (MPRIS2)",
+  "phase_dir": ".planning/phases/41-platform-media-keys",
+  "plan": 1,
   "task": 0,
   "total_tasks": 6,
   "status": "paused",
-  "completed_tasks": [
-    {"id": 1, "name": "yt-import-fix", "status": "done", "commit": "3f01514"},
-    {"id": 2, "name": "discovery-icons", "status": "done", "commit": "a0a3cef"},
-    {"id": 3, "name": "aa-yt-import-feedback", "status": "done", "commit": "45703ac"},
-    {"id": 4, "name": "station-logos", "status": "done", "commit": "ab489fe"}
-  ],
+  "completed_tasks": [],
   "remaining_tasks": [
-    {"id": 5, "name": "icy-disable-toggle", "status": "not_started", "wave": 3, "depends_on": ["04"]},
-    {"id": 6, "name": "playing-timer", "status": "not_started", "wave": 4, "depends_on": ["05"]}
+    {"id": 1, "name": "41-01 Task 1: scaffold package (base.py + __init__.py factory + smtc.py stub + NoOp)", "status": "not_started", "wave": 1},
+    {"id": 2, "name": "41-01 Task 2: unit tests for factory + abstract class + NoOp", "status": "not_started", "wave": 1},
+    {"id": 3, "name": "41-02 Task 1: LinuxMprisBackend QtDBus adaptors (Root + Player) + service registration", "status": "not_started", "wave": 2, "depends_on": [1, 2]},
+    {"id": 4, "name": "41-02 Task 2: cover-art PNG cache in paths.user_cache_dir + mpris2 tests", "status": "not_started", "wave": 2, "depends_on": [3]},
+    {"id": 5, "name": "41-03 Task 1: MainWindow wiring — signal bridges + set_playback_state + shutdown", "status": "not_started", "wave": 3, "depends_on": [3, 4]},
+    {"id": 6, "name": "41-03 Task 2: UAT checkpoint — playerctl + keyboard media-key verification", "status": "not_started", "wave": 3, "depends_on": [5], "type": "checkpoint"}
   ],
-  "blockers": [
-    {"description": "EditStationDialog logo auto-fetch from URL (both AudioAddict and YouTube) does not appear to be present/wired during user testing. Preview + file picker work correctly. AA branch was intentionally deferred per D-12, but YT auto-fetch should be visible. Verify edit_station_dialog.py _LogoFetchWorker + URL field signal wiring on resume.", "type": "technical", "workaround": "Manual file picker works"}
-  ],
+  "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Dispatch worktree executors sequentially with run_in_background:true", "rationale": "Parallel dispatch in a single message races on .git/config.lock", "phase": "40.1"},
-    {"decision": "Drop post-merge --amend of STATE.md/ROADMAP.md after worktree merge", "rationale": "Wave 1 merge script triggered a cwd-loss fault that rewound main; simple sequential merges without amend worked cleanly in Wave 2", "phase": "40.1"}
+    {"decision": "Phase 41 narrowed to Linux-only MPRIS2", "rationale": "Windows SMTC winrt async pattern needs live Windows validation; split to Phase 43.1 (depends on Phase 43 GStreamer Windows Spike)", "phase": "41"},
+    {"decision": "Phase 43.1 inserted for Windows SMTC", "rationale": "Depends on Phase 41 (factory) + Phase 43 (confirmed Windows runtime); user has Windows VM available for future validation", "phase": "43.1"},
+    {"decision": "Phase 44 amended with Phase 42 round-trip UAT", "rationale": "Settings export/import is platform-agnostic code; cross-platform validation fits naturally into Windows packaging UAT", "phase": "44"},
+    {"decision": "Phase 46 (UI polish) captured 40.1 + 45 UI-REVIEW findings", "rationale": "Includes _LogoFetchWorker QThread teardown warning fix; folded there rather than hotfixing mid-phase-41", "phase": "46"},
+    {"decision": "Phase 47 added, harvests SEED-005 + SEED-007", "rationale": "Stats-for-nerds buffer indicator + AutoEQ profile import (unblocks headphone EQ on work PC where Equalizer APO is blocked)", "phase": "47"},
+    {"decision": "player.py NULL-state barriers extended to all 6 teardown sites", "rationale": "Commit d685942 covered only _try_next_stream + _set_uri; crash reproduced on YT auto-start because _play_youtube, _play_twitch, pause(), stop() were missed. Fix committed 19328d1.", "phase": "global"}
   ],
-  "uncommitted_files": [".planning/STATE.md", ".planning/ROADMAP.md"],
-  "next_action": "Spawn gsd-executor for plan 05 (icy-disable-toggle) in a worktree, base HEAD=9188c9f. Then plan 06 (playing-timer) in wave 4.",
-  "context_notes": "Waves 1 and 2 complete (4 plans merged into main). Main HEAD: 9188c9f. Plans 05 and 06 remaining. Wave 3: plan 05 alone (depends_on 04). Wave 4: plan 06 alone (depends_on 05). Auto-chain flag still active (workflow._auto_chain_active=true) so resume will auto-advance to verify after execution."
+  "uncommitted_files": [],
+  "next_action": "Spawn gsd-executor for plan 41-01 in a worktree. Wave 1 has no dependencies so it can run immediately. After merge, dispatch 41-02, then 41-03 (which has a human UAT checkpoint — stop there for user verification of playerctl + keyboard media keys).",
+  "context_notes": "Mid /gsd-discuss-phase 41 --chain. Discussion complete, CONTEXT.md written (f15dea3), planner produced 3 plans in 3 sequential waves (41-01 scaffolding, 41-02 MPRIS2 backend, 41-03 wiring+UAT). User paused before executor dispatch of 41-01. Chain flow = discuss→plan→execute autonomously; resume should dispatch 41-01 in a worktree, merge, 41-02, merge, 41-03, merge, then stop at UAT checkpoint."
 }
