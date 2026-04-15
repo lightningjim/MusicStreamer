@@ -39,7 +39,7 @@
 
 ### MEDIA — Cross-platform media keys
 
-- [ ] **MEDIA-01**: `musicstreamer/media_keys/` package with a platform factory selecting the Linux or Windows backend at runtime based on `sys.platform`.
+- [x] **MEDIA-01**: `musicstreamer/media_keys/` package with a platform factory selecting the Linux or Windows backend at runtime based on `sys.platform`.
 - [ ] **MEDIA-02**: Linux MPRIS2 adaptor implemented via `PySide6.QtDBus` + `QDBusAbstractAdaptor`; `dbus-python` dependency removed from the stack.
 - [ ] **MEDIA-03**: Windows SMTC backend implemented via `winrt-Windows.Media.Playback` (System Media Transport Controls).
 - [ ] **MEDIA-04**: Play/pause, stop, next/previous signals from the OS media session wire into `Player` on both platforms.
@@ -133,7 +133,7 @@
 | UI-09 | Phase 40: Auth Dialogs + Accent | Pending |
 | UI-10 | Phase 40: Auth Dialogs + Accent | Pending |
 | UI-11 | Phase 40: Auth Dialogs + Accent | Pending |
-| MEDIA-01 | Phase 41: Platform Media Keys | Pending |
+| MEDIA-01 | Phase 41: Platform Media Keys | Complete |
 | MEDIA-02 | Phase 41: Platform Media Keys | Pending |
 | MEDIA-03 | Phase 41: Platform Media Keys | Pending |
 | MEDIA-04 | Phase 41: Platform Media Keys | Pending |
