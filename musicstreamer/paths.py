@@ -57,3 +57,16 @@ def accent_css_path() -> str:
 
 def migration_marker() -> str:
     return os.path.join(_root(), ".platformdirs-migrated")
+
+
+def user_cache_dir() -> str:
+    """Return the per-user cache directory for MusicStreamer.
+
+    When ``_root_override`` is set (test mode), returns
+    ``{_root_override}/cache`` so tests don't pollute the real cache.
+    Otherwise delegates to ``platformdirs.user_cache_dir("musicstreamer")``
+    which resolves to ``~/.cache/musicstreamer`` on Linux.
+    """
+    if _root_override is not None:
+        return os.path.join(_root_override, "cache")
+    return platformdirs.user_cache_dir("musicstreamer")
