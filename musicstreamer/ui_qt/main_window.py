@@ -7,9 +7,18 @@ Populates the Phase 36 bare-chrome scaffold:
   - ToastOverlay anchored to centralWidget bottom-centre
   - Player signals wired to NowPlayingPanel slots and MainWindow toast handlers
 
+Phase 41 adds MediaKeysBackend wiring:
+  - Constructed via media_keys.create(player, repo) after all panels are ready
+  - Player.title_changed bridges to backend.publish_metadata (D-05)
+  - backend.play_pause_requested / stop_requested bridge to NowPlayingPanel slots
+  - Playback state transitions call backend.set_playback_state
+  - closeEvent calls backend.shutdown() for clean MPRIS service unregistration
+
 All signal connections use bound methods (no self-capturing lambdas) per QA-05.
 """
 from __future__ import annotations
+
+import logging
 
 # Side-effect import: registers the :/icons/ resource prefix before any
 # QIcon lookup. Must live at module top so tests that construct MainWindow
@@ -18,7 +27,7 @@ from __future__ import annotations
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QMainWindow,
     QMenuBar,
@@ -27,7 +36,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from musicstreamer import media_keys
+from musicstreamer.media_keys.base import NoOpMediaKeysBackend
 from musicstreamer.models import Station
+
+_log = logging.getLogger(__name__)
 from musicstreamer.ui_qt.accent_color_dialog import AccentColorDialog
 from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
 from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
@@ -159,6 +172,28 @@ class MainWindow(QMainWindow):
         # Plan 39: failover → stream picker sync
         self._player.failover.connect(self.now_playing._sync_stream_picker)
 
+        # ------------------------------------------------------------------
+        # Phase 41: MediaKeysBackend wiring (D-02, D-05, D-06)
+        # Constructed last so the backend sees a fully-constructed window.
+        # The factory never raises (D-06) — belt-and-braces try/except here
+        # ensures a construction bug in the backend never crashes startup.
+        # ------------------------------------------------------------------
+        try:
+            self._media_keys = media_keys.create(self._player, self._repo)
+        except Exception as exc:  # pragma: no cover  — factory should never raise
+            _log.warning("media_keys.create failed unexpectedly: %s", exc)
+            self._media_keys = NoOpMediaKeysBackend()
+
+        # Backend → MainWindow: OS session requests
+        self._media_keys.play_pause_requested.connect(self._on_media_key_play_pause)
+        self._media_keys.stop_requested.connect(self._on_media_key_stop)
+        # next/previous wired per D-02 contract but backend never emits (D-03)
+        self._media_keys.next_requested.connect(self._on_media_key_next)
+        self._media_keys.previous_requested.connect(self._on_media_key_previous)
+
+        # Player → Backend: metadata + state (both connect independently to title_changed)
+        self._player.title_changed.connect(self._on_title_changed_for_media_keys)
+
     # ----------------------------------------------------------------------
     # Public helpers
     # ----------------------------------------------------------------------
@@ -171,6 +206,14 @@ class MainWindow(QMainWindow):
     # Slots (bound methods — no self-capturing lambdas, QA-05)
     # ----------------------------------------------------------------------
 
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Unregister the MPRIS2 service cleanly before the window closes (T-41-13)."""
+        try:
+            self._media_keys.shutdown()
+        except Exception as exc:
+            _log.warning("media_keys shutdown failed: %s", exc)
+        super().closeEvent(event)
+
     def _on_station_activated(self, station: Station) -> None:
         """Called when the user selects a station in StationListPanel."""
         self.now_playing.bind_station(station)
@@ -178,12 +221,16 @@ class MainWindow(QMainWindow):
         self._repo.update_last_played(station.id)
         self.now_playing.on_playing_state_changed(True)
         self.show_toast("Connecting\u2026")  # UI-SPEC copywriting: U+2026
+        # Seed the OS media session with station name before ICY title arrives (D-05)
+        self._media_keys.publish_metadata(station, "", self.now_playing.current_cover_pixmap())
+        self._media_keys.set_playback_state("playing")
 
     def _on_failover(self, next_stream) -> None:
         """Called by Player.failover(StationStream | None)."""
         if next_stream is None:
             self.show_toast("Stream exhausted")
             self.now_playing.on_playing_state_changed(False)
+            self._media_keys.set_playback_state("stopped")
         else:
             self.show_toast("Stream failed, trying next\u2026")
 
@@ -191,6 +238,7 @@ class MainWindow(QMainWindow):
         """Called by Player.offline(channel_name) — Twitch channel offline."""
         self.show_toast("Channel offline")
         self.now_playing.on_playing_state_changed(False)
+        self._media_keys.set_playback_state("stopped")
 
     def _on_playback_error(self, message: str) -> None:
         """Called by Player.playback_error(str)."""
@@ -222,6 +270,47 @@ class MainWindow(QMainWindow):
         self._refresh_station_list()
         if self.now_playing.current_station and self.now_playing.current_station.id == station_id:
             self.now_playing._on_stop_clicked()
+            self._media_keys.set_playback_state("stopped")
+
+    # ----------------------------------------------------------------------
+    # Phase 41: MediaKeysBackend bridge slots (QA-05: bound methods only)
+    # ----------------------------------------------------------------------
+
+    def _on_title_changed_for_media_keys(self, title: str) -> None:
+        """Bridge Player.title_changed -> backend.publish_metadata (D-05).
+
+        Called on every ICY title update. The cover pixmap may still be showing
+        the previous track's art for a few hundred ms (async iTunes fetch) —
+        that's acceptable; the next title_changed after iTunes resolves updates it.
+        """
+        station = self.now_playing.current_station
+        cover = self.now_playing.current_cover_pixmap()
+        self._media_keys.publish_metadata(station, title, cover)
+
+    def _on_media_key_play_pause(self) -> None:
+        """OS play/pause request -> toggle playback in NowPlayingPanel."""
+        if self.now_playing.current_station is None:
+            return  # no station bound — ignore
+        # Delegate to the same slot the in-panel button calls (QA-05)
+        self.now_playing._on_play_pause_clicked()
+        # Mirror the resulting state to the backend
+        if self.now_playing._is_playing:
+            self._media_keys.set_playback_state("playing")
+        else:
+            self._media_keys.set_playback_state("paused")
+
+    def _on_media_key_stop(self) -> None:
+        """OS stop request -> stop via NowPlayingPanel."""
+        self.now_playing._on_stop_clicked()
+        self._media_keys.set_playback_state("stopped")
+
+    def _on_media_key_next(self) -> None:
+        """OS next-track request — no-op (D-03: no queue concept in v2.0)."""
+        pass  # Future: wire to queue navigation when a playlist concept exists
+
+    def _on_media_key_previous(self) -> None:
+        """OS previous-track request — no-op (D-03: no queue concept in v2.0)."""
+        pass  # Future: wire to queue navigation when a playlist concept exists
 
     def _sync_now_playing_station(self, station_id: int) -> None:
         """Re-fetch station from DB and rebind the now-playing panel.
