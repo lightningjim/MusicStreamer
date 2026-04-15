@@ -1,6 +1,8 @@
 ---
 id: SEED-005
-status: dormant
+status: harvested
+harvested_into: Phase 47
+harvested_date: 2026-04-14
 planted: 2026-04-03
 planted_during: v1.4 Phase 16 (GStreamer Buffer Tuning)
 trigger_when: when a debug/advanced settings or developer panel phase is planned
