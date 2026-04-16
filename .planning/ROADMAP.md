@@ -259,7 +259,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
   4. Export and Import actions are accessible from the hamburger menu
 **Plans**: 2 plans
 Plans:
-- [ ] 42-01-PLAN.md — Pure export/import logic: build_zip, preview_import, commit_import + unit tests (SYNC-01, SYNC-02, SYNC-03, SYNC-04)
+- [x] 42-01-PLAN.md — Pure export/import logic: build_zip, preview_import, commit_import + unit tests (SYNC-01, SYNC-02, SYNC-03, SYNC-04)
 - [ ] 42-02-PLAN.md — SettingsImportDialog + MainWindow menu wiring + QThread workers + UAT (SYNC-04, SYNC-05)
 **UI hint**: yes
 
@@ -311,7 +311,7 @@ Plans:
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 41. Linux Media Keys (MPRIS2) | v2.0 | 4/4 | Complete   | 2026-04-16 |
-| 42. Settings Export/Import | v2.0 | 0/2 | Planned | - |
+| 42. Settings Export/Import | v2.0 | 1/2 | In Progress|  |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
@@ -321,7 +321,7 @@ Plans:
 **Goal:** Single shared `load_station_icon` helper in `musicstreamer/ui_qt/_art_paths.py` replaces three duplicate loaders, restoring real station logos in both the main station tree and the favorites list (currently both fall back to the generic music-note icon because they skip `abs_art_path()`).
 **Requirements**: PHASE-45-UNIFY-LOADER, PHASE-45-FIX-LIST-LOGO, PHASE-45-FIX-FAVES-LOGO
 **Depends on:** none (independent bugfix/refactor)
-**Plans:** 4/4 plans complete
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 45-01-PLAN.md — Add shared `load_station_icon` to `_art_paths.py` (TDD), migrate three UI call sites, delete duplicates, manual UAT
