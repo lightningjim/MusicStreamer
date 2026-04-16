@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import posixpath
 import re
 import unicodedata
 import zipfile
@@ -67,7 +68,17 @@ def _validate_zip_members(zf: zipfile.ZipFile) -> None:
     """
     for member in zf.infolist():
         fname = member.filename
-        if fname.startswith("/") or ".." in fname or "\\" in fname:
+        # IN-04: reject backslash separators (Windows-style) and absolute paths
+        # unconditionally; for `..` use posixpath.normpath so we reject real
+        # traversal segments but allow legitimate names like `foo..bar.jpg`.
+        if "\\" in fname or fname.startswith("/"):
+            raise ValueError(f"Unsafe path in archive: {fname}")
+        normalized = posixpath.normpath(fname)
+        if (
+            normalized == ".."
+            or normalized.startswith("../")
+            or normalized.startswith("/")
+        ):
             raise ValueError(f"Unsafe path in archive: {fname}")
 
 
