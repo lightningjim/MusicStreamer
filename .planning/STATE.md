@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 41-01-PLAN.md
-last_updated: "2026-04-15T15:34:32.187Z"
-last_activity: 2026-04-15
+stopped_at: Completed 41-04-PLAN.md
+last_updated: "2026-04-16T02:53:52.431Z"
+last_activity: 2026-04-16
 progress:
   total_phases: 15
-  completed_phases: 8
-  total_plans: 34
-  completed_plans: 32
-  percent: 94
+  completed_phases: 9
+  total_plans: 35
+  completed_plans: 35
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 40.1 — bug-fix-sweep
+**Current focus:** Phase 41 — platform-media-keys
 
 ## Current Position
 
-Phase: 40.1 (bug-fix-sweep) — EXECUTING
-Plan: 2 of 6
+Phase: 41 (platform-media-keys) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-04-15
+Last activity: 2026-04-16
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -67,6 +67,8 @@ Key v2.0 decisions already settled:
 - [Phase 36]: Delete test_fetch_aa_logo tests in Plan 36-02 alongside test_fetch_yt_thumbnail — both rely on GLib patches that die with ui/ deletion in 36-03; Phase 39 rebuilds with Qt signals
 - [Phase 36]: Atomic GTK cutover: deleted musicstreamer/ui/, mpris.py, test_mpris.py, and stale build/ artifact in a single commit. No ripple fixes required thanks to 36-02 url_helpers extraction.
 - [Phase 41]: NotImplementedError over abc.ABCMeta for QObject subclasses (PySide6 metaclass constraint)
+- [Phase 41-platform-media-keys]: publish_metadata(None) placed before set_playback_state('stopped') so MPRIS clients see cleared metadata before stopped state
+- [Phase 41-platform-media-keys]: logging.basicConfig in main() only — not duplicated in _run_smoke or _run_gui
 
 ### Roadmap Evolution
 
@@ -91,6 +93,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-15T15:34:32.184Z
-Stopped at: Completed 41-01-PLAN.md
+Last session: 2026-04-16T02:53:52.428Z
+Stopped at: Completed 41-04-PLAN.md
 Resume file: None
