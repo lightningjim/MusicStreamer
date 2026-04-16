@@ -330,20 +330,12 @@ def test_hamburger_menu_separators(window):
     assert len(separators) == 2
 
 
-def test_sync_actions_disabled(window):
-    """Export Settings and Import Settings are disabled."""
+def test_sync_actions_enabled(window):
+    """Export Settings and Import Settings are enabled (Phase 42)."""
     menu = window._menu
     actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
-    assert actions["Export Settings"].isEnabled() is False
-    assert actions["Import Settings"].isEnabled() is False
-
-
-def test_sync_actions_tooltip(window):
-    """Disabled sync actions have the expected tooltip."""
-    menu = window._menu
-    actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
-    assert actions["Export Settings"].toolTip() == "Coming in a future update"
-    assert actions["Import Settings"].toolTip() == "Coming in a future update"
+    assert actions["Export Settings"].isEnabled() is True
+    assert actions["Import Settings"].isEnabled() is True
 
 
 def test_accent_loaded_on_startup(qtbot, fake_player):
