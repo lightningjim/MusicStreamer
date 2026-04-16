@@ -94,3 +94,28 @@ def test_no_winrt_in_sys_modules():
     """Test 9: Importing musicstreamer.media_keys does not pull in winrt."""
     import musicstreamer.media_keys  # noqa: F401 — ensure it's imported
     assert all(not m.startswith("winrt") for m in sys.modules)
+
+
+# ---------------------------------------------------------------------------
+# T-41-09: cover_path_for_station rejects non-int station_id (path traversal guard)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("bad_id", [
+    "../evil",
+    "42",
+    3.14,
+    None,
+])
+def test_cover_path_for_station_rejects_non_int(tmp_path, monkeypatch, bad_id):
+    """T-41-09: cover_path_for_station raises TypeError for any non-int station_id.
+
+    station.id is an int SQLite PK — the path-traversal guard ensures callers
+    cannot inject path components via a string like '../evil'.
+    Does not import PySide6.QtDBus.
+    """
+    import musicstreamer.paths as paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    from musicstreamer.media_keys._art_cache import cover_path_for_station
+
+    with pytest.raises(TypeError):
+        cover_path_for_station(bad_id)

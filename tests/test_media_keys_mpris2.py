@@ -252,3 +252,26 @@ def test_linux_mpris_backend_shutdown_idempotent(tmp_path, monkeypatch, qapp):
     backend = LinuxMprisBackend(None, None)
     backend.shutdown()
     backend.shutdown()  # must not raise
+
+
+# ===========================================================================
+# Security gap tests (T-41-06, T-41-09) — added by Nyquist auditor
+# ===========================================================================
+
+
+@skip_if_no_bus
+def test_xesam_title_passthrough_verbatim(tmp_path, monkeypatch, qapp):
+    """T-41-06: xesam:title passes markup strings verbatim — no escaping or stripping."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
+
+    station = _make_station()
+    backend = LinuxMprisBackend(None, None)
+    try:
+        backend.publish_metadata(station, "<script>alert(1)</script>", None)
+        meta = backend._build_metadata_dict()
+        assert meta["xesam:title"] == "<script>alert(1)</script>", (
+            f"Expected verbatim passthrough, got: {meta['xesam:title']!r}"
+        )
+    finally:
+        backend.shutdown()
