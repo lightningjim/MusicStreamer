@@ -33,6 +33,8 @@ def cover_path_for_station(station_id: int) -> str:
     The ``mpris-art/`` directory is created with ``exist_ok=True`` so this
     function is idempotent and safe to call repeatedly.
     """
+    if not isinstance(station_id, int):
+        raise TypeError(f"station_id must be int, got {type(station_id).__name__}")
     art_dir = os.path.join(paths.user_cache_dir(), "mpris-art")
     os.makedirs(art_dir, exist_ok=True)
     return os.path.join(art_dir, f"{station_id}.png")
