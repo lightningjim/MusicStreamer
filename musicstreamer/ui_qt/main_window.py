@@ -461,7 +461,11 @@ class MainWindow(QMainWindow):
 
     def _on_import_preview_error(self, msg: str) -> None:
         self._end_busy()
-        self.show_toast("Invalid settings file")
+        # IN-01: include the specific ValueError detail (truncated) so the user
+        # can distinguish between "Unsupported version: 99", "Missing
+        # settings.json", "Unsafe path in archive: ...", etc.
+        truncated = msg[:80] + "\u2026" if len(msg) > 80 else msg
+        self.show_toast(f"Invalid settings file: {truncated}")
 
     def _open_discovery_dialog(self) -> None:
         """D-14: Open DiscoveryDialog from hamburger menu."""
