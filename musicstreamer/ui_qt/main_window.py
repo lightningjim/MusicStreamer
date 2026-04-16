@@ -29,8 +29,9 @@ import os
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QCloseEvent, QIcon
+from PySide6.QtGui import QCloseEvent, QCursor, QIcon
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QMainWindow,
     QMenuBar,
@@ -141,10 +142,12 @@ class MainWindow(QMainWindow):
         self._menu.addSeparator()
 
         # Group 3: Export/Import Settings (SYNC-05)
-        act_export = self._menu.addAction("Export Settings")
-        act_export.triggered.connect(self._on_export_settings)
-        act_import_settings = self._menu.addAction("Import Settings")
-        act_import_settings.triggered.connect(self._on_import_settings)
+        # Keep refs so we can disable the actions while a worker is running
+        # (UI-REVIEW fix #1: prevent double-starts during background export/preview).
+        self._act_export = self._menu.addAction("Export Settings")
+        self._act_export.triggered.connect(self._on_export_settings)
+        self._act_import_settings = self._menu.addAction("Import Settings")
+        self._act_import_settings.triggered.connect(self._on_import_settings)
 
         # Worker reference retention (SYNC-05) — prevents GC before thread finishes
         self._export_worker: QThread | None = None
@@ -385,6 +388,22 @@ class MainWindow(QMainWindow):
         """Reload station list model after edit/delete/import."""
         self.station_panel.refresh_model()
 
+    # ----------------------------------------------------------------------
+    # UI-REVIEW fix #1 helpers: busy cursor + menu-action disable during
+    # background export / import-preview so the user gets feedback and
+    # cannot double-start a worker.
+    # ----------------------------------------------------------------------
+
+    def _begin_busy(self) -> None:
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        self._act_export.setEnabled(False)
+        self._act_import_settings.setEnabled(False)
+
+    def _end_busy(self) -> None:
+        QApplication.restoreOverrideCursor()
+        self._act_export.setEnabled(True)
+        self._act_import_settings.setEnabled(True)
+
     def _on_export_settings(self) -> None:
         """Open file save picker and export settings ZIP on background thread (SYNC-05)."""
         docs = QStandardPaths.writableLocation(
@@ -398,16 +417,19 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
+        self._begin_busy()
         self._export_worker = _ExportWorker(path, parent=self)
         self._export_worker.finished.connect(self._on_export_done, Qt.QueuedConnection)
         self._export_worker.error.connect(self._on_export_error, Qt.QueuedConnection)
         self._export_worker.start()
 
     def _on_export_done(self, dest_path: str) -> None:
+        self._end_busy()
         filename = os.path.basename(dest_path)
         self.show_toast(f"Settings exported to {filename}")
 
     def _on_export_error(self, msg: str) -> None:
+        self._end_busy()
         self.show_toast(f"Export failed \u2014 {msg}")
 
     def _on_import_settings(self) -> None:
@@ -420,6 +442,7 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
+        self._begin_busy()
         self._import_preview_worker = _ImportPreviewWorker(path, parent=self)
         self._import_preview_worker.finished.connect(
             self._on_import_preview_ready, Qt.QueuedConnection
@@ -430,12 +453,14 @@ class MainWindow(QMainWindow):
         self._import_preview_worker.start()
 
     def _on_import_preview_ready(self, preview) -> None:
+        self._end_busy()
         from musicstreamer.ui_qt.settings_import_dialog import SettingsImportDialog
         dlg = SettingsImportDialog(preview, self.show_toast, parent=self)
         dlg.import_complete.connect(self._refresh_station_list)
         dlg.exec()
 
     def _on_import_preview_error(self, msg: str) -> None:
+        self._end_busy()
         self.show_toast("Invalid settings file")
 
     def _open_discovery_dialog(self) -> None:
