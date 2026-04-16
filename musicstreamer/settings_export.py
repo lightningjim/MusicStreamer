@@ -237,6 +237,10 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
     add_favorite, …) each call con.commit() internally, which would break
     the single-transaction guarantee — so we use repo.con.execute() directly.
     """
+    # WR-01: defer logo writes until after DB transaction commits successfully,
+    # so a mid-loop SQL failure does not leave orphaned files on disk.
+    pending_logos: list[tuple[str, bytes]] = []  # [(art_abs, bytes)]
+
     with repo.con:
         if mode == "replace_all":
             repo.con.execute("DELETE FROM station_streams")
@@ -258,16 +262,14 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
                 else:
                     continue  # skip / error rows
 
-                # Extract logo if present in ZIP
+                # Extract logo bytes now but defer disk write until after commit.
                 logo_file = station_data.get("logo_file")
                 if logo_file and logo_file in zip_names and station_id is not None:
                     ext = os.path.splitext(logo_file)[1]
                     art_rel = f"assets/{station_id}/station_art{ext}"
                     art_abs = os.path.join(paths.data_dir(), art_rel)
-                    os.makedirs(os.path.dirname(art_abs), exist_ok=True)
                     with zf.open(logo_file) as logo_src:
-                        with open(art_abs, "wb") as logo_dst:
-                            logo_dst.write(logo_src.read())
+                        pending_logos.append((art_abs, logo_src.read()))
                     repo.con.execute(
                         "UPDATE stations SET station_art_path=? WHERE id=?",
                         (art_rel, station_id),
@@ -294,6 +296,12 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
                 "INSERT OR REPLACE INTO settings(key, value) VALUES (?,?)",
                 (setting["key"], setting["value"]),
             )
+
+    # WR-01: DB transaction committed — now flush logo bytes to disk.
+    for art_abs, data in pending_logos:
+        os.makedirs(os.path.dirname(art_abs), exist_ok=True)
+        with open(art_abs, "wb") as logo_dst:
+            logo_dst.write(data)
 
 
 def _ensure_provider_in_tx(repo: Repo, name: str) -> Optional[int]:
