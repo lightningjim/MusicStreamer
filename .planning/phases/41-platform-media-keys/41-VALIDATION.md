@@ -15,6 +15,7 @@ status: green
 | 41-01 | MEDIA-01 | `pytest tests/test_media_keys_scaffold.py` (9 tests) | green |
 | 41-02 | MEDIA-02, MEDIA-05 | `pytest tests/test_media_keys_mpris2.py -m "not integration"` (11 tests; Test 10 integration-gated) | green |
 | 41-03 | MEDIA-04, MEDIA-05 | `pytest tests/test_main_window_media_keys.py` (8 tests) | green |
+| 41-04 | MEDIA-04, MEDIA-05 | `pytest tests/test_main_window_media_keys.py` (5 stop-transition tests, 13 total) | green |
 | T-41-09 | Path traversal guard | `pytest tests/test_media_keys_scaffold.py::test_cover_path_for_station_rejects_non_int` (4 parametrize cases) | green |
 | T-41-06 | xesam:title passthrough | `pytest tests/test_media_keys_mpris2.py::test_xesam_title_passthrough_verbatim` (requires D-Bus) | green (skip_if_no_bus) |
 
@@ -60,14 +61,20 @@ python -m pytest tests/test_media_keys_mpris2.py -v -m "not integration"
 | 41-02 Task 2 | PlayPause slot emits play_pause_requested signal | test_media_keys_mpris2.py | test_linux_mpris_backend_slot_play_pause_emits_signal | `pytest tests/test_media_keys_mpris2.py -m "not integration"` | green (skip_if_no_bus) |
 | 41-02 Task 2 | shutdown() idempotent — no raise on double call | test_media_keys_mpris2.py | test_linux_mpris_backend_shutdown_idempotent | `pytest tests/test_media_keys_mpris2.py -m "not integration"` | green (skip_if_no_bus) |
 | T-41-06 | xesam:title passes markup verbatim (no escaping) | test_media_keys_mpris2.py | test_xesam_title_passthrough_verbatim | `pytest tests/test_media_keys_mpris2.py -m "not integration"` | green (skip_if_no_bus) |
-| 41-03 Task 1 | MainWindow _media_keys set, signals connected | test_main_window_media_keys.py | test_media_keys_backend_constructed_and_wired | `pytest tests/test_main_window_media_keys.py` | green |
-| 41-03 Task 1 | title_changed fires publish_metadata with station + title | test_main_window_media_keys.py | test_title_changed_bridges_to_publish_metadata | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-03 Task 1 | MainWindow _media_keys set, signals connected | test_main_window_media_keys.py | test_media_keys_backend_constructed | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-03 Task 1 | title_changed fires publish_metadata with station + title | test_main_window_media_keys.py | test_title_changed_fires_publish_metadata | `pytest tests/test_main_window_media_keys.py` | green |
 | 41-03 Task 1 | station activated → set_playback_state("playing") | test_main_window_media_keys.py | test_station_activated_sets_playing_state | `pytest tests/test_main_window_media_keys.py` | green |
 | 41-03 Task 1 | failover(None) → set_playback_state("stopped") | test_main_window_media_keys.py | test_failover_none_sets_stopped_state | `pytest tests/test_main_window_media_keys.py` | green |
 | 41-03 Task 1 | play_pause_requested signal toggles playback | test_main_window_media_keys.py | test_play_pause_requested_toggles_playback | `pytest tests/test_main_window_media_keys.py` | green |
-| 41-03 Task 1 | stop_requested signal stops playback | test_main_window_media_keys.py | test_stop_requested_stops_playback | `pytest tests/test_main_window_media_keys.py` | green |
-| 41-03 Task 1 | closeEvent calls backend.shutdown() | test_main_window_media_keys.py | test_close_event_calls_shutdown | `pytest tests/test_main_window_media_keys.py` | green |
-| 41-03 Task 1 | NoOp backend: all wiring completes without exception | test_main_window_media_keys.py | test_noop_backend_wiring_no_exception | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-03 Task 1 | stop_requested signal stops playback | test_main_window_media_keys.py | test_stop_requested_stops_player | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-03 Task 1 | closeEvent calls backend.shutdown() | test_main_window_media_keys.py | test_close_calls_backend_shutdown | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-03 Task 1 | NoOp backend: all wiring completes without exception | test_main_window_media_keys.py | test_factory_exception_does_not_crash_startup | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-04 Task 1 | _on_panel_stopped calls publish_metadata(None, "", None) | test_main_window_media_keys.py | test_panel_stopped_clears_metadata | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-04 Task 1 | _on_media_key_stop calls publish_metadata(None, "", None) | test_main_window_media_keys.py | test_media_key_stop_clears_metadata | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-04 Task 1 | _on_failover(None) calls publish_metadata(None, "", None) | test_main_window_media_keys.py | test_failover_none_clears_metadata | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-04 Task 1 | _on_offline calls publish_metadata(None, "", None) | test_main_window_media_keys.py | test_offline_clears_metadata | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-04 Task 1 | _on_station_deleted clears metadata for playing station | test_main_window_media_keys.py | test_station_deleted_clears_metadata | `pytest tests/test_main_window_media_keys.py` | green |
+| 41-04 Task 2 | logging.basicConfig present in main() | __main__.py | manual-only | `grep -c 'logging.basicConfig' musicstreamer/__main__.py` (expect: 1); end-to-end: `DBUS_SESSION_BUS_ADDRESS=/dev/null uv run python -m musicstreamer` shows "Media keys disabled" on stderr | green (manual) |
 
 ## Notes
 
