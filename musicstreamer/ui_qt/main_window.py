@@ -233,6 +233,7 @@ class MainWindow(QMainWindow):
         if next_stream is None:
             self.show_toast("Stream exhausted")
             self.now_playing.on_playing_state_changed(False)
+            self._media_keys.publish_metadata(None, "", None)
             self._media_keys.set_playback_state("stopped")
         else:
             self.show_toast("Stream failed, trying next\u2026")
@@ -241,6 +242,7 @@ class MainWindow(QMainWindow):
         """Called by Player.offline(channel_name) — Twitch channel offline."""
         self.show_toast("Channel offline")
         self.now_playing.on_playing_state_changed(False)
+        self._media_keys.publish_metadata(None, "", None)
         self._media_keys.set_playback_state("stopped")
 
     def _on_playback_error(self, message: str) -> None:
@@ -272,6 +274,7 @@ class MainWindow(QMainWindow):
         """After station deletion, refresh list and clear now-playing if needed."""
         self._refresh_station_list()
         if self.now_playing.current_station and self.now_playing.current_station.id == station_id:
+            self._media_keys.publish_metadata(None, "", None)
             self.now_playing._on_stop_clicked()
             self._media_keys.set_playback_state("stopped")
 
@@ -303,11 +306,13 @@ class MainWindow(QMainWindow):
 
     def _on_panel_stopped(self) -> None:
         """In-panel Stop button clicked — notify backend so OS overlay stays in sync."""
+        self._media_keys.publish_metadata(None, "", None)
         self._media_keys.set_playback_state("stopped")
 
     def _on_media_key_stop(self) -> None:
         """OS stop request -> stop via NowPlayingPanel."""
         self.now_playing._on_stop_clicked()
+        self._media_keys.publish_metadata(None, "", None)
         self._media_keys.set_playback_state("stopped")
 
     def _on_media_key_next(self) -> None:
