@@ -334,12 +334,19 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 46 to break down)
 
-### Phase 47: Stats for nerds + AutoEQ import — harvest SEED-005 (live GStreamer buffer-fill indicator in now-playing panel, wired to message::buffering) and SEED-007 (in-app parametric EQ with AutoEQ ParametricEQ.txt profile import via GStreamer equalizer-nbands element; unlocks headphone EQ on work PC where Equalizer APO is blocked)
+### Phase 47: Stats for nerds + AutoEQ import + stream bitrate quality ordering — harvest SEED-005 (live GStreamer buffer-fill indicator in now-playing panel, wired to message::buffering) and SEED-007 (in-app parametric EQ with AutoEQ ParametricEQ.txt profile import via GStreamer equalizer-nbands element; unlocks headphone EQ on work PC where Equalizer APO is blocked)
 
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 46
 **Plans:** 0 plans
+
+**Scope additions (2026-04-15):**
+- Add `bitrate_kbps: int = 0` field to `StationStream` model + DB migration
+- Expose bitrate in the Edit Station dialog stream table (editable alongside codec/label)
+- Failover queue ordering: sort by `(codec_rank desc, bitrate_kbps desc)` when bitrate is known; fall back to `position` order when bitrate=0 (backwards compat). Codec ranks: FLAC=3 > AAC=2 > MP3=1 > other=0. Same-codec tie-break: higher kbps first (320 > 128). Cross-codec at same kbps: AAC ranks above MP3 (efficiency advantage at equivalent perceptual quality).
+- AA import (`aa_import.py`) populates bitrate_kbps from known DI.fm quality tiers (hi=320/AAC, med=128/AAC, low=64/AAC)
+- RadioBrowser import populates bitrate_kbps from the `bitrate` field already returned by the API
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 47 to break down)
