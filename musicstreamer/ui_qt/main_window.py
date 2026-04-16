@@ -291,13 +291,12 @@ class MainWindow(QMainWindow):
         """OS play/pause request -> toggle playback in NowPlayingPanel."""
         if self.now_playing.current_station is None:
             return  # no station bound — ignore
-        # Delegate to the same slot the in-panel button calls (QA-05)
+        # Capture state before toggling so we report the outcome, not an
+        # intermediate value (immune to async signal chains — WR-03).
+        was_playing = self.now_playing._is_playing
         self.now_playing._on_play_pause_clicked()
-        # Mirror the resulting state to the backend
-        if self.now_playing._is_playing:
-            self._media_keys.set_playback_state("playing")
-        else:
-            self._media_keys.set_playback_state("paused")
+        new_state = "paused" if was_playing else "playing"
+        self._media_keys.set_playback_state(new_state)
 
     def _on_media_key_stop(self) -> None:
         """OS stop request -> stop via NowPlayingPanel."""
