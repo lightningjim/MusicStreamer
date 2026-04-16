@@ -58,6 +58,19 @@ class ImportPreview:
 # ---------------------------------------------------------------------------
 
 
+def _validate_zip_members(zf: zipfile.ZipFile) -> None:
+    """Reject ZIP members with path-traversal segments (defense-in-depth).
+
+    Called from both preview_import and commit_import (WR-02 TOCTOU fix):
+    a malicious or corrupted swap between preview and commit can introduce
+    unsafe members; re-validation at commit time keeps the invariant.
+    """
+    for member in zf.infolist():
+        fname = member.filename
+        if fname.startswith("/") or ".." in fname or "\\" in fname:
+            raise ValueError(f"Unsafe path in archive: {fname}")
+
+
 def _sanitize(name: str) -> str:
     """Return a filesystem-safe ASCII filename stem from *name* (max 80 chars)."""
     name = unicodedata.normalize("NFKD", name)
@@ -176,11 +189,8 @@ def preview_import(zip_path: str, repo: Repo) -> ImportPreview:
         raise ValueError("Not a valid ZIP archive")
 
     with zf_handle as zf:
-        # Security: reject path traversal members
-        for member in zf.infolist():
-            fname = member.filename
-            if fname.startswith("/") or ".." in fname:
-                raise ValueError(f"Unsafe path in archive: {fname}")
+        # Security: reject path traversal members (WR-02 helper)
+        _validate_zip_members(zf)
 
         if "settings.json" not in zf.namelist():
             raise ValueError("Missing settings.json")
@@ -249,6 +259,9 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
             repo.con.execute("DELETE FROM providers")
 
         with zipfile.ZipFile(preview.zip_path, "r") as zf:
+            # WR-02: re-validate on commit in case the archive changed
+            # between preview and commit (TOCTOU defense-in-depth).
+            _validate_zip_members(zf)
             zip_names = set(zf.namelist())
 
             for station_data, detail_row in zip(preview.stations_data, preview.detail_rows):
