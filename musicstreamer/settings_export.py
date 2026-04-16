@@ -89,7 +89,13 @@ def _sanitize(name: str) -> str:
     name = re.sub(r"[^\w\s.\-]", "", name)
     name = re.sub(r"\s+", "_", name.strip())
     name = name[:80]
-    return name or "station"
+    # IN-05: pathological station names like "." or ".." pass the allow-list
+    # and would produce archive members such as `logos/..jpg` that the
+    # importer's own `_validate_zip_members` then rejects. Substitute a safe
+    # fallback so exported archives are always re-importable.
+    if not name or name in (".", ".."):
+        return "station"
+    return name
 
 
 def _station_to_dict(station: Station) -> dict:
