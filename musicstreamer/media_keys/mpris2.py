@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 from typing import Literal
+from urllib.request import pathname2url
 
 from PySide6.QtCore import ClassInfo, Property, QMetaType, QObject, Slot
 from PySide6.QtDBus import (
@@ -251,9 +252,9 @@ class LinuxMprisBackend(MediaKeysBackend):
 
         ok = bus.registerService(SERVICE_NAME)
         if not ok:
-            raise RuntimeError(
-                f"registerService failed: {bus.lastError().message()}"
-            )
+            # TODO: support unique-suffix for multi-instance (e.g. musicstreamer.instance2)
+            err = bus.lastError().message() or "name already taken or bus error"
+            raise RuntimeError(f"registerService({SERVICE_NAME!r}) failed: {err}")
 
         self._bus = bus
         _log.debug("MPRIS2 backend registered as %s", SERVICE_NAME)
@@ -273,7 +274,7 @@ class LinuxMprisBackend(MediaKeysBackend):
             self._art_url = ""
         else:
             path = write_cover_png(cover_pixmap, station.id)
-            self._art_url = f"file://{path}" if path else ""
+            self._art_url = "file://" + pathname2url(path) if path else ""
 
         self._emit_properties_changed({
             "Metadata": self._build_metadata_dict(),
