@@ -92,6 +92,7 @@ class NowPlayingPanel(QWidget):
         self._cover_fetch_token: int = 0
         self._last_cover_icy: Optional[str] = None
         self._is_playing: bool = False
+        self._is_stopped: bool = False  # True after full stop (vs pause); cleared on bind/play
         self._last_icy_title: str = ""
         self._streams: list = []
 
@@ -353,12 +354,16 @@ class NowPlayingPanel(QWidget):
             self._player.pause()
             self.on_playing_state_changed(False)
         elif self._station is not None:
+            if self._is_stopped:
+                self.bind_station(self._station)
+                self._is_stopped = False
             self._player.play(self._station)
             self.on_playing_state_changed(True)
 
     def _on_stop_clicked(self) -> None:
         self._player.stop()
         self.on_playing_state_changed(False)
+        self._is_stopped = True
         # Keep _station so edit button remains functional after stop (UAT #3 fix)
         self.stream_combo.setVisible(False)
         self._last_icy_title = ""
