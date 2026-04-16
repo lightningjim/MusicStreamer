@@ -34,9 +34,10 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from PySide6.QtCore import ClassInfo, Property, QObject, Slot
+from PySide6.QtCore import ClassInfo, Property, QMetaType, QObject, Slot
 from PySide6.QtDBus import (
     QDBusAbstractAdaptor,
+    QDBusArgument,
     QDBusConnection,
     QDBusMessage,
     QDBusObjectPath,
@@ -99,7 +100,7 @@ class _MprisRootAdaptor(QDBusAbstractAdaptor):
 
     @Property(str)
     def DesktopEntry(self) -> str:
-        return "musicstreamer"
+        return "org.example.MusicStreamer"
 
     @Property("QStringList")
     def SupportedUriSchemes(self) -> list[str]:
@@ -330,5 +331,10 @@ class LinuxMprisBackend(MediaKeysBackend):
             "org.freedesktop.DBus.Properties",
             "PropertiesChanged",
         )
-        msg.setArguments([iface, changed, []])
+        # invalidated_properties must be typed 'as', not 'av'.
+        # Python's [] → 'av' in PySide6; use QDBusArgument to force 'as'.
+        invalidated = QDBusArgument()
+        invalidated.beginArray(int(QMetaType.Type.QString))
+        invalidated.endArray()
+        msg.setArguments([iface, changed, invalidated])
         self._bus.send(msg)
