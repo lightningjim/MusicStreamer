@@ -311,7 +311,7 @@ Plans:
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 41. Linux Media Keys (MPRIS2) | v2.0 | 4/4 | Complete   | 2026-04-16 |
-| 42. Settings Export/Import | v2.0 | 2/2 | Complete   | 2026-04-16 |
+| 42. Settings Export/Import | v2.0 | 2/2 | Complete    | 2026-04-16 |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
