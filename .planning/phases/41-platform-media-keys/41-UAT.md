@@ -68,17 +68,25 @@ pending: 0
 ## Gaps
 
 - truth: "After stopping a stream, playerctl metadata should be cleared (NoTrack or empty)"
-  status: failed
+  status: diagnosed
   reason: "User reported: metadata still shows when stream stopped via stop button"
   severity: minor
   test: 2
-  artifacts: []
-  missing: []
+  root_cause: "_on_panel_stopped and _on_media_key_stop call set_playback_state('stopped') but never call publish_metadata(None, '', None) to clear _station. _build_metadata_dict returns NoTrack only when _station is None."
+  artifacts:
+    - path: "musicstreamer/ui_qt/main_window.py"
+      issue: "_on_panel_stopped and _on_media_key_stop missing publish_metadata(None, '', None) call"
+  missing:
+    - "Call publish_metadata(None, '', None) in _on_panel_stopped, _on_media_key_stop, _on_failover, and _on_offline before/after set_playback_state('stopped')"
 
 - truth: "No-D-Bus fallback should log a 'Media keys disabled' warning on startup"
-  status: failed
+  status: diagnosed
   reason: "App runs correctly without D-Bus but no warning is logged"
   severity: minor
   test: 9
-  artifacts: []
-  missing: []
+  root_cause: "The warning is emitted via _log.warning() in media_keys/__init__.py create() on the Linux MPRIS fallback path, but Python's logging module has no handler configured to output to the terminal — so it's silently swallowed."
+  artifacts:
+    - path: "musicstreamer/media_keys/__init__.py"
+      issue: "Warning logged via _log.warning() but no stdout/stderr logging handler configured for the module"
+  missing:
+    - "Configure a basicConfig or StreamHandler in __main__.py so module-level warnings reach the terminal, or use print() for the specific media keys warning"
