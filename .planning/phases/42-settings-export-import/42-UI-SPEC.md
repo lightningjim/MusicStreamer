@@ -167,7 +167,14 @@ Source: `constants.py` ACCENT_COLOR_DEFAULT + ACCENT_PRESETS; `#c0392b` confirme
 
 No empty state — import dialog only appears after a valid file is selected. No zero-station case to handle in this phase.
 
-Destructive confirmation: "Replace All" mode — no separate confirmation modal. Warning label (`#c0392b`) beneath the radio button is the inline confirmation pattern. Consistent with existing app patterns (no secondary confirm dialogs used elsewhere).
+Destructive confirmation (D-11): "Replace All" mode uses **both** patterns together:
+
+1. **Inline warning label** beneath the Replace All radio — `#c0392b`, 9pt: "This will replace all stations, streams, and favorites." Sets expectation before the user clicks Import.
+2. **Modal confirmation** (`QMessageBox.warning`, Yes / Cancel with Cancel as default) fired from `_on_import` only when `replace_all` is selected: "This will erase your entire station library and replace it with the import. Continue?"
+
+Rationale for the extra modal (approved deviation from the otherwise-inline-only app convention): wiping the user's entire station library + favorites + providers is irreversible, happens in a single transaction, and cannot be undone via application UI. The modal is a deliberate second-touch safeguard unique to this action. Merge mode does not show the modal.
+
+All other destructive actions in the codebase (edit-station delete, cookie clear) remain inline-only per the app convention; this modal is scoped to the Settings Import Replace All path.
 
 ---
 
