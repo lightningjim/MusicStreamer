@@ -304,10 +304,15 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
             )
 
         # Settings: INSERT OR REPLACE
+        # WR-03: tolerate malformed entries — skip rather than abort the whole
+        # import (which would roll back already-successful stations/favorites).
         for setting in preview.settings:
+            key = setting.get("key")
+            if not key:
+                continue
             repo.con.execute(
                 "INSERT OR REPLACE INTO settings(key, value) VALUES (?,?)",
-                (setting["key"], setting["value"]),
+                (key, setting.get("value", "")),
             )
 
     # WR-01: DB transaction committed — now flush logo bytes to disk.
