@@ -61,7 +61,7 @@ class _ImportCommitWorker(QThread):
             repo = Repo(db_connect())
             commit_import(self._preview, repo, self._mode)
             self.finished.emit()
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             self.error.emit(str(exc))
 
 
