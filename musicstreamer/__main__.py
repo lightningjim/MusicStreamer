@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 
 import gi
@@ -126,6 +127,7 @@ def _run_gui(argv: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    logging.basicConfig(level=logging.WARNING)
     argv = list(argv) if argv is not None else list(sys.argv)
 
     parser = argparse.ArgumentParser(
