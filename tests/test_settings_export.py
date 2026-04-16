@@ -108,13 +108,18 @@ def seeded_repo(repo, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_import_zip(tmp_path: Path, payload: dict, logo_bytes: bytes | None = None) -> Path:
+def _make_import_zip(
+    tmp_path: Path,
+    payload: dict,
+    logo_bytes: bytes | None = None,
+    logo_filename: str = "logos/Groove_Radio.jpg",
+) -> Path:
     """Write a minimal valid ZIP to tmp_path/import.zip and return the path."""
     zip_path = tmp_path / "import.zip"
     with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("settings.json", json.dumps(payload))
         if logo_bytes is not None:
-            zf.writestr("logos/Groove_Radio.jpg", logo_bytes)
+            zf.writestr(logo_filename, logo_bytes)
     return zip_path
 
 
@@ -221,7 +226,7 @@ def test_sanitize_filename(tmp_path):
     from musicstreamer.settings_export import _sanitize
 
     assert _sanitize("Hello World") == "Hello_World"
-    assert _sanitize("Caf\u00e9 Radio") == "Caf_Radio"  # é → dropped by ASCII
+    assert _sanitize("Caf\u00e9 Radio") == "Cafe_Radio"  # é → NFKD decomposes to e + combining → e retained
     assert _sanitize("Groove/Radio:FM") == "GrooveRadioFM"
     assert _sanitize("") == "station"
     long_name = "A" * 100
@@ -553,7 +558,7 @@ def test_commit_logo_extraction(repo, tmp_path):
                 }
             ]
         )
-        zip_path = _make_import_zip(tmp_path, payload, logo_bytes=logo_bytes)
+        zip_path = _make_import_zip(tmp_path, payload, logo_bytes=logo_bytes, logo_filename="logos/Logo_Station.jpg")
         preview = preview_import(str(zip_path), repo)
         commit_import(preview, repo, mode="merge")
 
