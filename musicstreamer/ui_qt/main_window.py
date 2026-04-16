@@ -161,6 +161,9 @@ class MainWindow(QMainWindow):
         # Track star → toast (D-10)
         self.now_playing.track_starred.connect(self._on_track_starred)
 
+        # Panel stop button → backend state sync (UI-REVIEW fix)
+        self.now_playing.stopped_by_user.connect(self._on_panel_stopped)
+
         # Station star → toast (D-10)
         self.station_panel.station_favorited.connect(self._on_station_favorited)
 
@@ -293,10 +296,14 @@ class MainWindow(QMainWindow):
             return  # no station bound — ignore
         # Capture state before toggling so we report the outcome, not an
         # intermediate value (immune to async signal chains — WR-03).
-        was_playing = self.now_playing._is_playing
+        was_playing = self.now_playing.is_playing
         self.now_playing._on_play_pause_clicked()
         new_state = "paused" if was_playing else "playing"
         self._media_keys.set_playback_state(new_state)
+
+    def _on_panel_stopped(self) -> None:
+        """In-panel Stop button clicked — notify backend so OS overlay stays in sync."""
+        self._media_keys.set_playback_state("stopped")
 
     def _on_media_key_stop(self) -> None:
         """OS stop request -> stop via NowPlayingPanel."""

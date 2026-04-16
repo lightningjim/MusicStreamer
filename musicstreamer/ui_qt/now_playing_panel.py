@@ -84,6 +84,9 @@ class NowPlayingPanel(QWidget):
     # Emitted when user clicks edit button — passes current Station to MainWindow.
     edit_requested = Signal(object)
 
+    # Emitted when the user stops playback via the in-panel Stop button (not via OS media key).
+    stopped_by_user = Signal()
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -262,6 +265,11 @@ class NowPlayingPanel(QWidget):
         """Read-only access to the currently bound station."""
         return self._station
 
+    @property
+    def is_playing(self) -> bool:
+        """Read-only access to current playback state."""
+        return self._is_playing
+
     def bind_station(self, station: Station) -> None:
         """Attach a Station and reset the panel for playback of that station."""
         self._station = station
@@ -364,6 +372,7 @@ class NowPlayingPanel(QWidget):
         self._player.stop()
         self.on_playing_state_changed(False)
         self._is_stopped = True
+        self.stopped_by_user.emit()
         # Keep _station so edit button remains functional after stop (UAT #3 fix)
         self.stream_combo.setVisible(False)
         self._last_icy_title = ""
@@ -384,7 +393,7 @@ class NowPlayingPanel(QWidget):
             if self._station is not None:
                 self.star_btn.setToolTip("No track to favorite")
             else:
-                self.star_btn.setToolTip("")
+                self.star_btn.setToolTip("No station selected")
 
     def _on_star_clicked(self) -> None:
         if self._station is None or not self._last_icy_title:
