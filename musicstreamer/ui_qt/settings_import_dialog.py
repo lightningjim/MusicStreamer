@@ -22,11 +22,12 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
+    QStyle,
     QTreeWidget,
     QTreeWidgetItem,
     QMessageBox,
@@ -38,6 +39,11 @@ from PySide6.QtWidgets import (
 
 from musicstreamer.settings_export import ImportPreview, commit_import
 from musicstreamer.repo import Repo, db_connect
+
+# UI-REVIEW follow-up: unify error-row foreground with the destructive token
+# used on the Replace All warning label (#c0392b) rather than Qt.red, so all
+# red-state UI in this dialog uses the same palette entry.
+_ERROR_COLOR = QColor("#c0392b")
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +161,17 @@ class SettingsImportDialog(QDialog):
         self._detail_tree.setHeaderLabels(["Station", "Action"])
         self._detail_tree.setMaximumHeight(200)
 
+        # UI-REVIEW follow-up: add a standard warning glyph to error rows so
+        # users who cannot perceive the red foreground still get an
+        # unambiguous status indicator (a11y, color-vision deficiency).
+        error_icon = self.style().standardIcon(QStyle.SP_MessageBoxWarning)
+
         for row in preview.detail_rows:
             item = QTreeWidgetItem([row.name, row.action.title()])
             if row.action == "error":
-                item.setForeground(0, Qt.red)
-                item.setForeground(1, Qt.red)
+                item.setForeground(0, _ERROR_COLOR)
+                item.setForeground(1, _ERROR_COLOR)
+                item.setIcon(0, error_icon)
             self._detail_tree.addTopLevelItem(item)
 
         # Show tree by default only if there are errors
