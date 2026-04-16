@@ -280,3 +280,65 @@ def test_factory_exception_does_not_crash_startup(qtbot, player, repo, monkeypat
     qtbot.addWidget(w)
     assert isinstance(w._media_keys, NoOpMediaKeysBackend)
     w.close()
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (41-04): Metadata-clear on stop transitions (UAT gap 1)
+# ---------------------------------------------------------------------------
+
+def test_panel_stopped_clears_metadata(window, spy):
+    """_on_panel_stopped must clear MPRIS metadata (UAT gap 1)."""
+    station = _make_station()
+    window._on_station_activated(station)
+    spy.metadata_calls.clear()
+
+    window._on_panel_stopped()
+
+    assert any(call[0] is None for call in spy.metadata_calls), \
+        "publish_metadata(None, ...) not called on panel stop"
+    assert "stopped" in spy.state_calls
+
+
+def test_media_key_stop_clears_metadata(window, player, spy):
+    """_on_media_key_stop must clear MPRIS metadata (UAT gap 1)."""
+    station = _make_station()
+    window._on_station_activated(station)
+    spy.metadata_calls.clear()
+
+    spy.stop_requested.emit()
+
+    assert any(call[0] is None for call in spy.metadata_calls), \
+        "publish_metadata(None, ...) not called on media key stop"
+
+
+def test_failover_none_clears_metadata(window, player, spy):
+    """_on_failover(None) must clear MPRIS metadata (UAT gap 1)."""
+    spy.metadata_calls.clear()
+
+    player.failover.emit(None)
+
+    assert any(call[0] is None for call in spy.metadata_calls), \
+        "publish_metadata(None, ...) not called on failover exhaustion"
+
+
+def test_offline_clears_metadata(window, player, spy):
+    """_on_offline must clear MPRIS metadata (UAT gap 1)."""
+    spy.metadata_calls.clear()
+
+    player.offline.emit("test_channel")
+
+    assert any(call[0] is None for call in spy.metadata_calls), \
+        "publish_metadata(None, ...) not called on offline"
+
+
+def test_station_deleted_clears_metadata(window, spy):
+    """_on_station_deleted must clear MPRIS metadata when deleting the playing station."""
+    station = _make_station()
+    window._on_station_activated(station)
+    spy.metadata_calls.clear()
+
+    window._on_station_deleted(station.id)
+
+    assert any(call[0] is None for call in spy.metadata_calls), \
+        "publish_metadata(None, ...) not called on station deletion"
+    assert "stopped" in spy.state_calls
