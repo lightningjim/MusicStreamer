@@ -29,7 +29,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (Phase 39 complete — 2026-04-13)
+## Current State (Phase 42 complete — 2026-04-16)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
 - **LOC:** ~13,000 Python total (source + tests) | **Tests:** 399 passing, 1 pre-existing failure
@@ -42,6 +42,7 @@ Finding and playing a stream should take seconds — the right station should al
 - **Discovery:** DiscoveryDialog (Qt) — search Radio-Browser.info by name, filter by tag/country, inline preview play via main Player, save to library with url_resolved preference
 - **Import:** ImportDialog (Qt, tabbed) — YouTube playlist tab (scan→checklist, live-streams only, progress bar); AudioAddict tab (API key, quality selector, all networks, dedup by URL, PLS resolution, logo download, progress bar)
 - **Playback:** GStreamer buffer tuned (10s/10MB); pause keeps station selected; MPRIS2 D-Bus service for OS media keys
+- **Settings sync:** Manual export/import — ZIP with settings.json + logos/, merge-by-URL or replace-all, summary dialog with counts + expandable list, hamburger menu access
 - **Personalization:** Custom accent color picker (8 presets + hex), CSS provider at PRIORITY_USER, persisted in SQLite
 - **YouTube Cookies:** Import cookies via file picker, paste, or Google login (WebKit2 subprocess); stored at ~/.local/share/musicstreamer/cookies.txt with 0o600 permissions; yt-dlp always gets --no-cookies-from-browser; both yt-dlp and mpv use --cookies when file exists
 
@@ -256,4 +257,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-13 — Phase 39 Core Dialogs complete (EditStation, Discovery, Import dialogs + stream picker)*
+*Last updated: 2026-04-16 — Phase 42 Settings Export/Import complete (ZIP export/import with merge dialog)*
