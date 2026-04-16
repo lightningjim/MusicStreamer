@@ -94,7 +94,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 </details>
 
-### 🚧 v2.0 OS-Agnostic Revamp (In Progress)
+### v2.0 OS-Agnostic Revamp (In Progress)
 
 **Milestone Goal:** Port MusicStreamer from GTK4/Libadwaita to Qt/PySide6, retire the GTK codebase, and ship a Windows-compatible distributable with feature-parity to v1.5 plus manual settings export/import and cross-platform media keys.
 
@@ -257,7 +257,10 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
   2. Import ZIP on a second machine adds new stations, replaces matches by stream URL, and respects the "replace all vs merge" toggle
   3. Import shows a summary dialog (N added, M replaced, K skipped, L errors) before committing any changes
   4. Export and Import actions are accessible from the hamburger menu
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 42-01-PLAN.md — Pure export/import logic: build_zip, preview_import, commit_import + unit tests (SYNC-01, SYNC-02, SYNC-03, SYNC-04)
+- [ ] 42-02-PLAN.md — SettingsImportDialog + MainWindow menu wiring + QThread workers + UAT (SYNC-04, SYNC-05)
 **UI hint**: yes
 
 ### Phase 43: GStreamer Windows Spike
@@ -308,7 +311,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 41. Linux Media Keys (MPRIS2) | v2.0 | 4/4 | Complete   | 2026-04-16 |
-| 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
+| 42. Settings Export/Import | v2.0 | 0/2 | Planned | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
@@ -352,4 +355,4 @@ Plans:
 - [ ] TBD (run /gsd-plan-phase 47 to break down)
 
 ---
-*Last updated: 2026-04-13 — Phase 40 plans created (4 plans in 2 waves)*
+*Last updated: 2026-04-16 — Phase 42 plans created (2 plans in 2 waves)*
