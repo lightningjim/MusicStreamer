@@ -18,7 +18,9 @@ All signal connections use bound methods (no self-capturing lambdas) per QA-05.
 """
 from __future__ import annotations
 
+import datetime
 import logging
+import os
 
 # Side-effect import: registers the :/icons/ resource prefix before any
 # QIcon lookup. Must live at module top so tests that construct MainWindow
@@ -26,15 +28,20 @@ import logging
 # Phase 36 research Pitfall 2 and D-24.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
+    QFileDialog,
     QMainWindow,
     QMenuBar,
     QSplitter,
     QStatusBar,
     QWidget,
 )
+from PySide6.QtCore import QStandardPaths
+
+from musicstreamer import settings_export
+from musicstreamer.repo import db_connect
 
 from musicstreamer import media_keys
 from musicstreamer.media_keys.base import NoOpMediaKeysBackend
@@ -51,6 +58,42 @@ from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
 from musicstreamer.ui_qt.toast import ToastOverlay
 from musicstreamer.accent_utils import apply_accent_palette, _is_valid_hex
+
+
+class _ExportWorker(QThread):
+    finished = Signal(str)   # emits dest_path on success
+    error = Signal(str)
+
+    def __init__(self, dest_path: str, parent=None):
+        super().__init__(parent)
+        self._dest_path = dest_path
+
+    def run(self):
+        try:
+            from musicstreamer.repo import Repo
+            repo = Repo(db_connect())
+            settings_export.build_zip(repo, self._dest_path)
+            self.finished.emit(self._dest_path)
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+
+class _ImportPreviewWorker(QThread):
+    finished = Signal(object)   # emits ImportPreview
+    error = Signal(str)
+
+    def __init__(self, zip_path: str, parent=None):
+        super().__init__(parent)
+        self._zip_path = zip_path
+
+    def run(self):
+        try:
+            from musicstreamer.repo import Repo
+            repo = Repo(db_connect())
+            result = settings_export.preview_import(self._zip_path, repo)
+            self.finished.emit(result)
+        except Exception as exc:
+            self.error.emit(str(exc))
 
 
 class MainWindow(QMainWindow):
@@ -97,14 +140,15 @@ class MainWindow(QMainWindow):
 
         self._menu.addSeparator()
 
-        # Group 3: Export/Import Settings — disabled placeholders (D-19)
+        # Group 3: Export/Import Settings (SYNC-05)
         act_export = self._menu.addAction("Export Settings")
-        act_export.setEnabled(False)
-        act_export.setToolTip("Coming in a future update")
-
+        act_export.triggered.connect(self._on_export_settings)
         act_import_settings = self._menu.addAction("Import Settings")
-        act_import_settings.setEnabled(False)
-        act_import_settings.setToolTip("Coming in a future update")
+        act_import_settings.triggered.connect(self._on_import_settings)
+
+        # Worker reference retention (SYNC-05) — prevents GC before thread finishes
+        self._export_worker: QThread | None = None
+        self._import_preview_worker: QThread | None = None
 
         # D-12: apply saved accent color on startup (UI-11)
         _saved_accent = self._repo.get_setting("accent_color", "")
@@ -340,6 +384,59 @@ class MainWindow(QMainWindow):
     def _refresh_station_list(self) -> None:
         """Reload station list model after edit/delete/import."""
         self.station_panel.refresh_model()
+
+    def _on_export_settings(self) -> None:
+        """Open file save picker and export settings ZIP on background thread (SYNC-05)."""
+        docs = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        default = os.path.join(
+            docs, f"musicstreamer-export-{datetime.date.today().isoformat()}.zip"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Settings", default, "ZIP Archive (*.zip)"
+        )
+        if not path:
+            return
+        self._export_worker = _ExportWorker(path, parent=self)
+        self._export_worker.finished.connect(self._on_export_done, Qt.QueuedConnection)
+        self._export_worker.error.connect(self._on_export_error, Qt.QueuedConnection)
+        self._export_worker.start()
+
+    def _on_export_done(self, dest_path: str) -> None:
+        filename = os.path.basename(dest_path)
+        self.show_toast(f"Settings exported to {filename}")
+
+    def _on_export_error(self, msg: str) -> None:
+        self.show_toast(f"Export failed \u2014 {msg}")
+
+    def _on_import_settings(self) -> None:
+        """Open file picker and preview import ZIP on background thread (SYNC-05)."""
+        docs = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation
+        )
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Settings", docs, "ZIP Archive (*.zip)"
+        )
+        if not path:
+            return
+        self._import_preview_worker = _ImportPreviewWorker(path, parent=self)
+        self._import_preview_worker.finished.connect(
+            self._on_import_preview_ready, Qt.QueuedConnection
+        )
+        self._import_preview_worker.error.connect(
+            self._on_import_preview_error, Qt.QueuedConnection
+        )
+        self._import_preview_worker.start()
+
+    def _on_import_preview_ready(self, preview) -> None:
+        from musicstreamer.ui_qt.settings_import_dialog import SettingsImportDialog
+        dlg = SettingsImportDialog(preview, self.show_toast, parent=self)
+        dlg.import_complete.connect(self._refresh_station_list)
+        dlg.exec()
+
+    def _on_import_preview_error(self, msg: str) -> None:
+        self.show_toast("Invalid settings file")
 
     def _open_discovery_dialog(self) -> None:
         """D-14: Open DiscoveryDialog from hamburger menu."""
