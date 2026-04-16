@@ -104,7 +104,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 38: Filter Strip + Favorites** - Search/chip filters, favorites toggle view (completed 2026-04-13)
 - [x] **Phase 39: Core Dialogs** - EditStation, DiscoveryDialog, ImportDialog, stream picker (completed 2026-04-13)
 - [x] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu (completed 2026-04-13)
-- [ ] **Phase 41: Platform Media Keys** - media_keys/ factory: MPRIS2 (Linux) + SMTC (Windows)
+- [x] **Phase 41: Platform Media Keys** - media_keys/ factory: MPRIS2 (Linux) + SMTC (Windows) (completed 2026-04-16)
 - [ ] **Phase 42: Settings Export/Import** - ZIP export/import with merge dialog
 - [ ] **Phase 43: GStreamer Windows Spike** - Validate GStreamer DLL bundling on clean Windows VM
 - [ ] **Phase 44: Windows Packaging + Installer** - PyInstaller spec, NSIS installer, QA smoke test
@@ -245,8 +245,8 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 **Scope split note**: MEDIA-03 (Windows SMTC) and the Windows slice of MEDIA-04/05 deferred to Phase 43.1 because the winrt `button_pressed` async pattern needs live Windows validation (see Phase 43 spike findings).
 **Plans**: 3 plans
 - [x] 41-01-PLAN.md — Scaffold media_keys package (base class, NoOp fallback, factory, Windows stub)
-- [ ] 41-02-PLAN.md — LinuxMprisBackend (QtDBus adaptors + cover-art PNG cache)
-- [ ] 41-03-PLAN.md — MainWindow wiring + UAT checkpoint (playerctl + keyboard media keys)
+- [x] 41-02-PLAN.md — LinuxMprisBackend (QtDBus adaptors + cover-art PNG cache)
+- [x] 41-03-PLAN.md — MainWindow wiring + UAT checkpoint (playerctl + keyboard media keys)
 
 ### Phase 42: Settings Export/Import
 **Goal**: User can export all stations, streams, favorites, and config to a portable ZIP file and import it on another machine with merge control
@@ -307,7 +307,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 | 38. Filter Strip + Favorites | v2.0 | 2/2 | Complete    | 2026-04-13 |
 | 39. Core Dialogs | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
-| 41. Linux Media Keys (MPRIS2) | v2.0 | 1/3 | In Progress|  |
+| 41. Linux Media Keys (MPRIS2) | v2.0 | 4/4 | Complete   | 2026-04-16 |
 | 42. Settings Export/Import | v2.0 | 0/TBD | Not started | - |
 | 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
@@ -318,7 +318,7 @@ Note: Original Phase 45 (station logos + ICY disable) was folded into 40.1 on 20
 **Goal:** Single shared `load_station_icon` helper in `musicstreamer/ui_qt/_art_paths.py` replaces three duplicate loaders, restoring real station logos in both the main station tree and the favorites list (currently both fall back to the generic music-note icon because they skip `abs_art_path()`).
 **Requirements**: PHASE-45-UNIFY-LOADER, PHASE-45-FIX-LIST-LOGO, PHASE-45-FIX-FAVES-LOGO
 **Depends on:** none (independent bugfix/refactor)
-**Plans:** 1/3 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 45-01-PLAN.md — Add shared `load_station_icon` to `_art_paths.py` (TDD), migrate three UI call sites, delete duplicates, manual UAT
