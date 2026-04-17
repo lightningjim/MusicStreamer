@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
 stopped_at: Phase 42 context gathered
-last_updated: "2026-04-16T17:12:59.437Z"
-last_activity: 2026-04-16
+last_updated: "2026-04-17T14:47:51.556Z"
+last_activity: 2026-04-17 -- Phase 42 execution started
 progress:
-  total_phases: 15
-  completed_phases: 10
-  total_plans: 37
+  total_phases: 16
+  completed_phases: 9
+  total_plans: 38
   completed_plans: 37
-  percent: 100
+  percent: 97
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 
 ## Current Position
 
-Phase: 43.1
-Plan: Not started
+Phase: 42 (Settings Export/Import) — EXECUTING
+Plan: 1 of 3
 Status: Executing Phase 42
-Last activity: 2026-04-16
+Last activity: 2026-04-17 -- Phase 42 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -78,6 +78,7 @@ Key v2.0 decisions already settled:
 - Phase 41 narrowed: scope restricted to Linux Media Keys (MPRIS2 via QtDBus); MEDIA-03 + Windows slice of MEDIA-04/05 split out — 2026-04-14
 - Phase 43.1 inserted: Windows Media Keys (SMTC), depends on Phase 41 (factory) + Phase 43 (runtime); requires live Windows VM validation — 2026-04-14
 - Phase 44 success criteria amended: added Phase 42 Linux↔Windows settings-export round-trip UAT — 2026-04-14
+- Phase 48 added: Fix AudioAddict listen key not persisting to DB (surfaced by Phase 42 UAT test 7; skipped as out-of-scope) — 2026-04-17
 
 ### Pending Todos
 
