@@ -321,10 +321,10 @@ Plans:
 **Goal:** Single shared `load_station_icon` helper in `musicstreamer/ui_qt/_art_paths.py` replaces three duplicate loaders, restoring real station logos in both the main station tree and the favorites list (currently both fall back to the generic music-note icon because they skip `abs_art_path()`).
 **Requirements**: PHASE-45-UNIFY-LOADER, PHASE-45-FIX-LIST-LOGO, PHASE-45-FIX-FAVES-LOGO
 **Depends on:** none (independent bugfix/refactor)
-**Plans:** 3/3 plans complete
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 45-01-PLAN.md — Add shared `load_station_icon` to `_art_paths.py` (TDD), migrate three UI call sites, delete duplicates, manual UAT
+- [x] 45-01-PLAN.md — Add shared `load_station_icon` to `_art_paths.py` (TDD), migrate three UI call sites, delete duplicates, manual UAT
 
 
 ### Phase 46: UI polish — theme tokens + logo status cleanup: centralize hardcoded error-red #c0392b into a theme constant (6+ sites, blocks dark mode); distinguish 'AA URL, use Choose File' from 'truly unsupported URL' in EditStationDialog fetch status; auto-clear _logo_status label after 3s or on next textChanged; export STATION_ICON_SIZE constant from _art_paths.py; add fetch-in-flight spinner and logo empty-state glyph (from 40.1 + 45 UI-REVIEW findings)

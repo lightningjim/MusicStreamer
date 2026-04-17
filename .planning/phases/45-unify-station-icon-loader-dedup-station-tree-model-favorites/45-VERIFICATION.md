@@ -1,9 +1,10 @@
 ---
 phase: 45-unify-station-icon-loader-dedup-station-tree-model-favorites
 verified: 2026-04-17T15:21:58Z
-status: human_needed
-score: 6/6 must-haves verified (automated)
+status: passed
+score: 6/6 must-haves verified (automated) + 4/4 human UAT (see 45-HUMAN-UAT.md)
 overrides_applied: 0
+human_uat_confirmed: 2026-04-17 (user confirmed UAT was validated in a prior session)
 human_verification:
   - test: "Station tree rows render real per-station logos"
     expected: "Expand an AudioAddict/DI.fm provider group in the Stations view; each row shows the station's own logo at 32px (not the generic audio-x-generic-symbolic music-note fallback). Stations without a logo still show the fallback — that is expected."
