@@ -354,5 +354,15 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 47 to break down)
 
+### Phase 48: Fix AudioAddict listen key not persisting to DB — settings.audioaddict_listen_key is not being stored when set via AccountsDialog/ImportDialog, causing it to be empty on read and blocking Phase 42 round-trip UAT test 7. Scope: diagnose where the key write is dropped, fix persistence, add regression test that sets-then-reads the key across an app restart. Out of scope: the read-only-DB silent-import issue (owned by Phase 42).
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 47
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 48 to break down)
+
 ---
 *Last updated: 2026-04-16 — Phase 42 plans created (2 plans in 2 waves)*
