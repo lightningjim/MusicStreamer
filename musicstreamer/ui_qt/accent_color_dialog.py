@@ -32,6 +32,7 @@ from musicstreamer.accent_utils import (
 )
 from musicstreamer.constants import ACCENT_PRESETS
 from musicstreamer import paths
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
 
 
 class AccentColorDialog(QDialog):
@@ -163,7 +164,7 @@ class AccentColorDialog(QDialog):
                 self._deselect_all_swatches()
         else:
             if text:  # Only show error styling when there's actual invalid input
-                self._hex_edit.setStyleSheet("border: 1px solid #c0392b;")
+                self._hex_edit.setStyleSheet(f"border: 1px solid {ERROR_COLOR_HEX};")
             else:
                 self._hex_edit.setStyleSheet("")  # clear error when field is emptied
 
