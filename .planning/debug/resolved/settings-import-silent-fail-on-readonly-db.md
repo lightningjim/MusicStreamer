@@ -1,8 +1,9 @@
 ---
-status: root_cause_found
+status: resolved
 trigger: "UAT: Import Settings shows success but stream not restored when DB is chmod -w (read-only). Expected error toast + button re-enable."
 created: 2026-04-16T00:00:00Z
-updated: 2026-04-17T00:00:00Z
+updated: 2026-04-17T10:00:00Z
+resolved_by: 42-03
 ---
 
 ## Current Focus

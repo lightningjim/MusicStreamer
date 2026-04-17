@@ -4,8 +4,9 @@ phase: 42-settings-export-import
 source:
   - .planning/phases/42-settings-export-import/42-01-SUMMARY.md
   - .planning/phases/42-settings-export-import/42-02-SUMMARY.md
+  - .planning/phases/42-settings-export-import/42-03-SUMMARY.md
 started: 2026-04-16T00:00:00Z
-updated: 2026-04-16T00:02:00Z
+updated: 2026-04-17T10:00:00Z
 ---
 
 ## Current Test
@@ -61,9 +62,14 @@ skipped: 1
 ## Gaps
 
 - truth: "Import reports success only when the DB commit actually succeeds; on a read-only/failing DB, Import displays an 'Import failed' toast and re-enables the Import button."
-  status: failed
+  status: resolved
   reason: "User reported: Did the read-only chmod trick on the SQLite DB, removed a stream, then ran Import to re-add it. Import claimed success but the stream was not restored."
   severity: major
   test: 8
-  artifacts: []
+  artifacts:
+    - .planning/phases/42-settings-export-import/42-03-PLAN.md
+    - .planning/phases/42-settings-export-import/42-03-SUMMARY.md
+    - .planning/debug/resolved/settings-import-silent-fail-on-readonly-db.md
   missing: []
+  resolved_by: 42-03
+  resolution: "Renamed `_ImportCommitWorker.finished`/`error` signals to `commit_done`/`commit_error` to stop shadowing `QThread.finished`. Added `test_commit_error_on_readonly_db_real_filesystem` regression test using real `chmod 0o444` SQLite file."
