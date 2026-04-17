@@ -59,7 +59,17 @@ def test_commit_error_shows_toast_and_reenables_button(qtbot, preview, monkeypat
     """UI-REVIEW fix #3: when commit_import raises, the worker must surface
     the failure via toast and the Import button must re-enable so the user
     can retry. Previously the worker's except branch was marked
-    `# pragma: no cover`; this test exercises that path end-to-end."""
+    `# pragma: no cover`; this test exercises that path end-to-end.
+
+    NOTE: This is a MONKEYPATCH test — it replaces ``commit_import`` with a
+    function that raises synchronously. It does NOT exercise the real OS-level
+    failure path. The QThread signal-shadowing bug discovered in UAT test 8
+    (see ``.planning/debug/settings-import-silent-fail-on-readonly-db.md``)
+    was INVISIBLE to this test because the monkeypatch raises before the
+    native ``QThread::finished`` emission routing matters for user-visible
+    state. A real-filesystem regression test lives in
+    ``test_commit_error_on_readonly_db_real_filesystem`` below.
+    """
     toasts: list[str] = []
 
     def _boom(*_args, **_kwargs):
@@ -230,3 +240,116 @@ def test_import_button_disabled_during_commit(qtbot, preview, monkeypatch):
     # Release the worker so the test can tear down cleanly.
     release.set()
     dlg._commit_worker.wait(3000)
+
+
+# ---------------------------------------------------------------------------
+# UAT TEST 8 REGRESSION: QThread signal-shadowing bug
+# ---------------------------------------------------------------------------
+# The bug (.planning/debug/settings-import-silent-fail-on-readonly-db.md):
+#   _ImportCommitWorker previously declared `finished = Signal()`, which
+#   SHADOWED QThread's C++ built-in finished signal. PySide6 emits
+#   QThread::finished unconditionally on thread exit (including from the
+#   error path). The dialog's connection routed that C++ emission to
+#   _on_commit_done, which called self.accept() — closing the dialog with a
+#   success toast even though the DB write had been rolled back.
+#
+# Anti-pattern documented: test_commit_error_shows_toast_and_reenables_button
+# above uses monkeypatch(commit_import=_boom), which does NOT trigger the
+# real OS-level write failure and thus did NOT catch the shadowing bug.
+# The test below uses a real chmod'd SQLite file so the failure originates
+# from the OS, exactly as it did in the UAT repro.
+
+
+def test_commit_error_on_readonly_db_real_filesystem(qtbot, preview, tmp_path, monkeypatch):
+    """Integration regression for UAT test 8 (SYNC-04).
+
+    Triggers commit_import against a real read-only SQLite file (chmod 0o444)
+    and asserts that the dialog:
+      - fires commit_error (not commit_done)
+      - stays open (isVisible() True; accept() NOT called)
+      - shows a toast starting with 'Import failed'
+      - re-enables the Import button
+
+    This test would have caught the `finished = Signal()` shadowing bug that
+    monkeypatch-based tests missed.
+    """
+    import os
+    import sqlite3
+
+    from musicstreamer.repo import db_init
+    from musicstreamer.ui_qt import settings_import_dialog as sid
+
+    # Build a real SQLite file with the schema commit_import expects, then
+    # chmod it read-only. The worker opens a fresh connection via db_connect()
+    # so the chmod is observed at write time.
+    db_path = tmp_path / "readonly.sqlite3"
+    schema_con = sqlite3.connect(str(db_path))
+    try:
+        # Repo.__init__ does NOT run schema init — db_init() does. Initialize
+        # the schema on a writable connection so commit_import's writes fail
+        # specifically because of the chmod, not because tables are missing.
+        db_init(schema_con)
+    finally:
+        schema_con.close()
+
+    os.chmod(str(db_path), 0o444)
+
+    try:
+        # Patch db_connect so the worker opens the chmod'd file. The worker
+        # calls db_connect() with no args, so our replacement ignores args.
+        def _ro_db_connect(*_a, **_kw):
+            return sqlite3.connect(str(db_path))
+
+        monkeypatch.setattr(sid, "db_connect", _ro_db_connect)
+
+        toasts: list[str] = []
+        dlg = sid.SettingsImportDialog(preview, toasts.append)
+        qtbot.addWidget(dlg)
+        dlg.show()
+        qtbot.waitExposed(dlg)
+        assert dlg.isVisible(), "dialog must be visible before import"
+
+        # Spies on the renamed signals.
+        commit_done_calls: list[bool] = []
+        commit_error_msgs: list[str] = []
+        dlg._merge_radio.setChecked(True)  # ensure no Replace All modal
+
+        dlg._on_import()
+        worker = dlg._commit_worker
+        assert worker is not None, "worker must be constructed"
+        worker.commit_done.connect(lambda: commit_done_calls.append(True))
+        worker.commit_error.connect(lambda msg: commit_error_msgs.append(msg))
+
+        # Wait for the worker thread to fully exit (native QThread.finished
+        # fires on thread exit regardless; we want to ensure queued-connection
+        # slots have been processed on the main thread).
+        worker.wait(5000)
+        qtbot.waitUntil(
+            lambda: any(t.startswith("Import failed") for t in toasts),
+            timeout=3000,
+        )
+
+        # The real regression assertions:
+        assert commit_error_msgs, (
+            "commit_error must fire with a non-empty message; "
+            f"got toasts={toasts!r}"
+        )
+        assert commit_error_msgs[0], "commit_error payload must be non-empty"
+        # If the shadowing bug regresses, commit_done (OR the shadowed
+        # finished routing) would flip the dialog closed. Assert both:
+        # (a) our custom commit_done slot was NOT called, and
+        # (b) the dialog is still visible (accept() not invoked).
+        assert not commit_done_calls, (
+            "commit_done must NOT fire on the error path "
+            "(QThread.finished shadowing regression?)"
+        )
+        assert dlg.isVisible(), (
+            "dialog must stay open on commit error; "
+            "if this fails, _on_commit_done probably ran (signal shadowing regression)"
+        )
+        error_toasts = [t for t in toasts if t.startswith("Import failed")]
+        assert error_toasts, f"expected 'Import failed' toast, got {toasts!r}"
+        assert dlg._import_btn.isEnabled(), "Import button must be re-enabled after failure"
+    finally:
+        # Restore perms so tmp_path cleanup works.
+        os.chmod(str(db_path), 0o644)
