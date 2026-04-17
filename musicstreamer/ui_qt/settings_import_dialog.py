@@ -52,10 +52,17 @@ _ERROR_COLOR = QColor("#c0392b")
 
 
 class _ImportCommitWorker(QThread):
-    """Runs commit_import on a background thread (T-42-06)."""
+    """Runs commit_import on a background thread (T-42-06).
 
-    finished = Signal()
-    error = Signal(str)
+    Custom signals are named ``commit_done`` and ``commit_error`` to avoid
+    shadowing ``QThread.finished`` — PySide6 emits the C++ ``QThread::finished``
+    unconditionally on thread exit, so a Python ``finished = Signal()`` class
+    attribute would collide and route thread-exit to slots intended for the
+    success path. See ``.planning/debug/settings-import-silent-fail-on-readonly-db.md``.
+    """
+
+    commit_done = Signal()
+    commit_error = Signal(str)
 
     def __init__(self, preview: ImportPreview, mode: str, parent=None):
         super().__init__(parent)
@@ -66,9 +73,9 @@ class _ImportCommitWorker(QThread):
         try:
             repo = Repo(db_connect())
             commit_import(self._preview, repo, self._mode)
-            self.finished.emit()
+            self.commit_done.emit()
         except Exception as exc:
-            self.error.emit(str(exc))
+            self.commit_error.emit(str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -218,10 +225,10 @@ class SettingsImportDialog(QDialog):
 
         self._import_btn.setEnabled(False)
         self._commit_worker = _ImportCommitWorker(self._preview, mode, parent=self)
-        self._commit_worker.finished.connect(
+        self._commit_worker.commit_done.connect(
             self._on_commit_done, Qt.QueuedConnection
         )
-        self._commit_worker.error.connect(
+        self._commit_worker.commit_error.connect(
             self._on_commit_error, Qt.QueuedConnection
         )
         self._commit_worker.start()
