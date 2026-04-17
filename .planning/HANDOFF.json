@@ -1,33 +1,53 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-15T01:48:07.282Z",
-  "phase": "41",
-  "phase_name": "Linux Media Keys (MPRIS2)",
-  "phase_dir": ".planning/phases/41-platform-media-keys",
-  "plan": 1,
-  "task": 0,
-  "total_tasks": 6,
+  "timestamp": "2026-04-17T01:04:34.017Z",
+  "phase": "42",
+  "phase_name": "settings-export-import",
+  "phase_dir": ".planning/phases/42-settings-export-import",
+  "plan": null,
+  "task": null,
+  "total_tasks": null,
   "status": "paused",
-  "completed_tasks": [],
-  "remaining_tasks": [
-    {"id": 1, "name": "41-01 Task 1: scaffold package (base.py + __init__.py factory + smtc.py stub + NoOp)", "status": "not_started", "wave": 1},
-    {"id": 2, "name": "41-01 Task 2: unit tests for factory + abstract class + NoOp", "status": "not_started", "wave": 1},
-    {"id": 3, "name": "41-02 Task 1: LinuxMprisBackend QtDBus adaptors (Root + Player) + service registration", "status": "not_started", "wave": 2, "depends_on": [1, 2]},
-    {"id": 4, "name": "41-02 Task 2: cover-art PNG cache in paths.user_cache_dir + mpris2 tests", "status": "not_started", "wave": 2, "depends_on": [3]},
-    {"id": 5, "name": "41-03 Task 1: MainWindow wiring — signal bridges + set_playback_state + shutdown", "status": "not_started", "wave": 3, "depends_on": [3, 4]},
-    {"id": 6, "name": "41-03 Task 2: UAT checkpoint — playerctl + keyboard media-key verification", "status": "not_started", "wave": 3, "depends_on": [5], "type": "checkpoint"}
+  "context": "uat_diagnosis_pending",
+  "completed_tasks": [
+    {"id": "exec", "name": "Phase 42 execution (plans 01+02)", "status": "done"},
+    {"id": "secure", "name": "/gsd-secure-phase 42", "status": "done", "commit": "d48492d"},
+    {"id": "ui-review", "name": "/gsd-ui-review 42 (22/24)", "status": "done", "commit": "f11ea01"},
+    {"id": "code-review", "name": "/gsd-code-review 42 (0 crit, 3 warn, 5 info)", "status": "done", "commit": "de2a276"},
+    {"id": "review-fix-1", "name": "/gsd-code-review-fix 42 (warn + UI top 3)", "status": "done", "commit": "15c51f5"},
+    {"id": "review-fix-2", "name": "/gsd-code-review-fix 42 --all (info + UI minor)", "status": "done", "commit": "453ffe9"},
+    {"id": "uat", "name": "/gsd-verify-work 42 UAT session (6 pass, 1 issue, 1 skip)", "status": "done", "commit": "5168794"}
   ],
-  "blockers": [],
+  "remaining_tasks": [
+    {"id": "diagnose-test-8", "name": "Diagnose why Import claims success when DB write fails", "status": "not_started"},
+    {"id": "plan-gap-fix", "name": "Plan gap closure for Test 8 failure", "status": "not_started"},
+    {"id": "execute-gap-fix", "name": "Execute fix via /gsd-execute-phase 42 --gaps-only", "status": "not_started"}
+  ],
+  "blockers": [
+    {
+      "description": "Test 8 (Import Commit Error Handling) failed during UAT. Import dialog reported success when the underlying DB write failed (read-only SQLite file). Stream was not restored but no error toast appeared.",
+      "type": "technical",
+      "workaround": null,
+      "reproduction": "1) chmod -w musicstreamer/musicstreamer.sqlite3  2) remove a stream via UI  3) run Import Settings on a prior export ZIP that contains that stream  4) observe: dialog claims success, stream not restored"
+    }
+  ],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Phase 41 narrowed to Linux-only MPRIS2", "rationale": "Windows SMTC winrt async pattern needs live Windows validation; split to Phase 43.1 (depends on Phase 43 GStreamer Windows Spike)", "phase": "41"},
-    {"decision": "Phase 43.1 inserted for Windows SMTC", "rationale": "Depends on Phase 41 (factory) + Phase 43 (confirmed Windows runtime); user has Windows VM available for future validation", "phase": "43.1"},
-    {"decision": "Phase 44 amended with Phase 42 round-trip UAT", "rationale": "Settings export/import is platform-agnostic code; cross-platform validation fits naturally into Windows packaging UAT", "phase": "44"},
-    {"decision": "Phase 46 (UI polish) captured 40.1 + 45 UI-REVIEW findings", "rationale": "Includes _LogoFetchWorker QThread teardown warning fix; folded there rather than hotfixing mid-phase-41", "phase": "46"},
-    {"decision": "Phase 47 added, harvests SEED-005 + SEED-007", "rationale": "Stats-for-nerds buffer indicator + AutoEQ profile import (unblocks headphone EQ on work PC where Equalizer APO is blocked)", "phase": "47"},
-    {"decision": "player.py NULL-state barriers extended to all 6 teardown sites", "rationale": "Commit d685942 covered only _try_next_stream + _set_uri; crash reproduced on YT auto-start because _play_youtube, _play_twitch, pause(), stop() were missed. Fix committed 19328d1.", "phase": "global"}
+    {"decision": "Skipped UAT Test 7 (round-trip + T-42-03 exclusion)", "rationale": "audioaddict_listen_key is not persisted in DB (upstream issue outside phase 42 scope); exclusion behavior covered by automated tests in test_settings_export.py", "phase": "42"},
+    {"decision": "gsd-debugger spawn was INTERRUPTED by user before diagnosis ran", "rationale": "User paused work before the investigation started; diagnosis still pending", "phase": "42"}
   ],
-  "uncommitted_files": [],
-  "next_action": "Spawn gsd-executor for plan 41-01 in a worktree. Wave 1 has no dependencies so it can run immediately. After merge, dispatch 41-02, then 41-03 (which has a human UAT checkpoint — stop there for user verification of playerctl + keyboard media keys).",
-  "context_notes": "Mid /gsd-discuss-phase 41 --chain. Discussion complete, CONTEXT.md written (f15dea3), planner produced 3 plans in 3 sequential waves (41-01 scaffolding, 41-02 MPRIS2 backend, 41-03 wiring+UAT). User paused before executor dispatch of 41-01. Chain flow = discuss→plan→execute autonomously; resume should dispatch 41-01 in a worktree, merge, 41-02, merge, 41-03, merge, then stop at UAT checkpoint."
+  "uncommitted_files": [
+    ".planning/config.json (M)",
+    ".planning/phases/41-platform-media-keys/41-04-PLAN.md (M)",
+    ".planning/phases/42-settings-export-import/42-PATTERNS.md (??)",
+    ".clone/ (??)",
+    ".claude/ (??)",
+    "musicstreamer/musicstreamer.sqlite3 (??)",
+    "logo-bw.png / logodark.png / org.lightningjim.MusicStreamer.png (??)"
+  ],
+  "next_action": "Run gsd-debugger against Test 8 failure. Investigate: (1) whether commit_import raises on sqlite3 OperationalError for read-only writes, (2) whether _ImportCommitWorker.run emits 'finished' even on exception, (3) whether station list refresh masks the failure. Then /gsd-plan-phase 42 --gaps to create fix plan, then /gsd-execute-phase 42 --gaps-only.",
+  "context_notes": "Phase 42 functionally complete — all code/UI/security reviews cleaned up, 6/8 UAT checkpoints passed. One real bug surfaced at the UAT gate: Import reports success when it silently fails. Diagnosis was about to spawn gsd-debugger when user invoked /gsd-pause-work. An unrelated observation came up during UAT: audioaddict_listen_key isn't being persisted in the DB — NOT a phase 42 bug, but worth tracking as a separate backlog item for the settings storage path.",
+  "followups": [
+    {"description": "audioaddict_listen_key is not being persisted in DB (observed during Test 7 setup). Phase 42 correctly excludes it from export; the storage bug is elsewhere.", "scope": "outside_phase_42"}
+  ]
 }
