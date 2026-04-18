@@ -136,6 +136,7 @@ class Player(QObject):
         self._current_station_name: str = ""
         self._is_first_attempt: bool = True
         self._twitch_resolve_attempts: int = 0
+        self._recovery_in_flight: bool = False  # gap-05: coalesce cascading bus errors per URL
 
     # ------------------------------------------------------------------ #
     # Public API (legacy callback shims preserved for main_window.py)
@@ -154,6 +155,7 @@ class Player(QObject):
         # Cancel any in-progress failover from previous play
         self._cancel_timers()
         self._streams_queue = []
+        self._recovery_in_flight = False
         self._install_legacy_callbacks(on_title, on_failover, on_offline)
         self._current_station_name = station.name
         self._is_first_attempt = True
@@ -187,6 +189,7 @@ class Player(QObject):
         self._install_legacy_callbacks(on_title, on_failover, on_offline)
         self._current_station_name = ""
         self._streams_queue = [stream]
+        self._recovery_in_flight = False
         self._is_first_attempt = True
         self._try_next_stream()
 
@@ -195,6 +198,7 @@ class Player(QObject):
         self._cancel_timers()
         self._elapsed_timer.stop()
         self._streams_queue = []
+        self._recovery_in_flight = False
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
@@ -203,6 +207,7 @@ class Player(QObject):
         self._elapsed_timer.stop()
         self._elapsed_seconds = 0
         self._streams_queue = []
+        self._recovery_in_flight = False
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
 
@@ -253,13 +258,35 @@ class Player(QObject):
         QTimer.singleShot(0, self._handle_gst_error_recovery)
 
     def _handle_gst_error_recovery(self) -> None:
+        # Gap-05 fix: coalesce cascading bus errors for a single failing URL.
+        # playbin3 may emit N errors (source + demuxer + decoder) during
+        # pipeline teardown for one broken stream. Without this guard each
+        # error would pop the next queue entry, draining the queue in
+        # milliseconds and yielding a spurious "Stream exhausted".
+        # See .planning/debug/stream-exhausted-premature.md for the trace.
+        if self._recovery_in_flight:
+            return
+        self._recovery_in_flight = True
         self._cancel_timers()
         if self._current_stream and "twitch.tv" in self._current_stream.url:
             if self._twitch_resolve_attempts < 1:
                 self._twitch_resolve_attempts += 1
                 self._play_twitch(self._current_stream.url)
+                # Defer the clear so any already-queued singleShot recoveries
+                # for the OLD URL still see the guard set and no-op; errors
+                # from the NEW URL (not yet started) will see the cleared
+                # guard and trigger a fresh recovery.
+                QTimer.singleShot(0, self._clear_recovery_guard)
                 return
         self._try_next_stream()
+        QTimer.singleShot(0, self._clear_recovery_guard)
+
+    def _clear_recovery_guard(self) -> None:
+        """Main-thread slot: release the recovery guard after the current
+        failover advance is armed. Scheduled by _handle_gst_error_recovery
+        via QTimer.singleShot(0, ...) so it runs after any already-queued
+        recovery callbacks from the old URL have drained."""
+        self._recovery_in_flight = False
 
     def _on_gst_tag(self, bus, msg) -> None:
         taglist = msg.parse_tag()
