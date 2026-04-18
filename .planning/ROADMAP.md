@@ -436,5 +436,25 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 999.4: Cross-network mirror-station sibling links (AA — BACKLOG — FEATURE)
+
+**Goal:** Model AudioAddict stations that appear on multiple AA networks (e.g. "Ambient" on DI.FM AND ZenRadio) as a sibling group rather than unrelated duplicate stations. Keep the stations DISTINCT (not merged, no cross-network failover) because the schedules don't line up — what's playing on DI.FM's Ambient at any moment is NOT what's playing on ZenRadio's Ambient. The link is purely organizational: show "also available on ZenRadio" on the DI.FM station (and vice-versa), let the user jump between siblings, and optionally unify favorites + last-played across the group.
+
+**Why not cross-network failover (Option 2):** Rejected because AA mirror schedules drift — failing from DI.FM hi → ZenRadio hi would cut mid-song to a completely different track, breaking user expectation. Failover only makes sense within a single network's stream list.
+
+**Open design questions (for /gsd-discuss-phase):**
+- Detection: automatic at AA-import time (match on `channel_key` or normalized `channel_name`) or manual "mark as sibling" UX?
+- Favorites: unified across the sibling group, or per-station?
+- Last-played / Recently Played: unified, or per-station?
+- UI affordance: badge on station card? Context-menu "Switch to mirror"? Separate "Siblings" panel in Edit Station?
+- Data model: new `mirror_group_id` column on `stations`, or a separate `station_siblings` join table?
+
+**Requirements:** TBD (derive during discuss)
+**Depends on:** none. Builds on existing AA-import infrastructure but does not require Phase 47.x failover work.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
-*Last updated: 2026-04-18 — Phase 999.3 added to backlog (Twitch/Google login failure bug)*
+*Last updated: 2026-04-18 — Phase 999.4 added to backlog (AA cross-network mirror sibling links)*
