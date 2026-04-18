@@ -332,11 +332,11 @@ Plans:
 **Goal:** End the hardcoded-hex pattern blocking dark mode by centralizing `#c0392b` and `QSize(32, 32)` into a shared `_theme.py` module, AND close three EditStationDialog logo-status UX gaps (distinguish AA-no-key from unsupported URL, auto-clear label after 3s or on textChanged, apply Qt.WaitCursor during fetch).
 **Requirements**: None (cleanup phase; phase_req_ids is null — must-haves come from CONTEXT.md §Phase Boundary)
 **Depends on:** Phase 45
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 46-01-PLAN.md — Theme token module + migration sweep (create `_theme.py`, migrate 10 hex + 3 QSize sites, add tests/test_theme.py)
-- [ ] 46-02-PLAN.md — EditStationDialog logo-status UX (AA-URL classification, 3s auto-clear timer, Qt.WaitCursor override)
+- [x] 46-01-PLAN.md — Theme token module + migration sweep (create `_theme.py`, migrate 10 hex + 3 QSize sites, add tests/test_theme.py)
+- [x] 46-02-PLAN.md — EditStationDialog logo-status UX (AA-URL classification, 3s auto-clear timer, Qt.WaitCursor override)
 
 ### Phase 47: Stats for nerds + AutoEQ import + stream bitrate quality ordering — harvest SEED-005 (live GStreamer buffer-fill indicator in now-playing panel, wired to message::buffering) and SEED-007 (in-app parametric EQ with AutoEQ ParametricEQ.txt profile import via GStreamer equalizer-nbands element; unlocks headphone EQ on work PC where Equalizer APO is blocked)
 
