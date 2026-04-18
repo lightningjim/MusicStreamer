@@ -291,7 +291,7 @@ class EditStationDialog(QDialog):
 
         self.streams_table = QTableWidget(0, 5)
         self.streams_table.setHorizontalHeaderLabels(
-            ["URL", "Quality", "Codec", "Bitrate", "Position"]
+            ["URL", "Quality", "Codec", "Bitrate (kbps)", "Position"]
         )
         self.streams_table.setAlternatingRowColors(True)
         self.streams_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -303,7 +303,7 @@ class EditStationDialog(QDialog):
         hdr.setSectionResizeMode(_COL_POSITION, QHeaderView.Fixed)
         self.streams_table.setColumnWidth(_COL_QUALITY, 80)
         self.streams_table.setColumnWidth(_COL_CODEC, 80)
-        self.streams_table.setColumnWidth(_COL_BITRATE, 70)
+        self.streams_table.setColumnWidth(_COL_BITRATE, 95)
         self.streams_table.setColumnWidth(_COL_POSITION, 60)
         self.streams_table.setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
         streams_vbox.addWidget(self.streams_table)
