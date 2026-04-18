@@ -1,53 +1,43 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-17T01:04:34.017Z",
-  "phase": "42",
-  "phase_name": "settings-export-import",
-  "phase_dir": ".planning/phases/42-settings-export-import",
+  "timestamp": "2026-04-18T03:28:40.917Z",
+  "phase": "47",
+  "phase_name": "stream-bitrate-quality-ordering",
+  "phase_dir": ".planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame",
   "plan": null,
-  "task": null,
-  "total_tasks": null,
+  "task": 0,
+  "total_tasks": 0,
   "status": "paused",
-  "context": "uat_diagnosis_pending",
+  "workflow_stage": "plan-phase (post-research, post-pattern-mapping, pre-planner-spawn)",
   "completed_tasks": [
-    {"id": "exec", "name": "Phase 42 execution (plans 01+02)", "status": "done"},
-    {"id": "secure", "name": "/gsd-secure-phase 42", "status": "done", "commit": "d48492d"},
-    {"id": "ui-review", "name": "/gsd-ui-review 42 (22/24)", "status": "done", "commit": "f11ea01"},
-    {"id": "code-review", "name": "/gsd-code-review 42 (0 crit, 3 warn, 5 info)", "status": "done", "commit": "de2a276"},
-    {"id": "review-fix-1", "name": "/gsd-code-review-fix 42 (warn + UI top 3)", "status": "done", "commit": "15c51f5"},
-    {"id": "review-fix-2", "name": "/gsd-code-review-fix 42 --all (info + UI minor)", "status": "done", "commit": "453ffe9"},
-    {"id": "uat", "name": "/gsd-verify-work 42 UAT session (6 pass, 1 issue, 1 skip)", "status": "done", "commit": "5168794"}
+    {"id": "42-03", "name": "Phase 42 gap closure — QThread signal shadowing fix", "status": "done", "commit": "0d9d699"},
+    {"id": "45", "name": "Phase 45: Unify station-icon loader", "status": "done", "commit": "63bf80f"},
+    {"id": "46", "name": "Phase 46: UI polish — theme tokens + logo-status cleanup", "status": "done", "commit": "9601c20"},
+    {"id": "47-scope-split", "name": "Phase 47 original scope split into 47 (bitrate) + 47.1 (buffer SEED-005) + 47.2 (AutoEQ SEED-007)", "status": "done", "commit": "f389bb1"},
+    {"id": "47-discuss", "name": "Phase 47 discuss-phase — 3 locked decisions (keep quality+bitrate both, unknowns sort last, QLineEdit+QIntValidator UX)", "status": "done", "commit": "6d9ab90"},
+    {"id": "47-research", "name": "Phase 47 gsd-phase-researcher — 47-RESEARCH.md with call-site map + Validation Architecture", "status": "done", "commit": "2f484ae"},
+    {"id": "47-patterns", "name": "Phase 47 gsd-pattern-mapper — 47-PATTERNS.md with 11 analog classifications", "status": "done"},
+    {"id": "47-validation-template", "name": "Phase 47 VALIDATION.md from template (frontmatter filled — planner must populate Per-Task Verification Map)", "status": "done", "commit": "be69698"},
+    {"id": "999.1", "name": "Backlog — Add New Station primary action", "status": "done", "commit": "8cd5a93"},
+    {"id": "999.2", "name": "Backlog — Recently Played list does not update live (bug)", "status": "done", "commit": "2d07f84"}
   ],
   "remaining_tasks": [
-    {"id": "diagnose-test-8", "name": "Diagnose why Import claims success when DB write fails", "status": "not_started"},
-    {"id": "plan-gap-fix", "name": "Plan gap closure for Test 8 failure", "status": "not_started"},
-    {"id": "execute-gap-fix", "name": "Execute fix via /gsd-execute-phase 42 --gaps-only", "status": "not_started"}
+    {"id": "47-planner-spawn", "name": "Spawn gsd-planner with the prepared prompt (3-plan breakdown: 47-01 pure logic, 47-02 schema+repo+player, 47-03 imports+UI+settings-export)", "status": "not_started"},
+    {"id": "47-plan-check", "name": "Spawn gsd-plan-checker after planner returns", "status": "not_started"},
+    {"id": "47-execute", "name": "/gsd-execute-phase 47 (chain still active — workflow._auto_chain_active=true)", "status": "not_started"}
   ],
-  "blockers": [
-    {
-      "description": "Test 8 (Import Commit Error Handling) failed during UAT. Import dialog reported success when the underlying DB write failed (read-only SQLite file). Stream was not restored but no error toast appeared.",
-      "type": "technical",
-      "workaround": null,
-      "reproduction": "1) chmod -w musicstreamer/musicstreamer.sqlite3  2) remove a stream via UI  3) run Import Settings on a prior export ZIP that contains that stream  4) observe: dialog claims success, stream not restored"
-    }
-  ],
+  "blockers": [],
   "human_actions_pending": [],
   "decisions": [
-    {"decision": "Skipped UAT Test 7 (round-trip + T-42-03 exclusion)", "rationale": "audioaddict_listen_key is not persisted in DB (upstream issue outside phase 42 scope); exclusion behavior covered by automated tests in test_settings_export.py", "phase": "42"},
-    {"decision": "gsd-debugger spawn was INTERRUPTED by user before diagnosis ran", "rationale": "User paused work before the investigation started; diagnosis still pending", "phase": "42"}
+    {"decision": "Split original Phase 47 (stats + AutoEQ + bitrate) into 47 (bitrate only), 47.1 (SEED-005 buffer indicator), 47.2 (SEED-007 AutoEQ)", "rationale": "Three independent features with no shared code; bundled UAT and plans were incoherent. Decimals preserve existing Phase 48.", "phase": "47"},
+    {"decision": "Keep both StationStream.quality (str) and StationStream.bitrate_kbps (int)", "rationale": "quality stays as user-facing tag; bitrate_kbps becomes the failover sort key. Lowest-disruption path; preserves user custom quality tags.", "phase": "47"},
+    {"decision": "Unknown bitrates (bitrate_kbps=0) sort LAST in failover queue", "rationale": "Partial-data-safe; fresh imports with known bitrates always win. Overrides roadmap's original 'fall back to position order' phrasing.", "phase": "47"},
+    {"decision": "Bitrate UX = QLineEdit + QIntValidator(0,9999) via QStyledItemDelegate, 5th column after Quality", "rationale": "Free numeric entry matches existing table style. Delegate pattern already exists (station_star_delegate.py).", "phase": "47"},
+    {"decision": "UI-SPEC.md intentionally skipped for Phase 47", "rationale": "Adding one column to an existing QTableWidget is mechanical; zero visual design decisions. Same approach as Phase 46.", "phase": "47"}
   ],
   "uncommitted_files": [
-    ".planning/config.json (M)",
-    ".planning/phases/41-platform-media-keys/41-04-PLAN.md (M)",
-    ".planning/phases/42-settings-export-import/42-PATTERNS.md (??)",
-    ".clone/ (??)",
-    ".claude/ (??)",
-    "musicstreamer/musicstreamer.sqlite3 (??)",
-    "logo-bw.png / logodark.png / org.lightningjim.MusicStreamer.png (??)"
+    ".planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-VALIDATION.md (frontmatter filled; body still template — planner completes during spawn)"
   ],
-  "next_action": "Run gsd-debugger against Test 8 failure. Investigate: (1) whether commit_import raises on sqlite3 OperationalError for read-only writes, (2) whether _ImportCommitWorker.run emits 'finished' even on exception, (3) whether station list refresh masks the failure. Then /gsd-plan-phase 42 --gaps to create fix plan, then /gsd-execute-phase 42 --gaps-only.",
-  "context_notes": "Phase 42 functionally complete — all code/UI/security reviews cleaned up, 6/8 UAT checkpoints passed. One real bug surfaced at the UAT gate: Import reports success when it silently fails. Diagnosis was about to spawn gsd-debugger when user invoked /gsd-pause-work. An unrelated observation came up during UAT: audioaddict_listen_key isn't being persisted in the DB — NOT a phase 42 bug, but worth tracking as a separate backlog item for the settings storage path.",
-  "followups": [
-    {"description": "audioaddict_listen_key is not being persisted in DB (observed during Test 7 setup). Phase 42 correctly excludes it from export; the storage bug is elsewhere.", "scope": "outside_phase_42"}
-  ]
+  "next_action": "Re-send the planner prompt captured in .continue-here.md under <next_action>. Chain flag workflow._auto_chain_active is still true — after planning completes, execute-phase will auto-advance.",
+  "context_notes": "User interrupted the planner spawn mid-call to add a backlog bug (999.2 Recently Played live update). All pre-planner state is preserved: CONTEXT.md, RESEARCH.md, PATTERNS.md, VALIDATION.md frontmatter. Plan scope is well-specified by CONTEXT decisions D-01..D-14; research verified all call sites; pattern-mapper flagged a critical callout (discovery_dialog._on_save_row must capture station_id and mirror aa_import.import_stations_multi post-insert fix-up because there is no separate radio_browser_import.py module)."
 }
