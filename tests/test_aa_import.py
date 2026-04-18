@@ -513,3 +513,117 @@ def test_import_multi_threads_bitrate_kbps():
         call.kwargs.get("bitrate_kbps") for call in mock_repo.insert_stream.call_args_list
     }
     assert bitrates_seen == {128, 64}
+
+
+# ---------------------------------------------------------------------------
+# Gap-closure (UAT gap 2): PLS primary + fallback server extraction
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_pls_returns_all_entries():
+    """_resolve_pls must return ALL File= entries in PLS file order.
+
+    AA PLS files contain File1=<primary> + File2=<fallback>; the fallback
+    is critical for failover redundancy within a tier.
+    """
+    from musicstreamer.aa_import import _resolve_pls
+
+    pls_body = (
+        "[playlist]\n"
+        "numberofentries=2\n"
+        "File1=http://primary.di.fm:8000/listen\n"
+        "File2=http://fallback.di.fm:8000/listen\n"
+        "Length1=-1\n"
+        "Length2=-1\n"
+        "Version=2\n"
+    )
+
+    with patch(
+        "musicstreamer.aa_import.urllib.request.urlopen",
+        side_effect=lambda *a, **kw: _urlopen_factory(pls_body.encode()),
+    ):
+        result = _resolve_pls("http://any.pls")
+
+    assert result == [
+        "http://primary.di.fm:8000/listen",
+        "http://fallback.di.fm:8000/listen",
+    ]
+
+
+def test_resolve_pls_single_entry():
+    """A PLS with only File1= returns a one-element list."""
+    from musicstreamer.aa_import import _resolve_pls
+
+    pls_body = (
+        "[playlist]\n"
+        "numberofentries=1\n"
+        "File1=http://only.di.fm:8000/listen\n"
+    )
+
+    with patch(
+        "musicstreamer.aa_import.urllib.request.urlopen",
+        side_effect=lambda *a, **kw: _urlopen_factory(pls_body.encode()),
+    ):
+        result = _resolve_pls("http://any.pls")
+
+    assert result == ["http://only.di.fm:8000/listen"]
+
+
+def test_fetch_channels_multi_preserves_primary_and_fallback():
+    """Each tier's PLS has 2 server entries -> each tier produces 2 stream
+    dicts in fetch_channels_multi output (6 streams total for hi/med/low).
+    """
+    channel_data = _mock_channel_json("Ambient", "ambient")
+
+    pls_body_template = (
+        "[playlist]\n"
+        "File1=http://primary.{tier}.di.fm/listen\n"
+        "File2=http://fallback.{tier}.di.fm/listen\n"
+    )
+
+    def urlopen_side(url, timeout=None):
+        if "api.audioaddict.com" in url:
+            return _urlopen_factory(json.dumps([]).encode())
+        # PLS request — return tier-labeled primary+fallback body.
+        # Order of tier checks matters: premium_high + premium_medium must be
+        # matched before bare "premium" (which is the med tier).
+        if url.endswith(".pls"):
+            if "premium_high" in url:
+                return _urlopen_factory(pls_body_template.replace("{tier}", "hi").encode())
+            if "premium_medium" in url:
+                return _urlopen_factory(pls_body_template.replace("{tier}", "low").encode())
+            if "premium" in url:
+                return _urlopen_factory(pls_body_template.replace("{tier}", "med").encode())
+        # Channel-list JSON request (non-PLS, non-api)
+        return _urlopen_factory(channel_data)
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side):
+        result = fetch_channels_multi("testkey123")
+
+    assert len(result) > 0
+    for ch in result:
+        # Expect 6 streams: 2 per tier (primary + fallback) x 3 tiers
+        assert len(ch["streams"]) == 6, (
+            f"expected 6 streams (primary + fallback x 3 tiers) for "
+            f"{ch['title']}, got {len(ch['streams'])}"
+        )
+        # Every tier should have exactly 2 streams
+        by_quality = {}
+        for s in ch["streams"]:
+            by_quality.setdefault(s["quality"], []).append(s)
+        assert set(by_quality.keys()) == {"hi", "med", "low"}
+        for q, entries in by_quality.items():
+            assert len(entries) == 2
+            # Bitrate identical across primary + fallback in the same tier
+            assert len({e["bitrate_kbps"] for e in entries}) == 1
+            # URLs differ between primary and fallback
+            assert len({e["url"] for e in entries}) == 2
+            # Position ordering: primary < fallback within the tier
+            positions = [e["position"] for e in entries]
+            assert positions == sorted(positions), (
+                f"{q} tier positions {positions} must sort primary before fallback"
+            )
+            # Primary URL appears first in PLS (contains "primary.")
+            primary = [e for e in entries if "primary." in e["url"]][0]
+            fallback = [e for e in entries if "fallback." in e["url"]][0]
+            assert primary["position"] < fallback["position"]
