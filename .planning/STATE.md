@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 47 plan 02 complete (repo + player bitrate wiring)
-last_updated: "2026-04-18T16:43:16Z"
-last_activity: 2026-04-18 -- Phase 47 plan 02 complete
+stopped_at: Phase 47 plan 03 complete (UI + imports + settings-export bitrate wiring)
+last_updated: "2026-04-18T16:54:30Z"
+last_activity: 2026-04-18 -- Phase 47 plan 03 complete
 progress:
   total_phases: 20
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 43
-  completed_plans: 42
-  percent: 98
+  completed_plans: 43
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 
 ## Current Position
 
-Phase: 47 (stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame) — EXECUTING
-Plan: 3 of 3 (next: 47-03 — UI + imports + settings-export wiring)
-Status: Executing Phase 47
-Last activity: 2026-04-18 -- Phase 47 plan 02 complete (repo schema + player failover wired; failover now orders by codec+bitrate)
+Phase: 47 (stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame) — COMPLETE (all 3 plans landed)
+Plan: 3 of 3 complete
+Status: Phase 47 ready for gate + merge
+Last activity: 2026-04-18 -- Phase 47 plan 03 complete (bitrate_kbps wired end-to-end: AA + RadioBrowser ingest, Edit Station UI, settings export/import roundtrip with pre-47 forward-compat)
 
-Progress: [██████░░░░] 66%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -75,6 +75,9 @@ Key v2.0 decisions already settled:
 - [Phase 47-02]: station_streams.bitrate_kbps migrated via BOTH CREATE TABLE body AND idempotent ALTER TABLE block wrapped in try/except sqlite3.OperationalError — no user_version bump (D-02)
 - [Phase 47-02]: Repo.insert_stream / Repo.update_stream take bitrate_kbps: int = 0 kwarg (default preserves all existing positional callers including insert_station, settings_export, aa_import, edit_station_dialog, discovery_dialog)
 - [Phase 47-02]: player.py::play line 166 one-line swap sorted(station.streams, key=position) → order_streams(station.streams); variable name streams_by_position retained for minimum-diff (semantically stale but working)
+- [Phase 47-03]: discovery_dialog._on_save_row uses G-2 Option 1 post-insert fix-up (capture insert_station station_id, then list_streams + update_stream(bitrate_kbps=...)) — mirrors aa_import.import_stations_multi:188-196 rather than widening the insert_station public signature
+- [Phase 47-03]: _BitrateDelegate(QStyledItemDelegate) with QIntValidator(0, 9999) placed at module scope (not nested in EditStationDialog) to mirror station_star_delegate.py convention; registered via setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
+- [Phase 47-03]: int(stream.get("bitrate_kbps", 0) or 0) in BOTH settings_export._insert_station AND _replace_station — single idiom neutralizes missing key (pre-47 ZIP forward-compat, P-2), None, empty string, and malformed-value threats
 
 ### Roadmap Evolution
 
@@ -100,6 +103,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-18T16:43:16Z
-Stopped at: Phase 47 plan 02 complete — repo bitrate_kbps schema + migration + player failover uses order_streams (4 new tests green, 0 regressions)
-Resume file: .planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-03-PLAN.md
+Last session: 2026-04-18T16:54:30Z
+Stopped at: Phase 47 plan 03 complete — bitrate_kbps wired end-to-end through AA import, RadioBrowser discovery-save, Edit Station dialog (5-column table + QIntValidator delegate), and settings export/import roundtrip (7 new tests green, 0 regressions)
+Resume file: Phase 47 complete; next action is phase gate + merge. No 47-04 PLAN.
