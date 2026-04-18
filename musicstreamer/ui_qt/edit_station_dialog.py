@@ -164,6 +164,7 @@ class _BitrateDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
         editor = QLineEdit(parent)
         editor.setValidator(QIntValidator(0, 9999, parent))
+        editor.setPlaceholderText("e.g. 128")
         return editor
 
 
