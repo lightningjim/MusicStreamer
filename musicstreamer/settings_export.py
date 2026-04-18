@@ -116,6 +116,7 @@ def _station_to_dict(station: Station) -> dict:
                 "position": s.position,
                 "stream_type": s.stream_type,
                 "codec": s.codec,
+                "bitrate_kbps": s.bitrate_kbps,
             }
             for s in station.streams
         ],
@@ -371,8 +372,8 @@ def _insert_station(repo: Repo, data: dict) -> int:
     for stream in data.get("streams", []):
         repo.con.execute(
             "INSERT INTO station_streams"
-            "(station_id, url, label, quality, position, stream_type, codec) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps) "
+            "VALUES (?,?,?,?,?,?,?,?)",
             (
                 station_id,
                 stream.get("url", ""),
@@ -381,6 +382,7 @@ def _insert_station(repo: Repo, data: dict) -> int:
                 stream.get("position", 1),
                 stream.get("stream_type", ""),
                 stream.get("codec", ""),
+                int(stream.get("bitrate_kbps", 0) or 0),  # P-2 forward-compat + defense
             ),
         )
     return station_id
@@ -426,8 +428,8 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
     for stream in data.get("streams", []):
         repo.con.execute(
             "INSERT INTO station_streams"
-            "(station_id, url, label, quality, position, stream_type, codec) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps) "
+            "VALUES (?,?,?,?,?,?,?,?)",
             (
                 station_id,
                 stream.get("url", ""),
@@ -436,6 +438,7 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
                 stream.get("position", 1),
                 stream.get("stream_type", ""),
                 stream.get("codec", ""),
+                int(stream.get("bitrate_kbps", 0) or 0),  # P-2 forward-compat + defense
             ),
         )
     return station_id
