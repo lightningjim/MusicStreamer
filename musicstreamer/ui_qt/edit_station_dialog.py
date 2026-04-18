@@ -21,8 +21,9 @@ import tempfile
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal, QTimer, QThread
-from PySide6.QtGui import QPixmap, QPixmapCache
+from PySide6.QtGui import QCursor, QPixmap, QPixmapCache
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -44,17 +45,21 @@ from PySide6.QtWidgets import (
 from musicstreamer import assets
 from musicstreamer.models import Station
 from musicstreamer.ui_qt._art_paths import abs_art_path
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
 from musicstreamer.ui_qt.flow_layout import FlowLayout
 
 
 class _LogoFetchWorker(QThread):
     """Background thumbnail fetcher for station URL. Handles YT and AudioAddict.
 
-    Emits finished(tmp_path, token) where tmp_path is a temp file path or ""
-    on failure/unsupported URL. The token mirrors NowPlayingPanel._cover_fetch_token
-    so the slot can discard stale responses (and unlink their tmp files).
+    Emits finished(tmp_path, token, classification) where tmp_path is a temp
+    file path or "" on failure/unsupported URL. The token mirrors
+    NowPlayingPanel._cover_fetch_token so the slot can discard stale responses
+    (and unlink their tmp files). The 3rd arg carries classification:
+    "" (default) or "aa_no_key" when an AudioAddict URL is recognized but
+    slug/channel_key could not be derived. Phase 46-02 / D-07 / D-08.
     """
-    finished = Signal(str, int)
+    finished = Signal(str, int, str)
 
     def __init__(self, url: str, token: int, parent=None):
         super().__init__(parent)
@@ -75,37 +80,43 @@ class _LogoFetchWorker(QThread):
                     fd, tmp = tempfile.mkstemp(suffix=".jpg")
                     os.close(fd)
                     urllib.request.urlretrieve(thumb, tmp)
-                    self.finished.emit(tmp, token)
+                    self.finished.emit(tmp, token, "")
                     return
-                self.finished.emit("", token)
+                self.finished.emit("", token, "")
                 return
 
             from musicstreamer.url_helpers import (
                 _is_aa_url, _aa_slug_from_url, _aa_channel_key_from_url,
             )
             if _is_aa_url(url):
-                from musicstreamer.aa_import import _fetch_image_map
-                import urllib.request
                 slug = _aa_slug_from_url(url)
                 channel_key = _aa_channel_key_from_url(url, slug=slug)
                 if not slug or not channel_key:
-                    self.finished.emit("", token)
+                    # D-07 / D-08: AA URL recognized but key not derivable.
+                    # Classify distinctly so the slot can show the AA-specific
+                    # message. Emit BEFORE importing _fetch_image_map so this
+                    # branch does not depend on aa_import being importable.
+                    self.finished.emit("", token, "aa_no_key")
                     return
+                from musicstreamer.aa_import import _fetch_image_map
+                import urllib.request
                 img_map = _fetch_image_map(slug)
                 image_url = img_map.get(channel_key)
                 if not image_url:
-                    self.finished.emit("", token)
+                    # Network/map failure — generic "Fetch failed" for an
+                    # otherwise-parseable AA URL. Not aa_no_key.
+                    self.finished.emit("", token, "")
                     return
                 ext = os.path.splitext(image_url.split("?")[0])[1] or ".png"
                 fd, tmp = tempfile.mkstemp(suffix=ext)
                 os.close(fd)
                 urllib.request.urlretrieve(image_url, tmp)
-                self.finished.emit(tmp, token)
+                self.finished.emit(tmp, token, "")
                 return
 
-            self.finished.emit("", token)
+            self.finished.emit("", token, "")
         except Exception:
-            self.finished.emit("", token)
+            self.finished.emit("", token, "")
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +139,9 @@ QPushButton[chipState="selected"] {
 }
 """
 
-_DELETE_BTN_QSS = "QPushButton { color: #c0392b; }"
+# Phase 46-01 / 46-02: centralized error-red token from musicstreamer.ui_qt._theme.
+# f-string with doubled braces so QSS selector braces survive formatting.
+_DELETE_BTN_QSS = f"QPushButton {{ color: {ERROR_COLOR_HEX}; }}"
 
 # Stream table columns
 _COL_URL = 0
@@ -211,6 +224,13 @@ class EditStationDialog(QDialog):
         self._url_timer.setInterval(500)
         self.url_edit.textChanged.connect(self._on_url_text_changed)
         self._url_timer.timeout.connect(self._on_url_timer_timeout)
+        # Auto-clear timer for _logo_status (D-09). 3s after a terminal status
+        # is set, clear the label. Cancelled/restarted via _on_url_text_changed
+        # (which also clears the label immediately).
+        self._logo_status_clear_timer = QTimer(self)    # parented — G-1 safety
+        self._logo_status_clear_timer.setSingleShot(True)
+        self._logo_status_clear_timer.setInterval(3000)
+        self._logo_status_clear_timer.timeout.connect(self._logo_status.clear)
         form.addRow("URL:", self.url_edit)
 
         # Provider
@@ -432,7 +452,12 @@ class EditStationDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _on_url_text_changed(self) -> None:
+        # Debounce fetch (existing behavior).
         self._url_timer.start()
+        # D-09: clear pending auto-clear timer + clear status label immediately.
+        # QLabel.clear is idempotent — safe when label is already empty.
+        self._logo_status_clear_timer.stop()
+        self._logo_status.clear()
 
     def _on_url_timer_timeout(self) -> None:
         """Debounced: kick off a _LogoFetchWorker for the current URL.
@@ -450,6 +475,10 @@ class EditStationDialog(QDialog):
         self._fetch_logo_btn.setEnabled(False)
         self._logo_fetch_worker = _LogoFetchWorker(url, token, self)
         self._logo_fetch_worker.finished.connect(self._on_logo_fetched)
+        # D-10: wait cursor during fetch. Restored exactly once at the top of
+        # _on_logo_fetched (covers success, failure, unsupported, aa_no_key,
+        # and stale-token branches — see RESEARCH Pitfall P-1).
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         self._logo_fetch_worker.start()
 
     def _on_fetch_logo_clicked(self) -> None:
@@ -458,6 +487,8 @@ class EditStationDialog(QDialog):
         url = self.url_edit.text().strip()
         if not url:
             self._logo_status.setText("Enter a URL first")
+            # D-09: also auto-clear this terminal status after 3s.
+            self._logo_status_clear_timer.start()
             return
         self._on_url_timer_timeout()
 
@@ -495,7 +526,18 @@ class EditStationDialog(QDialog):
         self._refresh_logo_preview()
         self._invalidate_cache_for(old_path)
 
-    def _on_logo_fetched(self, tmp_path: str, token: int = 0) -> None:
+    def _on_logo_fetched(
+        self,
+        tmp_path: str,
+        token: int = 0,
+        classification: str = "",
+    ) -> None:
+        # D-10/D-11 + P-1: restore cursor BEFORE the stale-token check so that
+        # every setOverrideCursor call has exactly one matching restore,
+        # regardless of token freshness. _on_logo_fetched is the sole slot for
+        # _LogoFetchWorker.finished — there is no separate error signal (G-7).
+        QApplication.restoreOverrideCursor()
+
         # Stale response: a newer fetch has been started. Unlink the stale tmp
         # file (if any) so we do not leak temp files under rapid URL typing.
         # See WR-01.
@@ -509,13 +551,25 @@ class EditStationDialog(QDialog):
 
         self._fetch_logo_btn.setEnabled(True)
         if not tmp_path or not os.path.exists(tmp_path):
-            from musicstreamer.url_helpers import _is_aa_url
-            url = self.url_edit.text().strip()
-            lower = url.lower()
-            if "youtube.com" in lower or "youtu.be" in lower or _is_aa_url(url):
-                self._logo_status.setText("Fetch failed")
+            if classification == "aa_no_key":
+                # D-07: AA URL recognized but slug/channel_key not derivable.
+                # Tell the user to use Choose File instead of a generic "not
+                # supported" message.
+                self._logo_status.setText(
+                    "AudioAddict station \u2014 use Choose File to supply a logo"
+                )
             else:
-                self._logo_status.setText("Fetch not supported for this URL")
+                from musicstreamer.url_helpers import _is_aa_url
+                url = self.url_edit.text().strip()
+                lower = url.lower()
+                if "youtube.com" in lower or "youtu.be" in lower or _is_aa_url(url):
+                    # YT/AA recognized URL that failed mid-fetch (e.g. network
+                    # error, image_url missing from map).
+                    self._logo_status.setText("Fetch failed")
+                else:
+                    self._logo_status.setText("Fetch not supported for this URL")
+            # D-09: arm the 3s auto-clear timer for this terminal status.
+            self._logo_status_clear_timer.start()
             # Defensive: truthy-but-missing tmp_path shouldn't happen, but
             # attempt cleanup in case of race / external deletion. See WR-03.
             if tmp_path:
@@ -531,6 +585,8 @@ class EditStationDialog(QDialog):
             self._refresh_logo_preview()
             self._invalidate_cache_for(old_path)
             self._logo_status.setText("Fetched")
+            # D-09: arm the 3s auto-clear timer for the success terminal status.
+            self._logo_status_clear_timer.start()
         finally:
             # Always unlink the tmp file — even on exception from copy_asset.
             # See WR-03.
