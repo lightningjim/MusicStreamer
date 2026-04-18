@@ -191,13 +191,26 @@ def import_stations_multi(channels: list[dict], repo, on_progress=None, on_logo_
     logo_targets = []
 
     for ch in channels:
+        # WR-02: skip channels with no streams. insert_station short-circuits on
+        # empty url (repo.py:415-416), which would yield an orphan station with
+        # zero stream rows counted as "imported". fetch_channels_multi never
+        # emits empty streams today; this guards future callers that might.
+        if not ch.get("streams"):
+            skipped += 1
+            _log.warning(
+                "Skipping AA channel with no streams: %s",
+                ch.get("title", "<unnamed>"),
+            )
+            if on_progress:
+                on_progress(imported, skipped)
+            continue
         # Check if any stream URL already exists
-        any_exists = any(repo.station_exists_by_url(s["url"]) for s in ch.get("streams", []))
+        any_exists = any(repo.station_exists_by_url(s["url"]) for s in ch["streams"])
         if any_exists:
             skipped += 1
         else:
             # Insert station (with first stream URL for backward compat)
-            first_url = ch["streams"][0]["url"] if ch["streams"] else ""
+            first_url = ch["streams"][0]["url"]
             station_id = repo.insert_station(
                 name=ch["title"],
                 url=first_url,
