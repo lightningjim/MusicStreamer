@@ -18,6 +18,7 @@ class StationStream:
     position: int = 1
     stream_type: str = ""    # "shoutcast" | "youtube" | "hls" | ""
     codec: str = ""          # "MP3" | "AAC" | "OPUS" | "FLAC" | ""
+    bitrate_kbps: int = 0     # numeric bitrate in kbps; 0 = unknown (D-01)
 
 
 @dataclass
