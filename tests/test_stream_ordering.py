@@ -4,12 +4,15 @@ from __future__ import annotations
 import pytest
 
 from musicstreamer.models import StationStream
-from musicstreamer.stream_ordering import codec_rank, order_streams
+from musicstreamer.stream_ordering import codec_rank, order_streams, quality_rank
 
 
-def _s(codec: str = "", bitrate_kbps: int = 0, position: int = 1, url: str = "u") -> StationStream:
+def _s(
+    codec: str = "", bitrate_kbps: int = 0, position: int = 1,
+    url: str = "u", quality: str = "",
+) -> StationStream:
     return StationStream(
-        id=0, station_id=0, url=url, codec=codec,
+        id=0, station_id=0, url=url, codec=codec, quality=quality,
         bitrate_kbps=bitrate_kbps, position=position,
     )
 
@@ -23,6 +26,60 @@ def _s(codec: str = "", bitrate_kbps: int = 0, position: int = 1, url: str = "u"
 def test_codec_rank(codec, expected):
     # PB-10: case-insensitive + whitespace-tolerant + None-safe
     assert codec_rank(codec) == expected
+
+
+@pytest.mark.parametrize("quality,expected", [
+    ("hi", 3), ("HI", 3), ("  hi  ", 3),
+    ("med", 2), ("MED", 2),
+    ("low", 1), ("LOW", 1),
+    ("premium", 0), ("", 0), (None, 0),
+])
+def test_quality_rank(quality, expected):
+    # WR-01: case-insensitive + whitespace-tolerant + None-safe quality-tier rank
+    assert quality_rank(quality) == expected
+
+
+def test_quality_tier_beats_codec_rank():
+    # WR-01: hi-MP3-320 must beat med-AAC-128 (user's explicit quality choice
+    # outranks codec-efficiency tiebreak). Before the quality_rank primary key
+    # was added, AAC=2 > MP3=1 flipped the order to med-AAC first.
+    result = order_streams([
+        _s("AAC", 128, 2, quality="med"),
+        _s("MP3", 320, 1, quality="hi"),
+    ])
+    assert [(s.quality, s.codec, s.bitrate_kbps) for s in result] == [
+        ("hi", "MP3", 320),
+        ("med", "AAC", 128),
+    ]
+
+
+def test_quality_tier_full_order():
+    # WR-01: full three-tier ordering — hi > med > low regardless of codec/bitrate.
+    result = order_streams([
+        _s("MP3", 64, 3, quality="low"),
+        _s("AAC", 128, 2, quality="med"),
+        _s("MP3", 320, 1, quality="hi"),
+    ])
+    assert [s.quality for s in result] == ["hi", "med", "low"]
+
+
+def test_quality_tie_falls_through_to_codec():
+    # WR-01: within the same quality tier, codec_rank tiebreak still applies.
+    result = order_streams([
+        _s("MP3", 128, 2, quality="hi"),
+        _s("AAC", 128, 1, quality="hi"),
+    ])
+    assert [s.codec for s in result] == ["AAC", "MP3"]
+
+
+def test_unknown_quality_falls_through_to_codec():
+    # WR-01: custom/blank quality tiers rank 0 — legacy streams without
+    # explicit hi/med/low labels still sort by codec+bitrate.
+    result = order_streams([
+        _s("MP3", 320, 1),          # quality="" -> rank 0
+        _s("FLAC", 64, 2),           # quality="" -> rank 0, but FLAC outranks MP3
+    ])
+    assert [s.codec for s in result] == ["FLAC", "MP3"]
 
 
 def test_same_codec_bitrate_sort():
