@@ -598,3 +598,140 @@ def test_cancel_no_change(repo, tmp_path):
     # Don't call commit_import — DB should be untouched
     stations = repo.list_stations()
     assert len(stations) == 0
+
+
+# ---------------------------------------------------------------------------
+# PB-14 / PB-15: bitrate_kbps export/import roundtrip + forward-compat (Phase 47-03)
+# ---------------------------------------------------------------------------
+
+
+def _fresh_repo(tmp_path_factory_or_path) -> Repo:
+    """Build a fresh Repo on a new file DB; mimics repo fixture."""
+    # Accept either a Path (tests pass tmp_path / <subdir>) or a pytest tmp_path_factory.
+    db_path = str(tmp_path_factory_or_path / "fresh.db")
+    con = sqlite3.connect(db_path)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON;")
+    db_init(con)
+    return Repo(con)
+
+
+def test_export_import_roundtrip_preserves_bitrate_kbps(repo, tmp_path):
+    """PB-14: bitrate_kbps survives build_zip -> commit_import roundtrip."""
+    # Seed a station + stream with bitrate_kbps=320 via raw SQL.
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags) VALUES (?, ?)", ("Bitrate Test", "")
+    )
+    repo.con.commit()
+    sid = int(cur.lastrowid)
+    repo.con.execute(
+        "INSERT INTO station_streams"
+        "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps) "
+        "VALUES (?, ?, '', 'hi', 1, '', 'AAC', ?)",
+        (sid, "http://bitrate-test.example/stream", 320),
+    )
+    repo.con.commit()
+
+    # Export
+    zip_path = tmp_path / "settings.zip"
+    build_zip(repo, str(zip_path))
+
+    # Sanity check: bitrate_kbps appears in exported JSON
+    with zipfile.ZipFile(str(zip_path)) as zf:
+        payload = json.loads(zf.read("settings.json"))
+    target_stations = [
+        st for st in payload["stations"]
+        if any(s.get("url") == "http://bitrate-test.example/stream"
+               for s in st.get("streams", []))
+    ]
+    assert target_stations, "test station missing from export payload"
+    target_stream = next(
+        s for s in target_stations[0]["streams"]
+        if s.get("url") == "http://bitrate-test.example/stream"
+    )
+    assert target_stream["bitrate_kbps"] == 320
+
+    # Import into a fresh repo, replace_all mode.
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")
+
+    row = fresh.con.execute(
+        "SELECT bitrate_kbps FROM station_streams WHERE url = ?",
+        ("http://bitrate-test.example/stream",),
+    ).fetchone()
+    assert row is not None
+    assert row["bitrate_kbps"] == 320
+
+
+def test_commit_import_forward_compat_missing_bitrate_key(tmp_path):
+    """PB-15: pre-47 ZIP (stream dict without bitrate_kbps) imports cleanly with default 0."""
+    payload = {
+        "version": 1,
+        "exported_at": "2026-01-01T00:00:00",
+        "stations": [
+            {
+                "name": "Legacy Station",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "streams": [
+                    # NO bitrate_kbps key — simulates a pre-47 export.
+                    {
+                        "url": "http://legacy.example/stream",
+                        "label": "",
+                        "quality": "",
+                        "position": 1,
+                        "stream_type": "",
+                        "codec": "",
+                    }
+                ],
+            }
+        ],
+        "track_favorites": [],
+        "settings": [],
+    }
+    zip_path = tmp_path / "legacy.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("settings.json", json.dumps(payload))
+
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")  # no KeyError expected
+
+    row = fresh.con.execute(
+        "SELECT bitrate_kbps FROM station_streams WHERE url = ?",
+        ("http://legacy.example/stream",),
+    ).fetchone()
+    assert row is not None
+    assert row["bitrate_kbps"] == 0
+
+
+def test_station_to_dict_emits_bitrate_kbps(repo):
+    """PB-14b: _station_to_dict emits 'bitrate_kbps' key from StationStream.bitrate_kbps."""
+    from musicstreamer.settings_export import _station_to_dict
+
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags) VALUES (?, ?)", ("Test", "")
+    )
+    repo.con.commit()
+    sid = int(cur.lastrowid)
+    repo.con.execute(
+        "INSERT INTO station_streams"
+        "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps) "
+        "VALUES (?, ?, '', '', 1, '', '', ?)",
+        (sid, "http://t.example/stream", 192),
+    )
+    repo.con.commit()
+
+    stations = repo.list_stations()
+    station = next(s for s in stations if s.name == "Test")
+    d = _station_to_dict(station)
+    assert d["streams"][0]["bitrate_kbps"] == 192
