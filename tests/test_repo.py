@@ -512,3 +512,68 @@ def test_streams_dataclass(repo):
     assert s.position == 1
     assert s.stream_type == "shoutcast"
     assert s.codec == "MP3"
+
+
+# ============================================================
+# Phase 47-02: bitrate_kbps schema + hydration + migration (PB-01, PB-02)
+# ============================================================
+
+
+def _make_bare_con():
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON;")
+    return con
+
+
+def test_bitrate_kbps_hydrated_from_row():
+    """PB-01: list_streams hydrates bitrate_kbps from the row."""
+    con = _make_bare_con()
+    db_init(con)
+    repo = Repo(con)
+    con.execute("INSERT INTO stations(name) VALUES ('S')")
+    station_id = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+    repo.insert_stream(station_id, "http://a", bitrate_kbps=320)
+    repo.insert_stream(station_id, "http://b")  # legacy — no bitrate arg
+
+    streams = repo.list_streams(station_id)
+    bitrates = sorted(s.bitrate_kbps for s in streams)
+    assert bitrates == [0, 320]
+
+
+def test_bitrate_kbps_migration_adds_column():
+    """PB-02: pre-47 DB (no bitrate_kbps column) gains the column on db_init."""
+    con = _make_bare_con()
+    # Simulate pre-47 schema — station_streams without bitrate_kbps
+    con.executescript(
+        """
+        CREATE TABLE stations (id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL);
+        CREATE TABLE station_streams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            station_id INTEGER NOT NULL,
+            url TEXT NOT NULL DEFAULT '',
+            label TEXT NOT NULL DEFAULT '',
+            quality TEXT NOT NULL DEFAULT '',
+            position INTEGER NOT NULL DEFAULT 1,
+            stream_type TEXT NOT NULL DEFAULT '',
+            codec TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE CASCADE
+        );
+        INSERT INTO stations(name) VALUES ('Legacy');
+        INSERT INTO station_streams(station_id, url) VALUES (1, 'http://legacy');
+        """
+    )
+    con.commit()
+
+    # Run db_init — additive ALTER TABLE must succeed without raising
+    db_init(con)
+
+    # Column now exists on old row with default 0
+    row = con.execute(
+        "SELECT bitrate_kbps FROM station_streams WHERE station_id=1"
+    ).fetchone()
+    assert row["bitrate_kbps"] == 0
+
+    # Idempotency — second db_init must not raise
+    db_init(con)
