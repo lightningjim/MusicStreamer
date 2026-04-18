@@ -6,6 +6,7 @@ Public API:
 """
 
 import json
+import logging
 import os
 import re
 import tempfile
@@ -15,6 +16,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from musicstreamer.assets import copy_asset_for_station
 from musicstreamer.repo import db_connect, Repo
+
+_log = logging.getLogger(__name__)
 
 
 def _resolve_pls(pls_url: str) -> str:
@@ -41,7 +44,13 @@ def _normalize_aa_image_url(raw: str) -> str:
 
 
 def _fetch_image_map(slug: str) -> dict:
-    """Return {channel_key: normalized_image_url} for a network. Empty dict on failure."""
+    """Return {channel_key: normalized_image_url} for a network. Empty dict on failure.
+
+    IN-01: log 401/403 at WARNING (consistent with the rest of AA error handling,
+    which raises invalid_key on auth failures). Other exceptions (network blips,
+    JSON errors) are also logged but swallowed — image fetch is orthogonal to
+    stream access, so we don't want to abort the whole import for an image miss.
+    """
     try:
         api_url = f"https://api.audioaddict.com/v1/{slug}/channels"
         with urllib.request.urlopen(api_url, timeout=10) as resp:
@@ -53,7 +62,14 @@ def _fetch_image_map(slug: str) -> dict:
             if raw:
                 out[ch["key"]] = _normalize_aa_image_url(raw)
         return out
-    except Exception:
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            _log.warning("AA image map auth failure for %s: HTTP %s", slug, e.code)
+        else:
+            _log.warning("AA image map HTTP error for %s: %s", slug, e)
+        return {}
+    except Exception as e:
+        _log.warning("AA image map fetch failed for %s: %s", slug, e)
         return {}
 
 
