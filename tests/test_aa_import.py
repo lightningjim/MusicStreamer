@@ -38,7 +38,7 @@ def test_fetch_channels_returns_list():
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen",
                side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels("testkey123", "hi")
 
     assert isinstance(result, list)
@@ -81,7 +81,7 @@ def test_fetch_channels_skips_failed_network():
         return _urlopen_factory(channel_data)
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=side_effect), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels("testkey123", "hi")
 
     # First network failed (500), 5 remaining should succeed
@@ -95,31 +95,36 @@ def test_quality_tier_mapping():
     for quality, expected_tier in [("hi", "premium_high"), ("med", "premium"), ("low", "premium_medium")]:
         with patch("musicstreamer.aa_import.urllib.request.urlopen",
                    side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)), \
-             patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+             patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
             result = fetch_channels("testkey123", quality)
         for item in result:
             assert expected_tier in item["url"], f"quality={quality!r}: expected {expected_tier!r} in {item['url']!r}"
 
 
 def test_resolve_pls():
-    """_resolve_pls fetches a PLS URL and returns the File1 stream URL."""
+    """_resolve_pls fetches a PLS URL and returns ALL File= stream URLs (gap-06)."""
     pls_content = b"[playlist]\nNumberOfEntries=2\nFile1=http://prem1.di.fm:80/ambient_hi?key\nFile2=http://prem4.di.fm:80/ambient_hi?key\n"
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen",
                side_effect=lambda url, timeout=None: _urlopen_factory(pls_content)):
         result = _resolve_pls("https://listen.di.fm/premium_high/ambient.pls?listen_key=key")
 
-    assert result == "http://prem1.di.fm:80/ambient_hi?key"
+    # gap-06: _resolve_pls now returns a list of ALL File= URLs (primary + fallback).
+    assert result == [
+        "http://prem1.di.fm:80/ambient_hi?key",
+        "http://prem4.di.fm:80/ambient_hi?key",
+    ]
 
 
 def test_resolve_pls_fallback_on_error():
-    """_resolve_pls returns the original URL if resolution fails."""
+    """_resolve_pls returns [original URL] as a single-element list if resolution fails (gap-06)."""
     pls_url = "https://listen.di.fm/premium_high/ambient.pls?listen_key=key"
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=Exception("network error")):
         result = _resolve_pls(pls_url)
 
-    assert result == pls_url
+    # gap-06: list-form fallback preserves prior behavior for callers that take [0].
+    assert result == [pls_url]
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +227,7 @@ def test_fetch_channels_includes_image_url():
         return _urlopen_factory(listen_data)
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side_effect), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels("testkey123", "hi")
 
     assert len(result) == 6
@@ -241,7 +246,7 @@ def test_fetch_channels_image_url_none_on_failure():
         return _urlopen_factory(listen_data)
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side_effect), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels("testkey123", "hi")
 
     assert len(result) == 6
@@ -336,7 +341,7 @@ def test_fetch_channels_multi_returns_streams():
         return _urlopen_factory(channel_data)
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels_multi("testkey123")
 
     assert isinstance(result, list)
@@ -355,7 +360,7 @@ def test_fetch_channels_multi_stream_has_quality():
     with patch("musicstreamer.aa_import.urllib.request.urlopen",
                side_effect=lambda url, timeout=None: _urlopen_factory(json.dumps([]).encode())
                if "api.audioaddict.com" in url else _urlopen_factory(channel_data)), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels_multi("testkey123")
 
     for ch in result:
@@ -366,18 +371,27 @@ def test_fetch_channels_multi_stream_has_quality():
 
 
 def test_fetch_channels_multi_positions():
-    """hi=1, med=2, low=3 positions."""
+    """Position scheme: tier_base * 10 + pls_index (gap-06).
+
+    With a mocked _resolve_pls returning [url] (single entry, pls_index=1),
+    hi -> 11, med -> 21, low -> 31. The gap-06 scheme preserves tier ordering
+    (hi < med < low) and leaves room within each tier for primary=*1 and
+    fallback=*2 when real PLS files have 2 File= entries.
+    """
     channel_data = _mock_channel_json("Jazz", "jazz")
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen",
                side_effect=lambda url, timeout=None: _urlopen_factory(json.dumps([]).encode())
                if "api.audioaddict.com" in url else _urlopen_factory(channel_data)), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels_multi("testkey123")
 
     for ch in result:
         pos_map = {s["quality"]: s["position"] for s in ch["streams"]}
-        assert pos_map == {"hi": 1, "med": 2, "low": 3}
+        assert pos_map == {"hi": 11, "med": 21, "low": 31}
+        # Invariant: all positions unique and sort tier-first
+        positions = [s["position"] for s in ch["streams"]]
+        assert len(positions) == len(set(positions))
 
 
 def test_fetch_channels_multi_invalid_key():
@@ -474,7 +488,7 @@ def test_fetch_channels_multi_bitrate_kbps():
         return _urlopen_factory(channel_data)
 
     with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
         result = fetch_channels_multi("testkey123")
 
     assert len(result) > 0
@@ -587,7 +601,7 @@ def test_fetch_channels_multi_preserves_primary_and_fallback():
         # PLS request — return tier-labeled primary+fallback body.
         # Order of tier checks matters: premium_high + premium_medium must be
         # matched before bare "premium" (which is the med tier).
-        if url.endswith(".pls"):
+        if ".pls?" in url or url.endswith(".pls"):
             if "premium_high" in url:
                 return _urlopen_factory(pls_body_template.replace("{tier}", "hi").encode())
             if "premium_medium" in url:
