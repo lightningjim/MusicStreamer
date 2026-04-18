@@ -338,14 +338,14 @@ Plans:
 - [x] 46-01-PLAN.md — Theme token module + migration sweep (create `_theme.py`, migrate 10 hex + 3 QSize sites, add tests/test_theme.py)
 - [x] 46-02-PLAN.md — EditStationDialog logo-status UX (AA-URL classification, 3s auto-clear timer, Qt.WaitCursor override)
 
-### Phase 47: Stats for nerds + AutoEQ import + stream bitrate quality ordering — harvest SEED-005 (live GStreamer buffer-fill indicator in now-playing panel, wired to message::buffering) and SEED-007 (in-app parametric EQ with AutoEQ ParametricEQ.txt profile import via GStreamer equalizer-nbands element; unlocks headphone EQ on work PC where Equalizer APO is blocked)
+### Phase 47: Stream bitrate quality ordering — add `bitrate_kbps` to `StationStream`, populate on AA/RadioBrowser import, and reorder failover queue by (codec_rank, bitrate) for higher-quality-first playback
 
 **Goal:** [To be planned]
 **Requirements**: TBD
 **Depends on:** Phase 46
 **Plans:** 0 plans
 
-**Scope additions (2026-04-15):**
+**Scope (from 2026-04-15 roadmap addition, split from original Phase 47 on 2026-04-17):**
 - Add `bitrate_kbps: int = 0` field to `StationStream` model + DB migration
 - Expose bitrate in the Edit Station dialog stream table (editable alongside codec/label)
 - Failover queue ordering: sort by `(codec_rank desc, bitrate_kbps desc)` when bitrate is known; fall back to `position` order when bitrate=0 (backwards compat). Codec ranks: FLAC=3 > AAC=2 > MP3=1 > other=0. Same-codec tie-break: higher kbps first (320 > 128). Cross-codec at same kbps: AAC ranks above MP3 (efficiency advantage at equivalent perceptual quality).
@@ -354,6 +354,38 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 47 to break down)
+
+### Phase 47.1: Stats for nerds — live GStreamer buffer-fill indicator (SEED-005)
+
+**Goal:** Wire a live buffer-fill percent indicator in the now-playing panel, driven by GStreamer's `message::buffering` bus signal. Diagnose drop-outs, give curious users stream-health visibility.
+**Requirements**: TBD
+**Depends on:** Phase 47 (no hard dep; independent — but sequenced after bitrate for focus)
+**Plans:** 0 plans
+
+**Scope (split from original Phase 47 on 2026-04-17; harvests SEED-005):**
+- `player.py`: connect `bus.connect("message::buffering", self._on_gst_buffering)` alongside existing handlers; emit a Qt signal with the percent (0-100) for the UI layer.
+- `now_playing_panel.py`: add a collapsible "stats for nerds" row with the buffer percent (progress bar or `{N}%` label). Hidden by default; toggle via settings or hamburger menu.
+- Out of scope (deferred): other diagnostic stats (codec, sample rate, ICY bitrate, stream URL) — capture as follow-up if useful during implementation.
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 47.1 to break down)
+
+### Phase 47.2: In-app parametric EQ with AutoEQ profile import (SEED-007)
+
+**Goal:** Insert a GStreamer parametric EQ element into the playback pipeline and provide a UI to import/activate AutoEQ `ParametricEQ.txt` profiles. Primary driver: unlocks headphone EQ on the user's work PC where Equalizer APO is blocked.
+**Requirements**: TBD
+**Depends on:** Phase 35 Plan 06 (Player QObject architecture) — already shipped. No hard dep on 47 or 47.1.
+**Plans:** 0 plans
+
+**Scope (split from original Phase 47 on 2026-04-17; harvests SEED-007):**
+- Pipeline integration: add `equalizer-nbands` (or a biquad chain for true parametric EQ) to `playbin3.audio-filter`; wire enable/disable toggle.
+- AutoEQ `ParametricEQ.txt` parser: read the AutoEQ config format (filter type, frequency, Q, gain per band).
+- UI: EQ dialog (or Settings section) with profile import, enable toggle, and per-band visualization.
+- Profile storage: per-user (one active EQ) rather than per-station — confirmed during discuss.
+- Out of scope (deferred): bundled AutoEQ profiles, per-station override, dynamic range compression, other DSP filters — capture as follow-up if requested.
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 47.2 to break down)
 
 ### Phase 48: Fix AudioAddict listen key not persisting to DB — settings.audioaddict_listen_key is not being stored when set via AccountsDialog/ImportDialog, causing it to be empty on read and blocking Phase 42 round-trip UAT test 7. Scope: diagnose where the key write is dropped, fix persistence, add regression test that sets-then-reads the key across an app restart. Out of scope: the read-only-DB silent-import issue (owned by Phase 42).
 
