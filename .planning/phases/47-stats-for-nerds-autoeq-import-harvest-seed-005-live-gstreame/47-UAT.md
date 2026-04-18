@@ -1,12 +1,12 @@
 ---
-status: complete
+status: resolved
 phase: 47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame
 source:
   - 47-01-SUMMARY.md
   - 47-02-SUMMARY.md
   - 47-03-SUMMARY.md
 started: 2026-04-18T18:04:11Z
-updated: 2026-04-18T18:30:00Z
+updated: 2026-04-18T22:00:00Z
 ---
 
 ## Current Test
@@ -92,7 +92,8 @@ skipped: 0
 ## Gaps
 
 - truth: "Clearing a Bitrate cell and committing the edit (Enter/Tab) persists the cell as 0 (int(text or \"0\") defensive coerce on save path)"
-  status: failed
+  status: resolved
+  resolved_by: 47-04
   reason: |
     User reported: empty cell does NOT save as 0. On commit, the cell reverts
     to its prior value (either blank or the original bitrate). Likely cause:
@@ -108,7 +109,8 @@ skipped: 0
   missing: []
 
 - truth: "AudioAddict PLS import captures all server URLs per quality tier (primary + fallback), not just the first"
-  status: failed
+  status: resolved
+  resolved_by: 47-06
   reason: |
     User reported: each AA PLS file lists 2 servers per tier (primary + fallback),
     but only 1 stream per tier is imported. The fallback URL is silently dropped.
@@ -124,7 +126,8 @@ skipped: 0
   missing: []
 
 - truth: "AudioAddict paid-tier codec/bitrate mapping matches reality: hi=320 MP3, med=128 AAC, low=64 AAC (user-confirmed via AA hardware-player settings — consistent across all paid AA networks)"
-  status: failed
+  status: resolved
+  resolved_by: 47-07
   reason: |
     Ground truth from AA hardware-player settings UI (user-provided):
       Excellent = 128k AAC
@@ -153,7 +156,8 @@ skipped: 0
   missing: []
 
 - truth: "Stream failover events are visible to the user (status line, stats-for-nerds entry, or log) so the user knows a fallback occurred instead of silently believing the primary succeeded"
-  status: failed
+  status: deferred
+  deferred_to: 47.1
   reason: |
     User reported: when the primary stream failed and playback transitioned
     to the next stream, there was NO visible indication anywhere — no status
@@ -169,7 +173,9 @@ skipped: 0
   missing: []
 
 - truth: "Failover queue tries EVERY stream in order and succeeds on the first working one — does NOT report 'stream exhausted' until all streams have actually been attempted and failed"
-  status: failed
+  status: resolved
+  resolved_by: 47-05
+  debug_session: stream-exhausted-premature.md
   reason: |
     User reported: on an AA station where ONLY the low-quality stream was
     functional (higher qualities were broken), the app reported "stream
