@@ -54,12 +54,26 @@ class FakePlayer(QObject):
 class FakeRepo:
     def __init__(self) -> None:
         self.insert_station_calls: List[dict] = []
+        self.update_stream_calls: List[dict] = []
+        self._list_streams_return: List[Any] = []
 
     def insert_station(self, name: str, url: str, provider_name: str, tags: str) -> int:
         self.insert_station_calls.append(
             {"name": name, "url": url, "provider_name": provider_name, "tags": tags}
         )
         return 42
+
+    def list_streams(self, station_id: int) -> List[Any]:
+        return list(self._list_streams_return)
+
+    def update_stream(self, stream_id, url, label, quality, position,
+                      stream_type, codec, bitrate_kbps: int = 0) -> None:
+        self.update_stream_calls.append({
+            "stream_id": stream_id, "url": url, "label": label,
+            "quality": quality, "position": position,
+            "stream_type": stream_type, "codec": codec,
+            "bitrate_kbps": bitrate_kbps,
+        })
 
 
 @pytest.fixture
@@ -242,3 +256,50 @@ def test_play_button_toggles_icon_on_click(dialog, qtbot):
     dialog._on_play_row(0)
     assert dialog._previewing_row == -1
     assert btn.accessibleName() == "Play preview"
+
+
+# ---------------------------------------------------------------------------
+# PB-13: RadioBrowser bitrate persistence via post-insert fix-up (Phase 47-03)
+# ---------------------------------------------------------------------------
+
+
+def test_on_save_row_persists_bitrate_from_radiobrowser(dialog, repo, qtbot):
+    """PB-13: RadioBrowser bitrate flows through post-insert update_stream(bitrate_kbps=...) fix-up."""
+    from musicstreamer.models import StationStream
+
+    # insert_station already returns 42 per FakeRepo default.
+    repo._list_streams_return = [
+        StationStream(
+            id=100, station_id=42, url="http://jazz-resolved.mp3",
+            label="", quality="", position=1, stream_type="", codec="",
+        )
+    ]
+
+    results = [{
+        "name": "Jazz FM",
+        "url": "http://jazz.mp3",
+        "url_resolved": "http://jazz-resolved.mp3",
+        "tags": "jazz",
+        "bitrate": 128,
+    }]
+    dialog._on_search_finished(results)
+    dialog._on_save_row(0)
+
+    # Post-insert fix-up must have called update_stream with bitrate_kbps=128
+    assert len(repo.update_stream_calls) == 1
+    assert repo.update_stream_calls[0]["bitrate_kbps"] == 128
+
+
+def test_on_save_row_skips_fixup_when_bitrate_zero(dialog, repo, qtbot):
+    """PB-13 neg: no update_stream fix-up when RadioBrowser has bitrate=0 (unknown)."""
+    results = [{
+        "name": "Jazz FM",
+        "url": "http://jazz.mp3",
+        "url_resolved": "http://jazz-resolved.mp3",
+        "tags": "jazz",
+        "bitrate": 0,
+    }]
+    dialog._on_search_finished(results)
+    dialog._on_save_row(0)
+
+    assert repo.update_stream_calls == []
