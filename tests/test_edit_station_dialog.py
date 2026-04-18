@@ -460,3 +460,68 @@ def test_aa_url_no_key_worker_emits_aa_no_key_classification(qtbot, monkeypatch)
     assert tmp_path == ""
     assert token == 7
     assert classification == "aa_no_key"
+
+
+# ---------------------------------------------------------------------------
+# PB-16 / PB-17: Bitrate column (Phase 47-03)
+# ---------------------------------------------------------------------------
+
+
+def test_bitrate_column_populated(qtbot, station, player, repo):
+    """PB-16: Bitrate column shows str(bitrate_kbps) when non-zero, empty string when 0."""
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1", label="",
+                      quality="hi", position=1, stream_type="",
+                      codec="AAC", bitrate_kbps=320),
+        StationStream(id=11, station_id=1, url="http://s2", label="",
+                      quality="low", position=2, stream_type="",
+                      codec="MP3", bitrate_kbps=0),
+    ]
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_BITRATE
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d.streams_table.item(0, _COL_BITRATE).text() == "320"
+    assert d.streams_table.item(1, _COL_BITRATE).text() == ""
+
+
+def test_empty_bitrate_saves_as_zero(qtbot, station, player, repo):
+    """PB-17: empty Bitrate cell -> int(text or '0') = 0, no ValueError, update_stream gets 0."""
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1", label="",
+                      quality="hi", position=1, stream_type="",
+                      codec="AAC", bitrate_kbps=320),
+    ]
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_BITRATE
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    # Clear the bitrate cell (simulate user deleting the value)
+    d.streams_table.item(0, _COL_BITRATE).setText("")
+
+    d._on_save()
+
+    assert repo.update_stream.called
+    call = repo.update_stream.call_args
+    assert call.kwargs.get("bitrate_kbps") == 0
+
+
+def test_populated_bitrate_saves_as_int(qtbot, station, player, repo):
+    """PB-17b: numeric cell text -> int(text) parsed and passed to update_stream."""
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1", label="",
+                      quality="hi", position=1, stream_type="",
+                      codec="AAC", bitrate_kbps=320),
+    ]
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_BITRATE
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    d.streams_table.item(0, _COL_BITRATE).setText("192")
+    d._on_save()
+
+    call = repo.update_stream.call_args
+    assert call.kwargs.get("bitrate_kbps") == 192
