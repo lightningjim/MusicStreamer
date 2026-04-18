@@ -20,19 +20,30 @@ from musicstreamer.repo import db_connect, Repo
 _log = logging.getLogger(__name__)
 
 
-def _resolve_pls(pls_url: str) -> str:
-    """Fetch a PLS playlist and return the first stream URL (File1 entry).
+def _resolve_pls(pls_url: str) -> list[str]:
+    """Fetch a PLS playlist and return ALL stream URLs in file order.
 
-    Falls back to the PLS URL itself if resolution fails.
+    AA PLS files contain 2 server entries per tier (File1=primary, File2=fallback);
+    both are needed for intra-tier failover redundancy (gap-06 fix for UAT gap 2).
+
+    Falls back to [pls_url] if resolution fails — keeps callers that take
+    [0] working against the legacy fallback-on-error behavior.
     """
     try:
         with urllib.request.urlopen(pls_url, timeout=10) as resp:
-            for line in resp.read().decode().splitlines():
-                if line.startswith("File1="):
-                    return line[len("File1="):].strip()
+            body = resp.read().decode()
+        entries = []  # list of (int_index, url) for file-order preservation
+        for line in body.splitlines():
+            m = re.match(r"^File(\d+)=(.+)$", line.strip())
+            if m:
+                entries.append((int(m.group(1)), m.group(2).strip()))
+        if not entries:
+            return [pls_url]
+        entries.sort(key=lambda t: t[0])
+        return [url for _, url in entries]
     except Exception:
         pass
-    return pls_url
+    return [pls_url]
 
 
 def _normalize_aa_image_url(raw: str) -> str:
@@ -116,7 +127,8 @@ def fetch_channels(listen_key: str, quality: str) -> list[dict]:
         img_map = _fetch_image_map(net["slug"])
         for ch in data:
             pls_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
-            stream_url = _resolve_pls(pls_url)
+            urls = _resolve_pls(pls_url)  # gap-06: list, not str
+            stream_url = urls[0] if urls else pls_url
             results.append({
                 "title": ch["name"],
                 "url": stream_url,
@@ -157,7 +169,7 @@ def fetch_channels_multi(listen_key: str) -> list[dict]:
             for ch in data:
                 key = (net["slug"], ch["key"])
                 pls_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
-                stream_url = _resolve_pls(pls_url)
+                stream_urls = _resolve_pls(pls_url)  # gap-06: list, not str
 
                 if key not in channels_by_net_key:
                     channels_by_net_key[key] = {
@@ -166,13 +178,19 @@ def fetch_channels_multi(listen_key: str) -> list[dict]:
                         "image_url": img_map.get(ch["key"]),
                         "streams": [],
                     }
-                channels_by_net_key[key]["streams"].append({
-                    "url": stream_url,
-                    "quality": quality,
-                    "position": _POSITION_MAP[quality],
-                    "codec": "AAC" if tier == "premium_high" else "MP3",
-                    "bitrate_kbps": _BITRATE_MAP[quality],
-                })
+                # gap-06 fix for UAT gap 2: emit one stream dict per PLS File= entry
+                # (primary + fallback). Position preserves PLS order within the tier
+                # (tier_base * 10 + pls_index), so primary sorts before fallback when
+                # order_streams uses position as the tiebreaker.
+                tier_base = _POSITION_MAP[quality]
+                for pls_index, url in enumerate(stream_urls, start=1):
+                    channels_by_net_key[key]["streams"].append({
+                        "url": url,
+                        "quality": quality,
+                        "position": tier_base * 10 + pls_index,
+                        "codec": "AAC" if tier == "premium_high" else "MP3",
+                        "bitrate_kbps": _BITRATE_MAP[quality],
+                    })
 
     results = list(channels_by_net_key.values())
     if not results:
