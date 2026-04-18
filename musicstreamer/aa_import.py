@@ -103,6 +103,11 @@ QUALITY_TIERS = {
 # (were redefined on every network × tier iteration).
 _POSITION_MAP = {"hi": 1, "med": 2, "low": 3}
 _BITRATE_MAP = {"hi": 320, "med": 128, "low": 64}  # D-10: DI.fm tier -> kbps
+# gap-07: ground-truth paid-AA codec mapping (user-verified from AA hardware-player
+# settings UI — consistent across all paid AA networks): hi=MP3, med=AAC, low=AAC.
+# Supersedes the previous inline 'AAC' if tier == 'premium_high' else 'MP3' ternary
+# which produced the inverted mapping hi=AAC, med=MP3, low=MP3.
+_CODEC_MAP = {"hi": "MP3", "med": "AAC", "low": "AAC"}
 
 
 def fetch_channels(listen_key: str, quality: str) -> list[dict]:
@@ -188,7 +193,7 @@ def fetch_channels_multi(listen_key: str) -> list[dict]:
                         "url": url,
                         "quality": quality,
                         "position": tier_base * 10 + pls_index,
-                        "codec": "AAC" if tier == "premium_high" else "MP3",
+                        "codec": _CODEC_MAP[quality],
                         "bitrate_kbps": _BITRATE_MAP[quality],
                     })
 
