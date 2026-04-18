@@ -457,3 +457,59 @@ def test_import_multi_calls_progress():
     progress_calls = []
     import_stations_multi(channels, mock_repo, on_progress=lambda imp, skip: progress_calls.append((imp, skip)))
     assert len(progress_calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# PB-12: bitrate_kbps tier mapping + threading through import (Phase 47-03)
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_channels_multi_bitrate_kbps():
+    """PB-12: fetch_channels_multi populates bitrate_kbps per DI.fm tier (hi=320, med=128, low=64)."""
+    channel_data = _mock_channel_json("Ambient", "ambient")
+
+    def urlopen_side(url, timeout=None):
+        if "api.audioaddict.com" in url:
+            return _urlopen_factory(json.dumps([]).encode())
+        return _urlopen_factory(channel_data)
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: url):
+        result = fetch_channels_multi("testkey123")
+
+    assert len(result) > 0
+    for ch in result:
+        bitrates_by_quality = {s["quality"]: s["bitrate_kbps"] for s in ch["streams"]}
+        assert bitrates_by_quality == {"hi": 320, "med": 128, "low": 64}
+
+
+def test_import_multi_threads_bitrate_kbps():
+    """PB-12: import_stations_multi passes bitrate_kbps kwarg to insert_stream and update_stream."""
+    mock_repo = MagicMock()
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 42
+    mock_repo.list_streams.return_value = [MagicMock(id=100)]
+
+    channels = [{
+        "title": "Ambient",
+        "provider": "DI.fm",
+        "image_url": None,
+        "streams": [
+            {"url": "http://hi.stream", "quality": "hi", "position": 1, "codec": "AAC", "bitrate_kbps": 320},
+            {"url": "http://med.stream", "quality": "med", "position": 2, "codec": "MP3", "bitrate_kbps": 128},
+            {"url": "http://low.stream", "quality": "low", "position": 3, "codec": "MP3", "bitrate_kbps": 64},
+        ],
+    }]
+    import_stations_multi(channels, mock_repo)
+
+    # update_stream called once for the auto-created first stream (hi=320)
+    assert mock_repo.update_stream.call_count == 1
+    upd_kwargs = mock_repo.update_stream.call_args.kwargs
+    assert upd_kwargs.get("bitrate_kbps") == 320
+
+    # insert_stream called twice (med, low) with bitrate_kbps kwarg
+    assert mock_repo.insert_stream.call_count == 2
+    bitrates_seen = {
+        call.kwargs.get("bitrate_kbps") for call in mock_repo.insert_stream.call_args_list
+    }
+    assert bitrates_seen == {128, 64}
