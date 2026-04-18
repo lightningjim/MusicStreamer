@@ -32,11 +32,11 @@ def order_streams(streams: List[StationStream]) -> List[StationStream]:
 
     PURE: does not mutate the input list (D-09, G-6, P-3).
     """
-    known = [s for s in streams if s.bitrate_kbps > 0]
-    unknown = [s for s in streams if s.bitrate_kbps <= 0]
+    known = [s for s in streams if (s.bitrate_kbps or 0) > 0]
+    unknown = [s for s in streams if (s.bitrate_kbps or 0) <= 0]
     known_sorted = sorted(
         known,
-        key=lambda s: (-codec_rank(s.codec), -s.bitrate_kbps, s.position),
+        key=lambda s: (-codec_rank(s.codec), -(s.bitrate_kbps or 0), s.position),
     )
     unknown_sorted = sorted(unknown, key=lambda s: s.position)
     return known_sorted + unknown_sorted
