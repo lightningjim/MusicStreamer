@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 47 plan 01 complete (stream_ordering foundation)
-last_updated: "2026-04-18T16:35:44Z"
-last_activity: 2026-04-18 -- Phase 47 plan 01 complete
+stopped_at: Phase 47 plan 02 complete (repo + player bitrate wiring)
+last_updated: "2026-04-18T16:43:16Z"
+last_activity: 2026-04-18 -- Phase 47 plan 02 complete
 progress:
   total_phases: 20
   completed_phases: 11
   total_plans: 43
-  completed_plans: 41
-  percent: 95
+  completed_plans: 42
+  percent: 98
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 47 (stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame) — EXECUTING
-Plan: 2 of 3 (next: 47-02 + 47-03 wave 2)
+Plan: 3 of 3 (next: 47-03 — UI + imports + settings-export wiring)
 Status: Executing Phase 47
-Last activity: 2026-04-18 -- Phase 47 plan 01 complete (stream_ordering foundation, 18 tests green)
+Last activity: 2026-04-18 -- Phase 47 plan 02 complete (repo schema + player failover wired; failover now orders by codec+bitrate)
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████░░░░] 66%
 
 ## Performance Metrics
 
@@ -72,6 +72,9 @@ Key v2.0 decisions already settled:
 - [Phase 47-01]: Unknown bitrates (bitrate_kbps <= 0) partition LAST, sorted by position asc — order_streams uses two sorted() calls + comprehension partition for purity, never list.sort() in-place (D-07, D-09, P-3)
 - [Phase 47-01]: codec_rank normalizes via (codec or "").strip().upper() for None-safety + whitespace tolerance (PB-10)
 - [Phase 47-01]: StationStream.bitrate_kbps: int = 0 placed AFTER codec field to preserve positional construction compat with existing call sites (D-01)
+- [Phase 47-02]: station_streams.bitrate_kbps migrated via BOTH CREATE TABLE body AND idempotent ALTER TABLE block wrapped in try/except sqlite3.OperationalError — no user_version bump (D-02)
+- [Phase 47-02]: Repo.insert_stream / Repo.update_stream take bitrate_kbps: int = 0 kwarg (default preserves all existing positional callers including insert_station, settings_export, aa_import, edit_station_dialog, discovery_dialog)
+- [Phase 47-02]: player.py::play line 166 one-line swap sorted(station.streams, key=position) → order_streams(station.streams); variable name streams_by_position retained for minimum-diff (semantically stale but working)
 
 ### Roadmap Evolution
 
@@ -97,6 +100,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-18T16:35:44Z
-Stopped at: Phase 47 plan 01 complete — stream_ordering.py + StationStream.bitrate_kbps (18 tests green)
-Resume file: .planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-02-PLAN.md
+Last session: 2026-04-18T16:43:16Z
+Stopped at: Phase 47 plan 02 complete — repo bitrate_kbps schema + migration + player failover uses order_streams (4 new tests green, 0 regressions)
+Resume file: .planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-03-PLAN.md
