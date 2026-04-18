@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -39,11 +39,7 @@ from PySide6.QtWidgets import (
 
 from musicstreamer.settings_export import ImportPreview, commit_import
 from musicstreamer.repo import Repo, db_connect
-
-# UI-REVIEW follow-up: unify error-row foreground with the destructive token
-# used on the Replace All warning label (#c0392b) rather than Qt.red, so all
-# red-state UI in this dialog uses the same palette entry.
-_ERROR_COLOR = QColor("#c0392b")
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX, ERROR_COLOR_QCOLOR
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +133,7 @@ class SettingsImportDialog(QDialog):
         )
         self._replace_warning.setTextFormat(Qt.PlainText)
         self._replace_warning.setStyleSheet(
-            "color: #c0392b; font-size: 9pt;"
+            f"color: {ERROR_COLOR_HEX}; font-size: 9pt;"
         )
         self._replace_warning.setVisible(False)
         self._replace_radio.toggled.connect(self._replace_warning.setVisible)
@@ -176,8 +172,8 @@ class SettingsImportDialog(QDialog):
         for row in preview.detail_rows:
             item = QTreeWidgetItem([row.name, row.action.title()])
             if row.action == "error":
-                item.setForeground(0, _ERROR_COLOR)
-                item.setForeground(1, _ERROR_COLOR)
+                item.setForeground(0, ERROR_COLOR_QCOLOR)
+                item.setForeground(1, ERROR_COLOR_QCOLOR)
                 item.setIcon(0, error_icon)
             self._detail_tree.addTopLevelItem(item)
 

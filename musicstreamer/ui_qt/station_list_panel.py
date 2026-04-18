@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.ui_qt._art_paths import load_station_icon
+from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
 from musicstreamer import filter_utils
 from musicstreamer.models import Station
 from musicstreamer.ui_qt.station_tree_model import StationTreeModel
@@ -148,7 +149,7 @@ class StationListPanel(QWidget):
         self.recent_view = QListView(stations_page)
         self._recent_model = QStandardItemModel(self.recent_view)
         self.recent_view.setModel(self._recent_model)
-        self.recent_view.setIconSize(QSize(32, 32))
+        self.recent_view.setIconSize(QSize(STATION_ICON_SIZE, STATION_ICON_SIZE))
         self.recent_view.setMaximumHeight(160)
         self.recent_view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.recent_view.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -254,7 +255,7 @@ class StationListPanel(QWidget):
         self.tree.setRootIsDecorated(False)
         self.tree.setIndentation(16)
         self.tree.setUniformRowHeights(True)
-        self.tree.setIconSize(QSize(32, 32))
+        self.tree.setIconSize(QSize(STATION_ICON_SIZE, STATION_ICON_SIZE))
         self.tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tree.setEditTriggers(QAbstractItemView.NoEditTriggers)

@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer import paths
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ class CookieImportDialog(QDialog):
         error_font = QFont()
         error_font.setPointSize(9)
         self._error_label.setFont(error_font)
-        self._error_label.setStyleSheet("color: #c0392b;")
+        self._error_label.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
         self._error_label.setWordWrap(True)
         self._error_label.setVisible(False)
         root.addWidget(self._error_label)

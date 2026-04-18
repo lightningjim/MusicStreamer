@@ -24,6 +24,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPixmap, QPixmapCache
 
 from musicstreamer import paths
+from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
 # Side-effect import: registers :/icons/ resource prefix before QPixmap lookups.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
@@ -44,7 +45,7 @@ def abs_art_path(rel_or_abs: Optional[str]) -> Optional[str]:
     return os.path.join(paths.data_dir(), rel_or_abs)
 
 
-def load_station_icon(station, size: int = 32) -> QIcon:
+def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
     """Return a QPixmapCache-backed QIcon for ``station`` with fallback.
 
     Resolution order:
