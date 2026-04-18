@@ -307,6 +307,14 @@ class EditStationDialog(QDialog):
         self.streams_table.setColumnWidth(_COL_BITRATE, 95)
         self.streams_table.setColumnWidth(_COL_POSITION, 60)
         self.streams_table.setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
+        # UI-03: surface the failover-ordering semantics on the column header
+        # so users discover the feature without reading the changelog. The
+        # 9999 upper bound on _BitrateDelegate is a display/edit policy
+        # (D-13), not a domain invariant — import paths may persist higher
+        # values (IN-03).
+        self.streams_table.horizontalHeaderItem(_COL_BITRATE).setToolTip(
+            "Higher bitrate streams play first on failover"
+        )
         streams_vbox.addWidget(self.streams_table)
 
         btn_row = QHBoxLayout()
