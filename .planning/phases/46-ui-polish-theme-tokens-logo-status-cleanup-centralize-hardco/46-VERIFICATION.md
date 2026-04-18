@@ -1,9 +1,10 @@
 ---
 phase: 46-ui-polish-theme-tokens-logo-status-cleanup
 verified: 2026-04-17T00:00:00Z
-status: human_needed
-score: 10/10 must-haves verified
+status: passed
+score: 10/10 must-haves verified + 5/5 human UAT (see 46-HUMAN-UAT.md)
 overrides_applied: 0
+human_uat_confirmed: 2026-04-17 (user confirmed 5/5 UAT items — wait cursor, AA-no-key message, auto-clear 3s + textChanged, empty-state glyph, error-red color)
 human_verification:
   - test: "Wait cursor appears during logo fetch"
     expected: "Cursor changes to wait-pointer for ~1-2s during fetch, then returns to default"
