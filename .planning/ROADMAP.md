@@ -343,7 +343,7 @@ Plans:
 **Goal:** Add a numeric `bitrate_kbps` field to `StationStream`, populate it during AA (DI.fm tier map) and RadioBrowser (API field) imports, reorder the failover queue by (codec_rank desc, bitrate_kbps desc, position asc) with unknowns last, and expose the field as an editable 5th column in the Edit Station dialog. Preserve backwards compat via additive DB migration and defensive `.get("bitrate_kbps", 0)` on settings-import boundaries.
 **Requirements**: TBD
 **Depends on:** Phase 46
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 **Scope (from 2026-04-15 roadmap addition, split from original Phase 47 on 2026-04-17):**
 - Add `bitrate_kbps: int = 0` field to `StationStream` model + DB migration
