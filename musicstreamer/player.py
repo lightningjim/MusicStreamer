@@ -33,6 +33,7 @@ from musicstreamer import paths
 from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
 from musicstreamer.gst_bus_bridge import GstBusLoopThread
 from musicstreamer.models import Station, StationStream
+from musicstreamer.stream_ordering import order_streams
 
 
 # Module-level bus bridge -- one per process. Started lazily on first Player().
@@ -162,8 +163,8 @@ class Player(QObject):
             self.title_changed.emit("(no streams configured)")
             return
 
-        # Build ordered stream queue: preferred quality first, then rest in position order
-        streams_by_position = sorted(station.streams, key=lambda s: s.position)
+        # Build ordered stream queue: preferred quality first, then rest in order_streams order (Phase 47)
+        streams_by_position = order_streams(station.streams)
         preferred = None
         if preferred_quality:
             preferred = next(
