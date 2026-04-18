@@ -66,6 +66,7 @@ class Player(QObject):
     youtube_resolution_failed  = Signal(str)     # internal: yt-dlp error message -- queued back to main thread
     playback_error             = Signal(str)     # GStreamer error text
     elapsed_updated            = Signal(int)     # wall-clock seconds since play began (40.1-06)
+    buffer_percent             = Signal(int)     # 0-100 GStreamer buffer fill; de-duped in _on_gst_buffering (47.1 D-12)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -90,6 +91,7 @@ class Player(QObject):
         bus.add_signal_watch()              # async watch, dispatched by bridge thread
         bus.connect("message::error", self._on_gst_error)  # async handler
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
+        bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
         # NOTE: no sync-message handler is registered -- it would stall the
         # GStreamer streaming thread (Pitfall 5). Both handlers above run on
         # the GstBusLoopThread daemon and may only emit Qt signals.
@@ -137,6 +139,7 @@ class Player(QObject):
         self._is_first_attempt: bool = True
         self._twitch_resolve_attempts: int = 0
         self._recovery_in_flight: bool = False  # gap-05: coalesce cascading bus errors per URL
+        self._last_buffer_percent: int = -1  # 47.1 D-14: sentinel so first real 0-100 always emits
 
     # ------------------------------------------------------------------ #
     # Public API (legacy callback shims preserved for main_window.py)
@@ -300,6 +303,21 @@ class Player(QObject):
         title = _fix_icy_encoding(value)
         self.title_changed.emit(title)  # auto-queued cross-thread to main
 
+    def _on_gst_buffering(self, bus, msg) -> None:
+        """Bus-loop-thread handler: parse buffer percent, emit Qt signal.
+
+        Runs on GstBusLoopThread (not main thread). May only emit signals,
+        never touch Qt widgets directly (Pitfall 2). De-dups on unchanged
+        percent (47.1 D-14) to avoid UI churn.
+        """
+        result = msg.parse_buffering()
+        # PyGObject may flatten single-out-param to bare int OR return tuple (Pitfall 1)
+        percent = result[0] if isinstance(result, tuple) else int(result)
+        if percent == self._last_buffer_percent:
+            return
+        self._last_buffer_percent = percent
+        self.buffer_percent.emit(percent)  # auto-queued cross-thread to main
+
     # ------------------------------------------------------------------ #
     # Timer helpers -- main-thread only
     # ------------------------------------------------------------------ #
@@ -337,6 +355,7 @@ class Player(QObject):
             return
         stream = self._streams_queue.pop(0)
         self._current_stream = stream
+        self._last_buffer_percent = -1  # 47.1 D-14: reset so new URL's first buffer emits (Pitfall 3)
         # Notify about failover attempt (not on first play)
         if not self._is_first_attempt:
             self.failover.emit(stream)
