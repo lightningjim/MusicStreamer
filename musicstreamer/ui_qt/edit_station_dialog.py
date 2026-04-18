@@ -167,6 +167,19 @@ class _BitrateDelegate(QStyledItemDelegate):
         editor.setPlaceholderText("e.g. 128")
         return editor
 
+    def setModelData(self, editor, model, index):
+        """Persist the editor's text verbatim — including empty string.
+
+        Fix for UAT gap 1: the inherited default setModelData path for a
+        QLineEdit with empty text could leave the model's display value
+        unchanged, which the save path then mis-read as "the prior bitrate".
+        Writing editor.text() explicitly to Qt.EditRole guarantees an
+        empty cell persists as "" on the item, and the save loop's
+        ``int(text or "0")`` defensive coerce (D-14, line ~717) turns
+        that into bitrate_kbps=0 on commit.
+        """
+        model.setData(index, editor.text(), Qt.EditRole)
+
 
 class EditStationDialog(QDialog):
     """Modal dialog for editing station properties and managing streams."""
