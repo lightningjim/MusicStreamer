@@ -525,3 +525,42 @@ def test_populated_bitrate_saves_as_int(qtbot, station, player, repo):
 
     call = repo.update_stream.call_args
     assert call.kwargs.get("bitrate_kbps") == 192
+
+
+def test_bitrate_delegate_persists_empty_string_on_commit(qtbot, station, player, repo):
+    """Gap-closure (UAT gap 1): driving the _BitrateDelegate full edit cycle
+    with an empty editor must land an empty string on the item (not revert
+    to the pre-edit value), so the save path's int(text or "0") coerces to 0.
+
+    Regression for: user clears a Bitrate cell, presses Enter/Tab, cell
+    reverts to its prior value instead of saving as 0.
+    """
+    from PySide6.QtWidgets import QStyleOptionViewItem
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_BITRATE
+
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1", label="",
+                      quality="hi", position=1, stream_type="",
+                      codec="AAC", bitrate_kbps=320),
+    ]
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    delegate = d.streams_table.itemDelegateForColumn(_COL_BITRATE)
+    assert delegate is not None, "bitrate column must have a custom delegate"
+
+    index = d.streams_table.model().index(0, _COL_BITRATE)
+    editor = delegate.createEditor(d.streams_table, QStyleOptionViewItem(), index)
+    editor.setText("")  # user cleared the cell
+
+    delegate.setModelData(editor, d.streams_table.model(), index)
+
+    # CORE ASSERTION — the cleared value must reach the item, not revert.
+    assert d.streams_table.item(0, _COL_BITRATE).text() == ""
+
+    d._on_save()
+
+    assert repo.update_stream.called
+    call = repo.update_stream.call_args
+    assert call.kwargs.get("bitrate_kbps") == 0
