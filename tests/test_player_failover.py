@@ -378,3 +378,64 @@ def test_failover_preferred_quality_still_works_with_order_streams(qtbot):
     # The rest follow order_streams: FLAC > AAC.
     rest_codecs = [s.codec for s in p._streams_queue]
     assert rest_codecs == ["FLAC", "AAC"]
+
+
+# ---------------------------------------------------------------------------
+# Gap-closure (UAT gap 5): error-cascade coalescing regression tests
+# See: .planning/debug/stream-exhausted-premature.md
+# ---------------------------------------------------------------------------
+
+
+def test_multiple_gst_errors_advance_queue_once(qtbot):
+    """Multiple bus errors for a single failing URL must advance the failover
+    queue exactly once (regression for gsd-debug:stream-exhausted-premature).
+
+    Before the fix: 3 cascading playbin3 errors per broken URL each schedule
+    an independent recovery, draining 3 queue entries -> spurious 'Stream
+    exhausted'.
+
+    After the fix: the _recovery_in_flight guard coalesces same-URL errors;
+    only the FIRST advance takes effect until the guard-clear singleShot
+    fires on the next main-loop turn.
+    """
+    p = make_player(qtbot)
+    streams = [make_stream(i, i, f"q{i}") for i in (1, 2, 3)]
+    station = make_station_with_streams(streams)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+
+    # After p.play, stream 1 is current; queue holds [2, 3].
+    assert p._current_stream.id == 1
+    assert [s.id for s in p._streams_queue] == [2, 3]
+
+    # Simulate playbin3 emitting THREE errors for the same failing URL.
+    # Call the recovery handler directly (mirrors test_gst_error_triggers_failover
+    # convention -- avoids spinning a real event loop for 0-ms singleShots).
+    with patch.object(p, "_set_uri"):
+        p._handle_gst_error_recovery()
+        p._handle_gst_error_recovery()
+        p._handle_gst_error_recovery()
+
+    # The guard-clear singleShot(0) has NOT fired yet (no qtbot.wait), so
+    # the 2nd and 3rd calls must have hit the guard and no-op'd.
+    assert p._current_stream.id == 2
+    assert [s.id for s in p._streams_queue] == [3]
+
+
+def test_recovery_guard_resets_between_distinct_url_failures(qtbot):
+    """After the guard-clear singleShot fires, a subsequent error on the
+    NEW URL must advance the queue again -- the guard does not stick.
+    """
+    p = make_player(qtbot)
+    streams = [make_stream(i, i, f"q{i}") for i in (1, 2, 3)]
+    station = make_station_with_streams(streams)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+
+    with patch.object(p, "_set_uri"):
+        p._handle_gst_error_recovery()   # advance to stream 2
+        qtbot.wait(20)                   # let guard-clear singleShot fire
+        p._handle_gst_error_recovery()   # advance to stream 3
+        qtbot.wait(20)
+
+    assert p._current_stream.id == 3
