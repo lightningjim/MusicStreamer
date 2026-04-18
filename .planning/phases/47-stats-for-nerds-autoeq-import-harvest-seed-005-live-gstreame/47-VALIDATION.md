@@ -33,6 +33,8 @@ updated: 2026-04-18
   - Wave 1 (47-01): `pytest tests/test_stream_ordering.py -x`
   - Wave 2 (47-02): `pytest tests/test_repo.py tests/test_player_failover.py -x`
   - Wave 2 (47-03): `pytest tests/test_aa_import.py tests/test_discovery_dialog.py tests/test_edit_station_dialog.py tests/test_settings_export.py -x`
+  - **Wave 3 (gap-closure 47-04 / 47-05 / 47-06 — parallel):** `pytest tests/test_edit_station_dialog.py tests/test_player_failover.py tests/test_aa_import.py -x`
+  - **Wave 4 (gap-closure 47-07 — serialized after 47-06):** `pytest tests/test_aa_import.py -x`
 - **Before `/gsd-verify-work`:** Full suite must be green (`pytest -x`)
 - **Max feedback latency:** ~40 seconds full suite
 
@@ -49,6 +51,14 @@ updated: 2026-04-18
 | 47-03-01 | 03 | 2 | D-10, D-11, PB-12, PB-13 | T-47 V5 (int coerce on API field) | `int(result.get("bitrate", 0) or 0)` neutralizes malformed RB payloads before SQL bind | integration | `pytest tests/test_aa_import.py tests/test_discovery_dialog.py -x -k bitrate` | ❌ W0 extend | ⬜ pending |
 | 47-03-02 | 03 | 2 | D-12, D-13, D-14, PB-16, PB-17 | T-47 V5 (UI input validation) | `QIntValidator(0, 9999)` clamps at input; `int(text or "0")` coerces defensively at save | widget | `pytest tests/test_edit_station_dialog.py -x -k bitrate` | ❌ W0 extend | ⬜ pending |
 | 47-03-03 | 03 | 2 | G-1, P-1, P-2, PB-14, PB-15 | T-47 V5 (import boundary) | Defensive `int(stream.get("bitrate_kbps", 0) or 0)` at both _insert_station and _replace_station; forward-compat with pre-47 ZIPs | integration | `pytest tests/test_settings_export.py -x -k "bitrate or forward_compat"` | ❌ W0 extend | ⬜ pending |
+| 47-04-01 | 04 | 3 | UAT gap 1 (RED) | — | Delegate-path regression test for cleared-cell commit | widget | `pytest tests/test_edit_station_dialog.py::test_bitrate_delegate_persists_empty_string_on_commit -x` (expect NON-ZERO in RED) | ❌ gap-04 new test | ⬜ pending |
+| 47-04-02 | 04 | 3 | UAT gap 1 (GREEN) | T-47 V5 (UI edit commit) | Explicit setModelData writes editor.text() to Qt.EditRole; empty cell persists as "" which int(text or "0") coerces to 0 at save | widget | `pytest tests/test_edit_station_dialog.py -x` | ✅ existing (extend) | ⬜ pending |
+| 47-05-01 | 05 | 3 | UAT gap 5 (RED) | — | Two regression tests for error-cascade coalescing | integration | `pytest tests/test_player_failover.py::test_multiple_gst_errors_advance_queue_once -x` (expect NON-ZERO in RED) | ❌ gap-05 new tests | ⬜ pending |
+| 47-05-02 | 05 | 3 | UAT gap 5 (GREEN) + UAT gap 4 (side-effect) | T-47 V5 (control-flow guard) | _recovery_in_flight coalesces cascading bus errors per URL; deferred QTimer.singleShot(0) clear preserves next-URL recoveries; reset in play/play_stream/stop/pause prevents stale-guard leak across user actions | integration | `pytest tests/test_player_failover.py -x` | ✅ existing (extend) | ⬜ pending |
+| 47-06-01 | 06 | 3 | UAT gap 2 (RED) | — | Three regression tests for multi-URL PLS extraction and 2-server-per-tier import | unit+integration | `pytest tests/test_aa_import.py::test_resolve_pls_returns_all_entries tests/test_aa_import.py::test_fetch_channels_multi_preserves_primary_and_fallback -x` (expect NON-ZERO in RED) | ❌ gap-06 new tests | ⬜ pending |
+| 47-06-02 | 06 | 3 | UAT gap 2 (GREEN) | T-47 V5 (parse boundary — regex-anchored PLS FileN= matcher) | re.match(r"^File(\d+)=(.+)$") bounds parser to well-formed PLS entries; unknown-format fallback returns [pls_url] preserving prior error semantics | integration | `pytest tests/test_aa_import.py -x` | ✅ existing (extend) | ⬜ pending |
+| 47-07-01 | 07 | 4 | UAT gap 3 (codec RED) | — | Ground-truth codec mapping test against fetch_channels_multi output | integration | `pytest tests/test_aa_import.py::test_fetch_channels_multi_codec_map_ground_truth -x` (expect NON-ZERO in RED) | ❌ gap-07 new test | ⬜ pending |
+| 47-07-02 | 07 | 4 | UAT gap 3 (codec GREEN) | — | Module-scope _CODEC_MAP replaces inline ternary; colocated with _POSITION_MAP / _BITRATE_MAP | unit | `pytest tests/test_aa_import.py -x` | ✅ existing (extend) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
