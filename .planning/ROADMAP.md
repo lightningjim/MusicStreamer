@@ -352,8 +352,9 @@ Plans:
 - AA import (`aa_import.py`) populates bitrate_kbps from known DI.fm quality tiers (hi=320/AAC, med=128/AAC, low=64/AAC)
 - RadioBrowser import populates bitrate_kbps from the `bitrate` field already returned by the API
 
-Plans:
-- [ ] 47-01-PLAN.md — Pure-logic foundation: add `bitrate_kbps` field to `StationStream` + create `musicstreamer/stream_ordering.py` (pure `codec_rank` + `order_streams`) + `tests/test_stream_ordering.py` (Wave 1)
+Plans: 1/3 plans complete
+
+- [x] 47-01-PLAN.md — Pure-logic foundation: `StationStream.bitrate_kbps` + `musicstreamer/stream_ordering.py` + 18 green tests (Wave 1) — completed 2026-04-18
 - [ ] 47-02-PLAN.md — Schema + repo CRUD + player failover hook: ALTER TABLE migration, widened `list_streams`/`insert_stream`/`update_stream`, single-line `player.play()` swap to `order_streams` (Wave 2, parallel with 47-03)
 - [ ] 47-03-PLAN.md — Import + UI + settings-export wiring: AA tier map, RadioBrowser post-insert fix-up in `_on_save_row`, Edit Station 5th column with `_BitrateDelegate` + `QIntValidator`, settings_export 8-column INSERT with forward-compat `.get()` (Wave 2, parallel with 47-02)
 

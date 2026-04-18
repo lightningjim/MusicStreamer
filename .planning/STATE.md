@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 47 context gathered (bitrate-only after split)
-last_updated: "2026-04-18T03:00:21.878Z"
-last_activity: 2026-04-18
+stopped_at: Phase 47 plan 01 complete (stream_ordering foundation)
+last_updated: "2026-04-18T16:35:44Z"
+last_activity: 2026-04-18 -- Phase 47 plan 01 complete
 progress:
-  total_phases: 19
+  total_phases: 20
   completed_phases: 11
-  total_plans: 40
-  completed_plans: 40
-  percent: 100
+  total_plans: 43
+  completed_plans: 41
+  percent: 95
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 46 — UI polish
+**Current focus:** Phase 47 — stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame
 
 ## Current Position
 
-Phase: 47
-Plan: Not started
-Status: Executing Phase 46
-Last activity: 2026-04-18
+Phase: 47 (stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame) — EXECUTING
+Plan: 2 of 3 (next: 47-02 + 47-03 wave 2)
+Status: Executing Phase 47
+Last activity: 2026-04-18 -- Phase 47 plan 01 complete (stream_ordering foundation, 18 tests green)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -69,6 +69,9 @@ Key v2.0 decisions already settled:
 - [Phase 41]: NotImplementedError over abc.ABCMeta for QObject subclasses (PySide6 metaclass constraint)
 - [Phase 41-platform-media-keys]: publish_metadata(None) placed before set_playback_state('stopped') so MPRIS clients see cleared metadata before stopped state
 - [Phase 41-platform-media-keys]: logging.basicConfig in main() only — not duplicated in _run_smoke or _run_gui
+- [Phase 47-01]: Unknown bitrates (bitrate_kbps <= 0) partition LAST, sorted by position asc — order_streams uses two sorted() calls + comprehension partition for purity, never list.sort() in-place (D-07, D-09, P-3)
+- [Phase 47-01]: codec_rank normalizes via (codec or "").strip().upper() for None-safety + whitespace tolerance (PB-10)
+- [Phase 47-01]: StationStream.bitrate_kbps: int = 0 placed AFTER codec field to preserve positional construction compat with existing call sites (D-01)
 
 ### Roadmap Evolution
 
@@ -94,6 +97,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-18T03:00:21.875Z
-Stopped at: Phase 47 context gathered (bitrate-only after split)
-Resume file: .planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-CONTEXT.md
+Last session: 2026-04-18T16:35:44Z
+Stopped at: Phase 47 plan 01 complete — stream_ordering.py + StationStream.bitrate_kbps (18 tests green)
+Resume file: .planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-02-PLAN.md
