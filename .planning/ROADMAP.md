@@ -329,13 +329,14 @@ Plans:
 
 ### Phase 46: UI polish — theme tokens + logo status cleanup: centralize hardcoded error-red #c0392b into a theme constant (6+ sites, blocks dark mode); distinguish 'AA URL, use Choose File' from 'truly unsupported URL' in EditStationDialog fetch status; auto-clear _logo_status label after 3s or on next textChanged; export STATION_ICON_SIZE constant from _art_paths.py; add fetch-in-flight spinner and logo empty-state glyph (from 40.1 + 45 UI-REVIEW findings)
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** End the hardcoded-hex pattern blocking dark mode by centralizing `#c0392b` and `QSize(32, 32)` into a shared `_theme.py` module, AND close three EditStationDialog logo-status UX gaps (distinguish AA-no-key from unsupported URL, auto-clear label after 3s or on textChanged, apply Qt.WaitCursor during fetch).
+**Requirements**: None (cleanup phase; phase_req_ids is null — must-haves come from CONTEXT.md §Phase Boundary)
 **Depends on:** Phase 45
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 46 to break down)
+- [ ] 46-01-PLAN.md — Theme token module + migration sweep (create `_theme.py`, migrate 10 hex + 3 QSize sites, add tests/test_theme.py)
+- [ ] 46-02-PLAN.md — EditStationDialog logo-status UX (AA-URL classification, 3s auto-clear timer, Qt.WaitCursor override)
 
 ### Phase 47: Stats for nerds + AutoEQ import + stream bitrate quality ordering — harvest SEED-005 (live GStreamer buffer-fill indicator in now-playing panel, wired to message::buffering) and SEED-007 (in-app parametric EQ with AutoEQ ParametricEQ.txt profile import via GStreamer equalizer-nbands element; unlocks headphone EQ on work PC where Equalizer APO is blocked)
 
