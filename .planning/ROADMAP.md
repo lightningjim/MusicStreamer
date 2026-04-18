@@ -366,4 +366,20 @@ Plans:
 - [ ] TBD (run /gsd-plan-phase 48 to break down)
 
 ---
-*Last updated: 2026-04-16 — Phase 42 plans created (2 plans in 2 waves)*
+
+## Backlog
+
+> Unsequenced ideas parked for later promotion via `/gsd-review-backlog`.
+
+### Phase 999.1: Add "New Station" primary action (BACKLOG)
+
+**Goal:** Provide a direct UX path to create a station from scratch. Currently there is no "New Station" menu item or button — users can only get new stations via **Discover Stations** (AudioAddict) or **Import Stations** (YouTube/playlist). EditStationDialog already supports the fields; a hamburger menu entry (or "+" button) that opens EditStationDialog with a blank Station model would close the gap. Surfaced while exercising Phase 46 UAT (logo-fetch AA-no-key flow required an existing station to reach the dialog).
+**Requirements:** TBD
+**Depends on:** none (independent UX addition)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+---
+*Last updated: 2026-04-17 — Phase 999.1 added to backlog (New Station primary action)*
