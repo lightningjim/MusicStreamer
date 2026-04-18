@@ -340,10 +340,10 @@ Plans:
 
 ### Phase 47: Stream bitrate quality ordering — add `bitrate_kbps` to `StationStream`, populate on AA/RadioBrowser import, and reorder failover queue by (codec_rank, bitrate) for higher-quality-first playback
 
-**Goal:** [To be planned]
+**Goal:** Add a numeric `bitrate_kbps` field to `StationStream`, populate it during AA (DI.fm tier map) and RadioBrowser (API field) imports, reorder the failover queue by (codec_rank desc, bitrate_kbps desc, position asc) with unknowns last, and expose the field as an editable 5th column in the Edit Station dialog. Preserve backwards compat via additive DB migration and defensive `.get("bitrate_kbps", 0)` on settings-import boundaries.
 **Requirements**: TBD
 **Depends on:** Phase 46
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 **Scope (from 2026-04-15 roadmap addition, split from original Phase 47 on 2026-04-17):**
 - Add `bitrate_kbps: int = 0` field to `StationStream` model + DB migration
@@ -353,7 +353,9 @@ Plans:
 - RadioBrowser import populates bitrate_kbps from the `bitrate` field already returned by the API
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 47 to break down)
+- [ ] 47-01-PLAN.md — Pure-logic foundation: add `bitrate_kbps` field to `StationStream` + create `musicstreamer/stream_ordering.py` (pure `codec_rank` + `order_streams`) + `tests/test_stream_ordering.py` (Wave 1)
+- [ ] 47-02-PLAN.md — Schema + repo CRUD + player failover hook: ALTER TABLE migration, widened `list_streams`/`insert_stream`/`update_stream`, single-line `player.play()` swap to `order_streams` (Wave 2, parallel with 47-03)
+- [ ] 47-03-PLAN.md — Import + UI + settings-export wiring: AA tier map, RadioBrowser post-insert fix-up in `_on_save_row`, Edit Station 5th column with `_BitrateDelegate` + `QIntValidator`, settings_export 8-column INSERT with forward-compat `.get()` (Wave 2, parallel with 47-02)
 
 ### Phase 47.1: Stats for nerds — live GStreamer buffer-fill indicator (SEED-005)
 
@@ -413,5 +415,15 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 999.2: Recently Played list does not update live (BACKLOG — BUG)
+
+**Goal:** Fix the Recently Played section so it updates in real time when a station starts playing. Current behavior: the DB is updated correctly (confirmed — `stations.last_played_at` gets the new timestamp), but the UI list only refreshes when the app is restarted. Likely the Recently Played widget model isn't wired to a station-played signal. Investigate `station_list_panel.py` (Recently Played block) + `main_window.py` playback-start handler; emit/connect a refresh signal when a station transitions to playing.
+**Requirements:** TBD
+**Depends on:** none (standalone bug fix)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
-*Last updated: 2026-04-17 — Phase 999.1 added to backlog (New Station primary action)*
+*Last updated: 2026-04-17 — Phase 999.2 added to backlog (Recently Played live update bug)*
