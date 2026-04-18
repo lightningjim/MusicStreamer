@@ -57,6 +57,7 @@ def db_init(con: sqlite3.Connection):
             position INTEGER NOT NULL DEFAULT 1,
             stream_type TEXT NOT NULL DEFAULT '',
             codec TEXT NOT NULL DEFAULT '',
+            bitrate_kbps INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE CASCADE
         );
         """
@@ -77,6 +78,12 @@ def db_init(con: sqlite3.Connection):
 
     try:
         con.execute("ALTER TABLE stations ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+    try:
+        con.execute("ALTER TABLE station_streams ADD COLUMN bitrate_kbps INTEGER NOT NULL DEFAULT 0")
         con.commit()
     except sqlite3.OperationalError:
         pass  # column already exists
@@ -172,22 +179,25 @@ class Repo:
         ).fetchall()
         return [StationStream(id=r["id"], station_id=r["station_id"], url=r["url"],
                 label=r["label"], quality=r["quality"], position=r["position"],
-                stream_type=r["stream_type"], codec=r["codec"]) for r in rows]
+                stream_type=r["stream_type"], codec=r["codec"],
+                bitrate_kbps=r["bitrate_kbps"]) for r in rows]
 
     def insert_stream(self, station_id: int, url: str, label: str = "",
                       quality: str = "", position: int = 1,
-                      stream_type: str = "", codec: str = "") -> int:
+                      stream_type: str = "", codec: str = "",
+                      bitrate_kbps: int = 0) -> int:
         cur = self.con.execute(
-            "INSERT INTO station_streams(station_id,url,label,quality,position,stream_type,codec) VALUES(?,?,?,?,?,?,?)",
-            (station_id, url, label, quality, position, stream_type, codec))
+            "INSERT INTO station_streams(station_id,url,label,quality,position,stream_type,codec,bitrate_kbps) VALUES(?,?,?,?,?,?,?,?)",
+            (station_id, url, label, quality, position, stream_type, codec, bitrate_kbps))
         self.con.commit()
         return int(cur.lastrowid)
 
     def update_stream(self, stream_id: int, url: str, label: str,
-                      quality: str, position: int, stream_type: str, codec: str):
+                      quality: str, position: int, stream_type: str, codec: str,
+                      bitrate_kbps: int = 0):
         self.con.execute(
-            "UPDATE station_streams SET url=?,label=?,quality=?,position=?,stream_type=?,codec=? WHERE id=?",
-            (url, label, quality, position, stream_type, codec, stream_id))
+            "UPDATE station_streams SET url=?,label=?,quality=?,position=?,stream_type=?,codec=?,bitrate_kbps=? WHERE id=?",
+            (url, label, quality, position, stream_type, codec, bitrate_kbps, stream_id))
         self.con.commit()
 
     def delete_stream(self, stream_id: int):
