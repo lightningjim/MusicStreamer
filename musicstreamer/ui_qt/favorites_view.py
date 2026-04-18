@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.models import Station
 from musicstreamer.ui_qt._art_paths import load_station_icon
+from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
 
 
 class FavoritesView(QWidget):
@@ -94,7 +95,7 @@ class FavoritesView(QWidget):
 
         # Stations list
         self._stations_list = QListWidget(self._content_widget)
-        self._stations_list.setIconSize(QSize(32, 32))
+        self._stations_list.setIconSize(QSize(STATION_ICON_SIZE, STATION_ICON_SIZE))
         self._stations_list.setEditTriggers(QListWidget.NoEditTriggers)
         content_layout.addWidget(self._stations_list, stretch=1)
         self._stations_list.itemClicked.connect(self._on_station_item_clicked)

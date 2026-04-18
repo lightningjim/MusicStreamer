@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from musicstreamer import yt_import, aa_import
 from musicstreamer.yt_import import is_yt_playlist_url
 from musicstreamer.repo import Repo, db_connect
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
 
 
 # ---------------------------------------------------------------------------
@@ -261,7 +262,7 @@ class ImportDialog(QDialog):
         # Status / error label (hidden initially)
         self._aa_status = QLabel()
         self._aa_status.setVisible(False)
-        self._aa_status.setStyleSheet("color: #c0392b;")
+        self._aa_status.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
         self._aa_status.setWordWrap(True)
         layout.addWidget(self._aa_status)
 
@@ -289,7 +290,7 @@ class ImportDialog(QDialog):
         if not url:
             return
         if not is_yt_playlist_url(url):
-            self._yt_status.setStyleSheet("color: #c0392b;")
+            self._yt_status.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
             self._yt_status.setText("Not a valid YouTube playlist URL.")
             self._yt_status.setVisible(True)
             return
@@ -336,7 +337,7 @@ class ImportDialog(QDialog):
     def _on_yt_scan_error(self, msg: str):
         self._yt_progress.setVisible(False)
         self._set_yt_busy(False)
-        self._yt_status.setStyleSheet("color: #c0392b;")
+        self._yt_status.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
         self._yt_status.setText(f"Scan failed: {msg}")
         self._yt_status.setVisible(True)
 
@@ -430,7 +431,7 @@ class ImportDialog(QDialog):
     def _on_aa_fetch_error(self, msg: str):
         self._aa_progress.setVisible(False)
         self._set_aa_busy(False)
-        self._aa_status.setStyleSheet("color: #c0392b;")
+        self._aa_status.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
 
         if msg == "no_channels":
             self._aa_status.setText("No channels returned. API key may have expired.")
@@ -463,7 +464,7 @@ class ImportDialog(QDialog):
     def _on_aa_import_error(self, msg: str):
         self._aa_progress.setVisible(False)
         self._set_aa_busy(False)
-        self._aa_status.setStyleSheet("color: #c0392b;")
+        self._aa_status.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
         self._aa_status.setText(f"Import error: {msg}")
         self._aa_status.setVisible(True)
         self._toast("Network error — check your connection")
