@@ -418,12 +418,25 @@ class DiscoveryDialog(QDialog):
         stream_url = result.get("url_resolved") or result.get("url", "")
         if not stream_url:
             return
-        self._repo.insert_station(
+        station_id = self._repo.insert_station(
             name=result.get("name", "Unknown"),
             url=stream_url,
             provider_name="Radio-Browser",
             tags=result.get("tags", ""),
         )
+        # D-11 + G-2 Option 1: persist RadioBrowser bitrate via post-insert fix-up.
+        # insert_station auto-created a stream at position=1 via insert_stream(station_id, url);
+        # update it with bitrate_kbps. Mirrors aa_import.import_stations_multi:188-196.
+        bitrate_val = int(result.get("bitrate", 0) or 0)
+        if bitrate_val:
+            streams = self._repo.list_streams(station_id)
+            if streams:
+                s = streams[0]
+                self._repo.update_stream(
+                    s.id, s.url, s.label, s.quality, s.position,
+                    s.stream_type, s.codec,
+                    bitrate_kbps=bitrate_val,
+                )
         self._toast_callback(f"Saved '{result.get('name', 'station')}' to library")
         if row_index < len(self._save_buttons):
             self._save_buttons[row_index].setEnabled(False)
