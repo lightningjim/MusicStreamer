@@ -641,3 +641,47 @@ def test_fetch_channels_multi_preserves_primary_and_fallback():
             primary = [e for e in entries if "primary." in e["url"]][0]
             fallback = [e for e in entries if "fallback." in e["url"]][0]
             assert primary["position"] < fallback["position"]
+
+
+# ---------------------------------------------------------------------------
+# Gap-closure (UAT gap 3): ground-truth codec mapping for paid AA tiers
+# Source: user-verified AA hardware-player settings UI — hi=MP3, med=AAC, low=AAC
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_channels_multi_codec_map_ground_truth():
+    """Paid AA tier -> codec mapping: hi=MP3, med=AAC, low=AAC.
+
+    This asserts the GROUND TRUTH from the AA hardware-player settings UI
+    (consistent across all paid AA networks per user verification in UAT
+    gap 3). The previous inline ternary produced the inverted mapping
+    hi=AAC, med=MP3, low=MP3 — which is the bug this gap-closure closes.
+
+    Bitrate values (hi=320, med=128, low=64) are already correct.
+    """
+    channel_data = _mock_channel_json("Jazz", "jazz")
+
+    def urlopen_side(url, timeout=None):
+        if "api.audioaddict.com" in url:
+            return _urlopen_factory(json.dumps([]).encode())
+        return _urlopen_factory(channel_data)
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side), \
+         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: ["http://mock"]):
+        result = fetch_channels_multi("testkey123")
+
+    assert len(result) > 0
+    for ch in result:
+        # Both primary + fallback entries per quality have identical codec,
+        # so dict-comprehension de-duplication is safe.
+        codec_by_quality = {s["quality"]: s["codec"] for s in ch["streams"]}
+        # Ground truth — user-verified against AA hardware-player settings UI
+        assert codec_by_quality["hi"] == "MP3", (
+            f"hi tier codec must be MP3 (320 MP3 per ground truth), got {codec_by_quality['hi']}"
+        )
+        assert codec_by_quality["med"] == "AAC", (
+            f"med tier codec must be AAC (128 AAC per ground truth), got {codec_by_quality['med']}"
+        )
+        assert codec_by_quality["low"] == "AAC", (
+            f"low tier codec must be AAC (64 AAC per ground truth), got {codec_by_quality['low']}"
+        )
