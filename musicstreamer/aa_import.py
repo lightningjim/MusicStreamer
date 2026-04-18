@@ -134,6 +134,7 @@ def fetch_channels_multi(listen_key: str) -> list[dict]:
                 continue
 
             position_map = {"hi": 1, "med": 2, "low": 3}
+            bitrate_map = {"hi": 320, "med": 128, "low": 64}  # D-10: DI.fm tier -> kbps
             for ch in data:
                 key = (net["slug"], ch["key"])
                 pls_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
@@ -151,6 +152,7 @@ def fetch_channels_multi(listen_key: str) -> list[dict]:
                     "quality": quality,
                     "position": position_map[quality],
                     "codec": "AAC" if tier == "premium_high" else "MP3",
+                    "bitrate_kbps": bitrate_map[quality],
                 })
 
     results = list(channels_by_net_key.values())
@@ -192,13 +194,15 @@ def import_stations_multi(channels: list[dict], repo, on_progress=None, on_logo_
                         repo.update_stream(
                             streams[0].id, s["url"], s.get("label", ""),
                             s["quality"], s["position"],
-                            "shoutcast", s.get("codec", "")
+                            "shoutcast", s.get("codec", ""),
+                            bitrate_kbps=s.get("bitrate_kbps", 0),
                         )
                 else:
                     repo.insert_stream(
                         station_id, s["url"], label="",
                         quality=s["quality"], position=s["position"],
-                        stream_type="shoutcast", codec=s.get("codec", "")
+                        stream_type="shoutcast", codec=s.get("codec", ""),
+                        bitrate_kbps=s.get("bitrate_kbps", 0),
                     )
             imported += 1
             image_url = ch.get("image_url")
