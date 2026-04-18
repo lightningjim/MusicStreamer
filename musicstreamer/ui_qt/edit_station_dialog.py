@@ -21,7 +21,7 @@ import tempfile
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal, QTimer, QThread
-from PySide6.QtGui import QCursor, QPixmap, QPixmapCache
+from PySide6.QtGui import QCursor, QIntValidator, QPixmap, QPixmapCache
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -147,7 +148,23 @@ _DELETE_BTN_QSS = f"QPushButton {{ color: {ERROR_COLOR_HEX}; }}"
 _COL_URL = 0
 _COL_QUALITY = 1
 _COL_CODEC = 2
-_COL_POSITION = 3
+_COL_BITRATE = 3
+_COL_POSITION = 4
+
+
+class _BitrateDelegate(QStyledItemDelegate):
+    """Numeric-only editor for the bitrate column (D-12/D-13, P-5).
+
+    Default QTableWidget delegate edits via a plain QLineEdit with no
+    validator; subclassing is the minimal way to attach QIntValidator(0, 9999)
+    per D-13. The save-path also coerces via ``int(text or "0")`` so pasted
+    / malformed values are neutralized at the save boundary (D-14).
+    """
+
+    def createEditor(self, parent, option, index):
+        editor = QLineEdit(parent)
+        editor.setValidator(QIntValidator(0, 9999, parent))
+        return editor
 
 
 class EditStationDialog(QDialog):
@@ -272,18 +289,23 @@ class EditStationDialog(QDialog):
         streams_vbox.setContentsMargins(0, 0, 0, 0)
         streams_vbox.setSpacing(4)
 
-        self.streams_table = QTableWidget(0, 4)
-        self.streams_table.setHorizontalHeaderLabels(["URL", "Quality", "Codec", "Position"])
+        self.streams_table = QTableWidget(0, 5)
+        self.streams_table.setHorizontalHeaderLabels(
+            ["URL", "Quality", "Codec", "Bitrate", "Position"]
+        )
         self.streams_table.setAlternatingRowColors(True)
         self.streams_table.setSelectionBehavior(QTableWidget.SelectRows)
         hdr = self.streams_table.horizontalHeader()
         hdr.setSectionResizeMode(_COL_URL, QHeaderView.Stretch)
         hdr.setSectionResizeMode(_COL_QUALITY, QHeaderView.Fixed)
         hdr.setSectionResizeMode(_COL_CODEC, QHeaderView.Fixed)
+        hdr.setSectionResizeMode(_COL_BITRATE, QHeaderView.Fixed)
         hdr.setSectionResizeMode(_COL_POSITION, QHeaderView.Fixed)
         self.streams_table.setColumnWidth(_COL_QUALITY, 80)
         self.streams_table.setColumnWidth(_COL_CODEC, 80)
+        self.streams_table.setColumnWidth(_COL_BITRATE, 70)
         self.streams_table.setColumnWidth(_COL_POSITION, 60)
+        self.streams_table.setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
         streams_vbox.addWidget(self.streams_table)
 
         btn_row = QHBoxLayout()
@@ -352,7 +374,7 @@ class EditStationDialog(QDialog):
 
         # Streams
         for s in streams:
-            self._add_stream_row(s.url, s.quality, s.codec, s.position, stream_id=s.id)
+            self._add_stream_row(s.url, s.quality, s.codec, s.bitrate_kbps, s.position, stream_id=s.id)
 
         # Delete guard (T-39-03)
         is_playing = getattr(self._player, "_current_station_name", "") == station.name
@@ -397,11 +419,13 @@ class EditStationDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _add_stream_row(self, url: str = "", quality: str = "",
-                        codec: str = "", position: int = 1,
+                        codec: str = "", bitrate_kbps: int = 0,
+                        position: int = 1,
                         stream_id: Optional[int] = None) -> int:
         """Insert a new row in the stream table.
 
         stream_id stored in URL item's Qt.UserRole — survives row swaps.
+        bitrate_kbps=0 renders as empty string (D-12/G-5).
         """
         row = self.streams_table.rowCount()
         self.streams_table.insertRow(row)
@@ -412,6 +436,10 @@ class EditStationDialog(QDialog):
         self.streams_table.setItem(row, _COL_URL, url_item)
         self.streams_table.setItem(row, _COL_QUALITY, QTableWidgetItem(quality))
         self.streams_table.setItem(row, _COL_CODEC, QTableWidgetItem(codec))
+        self.streams_table.setItem(
+            row, _COL_BITRATE,
+            QTableWidgetItem(str(bitrate_kbps) if bitrate_kbps else ""),
+        )
         self.streams_table.setItem(row, _COL_POSITION, QTableWidgetItem(str(position)))
         return row
 
@@ -669,11 +697,17 @@ class EditStationDialog(QDialog):
             url_item = table.item(row, _COL_URL)
             qual_item = table.item(row, _COL_QUALITY)
             codec_item = table.item(row, _COL_CODEC)
+            bitrate_item = table.item(row, _COL_BITRATE)
             pos_item = table.item(row, _COL_POSITION)
 
             url = url_item.text() if url_item else ""
             quality = qual_item.text() if qual_item else ""
             codec = codec_item.text() if codec_item else ""
+            bitrate_text = bitrate_item.text() if bitrate_item else ""
+            try:
+                bitrate_kbps = int(bitrate_text or "0")  # D-14 + P-4
+            except ValueError:
+                bitrate_kbps = 0
             try:
                 position = int(pos_item.text()) if pos_item else row + 1
             except ValueError:
@@ -682,12 +716,14 @@ class EditStationDialog(QDialog):
             stream_id: Optional[int] = url_item.data(Qt.UserRole) if url_item else None
 
             if stream_id is not None:
-                repo.update_stream(stream_id, url, "", quality, position, "", codec)
+                repo.update_stream(stream_id, url, "", quality, position, "", codec,
+                                   bitrate_kbps=bitrate_kbps)
                 ordered_ids.append(stream_id)
             else:
                 new_id = repo.insert_stream(
                     station.id, url, label="", quality=quality,
                     position=position, stream_type="", codec=codec,
+                    bitrate_kbps=bitrate_kbps,
                 )
                 if isinstance(new_id, int):
                     ordered_ids.append(new_id)
