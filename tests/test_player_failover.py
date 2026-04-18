@@ -329,3 +329,52 @@ def test_cancel_stops_failover_timer(qtbot):
     p._failover_timer.start(10000)
     p._cancel_timers()
     assert not p._failover_timer.isActive()
+
+
+# ---------------------------------------------------------------------------
+# Phase 47-02: failover queue uses order_streams (PB-18)
+# ---------------------------------------------------------------------------
+
+def test_failover_queue_uses_order_streams(qtbot):
+    """PB-18: play(station) builds the failover queue via order_streams
+    (codec_rank desc, bitrate_kbps desc) rather than raw position order."""
+    p = make_player(qtbot)
+    streams = [
+        StationStream(id=1, station_id=1, url="http://mp3", codec="MP3",
+                      bitrate_kbps=64, position=1),
+        StationStream(id=2, station_id=1, url="http://flac", codec="FLAC",
+                      bitrate_kbps=320, position=2),
+        StationStream(id=3, station_id=1, url="http://aac", codec="AAC",
+                      bitrate_kbps=128, position=3),
+    ]
+    station = make_station_with_streams(streams)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+
+    # FLAC (rank 3) > AAC (rank 2) > MP3 (rank 1).
+    # _current_stream pops first; queue holds the rest in order.
+    all_urls = [p._current_stream.url] + [s.url for s in p._streams_queue]
+    assert all_urls == ["http://flac", "http://aac", "http://mp3"]
+
+
+def test_failover_preferred_quality_still_works_with_order_streams(qtbot):
+    """Regression guard: preferred_quality still pins its stream first even
+    though the remainder is now order_streams-ordered."""
+    p = make_player(qtbot)
+    streams = [
+        StationStream(id=1, station_id=1, url="http://mp3-low", codec="MP3",
+                      bitrate_kbps=64, quality="low", position=1),
+        StationStream(id=2, station_id=1, url="http://flac-hi", codec="FLAC",
+                      bitrate_kbps=320, quality="hi", position=2),
+        StationStream(id=3, station_id=1, url="http://aac-med", codec="AAC",
+                      bitrate_kbps=128, quality="med", position=3),
+    ]
+    station = make_station_with_streams(streams)
+    with patch.object(p, "_set_uri"):
+        p.play(station, preferred_quality="low")
+
+    # 'low' is pinned first (MP3 despite lowest codec rank).
+    assert p._current_stream.quality == "low"
+    # The rest follow order_streams: FLAC > AAC.
+    rest_codecs = [s.codec for s in p._streams_queue]
+    assert rest_codecs == ["FLAC", "AAC"]
