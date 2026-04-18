@@ -426,5 +426,15 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 999.3: Twitch and Google login does not work, it immediately falls back to failure (BACKLOG — BUG)
+
+**Goal:** Investigate and fix OAuth login flows for Twitch and Google (YouTube) — both currently fail immediately and fall back to the failure path with no successful token exchange. Likely causes to rule out: stale/expired OAuth client credentials, redirect-URI mismatch, browser launcher + loopback listener timing, or a regression in the auth-dialogs introduced during Phase 40. Check the auth dialog + token-exchange callpaths in both providers; reproduce with fresh credentials and capture the exact failure mode (network error vs. bad-response vs. user-cancel misread).
+**Requirements:** TBD
+**Depends on:** none (bug fix in existing auth flows)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
-*Last updated: 2026-04-17 — Phase 999.2 added to backlog (Recently Played live update bug)*
+*Last updated: 2026-04-18 — Phase 999.3 added to backlog (Twitch/Google login failure bug)*
