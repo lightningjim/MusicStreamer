@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -35,6 +36,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
     QComboBox,
@@ -163,9 +165,10 @@ class ImportDialog(QDialog):
 
     import_complete = Signal()
 
-    def __init__(self, toast_callback: Callable[[str], None], parent=None):
+    def __init__(self, toast_callback: Callable[[str], None], repo, parent=None):
         super().__init__(parent)
         self._toast = toast_callback
+        self._repo = repo
         self.setWindowTitle("Import Stations")
         self.setMinimumSize(600, 440)
         self.setModal(True)
@@ -245,9 +248,37 @@ class ImportDialog(QDialog):
         # Form
         form = QFormLayout()
         form.setSpacing(8)
+        # Phase 48: AA listen-key row — masked by default, with Show toggle
         self._aa_key = QLineEdit()
         self._aa_key.setPlaceholderText("AudioAddict listen key")
-        form.addRow("API Key:", self._aa_key)
+        self._aa_key.setEchoMode(QLineEdit.EchoMode.Password)  # D-08
+
+        # D-03: prefill from DB
+        saved_aa_key = self._repo.get_setting("audioaddict_listen_key", "")
+        if saved_aa_key:
+            self._aa_key.setText(saved_aa_key)
+
+        # D-09: Show/hide toggle
+        self._aa_show_btn = QToolButton()
+        self._aa_show_btn.setCheckable(True)
+        self._aa_show_btn.setChecked(False)
+        self._aa_show_btn.setIcon(
+            QIcon.fromTheme(
+                "view-reveal-symbolic",
+                QIcon.fromTheme("document-properties"),
+            )
+        )
+        self._aa_show_btn.setToolTip("Show key")  # D-10
+        self._aa_show_btn.toggled.connect(self._on_aa_show_toggled)
+
+        # Wrap field + toggle in an HBox container so QFormLayout can addRow a single widget
+        aa_key_container = QWidget()
+        aa_key_row = QHBoxLayout(aa_key_container)
+        aa_key_row.setContentsMargins(0, 0, 0, 0)
+        aa_key_row.addWidget(self._aa_key, 1)
+        aa_key_row.addWidget(self._aa_show_btn)
+
+        form.addRow("API Key:", aa_key_container)
 
         self._aa_quality = QComboBox()
         self._aa_quality.addItems(["hi", "med", "low"])
@@ -394,6 +425,15 @@ class ImportDialog(QDialog):
     # AudioAddict flow
     # ------------------------------------------------------------------
 
+    def _on_aa_show_toggled(self, checked: bool) -> None:
+        """Phase 48 D-09/D-10: toggle EchoMode + tooltip on Show button."""
+        if checked:
+            self._aa_key.setEchoMode(QLineEdit.EchoMode.Normal)
+            self._aa_show_btn.setToolTip("Hide key")
+        else:
+            self._aa_key.setEchoMode(QLineEdit.EchoMode.Password)
+            self._aa_show_btn.setToolTip("Show key")
+
     def _on_aa_import_clicked(self):
         key = self._aa_key.text().strip()
         if not key:
@@ -412,6 +452,10 @@ class ImportDialog(QDialog):
         self._aa_fetch_worker.start()
 
     def _on_aa_fetch_complete(self, channels: list):
+        # Phase 48 D-01: persist ONLY on successful fetch, before UI updates.
+        key = self._aa_key.text().strip()
+        if key and channels:
+            self._repo.set_setting("audioaddict_listen_key", key)
         self._aa_channels = channels
         total = len(channels)
         self._aa_progress.setRange(0, total)  # switch to determinate
