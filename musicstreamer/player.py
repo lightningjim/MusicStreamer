@@ -31,6 +31,7 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
 from musicstreamer import paths
 from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
+from musicstreamer.eq_profile import EqBand, EqProfile, parse_autoeq
 from musicstreamer.gst_bus_bridge import GstBusLoopThread
 from musicstreamer.models import Station, StationStream
 from musicstreamer.stream_ordering import order_streams
@@ -83,6 +84,16 @@ class Player(QObject):
             self._pipeline.set_property("audio-sink", audio_sink)
         self._pipeline.set_property("buffer-duration", BUFFER_DURATION_S * Gst.SECOND)
         self._pipeline.set_property("buffer-size", BUFFER_SIZE_BYTES)
+
+        # Phase 47.2 D-01: equalizer-nbands in playbin3.audio-filter slot.
+        # Constructed once; bands mutated live via GstChildProxy (D-05).
+        # Graceful degrade if gst-plugins-good's equalizer is missing
+        # (Windows Phase 43 spike will verify DLL presence): self._eq = None
+        # and all set_eq_* methods become no-ops.
+        self._eq = Gst.ElementFactory.make("equalizer-nbands", "eq")
+        if self._eq is not None:
+            self._eq.set_property("num-bands", 10)  # placeholder; rebuilt per-profile
+            self._pipeline.set_property("audio-filter", self._eq)
 
         # D-07 bus wiring -- sync emission MUST be enabled before add_signal_watch.
         # Order is grep-verified by the PORT-02 acceptance gate.
@@ -141,6 +152,11 @@ class Player(QObject):
         self._recovery_in_flight: bool = False  # gap-05: coalesce cascading bus errors per URL
         self._last_buffer_percent: int = -1  # 47.1 D-14: sentinel so first real 0-100 always emits
 
+        # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
+        self._eq_enabled: bool = False
+        self._eq_preamp_db: float = 0.0
+        self._eq_profile: EqProfile | None = None
+
     # ------------------------------------------------------------------ #
     # Public API (legacy callback shims preserved for main_window.py)
     # ------------------------------------------------------------------ #
@@ -152,6 +168,28 @@ class Player(QObject):
     def set_volume(self, value: float) -> None:
         self._volume = max(0.0, min(1.0, value))
         self._pipeline.set_property("volume", self._volume)
+
+    # ------------------------------------------------------------------ #
+    # EQ public API (Phase 47.2 D-01, D-04, D-05, D-18)
+    # ------------------------------------------------------------------ #
+
+    def set_eq_enabled(self, enabled: bool) -> None:
+        """D-05: Hot-toggle EQ by zeroing band gains (bypass) vs applying profile."""
+        self._eq_enabled = bool(enabled)
+        self._apply_eq_state()
+
+    def set_eq_profile(self, profile: "EqProfile | None") -> None:
+        """D-04: Rebuild element if band count differs; else mutate in place."""
+        self._eq_profile = profile
+        needed = len(profile.bands) if profile else 0
+        if self._eq is not None and self._eq.get_property("num-bands") != max(1, needed):
+            self._rebuild_eq_element(max(1, needed))
+        self._apply_eq_state()
+
+    def set_eq_preamp(self, preamp_db: float) -> None:
+        """D-18: Uniform offset added to every band's gain (Pitfall 5: ADD, not subtract)."""
+        self._eq_preamp_db = float(preamp_db)
+        self._apply_eq_state()
 
     def play(self, station: Station, on_title=None, preferred_quality: str = "",
              on_failover=None, on_offline=None) -> None:
@@ -503,3 +541,74 @@ class Player(QObject):
         """Runs on main thread (connected via Qt.QueuedConnection in __init__)."""
         self._set_uri(resolved_url)
         self._failover_timer.start(BUFFER_DURATION_S * 1000)
+
+    # ------------------------------------------------------------------ #
+    # EQ internals (Phase 47.2)
+    # ------------------------------------------------------------------ #
+
+    _EQ_BAND_TYPE = {"PK": 0, "LSC": 1, "HSC": 2}  # Pitfall 3: enum starts at 0
+
+    def _apply_eq_state(self) -> None:
+        """Write band properties for the current (profile, enabled, preamp) state.
+
+        Bypass semantics (D-05): if no element, no profile, or disabled, every
+        band gain is zeroed -- producing unity passthrough without rebuilding
+        the pipeline.
+        """
+        if self._eq is None:
+            return
+        if self._eq_profile is None or not self._eq_enabled:
+            for i in range(self._eq.get_children_count()):
+                self._eq.get_child_by_index(i).set_property("gain", 0.0)
+            return
+        for i, b in enumerate(self._eq_profile.bands):
+            if i >= self._eq.get_children_count():
+                break
+            band = self._eq.get_child_by_index(i)
+            band.set_property("freq", float(b.freq_hz))
+            # Pitfall 4: GStreamer bandwidth is Hz, AutoEQ Q is quality factor.
+            band.set_property("bandwidth", float(b.freq_hz) / max(float(b.q), 0.01))
+            # Pitfall 5: ADD preamp (usually negative) -- do NOT subtract abs().
+            band.set_property("gain", float(b.gain_db) + self._eq_preamp_db)
+            band.set_property("type", self._EQ_BAND_TYPE.get(b.filter_type, 0))
+
+    def _rebuild_eq_element(self, num_bands: int) -> None:
+        """D-04 + Pitfall 1: num-bands realloc unreliable; rebuild the whole element.
+
+        Mirrors the pause() NULL-transition idiom at lines 199-206.
+        """
+        self._pipeline.set_state(Gst.State.READY)
+        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        self._eq = Gst.ElementFactory.make("equalizer-nbands", "eq")
+        if self._eq is not None:
+            self._eq.set_property("num-bands", num_bands)
+            self._pipeline.set_property("audio-filter", self._eq)
+
+    def restore_eq_from_settings(self, repo) -> None:
+        """D-15: Load eq_active_profile, eq_enabled, eq_preamp_db from settings.
+
+        Called from MainWindow/Player owner AFTER repo is available. Not called
+        from __init__ because Player construction precedes the repo parameter.
+        Silent on errors -- the EQ just stays disabled.
+        """
+        import os
+        active = repo.get_setting("eq_active_profile", "")
+        enabled = repo.get_setting("eq_enabled", "0") == "1"
+        try:
+            preamp = float(repo.get_setting("eq_preamp_db", "0.0"))
+        except (TypeError, ValueError):
+            preamp = 0.0
+        self._eq_preamp_db = preamp
+        if active:
+            path = os.path.join(paths.eq_profiles_dir(), active)
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    self._eq_profile = parse_autoeq(fh.read())
+            except (OSError, ValueError):
+                self._eq_profile = None
+            if self._eq_profile is not None:
+                needed = len(self._eq_profile.bands)
+                if self._eq is not None and self._eq.get_property("num-bands") != max(1, needed):
+                    self._rebuild_eq_element(max(1, needed))
+        self._eq_enabled = enabled and self._eq_profile is not None
+        self._apply_eq_state()
