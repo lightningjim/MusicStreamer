@@ -57,3 +57,16 @@ def test_paths_do_no_io_on_import(tmp_path):
 def test_db_path_filename(tmp_path):
     paths._root_override = str(tmp_path)
     assert os.path.basename(paths.db_path()) == "musicstreamer.sqlite3"
+
+
+def test_eq_profiles_dir_honors_root_override(monkeypatch, tmp_path):
+    """Phase 47.2 D-12: eq-profiles dir resolves under the override root."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    assert paths.eq_profiles_dir() == os.path.join(str(tmp_path), "eq-profiles")
+
+
+def test_eq_profiles_dir_does_not_create_directory(monkeypatch, tmp_path):
+    """Purity contract: helper returns a string; it does NOT mkdir."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    result = paths.eq_profiles_dir()
+    assert os.path.exists(result) is False
