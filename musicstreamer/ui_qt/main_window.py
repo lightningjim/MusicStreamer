@@ -141,6 +141,15 @@ class MainWindow(QMainWindow):
 
         self._menu.addSeparator()
 
+        # Phase 47.1 D-03: Stats for Nerds toggle -- its own menu group.
+        self._act_stats = self._menu.addAction("Stats for Nerds")
+        self._act_stats.setCheckable(True)
+        self._act_stats.setChecked(
+            self._repo.get_setting("show_stats_for_nerds", "0") == "1"
+        )
+        self._act_stats.toggled.connect(self._on_stats_toggled)
+        self._menu.addSeparator()
+
         # Group 3: Export/Import Settings (SYNC-05)
         # Keep refs so we can disable the actions while a worker is running
         # (UI-REVIEW fix #1: prevent double-starts during background export/preview).
@@ -199,6 +208,7 @@ class MainWindow(QMainWindow):
         # Player → now-playing panel
         self._player.title_changed.connect(self.now_playing.on_title_changed)
         self._player.elapsed_updated.connect(self.now_playing.on_elapsed_updated)
+        self._player.buffer_percent.connect(self.now_playing.set_buffer_percent)
 
         # Player → toast notifications (D-11)
         self._player.failover.connect(self._on_failover)
@@ -300,6 +310,11 @@ class MainWindow(QMainWindow):
     def _on_track_starred(self, station_name: str, track_title: str, provider: str, is_fav: bool) -> None:
         """Called when the track star button is toggled in NowPlayingPanel."""
         self.show_toast("Saved to favorites" if is_fav else "Removed from favorites")
+
+    def _on_stats_toggled(self, checked: bool) -> None:
+        """Persist the Stats for Nerds toggle and update the panel (D-04, D-07). Phase 47.1."""
+        self._repo.set_setting("show_stats_for_nerds", "1" if checked else "0")
+        self.now_playing.set_stats_visible(checked)
 
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
         """Called when a station star is toggled in StationListPanel."""
