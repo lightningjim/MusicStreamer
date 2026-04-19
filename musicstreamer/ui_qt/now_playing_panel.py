@@ -227,10 +227,10 @@ class NowPlayingPanel(QWidget):
         center.addLayout(controls)
 
         # Phase 47.1 stats widget (D-07: last center-column item; D-08: always constructed)
+        # Default hidden (D-05); MainWindow drives visibility after construction
+        # from the QAction's checked state so menu and panel cannot desync (WR-02).
         self._stats_widget = self._build_stats_widget()
         center.addWidget(self._stats_widget)
-        show_stats = self._repo.get_setting("show_stats_for_nerds", "0") == "1"
-        self._stats_widget.setVisible(show_stats)  # D-05: default hidden
 
         outer.addLayout(center, 1)
 
@@ -590,4 +590,7 @@ class NowPlayingPanel(QWidget):
         value_layout.addStretch(1)
 
         form.addRow(buffer_row_label, value_row)
+        # D-05: default hidden. MainWindow drives visibility from the QAction's
+        # checked state after construction (WR-02: single source of truth).
+        wrapper.setVisible(False)
         return wrapper
