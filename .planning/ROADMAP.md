@@ -398,13 +398,14 @@ Plans:
 
 ### Phase 48: Fix AudioAddict listen key not persisting to DB — settings.audioaddict_listen_key is not being stored when set via AccountsDialog/ImportDialog, causing it to be empty on read and blocking Phase 42 round-trip UAT test 7. Scope: diagnose where the key write is dropped, fix persistence, add regression test that sets-then-reads the key across an app restart. Out of scope: the read-only-DB silent-import issue (owned by Phase 42).
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Persist the AudioAddict listen key to SQLite on successful fetch so it survives app restarts and prefills `ImportDialog` on open. Expose view-status + clear controls in `AccountsDialog` (no edit there). Mask the key by default with a show toggle. Regression-test the full save → reopen → readback flow at widget level, and re-assert Phase 42's export-exclusion contract (`audioaddict_listen_key` stays out of the settings ZIP) with a non-empty stored value.
+**Requirements**: None (bug-fix phase; coverage driven by CONTEXT D-01..D-13)
 **Depends on:** Phase 47
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 48 to break down)
+- [ ] 48-01-PLAN.md — AccountsDialog repo threading + AA view/clear group + `_is_aa_key_saved` + combined `_update_status` + 8 retrofit tests + 3 new AA tests (Wave 1)
+- [ ] 48-02-PLAN.md — ImportDialog repo threading + prefill + mask + show toggle + success-gated `set_setting` + 6 new AA widget tests + extend `test_credentials_excluded` with non-empty stored value (Wave 2, depends_on 48-01 for shared main_window.py)
 
 ---
 
@@ -483,4 +484,4 @@ Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
 ---
-*Last updated: 2026-04-18 — Phase 999.4 added to backlog (AA cross-network mirror sibling links)*
+*Last updated: 2026-04-19 — Phase 48 planned (2 plans across 2 waves)*
