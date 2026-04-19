@@ -271,7 +271,11 @@ Plans:
   1. A minimal PyInstaller `--onedir` build runs on a clean Windows VM without GStreamer installed system-wide
   2. An HTTPS ShoutCast stream plays successfully in the bundle (souphttpsrc SSL / libgiognutls.dll present)
   3. The spike documents exact GStreamer DLLs, plugin list, and `.spec` Tree() blocks needed for Phase 44
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 43-01-PLAN.md — Wave 1: Land four build artifacts (.spec, runtime_hook.py, smoke_test.py, build.ps1) + .gitignore + README runbook from RESEARCH skeletons (autonomous)
+- [ ] 43-02-PLAN.md — Wave 2: Paste-back iteration loop on user's Win11 VM; ≤5 iterations to green SPIKE_OK + has_default_database=True + audibility word (manual, depends on 43-01)
+- [ ] 43-03-PLAN.md — Wave 3: Harvest 43-SPIKE-FINDINGS.md from paste-back evidence + run /gsd-spike-wrap-up to persist project skill; flip ROADMAP to complete (manual, depends on 43-02)
 
 ### Phase 43.1: Windows Media Keys (SMTC)
 **Goal**: Windows system media session (SMTC) controls the Player via the same `media_keys/` factory scaffolded in Phase 41; station + ICY + cover art visible in the Windows overlay; validated live on user's Windows VM
@@ -312,7 +316,7 @@ Plans:
 | 40. Auth Dialogs + Accent | v2.0 | 4/4 | Complete    | 2026-04-13 |
 | 41. Linux Media Keys (MPRIS2) | v2.0 | 4/4 | Complete   | 2026-04-16 |
 | 42. Settings Export/Import | v2.0 | 3/3 | Complete    | 2026-04-17 |
-| 43. GStreamer Windows Spike | v2.0 | 0/TBD | Not started | - |
+| 43. GStreamer Windows Spike | v2.0 | 0/3 | Planned | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
@@ -484,4 +488,4 @@ Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
 ---
-*Last updated: 2026-04-19 — Phase 48 planned (2 plans across 2 waves)*
+*Last updated: 2026-04-19 — Phase 43 planned (3 plans across 3 waves)*
