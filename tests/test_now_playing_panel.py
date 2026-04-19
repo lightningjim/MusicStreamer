@@ -42,6 +42,8 @@ class FakePlayer(QObject):
         self.stop_called: bool = False
         self.pause_called: bool = False
         self.play_calls: List[Station] = []
+        # Phase 47.2 D-08: track EQ toggle invocations as ("enabled", bool) tuples.
+        self.calls: List[tuple] = []
 
     def set_volume(self, v: float) -> None:
         self.set_volume_calls.append(v)
@@ -54,6 +56,10 @@ class FakePlayer(QObject):
 
     def play(self, station, **kwargs) -> None:
         self.play_calls.append(station)
+
+    def set_eq_enabled(self, enabled: bool) -> None:
+        # Phase 47.2 D-08: mirrors Plan 03's canonical FakePlayer shape.
+        self.calls.append(("enabled", bool(enabled)))
 
 
 class FakeRepo:
@@ -637,3 +643,34 @@ def test_set_stats_visible_toggles(qtbot):
     assert panel._stats_widget.isHidden() is False
     panel.set_stats_visible(False)
     assert panel._stats_widget.isHidden() is True
+
+
+# ---------------------------------------------------------------- #
+# Phase 47.2 D-08: EQ toggle button tests
+# ---------------------------------------------------------------- #
+
+
+def test_eq_toggle_initial_state_from_setting(qtbot):
+    """D-15: eq_toggle_btn reflects persisted eq_enabled on construction."""
+    repo = FakeRepo({"volume": "80", "eq_enabled": "1"})
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    assert panel.eq_toggle_btn.isChecked() is True
+
+
+def test_eq_toggle_click_calls_player_and_persists(qtbot):
+    """D-08: Clicking the toggle calls player.set_eq_enabled AND persists eq_enabled setting."""
+    repo = FakeRepo({"volume": "80"})
+    player = FakePlayer()
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    # Start unchecked
+    panel.eq_toggle_btn.setChecked(False)
+    # Click -> checked -> player.set_eq_enabled(True) + eq_enabled="1"
+    panel.eq_toggle_btn.click()
+    assert ("enabled", True) in player.calls
+    assert repo.get_setting("eq_enabled") == "1"
+    # Click again -> unchecked -> player.set_eq_enabled(False) + eq_enabled="0"
+    panel.eq_toggle_btn.click()
+    assert ("enabled", False) in player.calls
+    assert repo.get_setting("eq_enabled") == "0"
