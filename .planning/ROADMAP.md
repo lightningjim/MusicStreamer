@@ -462,5 +462,25 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 999.5: EQ on/off toggle causes brief audio dropout (BACKLOG — BUG)
+
+**Goal:** Eliminate the brief audio dropout heard when clicking the NP-panel EQ toggle button. Per Phase 47.2 CONTEXT D-05, toggle is designed as bypass-via-zero-gains on the resident `equalizer-nbands` element — no pipeline state transition, no element rebuild, and therefore no dropout. Observed behavior contradicts that contract.
+
+**Surfaced:** Phase 47.2 UAT on 2026-04-19.
+
+**Investigation starting points:**
+- `musicstreamer/player.py` `_apply_eq_state` bypass branch (added in Plan 47.2-02) — confirm it only mutates `band.set_property("gain", ...)` on the existing element; no `set_state`, no `audio-filter` reassignment, no rebuild.
+- Check whether writing `gain=0.0` on every band at once triggers caps renegotiation inside `equalizer-nbands` / GStreamer. Try setting gains in a specific order, or wrapping in a single `GstStructure` update if one exists.
+- Verify `set_eq_enabled` is called once per click (no double-fire from `toggled` + `clicked` signals on the checkable button).
+- Consider hysteresis: cache the zeroed state and skip property writes when already zeroed.
+- Related (may share root cause): confirm same-band-count profile swaps are dropout-free — if they aren't, same investigation likely covers both.
+
+**Requirements:** TBD (derive during discuss)
+**Depends on:** none (standalone bug fix on existing Phase 47.2 code)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
 *Last updated: 2026-04-18 — Phase 999.4 added to backlog (AA cross-network mirror sibling links)*
