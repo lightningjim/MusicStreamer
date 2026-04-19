@@ -192,7 +192,9 @@ def test_export_content_completeness(seeded_repo, tmp_path):
 
 
 def test_credentials_excluded(seeded_repo, tmp_path):
-    """audioaddict_listen_key must NOT appear in exported settings."""
+    """audioaddict_listen_key must NOT appear in exported settings, even when non-empty (D-12)."""
+    seeded_repo.set_setting("audioaddict_listen_key", "test-key-abc")
+
     zip_path = str(tmp_path / "export.zip")
     build_zip(seeded_repo, zip_path)
 
@@ -203,6 +205,10 @@ def test_credentials_excluded(seeded_repo, tmp_path):
     assert "audioaddict_listen_key" not in keys
     assert "volume" in keys
     assert "accent_color" in keys
+
+    # Confirm the payload's SECRET-EXCLUSION contract: no row carries the value either
+    serialized = json.dumps(payload)
+    assert "test-key-abc" not in serialized
 
 
 def test_export_logo_files(seeded_repo, tmp_path):
