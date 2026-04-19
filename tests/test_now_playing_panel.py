@@ -588,13 +588,16 @@ def test_stats_hidden_by_default(qtbot):
     assert panel._stats_widget.isHidden() is True
 
 
-def test_stats_visible_when_setting_is_1(qtbot):
-    """D-04 + D-05: setting "1" -> stats widget not hidden."""
-    panel = NowPlayingPanel(
-        FakePlayer(),
-        FakeRepo({"volume": "80", "show_stats_for_nerds": "1"}),
-    )
+def test_stats_visible_after_set_stats_visible_true(qtbot):
+    """D-04 + D-07 (WR-02): set_stats_visible(True) is the single path that
+    makes the stats widget visible. The panel no longer reads the setting
+    directly -- MainWindow drives visibility from the QAction's checked state
+    so menu checkmark and panel cannot desync."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
     qtbot.addWidget(panel)
+    assert panel._stats_widget.isHidden() is True  # default hidden
+    panel.show()  # needed for isHidden() to reflect the child's own flag
+    panel.set_stats_visible(True)
     assert panel._stats_widget.isHidden() is False
 
 

@@ -232,6 +232,11 @@ class MainWindow(QMainWindow):
         # Plan 39: failover → stream picker sync
         self._player.failover.connect(self.now_playing._sync_stream_picker)
 
+        # Phase 47.1 WR-02: drive panel visibility from the QAction's initial
+        # checked state. Single source of truth — the panel no longer reads the
+        # setting itself, so the menu checkmark and panel visibility cannot drift.
+        self.now_playing.set_stats_visible(self._act_stats.isChecked())
+
         # ------------------------------------------------------------------
         # Phase 41: MediaKeysBackend wiring (D-02, D-05, D-06)
         # Constructed last so the backend sees a fully-constructed window.
