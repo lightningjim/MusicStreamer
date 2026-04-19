@@ -73,6 +73,13 @@ def _validate_zip_members(zf: zipfile.ZipFile) -> None:
         # traversal segments but allow legitimate names like `foo..bar.jpg`.
         if "\\" in fname or fname.startswith("/"):
             raise ValueError(f"Unsafe path in archive: {fname}")
+        # Phase 47.2 Pitfall 8: catch traversal segments at any depth, not just
+        # at the root. Example: `eq-profiles/../evil.txt` normalizes to
+        # `evil.txt` (which escapes the eq-profiles subdirectory); reject any
+        # path component that is literally `..`.
+        parts = fname.split("/")
+        if ".." in parts:
+            raise ValueError(f"Unsafe path in archive: {fname}")
         normalized = posixpath.normpath(fname)
         if (
             normalized == ".."
@@ -191,6 +198,17 @@ def build_zip(repo: Repo, dest_path: str) -> None:
             if abs_logo and logo_file:
                 zf.write(abs_logo, logo_file)
 
+        # Phase 47.2 D-16: include user's AutoEQ profiles in the ZIP so
+        # settings sync between machines carries EQ setup along with
+        # stations/favorites. Directory created lazily on first import;
+        # absent directory => no-op (no empty folder in the archive).
+        eq_dir = paths.eq_profiles_dir()
+        if os.path.isdir(eq_dir):
+            for fname in sorted(os.listdir(eq_dir)):
+                src = os.path.join(eq_dir, fname)
+                if os.path.isfile(src) and fname.endswith(".txt"):
+                    zf.write(src, f"eq-profiles/{fname}")
+
 
 def preview_import(zip_path: str, repo: Repo) -> ImportPreview:
     """Validate *zip_path* and return an ImportPreview without modifying the DB.
@@ -305,6 +323,21 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
                         "UPDATE stations SET station_art_path=? WHERE id=?",
                         (art_rel, station_id),
                     )
+
+            # Phase 47.2 D-16: extract eq-profiles/*.txt. _validate_zip_members
+            # already rejected traversal members above (Pitfall 8).
+            eq_dir = paths.eq_profiles_dir()
+            os.makedirs(eq_dir, exist_ok=True)
+            for name in zip_names:
+                if not name.startswith("eq-profiles/") or not name.endswith(".txt"):
+                    continue
+                basename = posixpath.basename(name)
+                if not basename:
+                    continue  # skip directory entries
+                with zf.open(name) as src, open(
+                    os.path.join(eq_dir, basename), "wb"
+                ) as dst:
+                    dst.write(src.read())
 
         # Favorites: INSERT OR IGNORE (union semantics per D-09)
         for fav in preview.track_favorites:
