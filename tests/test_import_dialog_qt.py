@@ -27,14 +27,30 @@ YT_SCAN_RESULTS = [
 ]
 
 
+class FakeRepo:
+    def __init__(self):
+        self._settings: dict[str, str] = {}
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        return self._settings.get(key, default)
+
+    def set_setting(self, key: str, value: str) -> None:
+        self._settings[key] = value
+
+
+@pytest.fixture
+def fake_repo():
+    return FakeRepo()
+
+
 @pytest.fixture
 def toast_cb():
     return MagicMock()
 
 
 @pytest.fixture
-def dialog(qtbot, toast_cb):
-    dlg = ImportDialog(toast_callback=toast_cb)
+def dialog(qtbot, toast_cb, fake_repo):
+    dlg = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
     qtbot.addWidget(dlg)
     dlg.show()
     return dlg
@@ -274,3 +290,112 @@ def test_yt_import_new_only_no_skip_clause(dialog, toast_cb):
     assert dialog._yt_status.text() == "Imported 5 new"
     assert "skipped" not in dialog._yt_status.text()
     toast_cb.assert_called_once_with("Imported 5 new")
+
+
+# ---------------------------------------------------------------------------
+# Phase 48: AudioAddict listen-key persistence (D-01, D-03, D-08, D-09, D-11)
+# ---------------------------------------------------------------------------
+
+
+AA_SUCCESS_CHANNELS = [
+    {"key": "jazz", "name": "Jazz", "asset_url": None},
+]
+
+
+def dlg_mode(dialog):
+    return dialog._aa_key.echoMode()
+
+
+def test_aa_key_field_masked_by_default(qtbot, toast_cb, fake_repo):
+    """D-08: field uses EchoMode.Password on open — empty and prefilled both."""
+    from PySide6.QtWidgets import QLineEdit
+
+    # Empty repo
+    dlg = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg)
+    assert dlg._aa_key.echoMode() == QLineEdit.EchoMode.Password
+
+    # Prefilled repo
+    fake_repo.set_setting("audioaddict_listen_key", "pre-saved")
+    dlg2 = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg2)
+    assert dlg2._aa_key.echoMode() == QLineEdit.EchoMode.Password
+
+
+def test_aa_key_prefills_from_repo_on_open(qtbot, toast_cb, fake_repo):
+    """D-03: ImportDialog.__init__ reads audioaddict_listen_key into the field."""
+    fake_repo.set_setting("audioaddict_listen_key", "prefilled-value")
+
+    dlg = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg)
+
+    assert dlg._aa_key.text() == "prefilled-value"
+
+
+def test_aa_key_show_toggle_flips_echo_mode(dialog):
+    """D-09 / D-10: Show toggle flips echoMode and tooltip."""
+    from PySide6.QtWidgets import QLineEdit
+
+    assert dlg_mode(dialog) == QLineEdit.EchoMode.Password
+    assert dialog._aa_show_btn.toolTip() == "Show key"
+
+    dialog._aa_show_btn.toggle()
+    assert dlg_mode(dialog) == QLineEdit.EchoMode.Normal
+    assert dialog._aa_show_btn.toolTip() == "Hide key"
+
+    dialog._aa_show_btn.toggle()
+    assert dlg_mode(dialog) == QLineEdit.EchoMode.Password
+    assert dialog._aa_show_btn.toolTip() == "Show key"
+
+
+def test_aa_key_persists_on_successful_fetch(qtbot, toast_cb, fake_repo):
+    """D-01: _on_aa_fetch_complete with non-empty channels writes the setting."""
+    dlg = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg)
+    dlg._aa_key.setText("test-key-abc")
+
+    # Stub _AaImportWorker construction so the slot doesn't spawn a real thread
+    with patch("musicstreamer.ui_qt.import_dialog._AaImportWorker") as MockWorker:
+        MockWorker.return_value = MagicMock()
+        dlg._on_aa_fetch_complete(AA_SUCCESS_CHANNELS)
+
+    assert fake_repo.get_setting("audioaddict_listen_key", "") == "test-key-abc"
+
+
+def test_aa_key_does_not_persist_on_failed_fetch(qtbot, toast_cb, fake_repo):
+    """D-01 negative: error slot never persists."""
+    dlg = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg)
+    dlg._aa_key.setText("should-not-save")
+
+    dlg._on_aa_fetch_error("invalid_key")
+
+    assert fake_repo.get_setting("audioaddict_listen_key", "") == ""
+
+    # Also confirm the empty-channels defensive guard
+    dlg._aa_key.setText("still-should-not-save")
+    with patch("musicstreamer.ui_qt.import_dialog._AaImportWorker") as MockWorker:
+        MockWorker.return_value = MagicMock()
+        dlg._on_aa_fetch_complete([])  # empty list should skip the write
+
+    assert fake_repo.get_setting("audioaddict_listen_key", "") == ""
+
+
+def test_aa_key_save_reopen_readback(qtbot, toast_cb, fake_repo):
+    """D-11 (primary integration): set -> persist -> close -> reopen -> readback."""
+    # Dialog A
+    dlg_a = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg_a)
+    dlg_a._aa_key.setText("test-key-abc")
+
+    with patch("musicstreamer.ui_qt.import_dialog._AaImportWorker") as MockWorker:
+        MockWorker.return_value = MagicMock()
+        dlg_a._on_aa_fetch_complete(AA_SUCCESS_CHANNELS)
+
+    assert fake_repo.get_setting("audioaddict_listen_key", "") == "test-key-abc"
+    dlg_a.close()
+
+    # Dialog B — same repo, should see the value
+    dlg_b = ImportDialog(toast_callback=toast_cb, repo=fake_repo)
+    qtbot.addWidget(dlg_b)
+    assert dlg_b._aa_key.text() == "test-key-abc"
