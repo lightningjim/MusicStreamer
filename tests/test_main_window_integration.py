@@ -36,6 +36,7 @@ class FakePlayer(QObject):
     offline = Signal(str)
     playback_error = Signal(str)
     elapsed_updated = Signal(int)
+    buffer_percent = Signal(int)  # Phase 47.1 D-12
 
     def __init__(self):
         super().__init__()
@@ -310,13 +311,14 @@ EXPECTED_ACTION_TEXTS = [
     "Accent Color",
     "YouTube Cookies",
     "Accounts",
+    "Stats for Nerds",
     "Export Settings",
     "Import Settings",
 ]
 
 
 def test_hamburger_menu_actions(window):
-    """Hamburger menu contains exactly 7 non-separator actions with correct text."""
+    """Hamburger menu contains exactly 8 non-separator actions with correct text."""
     menu = window._menu
     actions = [a for a in menu.actions() if not a.isSeparator()]
     texts = [a.text() for a in actions]
@@ -324,10 +326,10 @@ def test_hamburger_menu_actions(window):
 
 
 def test_hamburger_menu_separators(window):
-    """Hamburger menu has exactly 2 separators (3 groups)."""
+    """Hamburger menu has exactly 3 separators (4 groups; Phase 47.1 adds Stats group)."""
     menu = window._menu
     separators = [a for a in menu.actions() if a.isSeparator()]
-    assert len(separators) == 2
+    assert len(separators) == 3
 
 
 def test_sync_actions_enabled(window):
@@ -390,3 +392,72 @@ def test_import_action_opens_dialog(qtbot, window, monkeypatch):
     actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
     actions["Import Stations"].trigger()
     assert called == [True]
+
+
+# ---------------------------------------------------------------------------
+# Phase 47.1 — Stats for Nerds integration (D-03, D-04, D-13)
+# ---------------------------------------------------------------------------
+
+def test_stats_action_is_checkable(qtbot, fake_player, fake_repo):
+    """D-03: hamburger 'Stats for Nerds' QAction exists, is checkable, and
+    initial checked state reflects repo setting (default '0' -> False)."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert hasattr(w, "_act_stats")
+    assert w._act_stats.isCheckable() is True
+    # Default repo has no setting -> get_setting returns default "0" -> unchecked
+    assert w._act_stats.isChecked() is False
+
+
+def test_stats_action_initial_checked_when_setting_is_1(qtbot, fake_player):
+    """D-04: if repo has 'show_stats_for_nerds' = '1', action starts checked."""
+    repo = FakeRepo(stations=[_make_station()], settings={"show_stats_for_nerds": "1"})
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+    assert w._act_stats.isChecked() is True
+
+
+def test_stats_toggle_persists_and_toggles_panel(qtbot, fake_player, fake_repo):
+    """D-04 + D-07: triggering the action persists '1'/'0' AND flips the
+    panel's _stats_widget visibility accordingly."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    # Initial: unchecked, widget hidden
+    assert w._act_stats.isChecked() is False
+    assert w.now_playing._stats_widget.isHidden() is True
+
+    # Trigger ON
+    w._act_stats.trigger()
+    assert w._act_stats.isChecked() is True
+    assert fake_repo.get_setting("show_stats_for_nerds", "0") == "1"
+    assert w.now_playing._stats_widget.isHidden() is False
+
+    # Trigger OFF
+    w._act_stats.trigger()
+    assert w._act_stats.isChecked() is False
+    assert fake_repo.get_setting("show_stats_for_nerds", "0") == "0"
+    assert w.now_playing._stats_widget.isHidden() is True
+
+
+def test_buffer_percent_bound_method_connect_no_lambda(qtbot, window, fake_player):
+    """D-13 + QA-05: emitting Player.buffer_percent updates both bar and
+    label on the now-playing panel via a bound-method connect (no lambda)."""
+    import inspect
+    from musicstreamer.ui_qt import main_window as mw_mod
+
+    # Functional: emit -> slot fires -> both widgets update atomically (D-11 also)
+    fake_player.buffer_percent.emit(42)
+    assert window.now_playing.buffer_bar.value() == 42
+    assert window.now_playing.buffer_pct_label.text() == "42%"
+
+    # Structural: no 'lambda' appears on the buffer_percent.connect line
+    src = inspect.getsource(mw_mod.MainWindow)
+    # Find the buffer_percent.connect line and verify no lambda on it
+    for line in src.splitlines():
+        if "buffer_percent.connect" in line:
+            assert "lambda" not in line, (
+                f"D-13 violated — lambda found on buffer_percent.connect line: {line!r}"
+            )
+            break
+    else:
+        raise AssertionError("buffer_percent.connect line not found in MainWindow source")

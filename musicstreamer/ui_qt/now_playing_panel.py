@@ -28,11 +28,13 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFont, QIcon, QPixmap
+from PySide6.QtGui import QFont, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QSlider,
     QToolButton,
     QVBoxLayout,
@@ -224,6 +226,12 @@ class NowPlayingPanel(QWidget):
         controls.addStretch(1)
         center.addLayout(controls)
 
+        # Phase 47.1 stats widget (D-07: last center-column item; D-08: always constructed)
+        self._stats_widget = self._build_stats_widget()
+        center.addWidget(self._stats_widget)
+        show_stats = self._repo.get_setting("show_stats_for_nerds", "0") == "1"
+        self._stats_widget.setVisible(show_stats)  # D-05: default hidden
+
         outer.addLayout(center, 1)
 
         # ------------------------------------------------------------------
@@ -352,6 +360,15 @@ class NowPlayingPanel(QWidget):
             self.play_pause_btn.setToolTip("Play")
         self.edit_btn.setEnabled(self._station is not None)
         self._update_star_enabled()
+
+    def set_buffer_percent(self, percent: int) -> None:
+        """Update the buffer indicator bar + {N}% label atomically (D-11). Phase 47.1."""
+        self.buffer_bar.setValue(int(percent))
+        self.buffer_pct_label.setText(f"{int(percent)}%")
+
+    def set_stats_visible(self, visible: bool) -> None:
+        """Toggle the stats-for-nerds wrapper visibility (D-07). Phase 47.1."""
+        self._stats_widget.setVisible(bool(visible))
 
     # ----------------------------------------------------------------------
     # Internal slots
@@ -540,3 +557,37 @@ class NowPlayingPanel(QWidget):
     def _show_station_logo_in_cover_slot(self) -> None:
         path = self._station.station_art_path if self._station else None
         self.cover_label.setPixmap(_load_scaled_pixmap(path, QSize(160, 160)))
+
+    # ----------------------------------------------------------------------
+    # Phase 47.1: Stats-for-nerds widget construction (D-07/D-08/D-09/D-10)
+    # ----------------------------------------------------------------------
+
+    def _build_stats_widget(self) -> QWidget:
+        """Construct the stats-for-nerds wrapper (D-07/D-08/D-09). Phase 47.1."""
+        wrapper = QWidget(self)
+        form = QFormLayout(wrapper)
+        form.setContentsMargins(0, 0, 0, 0)
+
+        # Row label -- muted palette (D-10; RESEARCH §6 Option A: QPalette.Disabled)
+        buffer_row_label = QLabel("Buffer", wrapper)
+        pal = buffer_row_label.palette()
+        muted = pal.color(QPalette.Disabled, QPalette.WindowText)
+        pal.setColor(QPalette.WindowText, muted)
+        buffer_row_label.setPalette(pal)
+
+        # Value side: QProgressBar + {N}% QLabel inside a QHBoxLayout
+        value_row = QWidget(wrapper)
+        value_layout = QHBoxLayout(value_row)
+        value_layout.setContentsMargins(0, 0, 0, 0)
+        value_layout.setSpacing(6)
+        self.buffer_bar = QProgressBar(value_row)
+        self.buffer_bar.setRange(0, 100)
+        self.buffer_bar.setTextVisible(False)  # D-01: label next to it is authoritative
+        self.buffer_bar.setFixedWidth(120)     # D-02
+        self.buffer_pct_label = QLabel("0%", value_row)
+        value_layout.addWidget(self.buffer_bar)
+        value_layout.addWidget(self.buffer_pct_label)
+        value_layout.addStretch(1)
+
+        form.addRow(buffer_row_label, value_row)
+        return wrapper
