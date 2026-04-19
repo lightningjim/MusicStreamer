@@ -374,12 +374,14 @@ Plans:
 - [x] 47.1-01-PLAN.md — Player bus subscription + buffer_percent Signal + de-dup sentinel + 4 pytest-qt tests (Wave 1)
 - [x] 47.1-02-PLAN.md — NowPlayingPanel stats widget + hamburger QAction toggle + MainWindow wiring + 7 widget tests (Wave 2, depends_on 01)
 
-### Phase 47.2: In-app parametric EQ with AutoEQ profile import (SEED-007)
+### Phase 47.2: In-app parametric EQ with AutoEQ profile import (SEED-007) ✓ COMPLETE 2026-04-19
 
 **Goal:** Insert a GStreamer parametric EQ element into the playback pipeline and provide a UI to import/activate AutoEQ `ParametricEQ.txt` profiles. Primary driver: unlocks headphone EQ on the user's work PC where Equalizer APO is blocked.
 **Requirements**: TBD
 **Depends on:** Phase 35 Plan 06 (Player QObject architecture) — already shipped. No hard dep on 47 or 47.1.
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
+**UAT:** Passed 2026-04-19 — audible A/B, profile swap, preamp, trash flow all good. Windows parity deferred to Phase 43/44.
+**Known issue (deferred):** Brief audio dropout on EQ on/off toggle — D-05 design said bypass via zeroed gains should be dropout-free, so this is a regression worth investigating in a follow-up phase.
 
 **Scope (split from original Phase 47 on 2026-04-17; harvests SEED-007):**
 - Pipeline integration: add `equalizer-nbands` (or a biquad chain for true parametric EQ) to `playbin3.audio-filter`; wire enable/disable toggle.
@@ -389,10 +391,10 @@ Plans:
 - Out of scope (deferred): bundled AutoEQ profiles, per-station override, dynamic range compression, other DSP filters — capture as follow-up if requested.
 
 Plans:
-- [ ] 47.2-01-PLAN.md — Parser + paths helper + EQ toggle SVG icon (Wave 1, no deps)
-- [ ] 47.2-02-PLAN.md — Player pipeline integration: equalizer-nbands in audio-filter + 3 new set_eq_* methods + startup restore (Wave 2, depends on 01)
-- [ ] 47.2-03-PLAN.md — EqualizerDialog + QPainter response curve + hamburger menu wiring (Wave 3, depends on 01, 02)
-- [ ] 47.2-04-PLAN.md — NP panel EQ toggle button + settings ZIP eq-profiles/ round-trip (Wave 3, depends on 01, 02)
+- [x] 47.2-01-PLAN.md — Parser + paths helper + EQ toggle SVG icon (Wave 1, no deps)
+- [x] 47.2-02-PLAN.md — Player pipeline integration: equalizer-nbands in audio-filter + 3 new set_eq_* methods + startup restore (Wave 2, depends on 01)
+- [x] 47.2-03-PLAN.md — EqualizerDialog + QPainter response curve + hamburger menu wiring (Wave 3, depends on 01, 02)
+- [x] 47.2-04-PLAN.md — NP panel EQ toggle button + settings ZIP eq-profiles/ round-trip (Wave 3, depends on 01, 02)
 
 ### Phase 48: Fix AudioAddict listen key not persisting to DB — settings.audioaddict_listen_key is not being stored when set via AccountsDialog/ImportDialog, causing it to be empty on read and blocking Phase 42 round-trip UAT test 7. Scope: diagnose where the key write is dropped, fix persistence, add regression test that sets-then-reads the key across an app restart. Out of scope: the read-only-DB silent-import issue (owned by Phase 42).
 
