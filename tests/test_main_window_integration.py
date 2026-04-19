@@ -57,6 +57,21 @@ class FakePlayer(QObject):
     def stop(self) -> None:
         self.stop_calls += 1
 
+    # Phase 47.2: EQ API stubs — MainWindow calls restore_eq_from_settings
+    # from __init__; the other methods are referenced by EqualizerDialog
+    # and included here for completeness.
+    def restore_eq_from_settings(self, repo) -> None:
+        pass
+
+    def set_eq_enabled(self, enabled: bool) -> None:
+        pass
+
+    def set_eq_profile(self, profile) -> None:
+        pass
+
+    def set_eq_preamp(self, db: float) -> None:
+        pass
+
 
 class FakeRepo:
     """Minimal repo surface."""
@@ -311,6 +326,7 @@ EXPECTED_ACTION_TEXTS = [
     "Accent Color",
     "YouTube Cookies",
     "Accounts",
+    "Equalizer",           # Phase 47.2 D-07
     "Stats for Nerds",
     "Export Settings",
     "Import Settings",
@@ -318,7 +334,7 @@ EXPECTED_ACTION_TEXTS = [
 
 
 def test_hamburger_menu_actions(window):
-    """Hamburger menu contains exactly 8 non-separator actions with correct text."""
+    """Hamburger menu contains exactly 9 non-separator actions with correct text."""
     menu = window._menu
     actions = [a for a in menu.actions() if not a.isSeparator()]
     texts = [a.text() for a in actions]
