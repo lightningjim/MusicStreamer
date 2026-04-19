@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
 stopped_at: Phase 47 plan 03 complete — bitrate_kbps wired end-to-end through AA import, RadioBrowser discovery-save, Edit Station dialog (5-column table + QIntValidator delegate), and settings export/import roundtrip (7 new tests green, 0 regressions)
-last_updated: "2026-04-18T23:04:17.025Z"
-last_activity: 2026-04-18
+last_updated: "2026-04-18T23:50:54.202Z"
+last_activity: 2026-04-18 -- Phase 47.1 execution started
 progress:
   total_phases: 22
   completed_phases: 12
-  total_plans: 47
+  total_plans: 49
   completed_plans: 47
-  percent: 100
+  percent: 96
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 47 — stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame
+**Current focus:** Phase 47.1 — stats-for-nerds-buffer-indicator
 
 ## Current Position
 
-Phase: 47.1
-Plan: Not started
-Status: Executing Phase 47
-Last activity: 2026-04-18
+Phase: 47.1 (stats-for-nerds-buffer-indicator) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 47.1
+Last activity: 2026-04-18 -- Phase 47.1 execution started
 
 Progress: [██████████] 100%
 
