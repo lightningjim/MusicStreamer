@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 import zipfile
 from pathlib import Path
@@ -735,3 +736,67 @@ def test_station_to_dict_emits_bitrate_kbps(repo):
     station = next(s for s in stations if s.name == "Test")
     d = _station_to_dict(station)
     assert d["streams"][0]["bitrate_kbps"] == 192
+
+
+# ---------------------------------------------------------------------------
+# Phase 47.2 D-16: eq-profiles/ ZIP integration
+# ---------------------------------------------------------------------------
+
+
+def test_export_includes_eq_profiles(tmp_path, monkeypatch, repo):
+    """D-16: build_zip writes every .txt in eq_profiles_dir to the archive."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    eq_dir = paths.eq_profiles_dir()
+    os.makedirs(eq_dir, exist_ok=True)
+    (Path(eq_dir) / "hd650.txt").write_text(
+        "Preamp: -6.2 dB\nFilter 1: ON PK Fc 105 Hz Gain -3.5 dB Q 0.7\n"
+    )
+    (Path(eq_dir) / "airpods.txt").write_text(
+        "Preamp: -3.0 dB\nFilter 1: ON LSC Fc 100 Hz Gain 2.0 dB Q 0.7\n"
+    )
+    dest = tmp_path / "out.zip"
+    build_zip(repo, str(dest))
+    with zipfile.ZipFile(dest, "r") as zf:
+        names = zf.namelist()
+    assert "eq-profiles/hd650.txt" in names
+    assert "eq-profiles/airpods.txt" in names
+
+
+def test_eq_profiles_zip_round_trip(tmp_path, monkeypatch, repo):
+    """D-16: export + import restores every eq-profiles/*.txt byte-for-byte."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    eq_dir = paths.eq_profiles_dir()
+    os.makedirs(eq_dir, exist_ok=True)
+    text1 = "Preamp: -6.2 dB\nFilter 1: ON PK Fc 105 Hz Gain -3.5 dB Q 0.7\n"
+    (Path(eq_dir) / "hd650.txt").write_text(text1)
+    dest = tmp_path / "out.zip"
+    build_zip(repo, str(dest))
+    # Nuke the dir to simulate a fresh machine
+    shutil.rmtree(eq_dir)
+    # Fresh repo (empty DB) for clean import
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh_repo = _fresh_repo(fresh_dir)
+    preview = preview_import(str(dest), fresh_repo)
+    commit_import(preview, fresh_repo, mode="merge")
+    restored = Path(eq_dir) / "hd650.txt"
+    assert restored.exists()
+    assert restored.read_text() == text1
+
+
+def test_eq_profiles_path_traversal_rejected(tmp_path, monkeypatch, repo):
+    """Pitfall 8: hostile eq-profiles/../evil.txt is rejected by _validate_zip_members."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(paths.eq_profiles_dir(), exist_ok=True)
+    dest = tmp_path / "hostile.zip"
+    build_zip(repo, str(dest))
+    # Re-open and inject a traversal member via raw ZipInfo so zipfile will
+    # accept the hostile name without normalizing it away.
+    with zipfile.ZipFile(dest, "a") as zf:
+        info = zipfile.ZipInfo(filename="eq-profiles/../evil.txt")
+        zf.writestr(info, "nope")
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh_repo = _fresh_repo(fresh_dir)
+    with pytest.raises(ValueError, match="Unsafe path"):
+        preview_import(str(dest), fresh_repo)
