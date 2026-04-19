@@ -70,3 +70,12 @@ def user_cache_dir() -> str:
     if _root_override is not None:
         return os.path.join(_root_override, "cache")
     return platformdirs.user_cache_dir("musicstreamer")
+
+
+def eq_profiles_dir() -> str:
+    """Return the directory holding imported AutoEQ profiles (Phase 47.2 D-12).
+
+    Pure — does NOT create the directory. Callers use
+    ``os.makedirs(paths.eq_profiles_dir(), exist_ok=True)`` before writing.
+    """
+    return os.path.join(_root(), "eq-profiles")
