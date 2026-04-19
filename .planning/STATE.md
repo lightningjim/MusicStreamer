@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 47 plan 03 complete — bitrate_kbps wired end-to-end through AA import, RadioBrowser discovery-save, Edit Station dialog (5-column table + QIntValidator delegate), and settings export/import roundtrip (7 new tests green, 0 regressions)
-last_updated: "2026-04-19T02:06:22.165Z"
+stopped_at: Phase 47.2 context gathered
+last_updated: "2026-04-19T16:17:14.878Z"
 last_activity: 2026-04-19
 progress:
   total_phases: 22
@@ -103,6 +103,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-18T16:54:30Z
-Stopped at: Phase 47 plan 03 complete — bitrate_kbps wired end-to-end through AA import, RadioBrowser discovery-save, Edit Station dialog (5-column table + QIntValidator delegate), and settings export/import roundtrip (7 new tests green, 0 regressions)
-Resume file: Phase 47 complete; next action is phase gate + merge. No 47-04 PLAN.
+Last session: 2026-04-19T16:17:14.874Z
+Stopped at: Phase 47.2 context gathered
+Resume file: .planning/phases/47.2-autoeq-parametric-eq-import/47.2-CONTEXT.md
