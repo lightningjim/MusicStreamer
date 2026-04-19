@@ -139,6 +139,10 @@ class MainWindow(QMainWindow):
         act_accounts = self._menu.addAction("Accounts")
         act_accounts.triggered.connect(self._open_accounts_dialog)
 
+        # Phase 47.2 D-07: Equalizer action in Group 2 (Settings-style dialogs).
+        act_equalizer = self._menu.addAction("Equalizer")
+        act_equalizer.triggered.connect(self._open_equalizer_dialog)
+
         self._menu.addSeparator()
 
         # Phase 47.1 D-03: Stats for Nerds toggle -- its own menu group.
@@ -258,6 +262,14 @@ class MainWindow(QMainWindow):
 
         # Player → Backend: metadata + state (both connect independently to title_changed)
         self._player.title_changed.connect(self._on_title_changed_for_media_keys)
+
+        # Phase 47.2 D-15: restore last-active EQ profile + preamp + enabled state.
+        # Safe no-op if no active profile persisted or plugin missing. Defensive
+        # try/except — an EQ startup failure must never prevent the app launching.
+        try:
+            self._player.restore_eq_from_settings(self._repo)
+        except Exception as exc:
+            _log.warning("EQ restore failed: %s", exc)
 
     # ----------------------------------------------------------------------
     # Public helpers
@@ -512,4 +524,10 @@ class MainWindow(QMainWindow):
     def _open_accounts_dialog(self) -> None:
         """D-18: Open AccountsDialog from hamburger menu."""
         dlg = AccountsDialog(parent=self)
+        dlg.exec()
+
+    def _open_equalizer_dialog(self) -> None:
+        """Phase 47.2 D-07: Open EqualizerDialog from hamburger menu."""
+        from musicstreamer.ui_qt.equalizer_dialog import EqualizerDialog
+        dlg = EqualizerDialog(self._player, self._repo, self.show_toast, parent=self)
         dlg.exec()
