@@ -1,43 +1,40 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-18T03:28:40.917Z",
-  "phase": "47",
-  "phase_name": "stream-bitrate-quality-ordering",
-  "phase_dir": ".planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame",
-  "plan": null,
-  "task": 0,
-  "total_tasks": 0,
+  "timestamp": "2026-04-19T20:40:27.477Z",
+  "phase": "43",
+  "phase_name": "gstreamer-windows-spike",
+  "phase_dir": ".planning/phases/43-gstreamer-windows-spike",
+  "plan": 2,
+  "task": 1,
+  "total_tasks": 3,
   "status": "paused",
-  "workflow_stage": "plan-phase (post-research, post-pattern-mapping, pre-planner-spawn)",
+  "workflow_stage": "execute-phase (Wave 1 complete, Wave 2 awaiting user paste-back from Windows 11 VM)",
   "completed_tasks": [
-    {"id": "42-03", "name": "Phase 42 gap closure — QThread signal shadowing fix", "status": "done", "commit": "0d9d699"},
-    {"id": "45", "name": "Phase 45: Unify station-icon loader", "status": "done", "commit": "63bf80f"},
-    {"id": "46", "name": "Phase 46: UI polish — theme tokens + logo-status cleanup", "status": "done", "commit": "9601c20"},
-    {"id": "47-scope-split", "name": "Phase 47 original scope split into 47 (bitrate) + 47.1 (buffer SEED-005) + 47.2 (AutoEQ SEED-007)", "status": "done", "commit": "f389bb1"},
-    {"id": "47-discuss", "name": "Phase 47 discuss-phase — 3 locked decisions (keep quality+bitrate both, unknowns sort last, QLineEdit+QIntValidator UX)", "status": "done", "commit": "6d9ab90"},
-    {"id": "47-research", "name": "Phase 47 gsd-phase-researcher — 47-RESEARCH.md with call-site map + Validation Architecture", "status": "done", "commit": "2f484ae"},
-    {"id": "47-patterns", "name": "Phase 47 gsd-pattern-mapper — 47-PATTERNS.md with 11 analog classifications", "status": "done"},
-    {"id": "47-validation-template", "name": "Phase 47 VALIDATION.md from template (frontmatter filled — planner must populate Per-Task Verification Map)", "status": "done", "commit": "be69698"},
-    {"id": "999.1", "name": "Backlog — Add New Station primary action", "status": "done", "commit": "8cd5a93"},
-    {"id": "999.2", "name": "Backlog — Recently Played list does not update live (bug)", "status": "done", "commit": "2d07f84"}
+    {"id": "43-context", "name": "Phase 43 discuss-phase — 14 locked decisions D-01..D-14 (VM target, GStreamer 1.24.12 MSVC, minimal scope, paste-back execution model, deliverables)", "status": "done", "commit": "5209507"},
+    {"id": "43-research", "name": "Phase 43 gsd-phase-researcher — 43-RESEARCH.md with code-ready skeletons + 10 failure modes + Validation Architecture section (1063 lines)", "status": "done", "commit": "f1a0d31"},
+    {"id": "43-validation", "name": "43-VALIDATION.md — Nyquist per-task verification map + Wave 0 gaps + manual audibility verdict protocol", "status": "done", "commit": "1e2e845"},
+    {"id": "43-plans", "name": "gsd-planner produced 43-01/02/03-PLAN.md + gsd-plan-checker returned VERIFICATION PASSED", "status": "done", "commit": "7ac95ef"},
+    {"id": "43-01", "name": "Wave 1 — landed 43-spike.spec, runtime_hook.py, smoke_test.py, build.ps1, .gitignore, README.md from research skeletons; T-43-01 listen-key redaction in place", "status": "done", "commit": "7f36b3b"}
   ],
   "remaining_tasks": [
-    {"id": "47-planner-spawn", "name": "Spawn gsd-planner with the prepared prompt (3-plan breakdown: 47-01 pure logic, 47-02 schema+repo+player, 47-03 imports+UI+settings-export)", "status": "not_started"},
-    {"id": "47-plan-check", "name": "Spawn gsd-plan-checker after planner returns", "status": "not_started"},
-    {"id": "47-execute", "name": "/gsd-execute-phase 47 (chain still active — workflow._auto_chain_active=true)", "status": "not_started"}
+    {"id": "43-02", "name": "Wave 2 — paste-back iteration loop on Win11 VM until SPIKE_OK + has_default_database=True + user audibility verdict (≤5 iteration budget with explicit escalation clause)", "status": "not_started"},
+    {"id": "43-03", "name": "Wave 3 — harvest 43-SPIKE-FINDINGS.md from Wave 2 evidence + run /gsd-spike-wrap-up to persist spike-findings-43 skill", "status": "not_started"},
+    {"id": "43-verify", "name": "gsd-verifier + ROADMAP update + Phase 43 completion commit", "status": "not_started"}
   ],
-  "blockers": [],
-  "human_actions_pending": [],
+  "blockers": [
+    {"description": "Wave 2 requires the user to run build.ps1 on a clean Windows 11 VM snapshot with no system GStreamer and paste stdout/stderr back into chat. Claude runs on Linux and cannot execute PyInstaller for Windows cross-platform.", "type": "human_action", "workaround": "none — this is the spike's intended execution model per D-09"}
+  ],
+  "human_actions_pending": [
+    {"action": "On clean Win11 VM snapshot: install GStreamer 1.24.12 MSVC runtime + devel MSIs (paths in README.md), populate .planning/phases/43-gstreamer-windows-spike/test_url.txt with one AudioAddict HTTPS channel URL from your library (one line — gitignored, will NOT be committed), run `.\\build.ps1`, paste the full artifacts\\smoke.log into chat plus a one-word audibility verdict ('audible' or 'silent').", "context": "Wave 2 of the spike. D-01 requires a clean snapshot (no system GStreamer on PATH). D-07 requires a real AA URL from the user's library. D-09 specifies Claude writes artifacts / user executes / paste-back drives diagnosis.", "blocking": true}
+  ],
   "decisions": [
-    {"decision": "Split original Phase 47 (stats + AutoEQ + bitrate) into 47 (bitrate only), 47.1 (SEED-005 buffer indicator), 47.2 (SEED-007 AutoEQ)", "rationale": "Three independent features with no shared code; bundled UAT and plans were incoherent. Decimals preserve existing Phase 48.", "phase": "47"},
-    {"decision": "Keep both StationStream.quality (str) and StationStream.bitrate_kbps (int)", "rationale": "quality stays as user-facing tag; bitrate_kbps becomes the failover sort key. Lowest-disruption path; preserves user custom quality tags.", "phase": "47"},
-    {"decision": "Unknown bitrates (bitrate_kbps=0) sort LAST in failover queue", "rationale": "Partial-data-safe; fresh imports with known bitrates always win. Overrides roadmap's original 'fall back to position order' phrasing.", "phase": "47"},
-    {"decision": "Bitrate UX = QLineEdit + QIntValidator(0,9999) via QStyledItemDelegate, 5th column after Quality", "rationale": "Free numeric entry matches existing table style. Delegate pattern already exists (station_star_delegate.py).", "phase": "47"},
-    {"decision": "UI-SPEC.md intentionally skipped for Phase 47", "rationale": "Adding one column to an existing QTableWidget is mechanical; zero visual design decisions. Same approach as Phase 46.", "phase": "47"}
+    {"decision": "Pin GStreamer 1.24.12 MSVC x86_64 as the Windows bundling target", "rationale": "Final 1.24.x stable (Jan 2025); MSVC build has better PyInstaller+souphttpsrc SSL story than MinGW; ships libgiognutls.dll as the GIO TLS backend that souphttpsrc needs.", "phase": "43"},
+    {"decision": "Spike scope minimal — one playbin3 + souphttpsrc HTTPS + autoaudiosink; HLS/yt-dlp/cover-art/ICY propagation deferred to Phase 44", "rationale": "Validates the three ROADMAP success criteria verbatim with smallest DLL/plugin surface to document. Start-broad-prune-later strategy — iteration 1 collects every installed plugin, then hand-prunes after green.", "phase": "43"},
+    {"decision": "Paste-back execution model with ≤5 iteration budget + explicit escalation clause", "rationale": "Claude is on Linux; PyInstaller bundling has to happen on Windows. Empirical questions A5 (plugin subdir naming), A7 (girepository version), A10 (audio device) resolve on iteration 1's paste-back. Escalation: if iteration 5 fails on a reason outside the 10 documented failure modes, STOP and revisit scope.", "phase": "43"},
+    {"decision": "T-43-01 listen-key leak mitigation: URL query string redacted to '?<redacted>' in smoke_test.py BEFORE any logging; test_url.txt gitignored; artifacts/*.log gitignored; negative-grep gate on findings doc commit", "rationale": "AA listen key in test URL is secret. Must never leak into committed artifacts or paste-backs. Mitigation threads through every wave.", "phase": "43"},
+    {"decision": "Start-broad plugin collection on iteration 1, prune via exclude_plugins fnmatch on final iteration", "rationale": "Hand-curating the plugin list on iteration 1 breaks playbin3's autoplug discovery. Let PyInstaller's stock hook-gi.repository.Gst.py collect via live registry, then subtract after smoke passes. Documented in 43-RESEARCH.md.", "phase": "43"}
   ],
-  "uncommitted_files": [
-    ".planning/phases/47-stats-for-nerds-autoeq-import-harvest-seed-005-live-gstreame/47-VALIDATION.md (frontmatter filled; body still template — planner completes during spawn)"
-  ],
-  "next_action": "Re-send the planner prompt captured in .continue-here.md under <next_action>. Chain flag workflow._auto_chain_active is still true — after planning completes, execute-phase will auto-advance.",
-  "context_notes": "User interrupted the planner spawn mid-call to add a backlog bug (999.2 Recently Played live update). All pre-planner state is preserved: CONTEXT.md, RESEARCH.md, PATTERNS.md, VALIDATION.md frontmatter. Plan scope is well-specified by CONTEXT decisions D-01..D-14; research verified all call sites; pattern-mapper flagged a critical callout (discovery_dialog._on_save_row must capture station_id and mirror aa_import.import_stations_multi post-insert fix-up because there is no separate radio_browser_import.py module)."
+  "uncommitted_files": [],
+  "next_action": "User switches to Windows 11 VM. Follow .planning/phases/43-gstreamer-windows-spike/README.md: revert to clean snapshot → install MSIs → populate test_url.txt → `.\\build.ps1` → paste artifacts\\smoke.log + audibility verdict into Claude. Next Claude diffs SPIKE_OK / SPIKE_FAIL markers against 43-RESEARCH.md §'Known failure modes' and applies targeted fixes.",
+  "context_notes": "Auto-chain discuss→plan→execute ran cleanly. Wave 1 landed all four build artifacts from 43-RESEARCH.md code-ready skeletons verbatim (no improvisation — skeletons had exact Tree()/binaries/datas blocks, rthook env-var ordering, exit-code contract). The spike now waits on physical user action; Claude cannot bundle PyInstaller for Windows from Linux. When the user pastes smoke.log, the next Claude walks the 10-row failure-mode→fix table in 43-RESEARCH.md, picks the matching row based on the SPIKE_FAIL reason code, and applies targeted edits to 43-spike.spec or runtime_hook.py. If iteration 5 fails on an unknown reason: STOP, escalate per 43-02-PLAN.md. D-14 reminder: do NOT modify anything under musicstreamer/. No pytest install (spike is freestanding). Auto-chain flag workflow._auto_chain_active has been cleared (set to false) — resuming will not auto-execute."
 }
