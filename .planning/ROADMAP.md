@@ -379,7 +379,7 @@ Plans:
 **Goal:** Insert a GStreamer parametric EQ element into the playback pipeline and provide a UI to import/activate AutoEQ `ParametricEQ.txt` profiles. Primary driver: unlocks headphone EQ on the user's work PC where Equalizer APO is blocked.
 **Requirements**: TBD
 **Depends on:** Phase 35 Plan 06 (Player QObject architecture) — already shipped. No hard dep on 47 or 47.1.
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 **Scope (split from original Phase 47 on 2026-04-17; harvests SEED-007):**
 - Pipeline integration: add `equalizer-nbands` (or a biquad chain for true parametric EQ) to `playbin3.audio-filter`; wire enable/disable toggle.
@@ -389,7 +389,10 @@ Plans:
 - Out of scope (deferred): bundled AutoEQ profiles, per-station override, dynamic range compression, other DSP filters — capture as follow-up if requested.
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 47.2 to break down)
+- [ ] 47.2-01-PLAN.md — Parser + paths helper + EQ toggle SVG icon (Wave 1, no deps)
+- [ ] 47.2-02-PLAN.md — Player pipeline integration: equalizer-nbands in audio-filter + 3 new set_eq_* methods + startup restore (Wave 2, depends on 01)
+- [ ] 47.2-03-PLAN.md — EqualizerDialog + QPainter response curve + hamburger menu wiring (Wave 3, depends on 01, 02)
+- [ ] 47.2-04-PLAN.md — NP panel EQ toggle button + settings ZIP eq-profiles/ round-trip (Wave 3, depends on 01, 02)
 
 ### Phase 48: Fix AudioAddict listen key not persisting to DB — settings.audioaddict_listen_key is not being stored when set via AccountsDialog/ImportDialog, causing it to be empty on read and blocking Phase 42 round-trip UAT test 7. Scope: diagnose where the key write is dropped, fix persistence, add regression test that sets-then-reads the key across an app restart. Out of scope: the read-only-DB silent-import issue (owned by Phase 42).
 
