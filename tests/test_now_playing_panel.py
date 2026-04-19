@@ -14,6 +14,7 @@ from typing import Any, List, Optional
 import pytest
 from PySide6.QtCore import QObject, QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import QFormLayout
 
 from musicstreamer.models import Station, StationStream
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
@@ -33,6 +34,7 @@ class FakePlayer(QObject):
     offline = Signal(str)
     playback_error = Signal(str)
     elapsed_updated = Signal(int)
+    buffer_percent = Signal(int)  # Phase 47.1 D-12
 
     def __init__(self) -> None:
         super().__init__()
@@ -563,3 +565,72 @@ def test_icy_disabled_rebind_takes_effect(qtbot, monkeypatch):
     assert panel.icy_label.text() == "S", (
         "After rebind to icy_disabled=True station, icy_label must show station name, not 'T2'"
     )
+
+
+# ---------------------------------------------------------------- #
+# Phase 47.1 — Stats for Nerds buffer indicator tests
+# Covers D-01/D-02/D-05/D-07/D-08/D-09/D-11
+# ---------------------------------------------------------------- #
+
+
+def test_stats_widget_always_constructed(qtbot):
+    """D-08: stats widget is always built, even when hidden."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    assert panel._stats_widget is not None
+
+
+def test_stats_hidden_by_default(qtbot):
+    """D-05: fresh install (no setting) -> stats widget hidden."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    # Use isHidden (flag) not isVisible (visibility chain) -- Pitfall 6
+    assert panel._stats_widget.isHidden() is True
+
+
+def test_stats_visible_when_setting_is_1(qtbot):
+    """D-04 + D-05: setting "1" -> stats widget not hidden."""
+    panel = NowPlayingPanel(
+        FakePlayer(),
+        FakeRepo({"volume": "80", "show_stats_for_nerds": "1"}),
+    )
+    qtbot.addWidget(panel)
+    assert panel._stats_widget.isHidden() is False
+
+
+def test_stats_uses_form_layout(qtbot):
+    """D-09: wrapper uses QFormLayout for extensibility."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    assert isinstance(panel._stats_widget.layout(), QFormLayout)
+
+
+def test_buffer_bar_properties(qtbot):
+    """D-01 + D-02: progress bar is 0-100, text hidden, fixed width 120."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    assert panel.buffer_bar.minimum() == 0
+    assert panel.buffer_bar.maximum() == 100
+    assert panel.buffer_bar.isTextVisible() is False
+    assert panel.buffer_bar.maximumWidth() == 120
+
+
+def test_set_buffer_percent_updates_both(qtbot):
+    """D-11: single slot updates both bar and label atomically."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.set_buffer_percent(73)
+    assert panel.buffer_bar.value() == 73
+    assert panel.buffer_pct_label.text() == "73%"
+
+
+def test_set_stats_visible_toggles(qtbot):
+    """D-07: set_stats_visible flips the wrapper hidden flag both ways."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    # starts hidden
+    assert panel._stats_widget.isHidden() is True
+    panel.set_stats_visible(True)
+    assert panel._stats_widget.isHidden() is False
+    panel.set_stats_visible(False)
+    assert panel._stats_widget.isHidden() is True
