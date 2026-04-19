@@ -522,8 +522,12 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _open_accounts_dialog(self) -> None:
-        """D-18: Open AccountsDialog from hamburger menu."""
-        dlg = AccountsDialog(parent=self)
+        """D-18: Open AccountsDialog from hamburger menu.
+
+        Phase 48 D-04: pass ``self._repo`` so the AA group can read/clear
+        the ``audioaddict_listen_key`` setting.
+        """
+        dlg = AccountsDialog(self._repo, parent=self)
         dlg.exec()
 
     def _open_equalizer_dialog(self) -> None:
