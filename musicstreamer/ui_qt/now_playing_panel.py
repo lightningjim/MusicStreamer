@@ -242,6 +242,25 @@ class NowPlayingPanel(QWidget):
         self.star_btn.clicked.connect(self._on_star_clicked)
         controls.addWidget(self.star_btn)
 
+        # Phase 47.2 D-08: EQ toggle -- A/B compare corrected vs flat without
+        # opening the dialog. Mirrors star_btn shape (28x28 checkable icon-only).
+        self.eq_toggle_btn = QToolButton(self)
+        self.eq_toggle_btn.setIconSize(QSize(20, 20))
+        self.eq_toggle_btn.setFixedSize(28, 28)
+        self.eq_toggle_btn.setCheckable(True)
+        self.eq_toggle_btn.setIcon(
+            QIcon.fromTheme(
+                "multimedia-equalizer-symbolic",
+                QIcon(":/icons/multimedia-equalizer-symbolic.svg"),
+            )
+        )
+        self.eq_toggle_btn.setToolTip("Toggle EQ")
+        self.eq_toggle_btn.setChecked(
+            self._repo.get_setting("eq_enabled", "0") == "1"
+        )
+        self.eq_toggle_btn.clicked.connect(self._on_eq_toggled)
+        controls.addWidget(self.eq_toggle_btn)
+
         self.volume_slider = QSlider(Qt.Horizontal, self)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setFixedWidth(120)
@@ -466,6 +485,11 @@ class NowPlayingPanel(QWidget):
                 self._station.name, self._last_icy_title,
                 self._station.provider_name or "", True
             )
+
+    def _on_eq_toggled(self, checked: bool) -> None:
+        """Phase 47.2 D-08: Wire the toggle to Player + persist enable state (D-15)."""
+        self._player.set_eq_enabled(checked)
+        self._repo.set_setting("eq_enabled", "1" if checked else "0")
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
