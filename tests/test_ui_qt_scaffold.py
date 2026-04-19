@@ -19,6 +19,7 @@ class _FakePlayer(QObject):
     offline = Signal(str)
     playback_error = Signal(str)
     elapsed_updated = Signal(int)
+    buffer_percent = Signal(int)  # Phase 47.1 D-12
 
     def set_volume(self, v): pass
     def play(self, station): pass
