@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
 from PySide6.QtGui import QFont, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -49,6 +49,31 @@ from musicstreamer.models import Station
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
+
+
+class _MutedLabel(QLabel):
+    """QLabel that renders WindowText in the Disabled palette color and
+    re-applies the muted color whenever the application palette changes.
+
+    Phase 47.1 D-10: stats-for-nerds rows read dimmer than primary labels.
+    IN-03 / UAT follow-up: static palette capture broke on light/dark theme
+    flips; overriding ``changeEvent`` keeps the muted color in sync.
+    """
+
+    def __init__(self, text: str = "", parent: Optional[QWidget] = None) -> None:
+        super().__init__(text, parent)
+        self._apply_muted_palette()
+
+    def _apply_muted_palette(self) -> None:
+        pal = self.palette()
+        muted = pal.color(QPalette.Disabled, QPalette.WindowText)
+        pal.setColor(QPalette.WindowText, muted)
+        self.setPalette(pal)
+
+    def changeEvent(self, event: QEvent) -> None:  # type: ignore[override]
+        if event.type() in (QEvent.PaletteChange, QEvent.StyleChange):
+            self._apply_muted_palette()
+        super().changeEvent(event)
 
 
 def _load_scaled_pixmap(path: Optional[str], size: QSize) -> QPixmap:
@@ -568,12 +593,10 @@ class NowPlayingPanel(QWidget):
         form = QFormLayout(wrapper)
         form.setContentsMargins(0, 0, 0, 0)
 
-        # Row label -- muted palette (D-10; RESEARCH §6 Option A: QPalette.Disabled)
-        buffer_row_label = QLabel("Buffer", wrapper)
-        pal = buffer_row_label.palette()
-        muted = pal.color(QPalette.Disabled, QPalette.WindowText)
-        pal.setColor(QPalette.WindowText, muted)
-        buffer_row_label.setPalette(pal)
+        # Row label -- muted palette (D-10; RESEARCH §6 Option A: QPalette.Disabled).
+        # _MutedLabel re-applies the muted color on palette/theme changes so
+        # light<->dark flips stay readable (UAT follow-up).
+        buffer_row_label = _MutedLabel("Buffer", wrapper)
 
         # Value side: QProgressBar + {N}% QLabel inside a QHBoxLayout
         value_row = QWidget(wrapper)
@@ -584,7 +607,9 @@ class NowPlayingPanel(QWidget):
         self.buffer_bar.setRange(0, 100)
         self.buffer_bar.setTextVisible(False)  # D-01: label next to it is authoritative
         self.buffer_bar.setFixedWidth(120)     # D-02
-        self.buffer_pct_label = QLabel("0%", value_row)
+        # UAT follow-up: percent label also muted + theme-responsive; previous
+        # version used a plain QLabel that went unreadable on theme flip.
+        self.buffer_pct_label = _MutedLabel("0%", value_row)
         value_layout.addWidget(self.buffer_bar)
         value_layout.addWidget(self.buffer_pct_label)
         value_layout.addStretch(1)
