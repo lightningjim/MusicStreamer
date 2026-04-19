@@ -273,7 +273,7 @@ Plans:
   3. The spike documents exact GStreamer DLLs, plugin list, and `.spec` Tree() blocks needed for Phase 44
 **Plans**: 3 plans
 Plans:
-- [ ] 43-01-PLAN.md — Wave 1: Land four build artifacts (.spec, runtime_hook.py, smoke_test.py, build.ps1) + .gitignore + README runbook from RESEARCH skeletons (autonomous)
+- [x] 43-01-PLAN.md — Wave 1: Land four build artifacts (.spec, runtime_hook.py, smoke_test.py, build.ps1) + .gitignore + README runbook from RESEARCH skeletons (autonomous) — completed 2026-04-19
 - [ ] 43-02-PLAN.md — Wave 2: Paste-back iteration loop on user's Win11 VM; ≤5 iterations to green SPIKE_OK + has_default_database=True + audibility word (manual, depends on 43-01)
 - [ ] 43-03-PLAN.md — Wave 3: Harvest 43-SPIKE-FINDINGS.md from paste-back evidence + run /gsd-spike-wrap-up to persist project skill; flip ROADMAP to complete (manual, depends on 43-02)
 
