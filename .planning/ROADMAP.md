@@ -363,7 +363,7 @@ Plans: 3/3 plans complete
 **Goal:** Wire a live buffer-fill percent indicator in the now-playing panel, driven by GStreamer's `message::buffering` bus signal. Diagnose drop-outs, give curious users stream-health visibility.
 **Requirements**: TBD
 **Depends on:** Phase 47 (no hard dep; independent — but sequenced after bitrate for focus)
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 **Scope (split from original Phase 47 on 2026-04-17; harvests SEED-005):**
 - `player.py`: connect `bus.connect("message::buffering", self._on_gst_buffering)` alongside existing handlers; emit a Qt signal with the percent (0-100) for the UI layer.
@@ -372,7 +372,7 @@ Plans: 3/3 plans complete
 
 Plans:
 - [x] 47.1-01-PLAN.md — Player bus subscription + buffer_percent Signal + de-dup sentinel + 4 pytest-qt tests (Wave 1)
-- [ ] 47.1-02-PLAN.md — NowPlayingPanel stats widget + hamburger QAction toggle + MainWindow wiring + 7 widget tests (Wave 2, depends_on 01)
+- [x] 47.1-02-PLAN.md — NowPlayingPanel stats widget + hamburger QAction toggle + MainWindow wiring + 7 widget tests (Wave 2, depends_on 01)
 
 ### Phase 47.2: In-app parametric EQ with AutoEQ profile import (SEED-007)
 
