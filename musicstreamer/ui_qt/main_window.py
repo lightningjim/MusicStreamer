@@ -507,7 +507,7 @@ class MainWindow(QMainWindow):
 
     def _open_import_dialog(self) -> None:
         """D-15: Open ImportDialog from hamburger menu."""
-        dlg = ImportDialog(self.show_toast, parent=self)
+        dlg = ImportDialog(self.show_toast, self._repo, parent=self)
         dlg.import_complete.connect(self._refresh_station_list)
         dlg.exec()
 
