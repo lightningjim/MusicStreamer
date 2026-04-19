@@ -1,0 +1,7 @@
+# Phase 43 spike — never commit secrets or regenerable artifacts
+test_url.txt
+artifacts/
+build/
+dist/
+*.spec.log
+__pycache__/
