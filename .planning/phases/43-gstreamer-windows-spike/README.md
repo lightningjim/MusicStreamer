@@ -9,8 +9,9 @@ Throwaway experiment: validate HTTPS GStreamer playback inside a PyInstaller `--
    https://gstreamer.freedesktop.org/data/pkg/windows/1.28.2/msvc/
    and install it with the **Complete** feature set to `C:\spike-gst\runtime\`.
    (Complete ensures `libgiognutls.dll` and `gst-plugin-scanner.exe` land — both required.)
-   Post-install sanity: `C:\spike-gst\runtime\1.0\msvc_x86_64\bin\` must contain
+   Post-install sanity: `C:\spike-gst\runtime\bin\` must contain
    `libgstreamer-1.0-0.dll` and `gst-inspect-1.0.exe`.
+   (1.28.x uses a flat tree — no `\1.0\msvc_x86_64\` subdir, unlike 1.24/1.26.)
 3. Ensure Python 3.10+ is on PATH (`python --version`).
 4. Copy this phase directory to the VM (or clone the repo on the VM).
 5. Populate `test_url.txt` with one AA HTTPS channel URL from the user's library (contains live listen key — gitignored).
