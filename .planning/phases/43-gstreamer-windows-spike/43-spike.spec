@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
 # Phase 43: GStreamer Windows Spike — PyInstaller .spec
-# Target: Windows 11 x86_64, GStreamer 1.24.12 MSVC runtime
+# Target: Windows 11 x86_64, GStreamer 1.28.2 MSVC runtime (single-installer)
 # Run from: .planning/phases/43-gstreamer-windows-spike/ on the VM
 #
 # Usage: pyinstaller 43-spike.spec --noconfirm
@@ -20,9 +20,9 @@ GST_ROOT = Path(os.environ.get(
 ))
 assert GST_ROOT.is_dir(), f"GStreamer root not found: {GST_ROOT}"
 assert (GST_ROOT / "bin" / "gst-plugin-scanner.exe").is_file(), \
-    "gst-plugin-scanner.exe missing — reinstall MSI with ADDLOCAL=ALL"
+    "gst-plugin-scanner.exe missing — reinstall with Complete feature set"
 assert (GST_ROOT / "lib" / "gio" / "modules" / "libgiognutls.dll").is_file(), \
-    "libgiognutls.dll missing — devel MSI required, or TLS feature deselected"
+    "libgiognutls.dll missing — reinstall with Complete feature set (TLS feature deselected)"
 
 # --------------------------------------------------------------------------
 # Tree() blocks — copy raw directory trees into the bundle.
