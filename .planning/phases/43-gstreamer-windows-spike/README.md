@@ -5,10 +5,12 @@ Throwaway experiment: validate HTTPS GStreamer playback inside a PyInstaller `--
 ## One-time VM setup
 
 1. Revert the Win11 VM to a clean snapshot (no system GStreamer on PATH — D-01).
-2. Install both MSIs to `C:\spike-gst\`:
-   - `gstreamer-1.0-msvc-x86_64-1.24.12.msi` → `INSTALLDIR="C:\spike-gst\runtime"`
-   - `gstreamer-1.0-devel-msvc-x86_64-1.24.12.msi` → `INSTALLDIR="C:\spike-gst\devel"`
-   - Both with `ADDLOCAL=ALL /qn` (ensures `libgiognutls.dll` and `gst-plugin-scanner.exe` land).
+2. Download `gstreamer-1.0-msvc-x86_64-1.28.2.exe` (~500 MB) from
+   https://gstreamer.freedesktop.org/data/pkg/windows/1.28.2/msvc/
+   and install it with the **Complete** feature set to `C:\spike-gst\runtime\`.
+   (Complete ensures `libgiognutls.dll` and `gst-plugin-scanner.exe` land — both required.)
+   Post-install sanity: `C:\spike-gst\runtime\1.0\msvc_x86_64\bin\` must contain
+   `libgstreamer-1.0-0.dll` and `gst-inspect-1.0.exe`.
 3. Ensure Python 3.10+ is on PATH (`python --version`).
 4. Copy this phase directory to the VM (or clone the repo on the VM).
 5. Populate `test_url.txt` with one AA HTTPS channel URL from the user's library (contains live listen key — gitignored).

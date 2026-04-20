@@ -19,7 +19,9 @@ Throwaway spike to validate that HTTP + HTTPS GStreamer playback works inside a 
 
 ### GStreamer distribution
 - **D-03:** Use the official MSVC runtime build from gstreamer.freedesktop.org, latest 1.24.x release. Planner pins the exact version during research and records it in findings.
+  - **Amendment 2026-04-20:** Bumped to **1.28.2** (current latest, 2026-04-08). 1.28.x ships as a single `.exe` installer — the former split runtime/devel MSI layout (1.24/1.26) was consolidated upstream. Downstream impact: build.ps1 no longer checks a separate `$GstDevel` path, and README install flow uses the Complete feature-set wizard instead of two `msiexec /qn` calls.
 - **D-04:** Install both the `gstreamer-1.0-msvc-x86_64` runtime and the matching `gstreamer-1.0-devel` package — devel provides `gst-inspect-1.0.exe` needed to enumerate the plugin set the spike actually loads.
+  - **Amendment 2026-04-20:** 1.28.2's single installer bundles the devel tooling (including `gst-inspect-1.0.exe`) into the runtime tree under the Complete feature set. No separate devel package to install.
 
 ### Spike fidelity
 - **D-05:** Minimal scope — one `playbin3` pipeline, one HTTPS ShoutCast-style source via `souphttpsrc`, one audio sink (sink choice is Claude's discretion — `wasapisink` is the likely winner on Win11; fall back to `autoaudiosink` / `directsoundsink` if wasapi glitches). HLS, yt-dlp integration, Twitch, cover art HTTP, ICY TAG propagation are explicitly deferred to Phase 44 smoke-test.

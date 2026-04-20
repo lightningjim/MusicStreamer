@@ -4,7 +4,6 @@
 
 param(
     [string]$GstRoot   = "C:\spike-gst\runtime\1.0\msvc_x86_64",
-    [string]$GstDevel  = "C:\spike-gst\devel\1.0\msvc_x86_64",
     [switch]$SkipSmoke = $false
 )
 
@@ -17,16 +16,16 @@ if (-not (Test-Path "$GstRoot\bin\libgstreamer-1.0-0.dll")) {
     Write-Error "SPIKE_FAIL reason=gst_runtime_missing path='$GstRoot'"
     exit 1
 }
-if (-not (Test-Path "$GstDevel\bin\gst-inspect-1.0.exe")) {
-    Write-Error "SPIKE_FAIL reason=gst_devel_missing path='$GstDevel'"
+if (-not (Test-Path "$GstRoot\bin\gst-inspect-1.0.exe")) {
+    Write-Error "SPIKE_FAIL reason=gst_inspect_missing hint='reinstall with Complete feature set'"
     exit 1
 }
 if (-not (Test-Path "$GstRoot\lib\gio\modules\libgiognutls.dll")) {
-    Write-Error "SPIKE_FAIL reason=gio_tls_module_missing hint='reinstall with ADDLOCAL=ALL'"
+    Write-Error "SPIKE_FAIL reason=gio_tls_module_missing hint='reinstall with Complete feature set'"
     exit 1
 }
 
-& "$GstDevel\bin\gst-inspect-1.0.exe" --version | Select-String "version"
+& "$GstRoot\bin\gst-inspect-1.0.exe" --version | Select-String "version"
 
 # --- 1. Export env for spec -----------------------------------------------
 $env:GSTREAMER_ROOT = $GstRoot

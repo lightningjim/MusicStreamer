@@ -6,13 +6,13 @@
 
 ## Summary
 
-- The official GStreamer MSVC Windows runtime at `1.24.12` (Jan 2025) is the correct pin for this spike — it's the final stable 1.24.x patch and matches CONTEXT D-03. 1.26.10 (Dec 2025) exists and is arguably more current, but D-03 locks the series to 1.24.x and we respect that. [CITED: discourse.gstreamer.org/t/gstreamer-1-24-12-stable-bug-fix-release/4023]
+- The official GStreamer MSVC Windows runtime at `1.28.2` (2026-04-08) is the pin for this spike — current latest, single-installer format (no split runtime/devel MSIs as in 1.24/1.26). D-03 originally said "latest 1.24.x"; bumped to 1.28.2 on 2026-04-20 after user noted 1.28.2 was the current available release. [CITED: gstreamer.freedesktop.org/data/pkg/windows/1.28.2/msvc/]
 - PyInstaller 6.x has a first-class `gstreamer` hook (in `pyinstaller-hooks-contrib`) that collects plugins from the live GStreamer install via `gi.repository.Gst` introspection, respects `include_plugins`/`exclude_plugins` fnmatch patterns, and ships a runtime hook that sets `GST_PLUGIN_PATH`, `GST_PLUGIN_SYSTEM_PATH=""`, `GST_REGISTRY=<meipass>/registry.bin`, and `GST_REGISTRY_FORK=no`. [VERIFIED: hook-gi.repository.Gst.py + pyi_rth_gstreamer.py source read]
 - The runtime hook does **NOT** bundle `gst-plugin-scanner.exe` and does **NOT** set `GIO_MODULE_DIR` or `GI_TYPELIB_PATH`. These gaps are the spike's real work — the draft `.spec` must add explicit `Tree()` blocks for `lib/gio/modules/`, `lib/gst-plugin-scanner.exe`, and `lib/girepository-1.0/`, and the runtime hook must set `GIO_EXTRA_MODULES` before `Gst.init()`. [CITED: source files above]
 - `libgiognutls.dll` lives at `lib/gio/modules/libgiognutls.dll` in the MSVC tree and is the only TLS backend the MSVC build ships; without it `souphttpsrc` logs `TLS/SSL support not available; install glib-networking` and HTTPS fails silently. [CITED: gstreamer-bugs.narkive.com bug 794425, gstreamer-devel thread on GIO modules]
 - Audio sink: `wasapi2sink` is the MSVC build's default on Win8+ (Win11 is the spike target), replacing `wasapisink`. Fallback order: `wasapi2sink` → `autoaudiosink` → `directsoundsink`. Do NOT hand-pick a sink in code — let `playbin3` auto-select via `autoaudiosink` for the spike. [CITED: gstreamer.freedesktop.org/documentation/wasapi2/wasapi2sink.html]
 
-**Primary recommendation:** Pin GStreamer `1.24.12` MSVC x86_64 runtime + devel. Build the spike with PyInstaller 6.x + pyinstaller-hooks-contrib latest. Start from the contrib hook's default plugin collection (everything from the system install), then prune via `exclude_plugins` only after the smoke test passes — don't try to hand-curate the plugin list on iteration 1. The two known misses in the stock hook are `gst-plugin-scanner.exe` and the GIO TLS modules — address both explicitly in the `.spec`.
+**Primary recommendation:** Pin GStreamer `1.28.2` MSVC x86_64 (single-installer, Complete feature set). Build the spike with PyInstaller 6.x + pyinstaller-hooks-contrib latest. Start from the contrib hook's default plugin collection (everything from the system install), then prune via `exclude_plugins` only after the smoke test passes — don't try to hand-curate the plugin list on iteration 1. The two known misses in the stock hook are `gst-plugin-scanner.exe` and the GIO TLS modules — address both explicitly in the `.spec`.
 
 ---
 
@@ -105,8 +105,8 @@ No repo-local `CLAUDE.md` in the MusicStreamer project.
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| GStreamer MSVC Windows runtime | **1.24.12** | HTTPS stream decoding + audio output | Final stable 1.24.x patch (Jan 2025); D-03 locks to 1.24.x. [CITED: discourse.gstreamer.org/t/gstreamer-1-24-12-stable-bug-fix-release/4023] |
-| GStreamer MSVC Windows devel | **1.24.12** | Provides `gst-inspect-1.0.exe` for paste-back plugin enumeration | D-04 locks. |
+| GStreamer MSVC Windows runtime | **1.28.2** | HTTPS stream decoding + audio output | Current latest (2026-04-08); single-installer format supersedes the split MSI layout used through 1.26.x. |
+| GStreamer MSVC Windows devel | _(bundled)_ | Provides `gst-inspect-1.0.exe` for paste-back plugin enumeration | 1.28.x ships devel tooling inside the same installer under the Complete feature set; no separate download. |
 | PyInstaller | **≥ 6.11** | `--onedir` bundling | 6.x is current; supports `hooksconfig={'gstreamer': {...}}`. [CITED: pyinstaller.org/en/stable/hooks-config.html] |
 | pyinstaller-hooks-contrib | **≥ 2024.10** | Provides `hook-gi.repository.*` and `hook-gi.py` | Auto-installed with PyInstaller; has current PyGObject 3.52+ compat. [CITED: pypi.org/project/pyinstaller-hooks-contrib/] |
 | PyGObject (`pygobject`) | **≥ 3.50** | `gi.repository.Gst` imports inside the bundle | Must pip-install into the build venv on Windows; confirms `girepository-2.0` or `-1.0` depending on version. [CITED: pypi.org/project/PyGObject/] |
@@ -115,31 +115,31 @@ No repo-local `CLAUDE.md` in the MusicStreamer project.
 ### Supporting (Windows-specific)
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `libgiognutls.dll` | bundled in 1.24.12 MSVC | GIO TLS backend for `libsoup-3.0` | ALWAYS — this is the spike's core success criterion (D-06). |
-| `gst-plugin-scanner.exe` | bundled in 1.24.12 MSVC | Plugin metadata scanner | ALWAYS — playbin3 spawns it on registry rebuild. |
-| `libsoup-3.0-0.dll` | bundled in 1.24.12 MSVC | HTTP(S) transport — `souphttpsrc` backend | ALWAYS. |
-| `nghttp2.dll` | bundled in 1.24.12 MSVC | HTTP/2 — optional, libsoup may require | Bundle for safety; low cost. |
-| `libpsl-5.dll` | bundled in 1.24.12 MSVC | Public-suffix list — libsoup cookie handling | Bundle for safety; low cost. |
+| `libgiognutls.dll` | bundled in 1.28.2 MSVC | GIO TLS backend for `libsoup-3.0` | ALWAYS — this is the spike's core success criterion (D-06). |
+| `gst-plugin-scanner.exe` | bundled in 1.28.2 MSVC | Plugin metadata scanner | ALWAYS — playbin3 spawns it on registry rebuild. |
+| `libsoup-3.0-0.dll` | bundled in 1.28.2 MSVC | HTTP(S) transport — `souphttpsrc` backend | ALWAYS. |
+| `nghttp2.dll` | bundled in 1.28.2 MSVC | HTTP/2 — optional, libsoup may require | Bundle for safety; low cost. |
+| `libpsl-5.dll` | bundled in 1.28.2 MSVC | Public-suffix list — libsoup cookie handling | Bundle for safety; low cost. |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| GStreamer 1.24.12 | GStreamer 1.26.10 | 1.26 is newer and has ~12 months of bugfixes over 1.24.12, but CONTEXT D-03 locked the series at 1.24. Do NOT deviate. |
-| Official MSVC MSI | MinGW build | MinGW DLLs ABI-mismatch with MSVC-built PyGObject wheels → crash at `import gi`. MSVC is mandatory. [ASSUMED: consensus from Fluendo Windows-bindings blog + multiple community posts] |
-| `gvsbuild`-produced DLLs | Official MSVC MSI | `gvsbuild` is primarily for PyGObject contributors building from source; MSI is the "pip install for C libs" equivalent. Don't rebuild. |
+| GStreamer 1.28.2 | GStreamer 1.24.12 | D-03 originally pinned "latest 1.24.x"; bumped to 1.28.2 (current latest, 2026-04-08) after user noted format change. 1.28.x ships a single `.exe` installer instead of split runtime/devel MSIs — simpler install, same souphttpsrc/libgiognutls story. |
+| Official MSVC installer | MinGW build | MinGW DLLs ABI-mismatch with MSVC-built PyGObject wheels → crash at `import gi`. MSVC is mandatory. [ASSUMED: consensus from Fluendo Windows-bindings blog + multiple community posts] |
+| `gvsbuild`-produced DLLs | Official MSVC installer | `gvsbuild` is primarily for PyGObject contributors building from source; official installer is the "pip install for C libs" equivalent. Don't rebuild. |
 | Hand-curated plugin list | Let hook collect all, prune with `exclude_plugins` | Hand-curating on iteration 1 breaks `playbin3` discovery in non-obvious ways (it needs `typefindfunctions` + `decodebin3` + element factories it auto-wires). Start broad, prune after. |
 
 ### Installation (Windows VM, user runs)
 
 ```powershell
-# 1. Download both MSIs to the VM (user action, one time):
-#    https://gstreamer.freedesktop.org/data/pkg/windows/1.24.12/msvc/gstreamer-1.0-msvc-x86_64-1.24.12.msi
-#    https://gstreamer.freedesktop.org/data/pkg/windows/1.24.12/msvc/gstreamer-1.0-devel-msvc-x86_64-1.24.12.msi
+# 1. Download the single installer to the VM (user action, one time):
+#    https://gstreamer.freedesktop.org/data/pkg/windows/1.28.2/msvc/gstreamer-1.0-msvc-x86_64-1.28.2.exe
+#    (~500 MB; 1.28.x consolidated the former runtime/devel MSIs into one installer.)
 
 # 2. Install to a WORKSPACE path, not the default C:\gstreamer\ system path, so the clean-snapshot
-#    contract is preserved (D-01: no system GStreamer on PATH).
-msiexec /i gstreamer-1.0-msvc-x86_64-1.24.12.msi INSTALLDIR="C:\spike-gst\runtime" ADDLOCAL=ALL /qn /l*v install-runtime.log
-msiexec /i gstreamer-1.0-devel-msvc-x86_64-1.24.12.msi INSTALLDIR="C:\spike-gst\devel" ADDLOCAL=ALL /qn /l*v install-devel.log
+#    contract is preserved (D-01: no system GStreamer on PATH). Choose the "Complete" feature set —
+#    that ships libgiognutls.dll (TLS), gst-plugin-scanner.exe, and all gst-plugins-bad elements.
+#    INSTALLDIR: C:\spike-gst\runtime\
 
 # 3. Verify layout
 dir "C:\spike-gst\runtime\1.0\msvc_x86_64\bin"
@@ -147,13 +147,13 @@ dir "C:\spike-gst\runtime\1.0\msvc_x86_64\lib\gstreamer-1.0"
 dir "C:\spike-gst\runtime\1.0\msvc_x86_64\lib\gio\modules"
 ```
 
-**Note on `ADDLOCAL=ALL`:** The MSI ships feature sets (typical/complete). Without `ADDLOCAL=ALL`, the silent `/qn` install gets the typical feature set only, which omits several `gst-plugins-bad` plugins. For a spike we want everything, then prune. [ASSUMED: consistent with standard WiX installer behaviour]
+**Note on "Complete" feature set:** The old split MSIs used `ADDLOCAL=ALL` to get everything; the 1.28.x single installer exposes the same via the Complete option in the InnoSetup-style wizard. Without it, `libgiognutls.dll` and several `gst-plugins-bad` plugins are omitted. For a spike we want everything, then prune.
 
 **Version verification command the user runs post-install:**
 
 ```powershell
-& "C:\spike-gst\devel\1.0\msvc_x86_64\bin\gst-inspect-1.0.exe" --version
-# Expected: gst-inspect-1.0 version 1.24.12
+& "C:\spike-gst\runtime\1.0\msvc_x86_64\bin\gst-inspect-1.0.exe" --version
+# Expected: gst-inspect-1.0 version 1.28.2
 ```
 
 ## Architecture Patterns
@@ -271,7 +271,7 @@ hooksconfig = {
 ```
 SPIKE_OK audio_sample_received=true bytes_played=245760 duration_s=8 errors=[]
 SPIKE_FAIL reason=tls_handshake giomodule_loaded=false
-SPIKE_DIAG gst_version=1.24.12 plugin_count=172 registry_path=C:\...\_internal\registry.bin
+SPIKE_DIAG gst_version=1.28.2 plugin_count=172 registry_path=C:\...\_internal\registry.bin
 ```
 
 ### Anti-Patterns to Avoid
@@ -316,7 +316,7 @@ This is the starting-point draft. The user runs `pyinstaller 43-spike.spec` → 
 # -*- mode: python ; coding: utf-8 -*-
 #
 # Phase 43: GStreamer Windows Spike — PyInstaller .spec
-# Target: Windows 11 x86_64, GStreamer 1.24.12 MSVC runtime
+# Target: Windows 11 x86_64, GStreamer 1.28.2 MSVC runtime (single-installer)
 # Run from: .planning/phases/43-gstreamer-windows-spike/ on the VM
 #
 # Usage: pyinstaller 43-spike.spec --noconfirm
@@ -979,8 +979,7 @@ Automation can't confirm sound came out of the VM's speakers. User confirmation 
 | Python 3.10+ | smoke_test, spec | ✓ | user installs | — |
 | PyInstaller ≥ 6.11 | bundling | N/A (user-side only) | pip-installed by build.ps1 | — |
 | PyGObject ≥ 3.50 | `gi` imports | N/A | pip-installed by build.ps1 | — |
-| GStreamer 1.24.12 MSVC runtime MSI | bundled DLLs + plugins | N/A | user installs once | — |
-| GStreamer 1.24.12 MSVC devel MSI | `gst-inspect-1.0.exe` | N/A | user installs once | — |
+| GStreamer 1.28.2 MSVC installer (`.exe`, Complete feature set) | bundled DLLs + plugins + `gst-inspect-1.0.exe` | N/A | user installs once | — |
 | Node.js | yt-dlp EJS (MS main app) | Not needed for SPIKE | Not needed for SPIKE | — |
 | AA listen key | smoke test HTTPS URL | Pulled from user's DB via settings-export | Copied to `test_url.txt` | Public ShoutCast URL if AA fails with auth error (D-08) |
 
@@ -1034,7 +1033,7 @@ Automation can't confirm sound came out of the VM's speakers. User confirmation 
 - [PyInstaller `hook-gi.repository.Gst.py`](https://github.com/pyinstaller/pyinstaller/blob/develop/PyInstaller/hooks/hook-gi.repository.Gst.py) — source read: exact collection behaviour, plugin glob patterns, include/exclude logic
 - [PyInstaller `pyi_rth_gstreamer.py`](https://github.com/pyinstaller/pyinstaller/blob/develop/PyInstaller/hooks/rthooks/pyi_rth_gstreamer.py) — source read: env vars set at runtime by stock rthook
 - [PyInstaller Hook Configuration Options (stable docs)](https://pyinstaller.org/en/stable/hooks-config.html) — gstreamer and gi hook config schemas with examples
-- [GStreamer 1.24.12 release announcement](https://discourse.gstreamer.org/t/gstreamer-1-24-12-stable-bug-fix-release/4023) — Jan 2025, confirmed final 1.24.x patch
+- [GStreamer 1.28.2 Windows MSVC package index](https://gstreamer.freedesktop.org/data/pkg/windows/1.28.2/msvc/) — current pinned release (2026-04-08)
 - [GStreamer souphttpsrc documentation](https://gstreamer.freedesktop.org/documentation/soup/souphttpsrc.html) — element capabilities
 - [wasapi2sink documentation](https://gstreamer.freedesktop.org/documentation/wasapi2/wasapi2sink.html) — Win8+ default, low-latency property
 - [GStreamer Download portal](https://gstreamer.freedesktop.org/download/) — canonical MSI URLs (version-templated)
@@ -1053,11 +1052,11 @@ Automation can't confirm sound came out of the VM's speakers. User confirmation 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack (GStreamer 1.24.12, PyInstaller ≥ 6.11, contrib hooks): **HIGH** — all verified from official sources
+- Standard stack (GStreamer 1.28.2, PyInstaller ≥ 6.11, contrib hooks): **HIGH** — all verified from official sources
 - Architecture (.spec template, rthook template, build.ps1, smoke_test): **HIGH** — structure verified from PyInstaller hook source, env-var logic from GStreamer docs
 - DLL bill-of-materials exact filenames: **MEDIUM** — structure is documented, exact filenames resolve on iteration-1 paste-back
 - Plugin bill-of-materials exact filenames: **MEDIUM** — same as DLLs
 - Known failure modes: **HIGH** — each failure has a cited source or documented root cause
 
 **Research date:** 2026-04-19
-**Valid until:** 2026-07-19 (3 months — GStreamer 1.24.x is frozen, PyInstaller 6.x API stable; revisit if 1.28 becomes the LTS or PyGObject API breaks)
+**Valid until:** 2026-07-19 (3 months — GStreamer 1.28.x is current latest, PyInstaller 6.x API stable; revisit if 1.30 ships or PyGObject API breaks)
