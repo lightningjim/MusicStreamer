@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Phase 43 spike — build driver. Idempotent, snapshot-safe.
+# Phase 43 spike -- build driver. Idempotent, snapshot-safe.
 # Exit codes: 0=ok, 1=env missing, 2=pyinstaller failed, 3=smoke test failed
 
 param(
@@ -54,7 +54,7 @@ try {
 
     # --- 3. Install/confirm build deps ----------------------------------
     if ($SkipPipInstall) {
-        Write-Host "=== SPIKE BUILD: python deps (skipped — using conda env) ==="
+        Write-Host "=== SPIKE BUILD: python deps (skipped -- using conda env) ==="
         python -c "import gi, PyInstaller; print(f'PyInstaller={PyInstaller.__version__}  gi={gi.__version__}')" 2>&1 | Out-Host
     } else {
         # NOTE: pip install PyGObject fails on Windows without MSVC C++ toolchain + PKG_CONFIG_PATH.
