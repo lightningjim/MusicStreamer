@@ -12,6 +12,20 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Windows PowerShell 5.1 treats native-command stderr writes as terminating errors
+# when $ErrorActionPreference = "Stop". PyInstaller, pip, and spike.exe all log
+# INFO/DEBUG to stderr. Invoke-Native wraps a native call with Continue semantics
+# and propagates $LASTEXITCODE so explicit checks still fire on real failures.
+function Invoke-Native {
+    param([scriptblock]$Block)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { & $Block } finally { $ErrorActionPreference = $prev }
+}
+
+# artifacts/ must exist before Tee-Object writes build.log / smoke.log into it.
+New-Item -ItemType Directory -Force -Path (Join-Path $PSScriptRoot "artifacts") | Out-Null
+
 Write-Host "=== SPIKE BUILD: environment ==="
 Write-Host "GstRoot        = $GstRoot"
 Write-Host "CONDA_PREFIX   = $($env:CONDA_PREFIX)"
@@ -39,7 +53,7 @@ if (-not (Test-Path "$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe")) {
     exit 1
 }
 
-& "$GstRoot\bin\gst-inspect-1.0.exe" --version | Select-String "version"
+Invoke-Native { & "$GstRoot\bin\gst-inspect-1.0.exe" --version | Select-String "version" }
 
 # --- 1. Export env for spec -----------------------------------------------
 $env:GSTREAMER_ROOT = $GstRoot
@@ -55,21 +69,23 @@ try {
     # --- 3. Install/confirm build deps ----------------------------------
     if ($SkipPipInstall) {
         Write-Host "=== SPIKE BUILD: python deps (skipped -- using conda env) ==="
-        python -c "import gi, PyInstaller; print(f'PyInstaller={PyInstaller.__version__}  gi={gi.__version__}')" 2>&1 | Out-Host
+        Invoke-Native { python -c "import gi, PyInstaller; print(f'PyInstaller={PyInstaller.__version__}  gi={gi.__version__}')" 2>&1 | Out-Host }
     } else {
         # NOTE: pip install PyGObject fails on Windows without MSVC C++ toolchain + PKG_CONFIG_PATH.
         # If you see "subprocess-exited-with-error" below, switch to conda-forge (see README).
         Write-Host "=== SPIKE BUILD: python deps (pip) ==="
-        python -m pip install --upgrade `
-            "pyinstaller>=6.11" `
-            "pyinstaller-hooks-contrib" `
-            "pygobject>=3.50" `
-            2>&1 | Out-Host
+        Invoke-Native {
+            python -m pip install --upgrade `
+                "pyinstaller>=6.11" `
+                "pyinstaller-hooks-contrib" `
+                "pygobject>=3.50" `
+                2>&1 | Out-Host
+        }
     }
 
     # --- 4. PyInstaller -------------------------------------------------
     Write-Host "=== SPIKE BUILD: pyinstaller ==="
-    python -m PyInstaller 43-spike.spec --noconfirm --log-level INFO *>&1 | Tee-Object -FilePath "artifacts\build.log"
+    Invoke-Native { python -m PyInstaller 43-spike.spec --noconfirm --log-level INFO *>&1 | Tee-Object -FilePath "artifacts\build.log" }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "SPIKE_FAIL reason=pyinstaller_nonzero exitcode=$LASTEXITCODE"
         exit 2
@@ -87,7 +103,7 @@ try {
             exit 3
         }
 
-        & ".\dist\spike\spike.exe" $testUrl *>&1 | Tee-Object -FilePath "artifacts\smoke.log"
+        Invoke-Native { & ".\dist\spike\spike.exe" $testUrl *>&1 | Tee-Object -FilePath "artifacts\smoke.log" }
         if ($LASTEXITCODE -ne 0) {
             Write-Error "SPIKE_FAIL reason=smoke_nonzero exitcode=$LASTEXITCODE"
             exit 3
