@@ -26,7 +26,13 @@ def _emit(prefix: str, **kv: object) -> None:
 
 
 def _assert_tls_backend() -> bool:
-    """Return True if Gio can resolve a TLS backend (libgiognutls)."""
+    """Return True if Gio can resolve a TLS backend.
+
+    Backend DLL varies by GStreamer version on Windows:
+    - 1.28+ (OpenSSL):  gioopenssl.dll
+    - 1.24-1.26 (GnuTLS): libgiognutls.dll
+    Either is acceptable; has_default_database=True is the real pass signal.
+    """
     try:
         from gi.repository import Gio
         backend = Gio.TlsBackend.get_default()

@@ -3,12 +3,19 @@
 # Exit codes: 0=ok, 1=env missing, 2=pyinstaller failed, 3=smoke test failed
 
 param(
-    [string]$GstRoot   = "C:\spike-gst\runtime",
-    [switch]$SkipSmoke = $false
+    # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
+    [string]$GstRoot = $(if ($env:CONDA_PREFIX) { "$env:CONDA_PREFIX\Library" } else { "C:\spike-gst\runtime" }),
+    [switch]$SkipSmoke      = $false,
+    [switch]$SkipPipInstall = $(if ($env:CONDA_PREFIX) { $true } else { $false })
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+Write-Host "=== SPIKE BUILD: environment ==="
+Write-Host "GstRoot        = $GstRoot"
+Write-Host "CONDA_PREFIX   = $($env:CONDA_PREFIX)"
+Write-Host "SkipPipInstall = $SkipPipInstall"
 
 # --- 0. Pre-flight checks -------------------------------------------------
 Write-Host "=== SPIKE BUILD: pre-flight ==="
@@ -46,12 +53,19 @@ try {
     Remove-Item -Recurse -Force "build", "dist" -ErrorAction SilentlyContinue
 
     # --- 3. Install/confirm build deps ----------------------------------
-    Write-Host "=== SPIKE BUILD: python deps ==="
-    python -m pip install --upgrade `
-        "pyinstaller>=6.11" `
-        "pyinstaller-hooks-contrib" `
-        "pygobject>=3.50" `
-        2>&1 | Out-Host
+    if ($SkipPipInstall) {
+        Write-Host "=== SPIKE BUILD: python deps (skipped — using conda env) ==="
+        python -c "import gi, PyInstaller; print(f'PyInstaller={PyInstaller.__version__}  gi={gi.__version__}')" 2>&1 | Out-Host
+    } else {
+        # NOTE: pip install PyGObject fails on Windows without MSVC C++ toolchain + PKG_CONFIG_PATH.
+        # If you see "subprocess-exited-with-error" below, switch to conda-forge (see README).
+        Write-Host "=== SPIKE BUILD: python deps (pip) ==="
+        python -m pip install --upgrade `
+            "pyinstaller>=6.11" `
+            "pyinstaller-hooks-contrib" `
+            "pygobject>=3.50" `
+            2>&1 | Out-Host
+    }
 
     # --- 4. PyInstaller -------------------------------------------------
     Write-Host "=== SPIKE BUILD: pyinstaller ==="
