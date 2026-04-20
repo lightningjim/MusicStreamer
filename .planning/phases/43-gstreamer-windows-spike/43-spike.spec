@@ -16,13 +16,22 @@ from pathlib import Path
 # --------------------------------------------------------------------------
 GST_ROOT = Path(os.environ.get(
     "GSTREAMER_ROOT",
-    r"C:\spike-gst\runtime\1.0\msvc_x86_64",
+    r"C:\spike-gst\runtime",
 ))
 assert GST_ROOT.is_dir(), f"GStreamer root not found: {GST_ROOT}"
-assert (GST_ROOT / "bin" / "gst-plugin-scanner.exe").is_file(), \
+
+# Scanner: 1.28.x MSVC ships it under libexec/gstreamer-1.0/; support legacy bin/ fallback for 1.24/1.26.
+_scanner_libexec = GST_ROOT / "libexec" / "gstreamer-1.0" / "gst-plugin-scanner.exe"
+_scanner_bin = GST_ROOT / "bin" / "gst-plugin-scanner.exe"
+assert _scanner_libexec.is_file() or _scanner_bin.is_file(), \
     "gst-plugin-scanner.exe missing — reinstall with Complete feature set"
-assert (GST_ROOT / "lib" / "gio" / "modules" / "libgiognutls.dll").is_file(), \
-    "libgiognutls.dll missing — reinstall with Complete feature set (TLS feature deselected)"
+SCANNER_SRC = _scanner_libexec if _scanner_libexec.is_file() else _scanner_bin
+
+# TLS backend: 1.28.x ships OpenSSL (gioopenssl.dll); 1.24/1.26 shipped GnuTLS (libgiognutls.dll). Accept either.
+_tls_openssl = GST_ROOT / "lib" / "gio" / "modules" / "gioopenssl.dll"
+_tls_gnutls = GST_ROOT / "lib" / "gio" / "modules" / "libgiognutls.dll"
+assert _tls_openssl.is_file() or _tls_gnutls.is_file(), \
+    "No GIO TLS backend found — expected gioopenssl.dll (1.28+) or libgiognutls.dll (1.26-); reinstall with Complete feature set"
 
 # --------------------------------------------------------------------------
 # Tree() blocks — copy raw directory trees into the bundle.
@@ -36,11 +45,10 @@ gio_modules_tree = Tree(
     excludes=["*.pdb"],
 )
 
-# Scanner binary + typelibs — placed next to the bundle root
+# Scanner binary + typelibs — placed next to the bundle root.
+# SCANNER_SRC resolved above: libexec/gstreamer-1.0/ (1.28.x) or bin/ (legacy).
 extra_binaries = [
-    (str(GST_ROOT / "libexec" / "gstreamer-1.0" / "gst-plugin-scanner.exe"), "."),
-    # fallback for older MSI layouts that put scanner under bin/
-    # (str(GST_ROOT / "bin" / "gst-plugin-scanner.exe"), "."),
+    (str(SCANNER_SRC), "."),
 ]
 
 # GI typelibs — the gi hook normally collects these, but on Windows the

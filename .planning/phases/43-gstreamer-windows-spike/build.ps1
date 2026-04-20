@@ -3,7 +3,7 @@
 # Exit codes: 0=ok, 1=env missing, 2=pyinstaller failed, 3=smoke test failed
 
 param(
-    [string]$GstRoot   = "C:\spike-gst\runtime\1.0\msvc_x86_64",
+    [string]$GstRoot   = "C:\spike-gst\runtime",
     [switch]$SkipSmoke = $false
 )
 
@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 
 # --- 0. Pre-flight checks -------------------------------------------------
 Write-Host "=== SPIKE BUILD: pre-flight ==="
-if (-not (Test-Path "$GstRoot\bin\libgstreamer-1.0-0.dll")) {
+if (-not (Test-Path "$GstRoot\bin\gstreamer-1.0-0.dll")) {
     Write-Error "SPIKE_FAIL reason=gst_runtime_missing path='$GstRoot'"
     exit 1
 }
@@ -20,8 +20,15 @@ if (-not (Test-Path "$GstRoot\bin\gst-inspect-1.0.exe")) {
     Write-Error "SPIKE_FAIL reason=gst_inspect_missing hint='reinstall with Complete feature set'"
     exit 1
 }
-if (-not (Test-Path "$GstRoot\lib\gio\modules\libgiognutls.dll")) {
-    Write-Error "SPIKE_FAIL reason=gio_tls_module_missing hint='reinstall with Complete feature set'"
+# 1.28.x ships OpenSSL-backed TLS on Windows (gioopenssl.dll); 1.24/1.26 shipped GnuTLS (libgiognutls.dll).
+$tlsDll = "$GstRoot\lib\gio\modules\gioopenssl.dll"
+$legacyTlsDll = "$GstRoot\lib\gio\modules\libgiognutls.dll"
+if (-not ((Test-Path $tlsDll) -or (Test-Path $legacyTlsDll))) {
+    Write-Error "SPIKE_FAIL reason=gio_tls_module_missing hint='reinstall with Complete feature set; expected gioopenssl.dll (1.28+) or libgiognutls.dll (1.26-)'"
+    exit 1
+}
+if (-not (Test-Path "$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe")) {
+    Write-Error "SPIKE_FAIL reason=gst_plugin_scanner_missing path='$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe'"
     exit 1
 }
 
