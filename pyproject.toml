@@ -21,6 +21,12 @@ test = [
     "pytest>=9",
     "pytest-qt>=4",
 ]
+windows = [
+    "winrt-Windows.Media.Playback",
+    "winrt-Windows.Media",
+    "winrt-Windows.Storage.Streams",
+    "winrt-Windows.Foundation",
+]
 
 [project.scripts]
 musicstreamer = "musicstreamer.__main__:main"
