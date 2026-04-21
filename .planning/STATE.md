@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: Phase 43 closed; ROADMAP updated; spike-findings-musicstreamer skill persisted
 stopped_at: Phase 43.1 context gathered
-last_updated: "2026-04-21T11:51:51.801Z"
+last_updated: "2026-04-21T22:44:20.946Z"
 last_activity: 2026-04-20 — all three SC proved empirically (SPIKE_OK on iteration 1; bundle self-contained)
 progress:
   total_phases: 23
   completed_phases: 16
-  total_plans: 58
+  total_plans: 64
   completed_plans: 58
-  percent: 100
+  percent: 91
 ---
 
 # Project State
@@ -114,3 +114,5 @@ Key v2.0 decisions already settled:
 Last session: --stopped-at
 Stopped at: Phase 43.1 context gathered
 Resume file: --resume-file
+
+**Planned Phase:** 43.1 (windows-media-keys-smtc) — 6 plans — 2026-04-21T22:44:20.940Z
