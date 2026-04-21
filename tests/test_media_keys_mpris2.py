@@ -50,12 +50,12 @@ def _red_pixmap(w: int = 10, h: int = 10) -> QPixmap:
 
 
 def test_cover_path_for_station_returns_correct_path_and_creates_dir(tmp_path, monkeypatch):
-    """Test 1: cover_path_for_station(42) returns .../mpris-art/42.png and parent exists."""
+    """Test 1: cover_path_for_station(42) returns .../media-art/42.png and parent exists."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys._art_cache import cover_path_for_station
 
     result = cover_path_for_station(42)
-    assert result.endswith(os.path.join("mpris-art", "42.png"))
+    assert result.endswith(os.path.join("media-art", "42.png"))
     assert os.path.isdir(os.path.dirname(result))
 
 
@@ -78,7 +78,7 @@ def test_write_cover_png_valid_pixmap_creates_file(tmp_path, monkeypatch, qapp):
     result = write_cover_png(px, 42)
 
     assert result is not None
-    assert result.endswith(os.path.join("mpris-art", "42.png"))
+    assert result.endswith(os.path.join("media-art", "42.png"))
     assert os.path.isfile(result)
     assert os.path.getsize(result) > 50
 
