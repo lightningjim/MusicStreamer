@@ -1,4 +1,4 @@
-"""Cover-art PNG cache for MPRIS2 metadata publishing (Phase 41, D-04).
+"""Cover-art PNG cache for OS media session metadata (Phase 41 D-04 + Phase 43.1 D-04 rename mpris-art/ → media-art/).
 
 Provides two public functions:
 
@@ -25,17 +25,43 @@ import musicstreamer.paths as paths
 
 _log = logging.getLogger(__name__)
 
+# One-shot migration sentinel: set to True on first call to _migrate_legacy_cache_dir
+# so subsequent cover_path_for_station calls skip the legacy-dir probe entirely.
+_migration_attempted: bool = False
+
+
+def _migrate_legacy_cache_dir(cache_root: str) -> None:
+    """Best-effort one-shot migration of mpris-art/ → media-art/.
+
+    Called lazily on the first invocation of cover_path_for_station per process.
+    Any OSError during os.rename is swallowed — PNGs are regenerated on the
+    next publish_metadata call if migration fails.
+    """
+    global _migration_attempted
+    if _migration_attempted:
+        return
+    _migration_attempted = True
+
+    legacy = os.path.join(cache_root, "mpris-art")
+    new = os.path.join(cache_root, "media-art")
+    if os.path.isdir(legacy) and not os.path.exists(new):
+        try:
+            os.rename(legacy, new)
+        except OSError as exc:
+            _log.debug("_art_cache: mpris-art → media-art migration skipped: %s", exc)
+
 
 def cover_path_for_station(station_id: int) -> str:
     """Return the absolute PNG path for *station_id*, creating the parent dir.
 
-    The path is stable: ``{user_cache_dir}/mpris-art/{station_id}.png``.
-    The ``mpris-art/`` directory is created with ``exist_ok=True`` so this
+    The path is stable: ``{user_cache_dir}/media-art/{station_id}.png``.
+    The ``media-art/`` directory is created with ``exist_ok=True`` so this
     function is idempotent and safe to call repeatedly.
     """
     if not isinstance(station_id, int):
         raise TypeError(f"station_id must be int, got {type(station_id).__name__}")
-    art_dir = os.path.join(paths.user_cache_dir(), "mpris-art")
+    _migrate_legacy_cache_dir(paths.user_cache_dir())
+    art_dir = os.path.join(paths.user_cache_dir(), "media-art")
     os.makedirs(art_dir, exist_ok=True)
     return os.path.join(art_dir, f"{station_id}.png")
 
