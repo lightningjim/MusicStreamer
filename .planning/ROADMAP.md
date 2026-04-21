@@ -288,7 +288,15 @@ Plans:
   4. SMTC overlay shows station name, ICY track title, and cover art pixmap; updates on every `title_changed`
   5. SMTC COM/winrt initialization failure logs a warning and falls back to no-op backend — app startup never blocks on this
 **Scope split note**: Split out of original Phase 41 on 2026-04-14 because the winrt `button_pressed` async pattern needed live Windows validation, which requires Phase 43's confirmed Windows runtime.
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 43.1-01-PLAN.md — Rename _art_cache subdir mpris-art/ → media-art/ with best-effort migration (D-04) + update Phase 41 MPRIS2 regression tests (Wave 1)
+- [ ] 43.1-02-PLAN.md — pyproject [project.optional-dependencies].windows group + replace smtc.py NotImplementedError stub with ImportError fallback + Wave-0 test scaffolding (Wave 1)
+- [ ] 43.1-03-PLAN.md — WindowsMediaKeysBackend class: __init__ (MediaPlayer + SMTC + Pitfall #1 command_manager=False + Pitfall #4 token storage) + _on_button_pressed + _apply_playback_state (Wave 2)
+- [ ] 43.1-04-PLAN.md — publish_metadata + _build_thumbnail_ref helper using InMemoryRandomAccessStream (D-03 revised per Pitfall #2, file:// rejected) + DisplayUpdater.type=MUSIC (D-08) (Wave 3)
+- [ ] 43.1-05-PLAN.md — shutdown() with idempotency sentinel + remove_button_pressed + close() + end-to-end D-07 factory-fallback regression (Wave 4)
+- [ ] 43.1-06-PLAN.md — Windows UAT on Win11 VM: install winrt extras + 7-item UAT record + sign-off (non-autonomous, Wave 5)
 
 ### Phase 44: Windows Packaging + Installer
 **Goal**: A Windows installer EXE is produced that installs MusicStreamer with all dependencies; single-instance enforcement works; no console windows appear; Node.js is documented as a host prerequisite (not bundled)
@@ -317,7 +325,7 @@ Plans:
 | 41. Linux Media Keys (MPRIS2) | v2.0 | 4/4 | Complete   | 2026-04-16 |
 | 42. Settings Export/Import | v2.0 | 3/3 | Complete    | 2026-04-17 |
 | 43. GStreamer Windows Spike | v2.0 | 0/3 | Planned | - |
-| 43.1. Windows Media Keys (SMTC) | v2.0 | 0/TBD | Not started | - |
+| 43.1. Windows Media Keys (SMTC) | v2.0 | 0/6 | Planned | - |
 | 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
 
 ### Phase 45: Unify station-icon loader — dedup station_tree_model + favorites_view + station_list_panel paths into a shared _art_paths helper; fixes broken station-list logo rendering where raw relative station_art_path is passed to QPixmap() without abs_art_path resolution
