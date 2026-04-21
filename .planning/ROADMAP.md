@@ -106,7 +106,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 40: Auth Dialogs + Accent** - AccountsDialog OAuth, YouTube cookies, accent color, hamburger menu (completed 2026-04-13)
 - [x] **Phase 41: Platform Media Keys** - media_keys/ factory: MPRIS2 (Linux) + SMTC (Windows) (completed 2026-04-16)
 - [x] **Phase 42: Settings Export/Import** - ZIP export/import with merge dialog (completed 2026-04-16)
-- [ ] **Phase 43: GStreamer Windows Spike** - Validate GStreamer DLL bundling on clean Windows VM
+- [x] **Phase 43: GStreamer Windows Spike** - Validate GStreamer DLL bundling on clean Windows VM — completed 2026-04-20
 - [ ] **Phase 44: Windows Packaging + Installer** - PyInstaller spec, NSIS installer, QA smoke test
 
 ## Phase Details
@@ -274,8 +274,8 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 43-01-PLAN.md — Wave 1: Land four build artifacts (.spec, runtime_hook.py, smoke_test.py, build.ps1) + .gitignore + README runbook from RESEARCH skeletons (autonomous) — completed 2026-04-19
-- [ ] 43-02-PLAN.md — Wave 2: Paste-back iteration loop on user's Win11 VM; ≤5 iterations to green SPIKE_OK + has_default_database=True + audibility word (manual, depends on 43-01)
-- [ ] 43-03-PLAN.md — Wave 3: Harvest 43-SPIKE-FINDINGS.md from paste-back evidence + run /gsd-spike-wrap-up to persist project skill; flip ROADMAP to complete (manual, depends on 43-02)
+- [x] 43-02-PLAN.md — Wave 2: Paste-back iteration loop on user's Win11 VM; ≤5 iterations to green SPIKE_OK + has_default_database=True + audibility word — completed 2026-04-20 iteration 1, audible (SomaFM HTTPS; DI.fm premium rejects HTTPS server-side)
+- [x] 43-03-PLAN.md — Wave 3: Harvest 43-SPIKE-FINDINGS.md from paste-back evidence + persist spike-findings-musicstreamer skill — completed 2026-04-20
 
 ### Phase 43.1: Windows Media Keys (SMTC)
 **Goal**: Windows system media session (SMTC) controls the Player via the same `media_keys/` factory scaffolded in Phase 41; station + ICY + cover art visible in the Windows overlay; validated live on user's Windows VM

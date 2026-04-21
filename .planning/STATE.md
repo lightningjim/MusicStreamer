@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 43 context gathered
-last_updated: "2026-04-19T19:56:24.251Z"
-last_activity: 2026-04-19
+stopped_at: Phase 43 complete; ready for Phase 44 or Phase 43.1
+last_updated: "2026-04-20T00:00:00.000Z"
+last_activity: 2026-04-20
 progress:
   total_phases: 23
-  completed_phases: 15
+  completed_phases: 16
   total_plans: 58
-  completed_plans: 56
-  percent: 97
+  completed_plans: 58
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 43 — gstreamer-windows-spike
+**Current focus:** Phase 44 (Windows Packaging) or Phase 43.1 (Windows Media Keys) — both unblocked by Phase 43 completion
 
 ## Current Position
 
-Phase: 43 (gstreamer-windows-spike) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
-Last activity: 2026-04-19
+Phase: 43 (gstreamer-windows-spike) — COMPLETE 2026-04-20
+Plans: 3 of 3 complete
+Status: Phase 43 closed; ROADMAP updated; spike-findings-musicstreamer skill persisted
+Last activity: 2026-04-20 — all three SC proved empirically (SPIKE_OK on iteration 1; bundle self-contained)
 
 Progress: [██████████] 100%
 
@@ -79,6 +79,12 @@ Key v2.0 decisions already settled:
 - [Phase 47-03]: _BitrateDelegate(QStyledItemDelegate) with QIntValidator(0, 9999) placed at module scope (not nested in EditStationDialog) to mirror station_star_delegate.py convention; registered via setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
 - [Phase 47-03]: int(stream.get("bitrate_kbps", 0) or 0) in BOTH settings_export._insert_station AND _replace_station — single idiom neutralizes missing key (pre-47 ZIP forward-compat, P-2), None, empty string, and malformed-value threats
 - [Phase 43-01]: Wave 1 build artifacts (.spec, runtime_hook, smoke_test, build.ps1, .gitignore, README) copied verbatim from 43-RESEARCH.md skeletons — no improvisation per plan directive; user can run iteration 1 on Win11 VM
+- [Phase 43 D-03 amended]: Bumped from 1.24.12 to **1.28.2** upstream (current latest 2026-04-08); 1.28.x ships single .exe installer + flat layout + OpenSSL TLS (`gioopenssl.dll`) replacing GnuTLS
+- [Phase 43 D-03 amended (b)]: Relaxed from official MSVC installer to **conda-forge** as primary GStreamer/PyGObject source. Rationale: PyGObject has no PyPI wheels; source build on Windows needs ~1 GB of VS Build Tools + meson/ninja/pkg-config. conda-forge packages are same gvsbuild output as the MSI, byte-for-byte equivalent.
+- [Phase 43 findings]: Custom runtime_hook.py is REQUIRED — stock pyi_rth_gstreamer.py doesn't set GIO_EXTRA_MODULES, GI_TYPELIB_PATH, or GST_PLUGIN_SCANNER. Without them: HTTPS fails (`TLS/SSL support not available`), typelibs flaky, scanner in-process.
+- [Phase 43 findings]: Stock `hook-gi.repository.Gio.py` warns "Could not determine Gio modules path!" on conda-forge and ships broken bundle. Explicit `Tree(GST_ROOT/lib/gio/modules, prefix='gio/modules')` in .spec compensates.
+- [Phase 43 findings]: Bundle self-contained at 110.7 MB — 126 top-level DLLs + 184 plugins (hooks-contrib 2026.2 places in `_internal/gst_plugins/`, not older `gstreamer-1.0/`) + 57 typelibs. Validated with deactivated-conda re-run.
+- [Phase 43 gotcha]: DI.fm premium URLs reject HTTPS server-side (TLS handshake succeeds, stream returns error -5). GStreamer not at fault. Phase 44 policy decision: HTTP for DI.fm specifically, or accept server-side HTTPS unavailability.
 
 ### Roadmap Evolution
 
@@ -98,12 +104,13 @@ Key v2.0 decisions already settled:
 
 ### Blockers/Concerns
 
-- Phase 43 (GStreamer Windows Spike) must complete before Phase 44 can be planned — spike results determine exact PyInstaller spec
-- Phase 41 (SMTC on Windows): winrt async pattern for button_pressed needs real Windows validation before planning
+- ~~Phase 43 (GStreamer Windows Spike) must complete before Phase 44 can be planned~~ — **resolved 2026-04-20**: Phase 43 passed iteration 1, findings doc + skill persisted, Phase 44 unblocked
+- Phase 41 (SMTC on Windows): winrt async pattern for button_pressed needs real Windows validation before planning — now unblocked by Phase 43 completion (Phase 43.1)
 - Phase 40 (OAuth): QWebEngineCookieStore.cookieAdded in subprocess context needs proof-of-concept before planning
+- **NEW (Phase 44 scope):** DI.fm premium rejects HTTPS server-side; Phase 44 must decide HTTP-fallback policy for DI.fm specifically vs. universal HTTPS
 
 ## Session Continuity
 
-Last session: 2026-04-19T19:56:14.761Z
-Stopped at: Phase 43 context gathered
-Resume file: None
+Last session: 2026-04-20
+Stopped at: Phase 43 complete; ROADMAP flipped; skill persisted
+Resume file: None (HANDOFF.json + .continue-here.md cleared on completion)
