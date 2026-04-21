@@ -82,12 +82,11 @@ def test_create_returns_noop_on_freebsd(monkeypatch, qtbot):
     assert isinstance(backend, NoOpMediaKeysBackend)
 
 
-def test_smtc_create_windows_backend_raises_not_implemented():
-    """Test 8: smtc.create_windows_backend raises NotImplementedError with '43.1'."""
+def test_smtc_create_windows_backend_raises_import_error():
+    """Test 8 (Phase 43.1): create_windows_backend raises ImportError on Linux (winrt absent)."""
     from musicstreamer.media_keys.smtc import create_windows_backend
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises(ImportError):
         create_windows_backend(None, None)
-    assert "43.1" in str(exc_info.value)
 
 
 def test_no_winrt_in_sys_modules():
