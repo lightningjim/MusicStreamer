@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: executing
-stopped_at: Phase 43 complete; ready for Phase 44 or Phase 43.1
-last_updated: "2026-04-20T00:00:00.000Z"
-last_activity: 2026-04-20
+status: Phase 43 closed; ROADMAP updated; spike-findings-musicstreamer skill persisted
+stopped_at: Phase 43.1 context gathered
+last_updated: "2026-04-21T11:51:51.801Z"
+last_activity: 2026-04-20 — all three SC proved empirically (SPIKE_OK on iteration 1; bundle self-contained)
 progress:
   total_phases: 23
   completed_phases: 16
@@ -111,6 +111,6 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-20
-Stopped at: Phase 43 complete; ROADMAP flipped; skill persisted
-Resume file: None (HANDOFF.json + .continue-here.md cleared on completion)
+Last session: --stopped-at
+Stopped at: Phase 43.1 context gathered
+Resume file: --resume-file
