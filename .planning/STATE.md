@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: Phase 43 closed; ROADMAP updated; spike-findings-musicstreamer skill persisted
+status: executing
 stopped_at: Phase 43.1 context gathered
-last_updated: "2026-04-21T22:44:20.946Z"
-last_activity: 2026-04-20 — all three SC proved empirically (SPIKE_OK on iteration 1; bundle self-contained)
+last_updated: "2026-04-21T22:45:08.090Z"
+last_activity: 2026-04-21 -- Phase 43.1 execution started
 progress:
   total_phases: 23
   completed_phases: 16
@@ -21,14 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 44 (Windows Packaging) or Phase 43.1 (Windows Media Keys) — both unblocked by Phase 43 completion
+**Current focus:** Phase 43.1 — windows-media-keys-smtc
 
 ## Current Position
 
-Phase: 43 (gstreamer-windows-spike) — COMPLETE 2026-04-20
+Phase: 43.1 (windows-media-keys-smtc) — EXECUTING
+Plan: 1 of 6
 Plans: 3 of 3 complete
-Status: Phase 43 closed; ROADMAP updated; spike-findings-musicstreamer skill persisted
-Last activity: 2026-04-20 — all three SC proved empirically (SPIKE_OK on iteration 1; bundle self-contained)
+Status: Executing Phase 43.1
+Last activity: 2026-04-21 -- Phase 43.1 execution started
 
 Progress: [██████████] 100%
 
