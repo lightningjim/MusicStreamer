@@ -206,3 +206,301 @@ def test_factory_falls_back_to_noop_on_linux(monkeypatch):
     assert isinstance(backend, NoOpMediaKeysBackend), (
         f"expected NoOp fallback, got {type(backend).__name__}"
     )
+
+
+# -------------------------------------------------------------------------
+# Task 2 (Plan 43.1-03): WindowsMediaKeysBackend class tests
+# -------------------------------------------------------------------------
+
+def test_backend_init_configures_smtc(mock_winrt_modules, qtbot):
+    """MEDIA-03: __init__ creates MediaPlayer, disables command_manager, enables play/pause/stop."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+
+    # Pitfall #1: command_manager.is_enabled must be False
+    assert backend._media_player.command_manager.is_enabled is False
+    # SMTC button enables
+    assert backend._smtc.is_play_enabled is True
+    assert backend._smtc.is_pause_enabled is True
+    assert backend._smtc.is_stop_enabled is True
+    assert backend._smtc.is_next_enabled is False
+    assert backend._smtc.is_previous_enabled is False
+    # Pitfall #4: token must be stored
+    assert backend._smtc.add_button_pressed.called
+    assert backend._bp_token is not None
+    # Initial state
+    assert backend._state == "stopped"
+
+
+def test_play_button_emits_play_pause_signal(mock_winrt_modules, qtbot):
+    """MEDIA-04: PLAY button routes to play_pause_requested signal."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    args = MagicMock()
+    args.button = backend._button_enum.PLAY
+
+    with qtbot.waitSignal(backend.play_pause_requested, timeout=500):
+        backend._on_button_pressed(sender=None, args=args)
+
+
+def test_pause_button_emits_play_pause_signal(mock_winrt_modules, qtbot):
+    """MEDIA-04: PAUSE button routes to play_pause_requested signal."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    args = MagicMock()
+    args.button = backend._button_enum.PAUSE
+
+    with qtbot.waitSignal(backend.play_pause_requested, timeout=500):
+        backend._on_button_pressed(sender=None, args=args)
+
+
+def test_stop_button_emits_stop_signal(mock_winrt_modules, qtbot):
+    """MEDIA-04: STOP button routes to stop_requested signal."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    args = MagicMock()
+    args.button = backend._button_enum.STOP
+
+    with qtbot.waitSignal(backend.stop_requested, timeout=500):
+        backend._on_button_pressed(sender=None, args=args)
+
+
+def test_unknown_button_logged_no_crash(mock_winrt_modules, qtbot, caplog):
+    """MEDIA-04: unknown buttons are logged at DEBUG and swallowed; no signals emitted."""
+    import logging
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    args = MagicMock()
+    args.button = backend._button_enum.CHANNEL_UP
+
+    caplog.set_level(logging.DEBUG, logger="musicstreamer.media_keys.smtc")
+
+    # Must not raise and must not emit signals
+    with qtbot.assertNotEmitted(backend.play_pause_requested):
+        with qtbot.assertNotEmitted(backend.stop_requested):
+            backend._on_button_pressed(None, args)
+
+    # Should have a debug log mentioning the button
+    assert any("CHANNEL_UP" in r.message or "not handled" in r.message for r in caplog.records), (
+        f"expected DEBUG log about unknown button; got: {[r.message for r in caplog.records]}"
+    )
+
+
+def test_button_handler_swallows_exceptions(mock_winrt_modules, qtbot, caplog):
+    """T-43.1-04: exceptions in _on_button_pressed are swallowed + logged at WARNING."""
+    import logging
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+
+    # Make args.button raise on access
+    args = MagicMock()
+    type(args).button = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    caplog.set_level(logging.WARNING, logger="musicstreamer.media_keys.smtc")
+
+    # Must not propagate the exception
+    backend._on_button_pressed(None, args)
+
+    assert any(
+        "SMTC button handler raised" in r.message for r in caplog.records
+    ), f"expected WARNING log; got: {[r.message for r in caplog.records]}"
+
+
+def test_apply_playback_state_playing(mock_winrt_modules, qtbot):
+    """D-10: set_playback_state('playing') maps to MediaPlaybackStatus.PLAYING."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    backend.set_playback_state("playing")
+
+    assert backend._smtc.playback_status == backend._status_enum.PLAYING
+    assert backend._state == "playing"
+
+
+def test_apply_playback_state_paused(mock_winrt_modules, qtbot):
+    """D-10: set_playback_state('paused') maps to MediaPlaybackStatus.PAUSED."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    backend.set_playback_state("paused")
+
+    assert backend._smtc.playback_status == backend._status_enum.PAUSED
+    assert backend._state == "paused"
+
+
+def test_apply_playback_state_stopped(mock_winrt_modules, qtbot):
+    """D-10: set_playback_state('stopped') maps to MediaPlaybackStatus.STOPPED."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+    backend.set_playback_state("stopped")
+
+    assert backend._smtc.playback_status == backend._status_enum.STOPPED
+    assert backend._state == "stopped"
+
+
+def test_apply_playback_state_rejects_invalid(mock_winrt_modules, qtbot):
+    """Base class Literal validation raises ValueError for unknown state strings."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+
+    backend = WindowsMediaKeysBackend(None, None)
+
+    with pytest.raises(ValueError):
+        backend.set_playback_state("unknown")
+
+
+# -------------------------------------------------------------------------
+# Plan 04: publish_metadata + thumbnail (MEDIA-05, D-03 revised, D-08)
+# -------------------------------------------------------------------------
+
+from musicstreamer.models import Station  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QPixmap  # noqa: E402
+
+
+def _make_station(station_id=42, name="Test Station"):
+    return Station(
+        id=station_id,
+        name=name,
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+    )
+
+
+def test_publish_metadata_sets_music_properties(mock_winrt_modules, qtbot, tmp_path, monkeypatch):
+    """MEDIA-05 / D-08: music_properties.title + artist populated from station + ICY title."""
+    import musicstreamer.paths as paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+    station = _make_station(7, "Jazz FM")
+
+    backend.publish_metadata(station, "Miles Davis - Kind of Blue", None)
+
+    mp = backend._smtc.display_updater.music_properties
+    assert mp.title == "Miles Davis - Kind of Blue"
+    assert mp.artist == "Jazz FM"
+
+
+def test_publish_metadata_music_type(mock_winrt_modules, qtbot, tmp_path, monkeypatch):
+    """D-08: DisplayUpdater.type set to MediaPlaybackType.MUSIC."""
+    import musicstreamer.paths as paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+    station = _make_station()
+
+    backend.publish_metadata(station, "title", None)
+
+    assert backend._smtc.display_updater.type == backend._type_enum.MUSIC
+
+
+def test_publish_metadata_calls_update(mock_winrt_modules, qtbot, tmp_path, monkeypatch):
+    """D-08: display_updater.update() called exactly once per publish_metadata."""
+    import musicstreamer.paths as paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+    station = _make_station()
+
+    backend.publish_metadata(station, "title", None)
+
+    du = backend._smtc.display_updater
+    assert du.update.called
+    assert du.update.call_count == 1
+
+
+def test_thumbnail_from_in_memory_stream(mock_winrt_modules, qtbot, tmp_path, monkeypatch, qapp):
+    """D-03 revised: thumbnail wraps PNG bytes via InMemoryRandomAccessStream + create_from_stream."""
+    import musicstreamer.paths as paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+    station = _make_station(9, "Soma")
+
+    pixmap = QPixmap(10, 10)
+    pixmap.fill(Qt.GlobalColor.red)
+
+    backend.publish_metadata(station, "title", pixmap)
+
+    stream_mod = sys.modules["winrt.windows.storage.streams"]
+    assert stream_mod.InMemoryRandomAccessStream.called, (
+        "InMemoryRandomAccessStream must be instantiated (D-03 revised)"
+    )
+    assert stream_mod.DataWriter.called, "DataWriter must wrap the stream"
+    assert stream_mod.RandomAccessStreamReference.create_from_stream.called, (
+        "create_from_stream must receive the populated stream"
+    )
+
+    # The thumbnail must be the return_value of create_from_stream
+    assert backend._smtc.display_updater.thumbnail is (
+        stream_mod.RandomAccessStreamReference.create_from_stream.return_value
+    )
+
+
+def test_thumbnail_failure_clears_to_none(mock_winrt_modules, qtbot, tmp_path, monkeypatch, qapp):
+    """D-07: thumbnail-write failures are swallowed; thumbnail set to None."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+    station = _make_station()
+
+    # Force write_cover_png to return None (simulates QPixmap save failure)
+    monkeypatch.setattr(
+        "musicstreamer.media_keys.smtc.write_cover_png",
+        lambda *a, **kw: None,
+    )
+
+    pixmap = QPixmap(10, 10)
+    pixmap.fill(Qt.GlobalColor.red)
+
+    # Must not raise
+    backend.publish_metadata(station, "title", pixmap)
+
+    assert backend._smtc.display_updater.thumbnail is None
+
+    # Second scenario: write_cover_png returns a bogus path, open() raises
+    backend._smtc.display_updater.thumbnail = "SENTINEL"  # prove it gets cleared
+    monkeypatch.setattr(
+        "musicstreamer.media_keys.smtc.write_cover_png",
+        lambda *a, **kw: str(tmp_path / "does-not-exist.png"),
+    )
+    backend.publish_metadata(station, "title", pixmap)
+    assert backend._smtc.display_updater.thumbnail is None
+
+
+def test_publish_metadata_none_station_clears(mock_winrt_modules, qtbot, tmp_path, monkeypatch):
+    """MEDIA-05: publish_metadata(None, '', None) clears music_properties + thumbnail without raising."""
+    import musicstreamer.paths as paths
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+    station = _make_station(3, "Test")
+
+    # First publish real metadata
+    backend.publish_metadata(station, "some title", None)
+
+    # Then clear
+    backend.publish_metadata(None, "", None)
+
+    mp = backend._smtc.display_updater.music_properties
+    assert mp.title == ""
+    assert mp.artist == ""
+    assert backend._smtc.display_updater.thumbnail is None
+    assert backend._station is None
+    assert backend._title == ""
+    # update() called twice total
+    assert backend._smtc.display_updater.update.call_count == 2
