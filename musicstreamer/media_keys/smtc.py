@@ -96,6 +96,12 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
         self._smtc.is_next_enabled = False
         self._smtc.is_previous_enabled = False
 
+        # UAT-discovered 2026-04-21 (Pitfall #7): must explicitly enable the SMTC
+        # session -- default `is_enabled` is False, which means the session is
+        # created but hidden from the Win+V media overlay. Without this flag,
+        # buttons + metadata are configured but invisible to the user.
+        self._smtc.is_enabled = True
+
         # Pitfall #4: store the token -- shutdown needs it for remove_button_pressed.
         self._bp_token = self._smtc.add_button_pressed(self._on_button_pressed)
         self._shutdown_complete: bool = False
