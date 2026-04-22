@@ -226,6 +226,9 @@ def test_backend_init_configures_smtc(mock_winrt_modules, qtbot):
     assert backend._smtc.is_stop_enabled is True
     assert backend._smtc.is_next_enabled is False
     assert backend._smtc.is_previous_enabled is False
+    # Pitfall #7 (UAT 2026-04-21): must explicitly set is_enabled=True or the
+    # session is hidden from the Win+V overlay even though buttons are configured
+    assert backend._smtc.is_enabled is True
     # Pitfall #4: token must be stored
     assert backend._smtc.add_button_pressed.called
     assert backend._bp_token is not None
