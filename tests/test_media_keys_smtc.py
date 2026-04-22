@@ -7,7 +7,126 @@ from __future__ import annotations
 
 import sys
 import tomllib
+import types
+import unittest.mock as mock  # noqa: F401
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+
+# -------------------------------------------------------------------------
+# Shared mock-winrt fixtures (used by Plans 43.1-03, 04, 05 tests)
+# -------------------------------------------------------------------------
+
+_WINRT_MODULES = [
+    "winrt",
+    "winrt.windows",
+    "winrt.windows.media",
+    "winrt.windows.media.playback",
+    "winrt.windows.storage",
+    "winrt.windows.storage.streams",
+    "winrt.windows.foundation",
+]
+
+
+def _namespace(**kwargs):
+    ns = types.SimpleNamespace()
+    for k, v in kwargs.items():
+        setattr(ns, k, v)
+    return ns
+
+
+def _build_winrt_stubs():
+    """Construct a minimal winrt namespace tree with the symbols smtc.py imports."""
+    # Enum-ish namespaces -- sentinels so `btn == SystemMediaTransportControlsButton.PLAY` works
+    button = _namespace(
+        PLAY="PLAY",
+        PAUSE="PAUSE",
+        STOP="STOP",
+        NEXT="NEXT",
+        PREVIOUS="PREVIOUS",
+        RECORD="RECORD",
+        FAST_FORWARD="FAST_FORWARD",
+        REWIND="REWIND",
+        CHANNEL_UP="CHANNEL_UP",
+        CHANNEL_DOWN="CHANNEL_DOWN",
+    )
+    status = _namespace(
+        PLAYING="PLAYING",
+        PAUSED="PAUSED",
+        STOPPED="STOPPED",
+        CLOSED="CLOSED",
+        CHANGING="CHANGING",
+    )
+    playback_type = _namespace(
+        MUSIC="MUSIC",
+        VIDEO="VIDEO",
+        IMAGE="IMAGE",
+        UNKNOWN="UNKNOWN",
+    )
+
+    media = types.ModuleType("winrt.windows.media")
+    media.MediaPlaybackStatus = status
+    media.MediaPlaybackType = playback_type
+    media.SystemMediaTransportControlsButton = button
+
+    # MediaPlayer class -- each instance has .system_media_transport_controls,
+    # .command_manager, and .close()
+    def _make_media_player_instance():
+        smtc = MagicMock(name="SystemMediaTransportControls")
+        smtc.add_button_pressed = MagicMock(return_value=object())  # sentinel token
+        smtc.display_updater = MagicMock(name="DisplayUpdater")
+        smtc.display_updater.music_properties = MagicMock(name="MusicDisplayProperties")
+        smtc.display_updater.music_properties.title = ""
+        smtc.display_updater.music_properties.artist = ""
+        cmd_mgr = MagicMock(name="CommandManager")
+        cmd_mgr.is_enabled = True  # default; __init__ should flip to False
+        mp = MagicMock(name="MediaPlayer")
+        mp.system_media_transport_controls = smtc
+        mp.command_manager = cmd_mgr
+        return mp
+
+    playback = types.ModuleType("winrt.windows.media.playback")
+    playback.MediaPlayer = MagicMock(side_effect=_make_media_player_instance)
+
+    storage_streams = types.ModuleType("winrt.windows.storage.streams")
+    storage_streams.InMemoryRandomAccessStream = MagicMock(name="InMemoryRandomAccessStream")
+    storage_streams.DataWriter = MagicMock(name="DataWriter")
+    storage_streams.RandomAccessStreamReference = MagicMock(name="RandomAccessStreamReference")
+
+    foundation = types.ModuleType("winrt.windows.foundation")
+
+    winrt_pkg = types.ModuleType("winrt")
+    winrt_pkg.windows = types.ModuleType("winrt.windows")
+    winrt_pkg.windows.media = media
+    winrt_pkg.windows.storage = types.ModuleType("winrt.windows.storage")
+    winrt_pkg.windows.storage.streams = storage_streams
+    winrt_pkg.windows.foundation = foundation
+
+    return {
+        "winrt": winrt_pkg,
+        "winrt.windows": winrt_pkg.windows,
+        "winrt.windows.media": media,
+        "winrt.windows.media.playback": playback,
+        "winrt.windows.storage": winrt_pkg.windows.storage,
+        "winrt.windows.storage.streams": storage_streams,
+        "winrt.windows.foundation": foundation,
+    }
+
+
+@pytest.fixture
+def mock_winrt_modules(monkeypatch):
+    """Install a minimal winrt namespace in sys.modules for the duration of the test."""
+    stubs = _build_winrt_stubs()
+    for name, module in stubs.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    # Force smtc.py to re-import with the stubs in place
+    monkeypatch.delitem(sys.modules, "musicstreamer.media_keys.smtc", raising=False)
+    monkeypatch.delitem(sys.modules, "musicstreamer.media_keys", raising=False)
+
+    yield stubs
 
 
 # -------------------------------------------------------------------------
