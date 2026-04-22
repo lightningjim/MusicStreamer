@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import logging
 
+from musicstreamer.media_keys._art_cache import write_cover_png
 from musicstreamer.media_keys.base import MediaKeysBackend
 
 _log = logging.getLogger(__name__)
@@ -137,6 +138,83 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
         }
         self._smtc.playback_status = status_map[state]
         self._state = state
+
+    def publish_metadata(self, station, title, cover_pixmap) -> None:
+        """Publish station + ICY title + cover art to SMTC DisplayUpdater (D-08).
+
+        D-03 revised (Pitfall #2): thumbnail delivery uses
+        InMemoryRandomAccessStream, NOT `create_from_uri("file://...")` --
+        file:// is not a valid URI scheme for
+        RandomAccessStreamReference.create_from_uri (only
+        http/https/ms-appx/ms-appdata).
+        """
+        # D-06: deferred winrt imports (function body only)
+        from winrt.windows.storage.streams import (  # noqa: PLC0415
+            InMemoryRandomAccessStream,
+            DataWriter,
+            RandomAccessStreamReference,
+        )
+
+        self._station = station
+        self._title = title or ""
+
+        du = self._smtc.display_updater
+        du.type = self._type_enum.MUSIC  # D-08
+
+        if station is None:
+            du.music_properties.title = ""
+            du.music_properties.artist = ""
+            du.thumbnail = None
+        else:
+            du.music_properties.title = self._title or station.name
+            du.music_properties.artist = station.name
+            du.thumbnail = self._build_thumbnail_ref(
+                cover_pixmap, station.id,
+                InMemoryRandomAccessStream, DataWriter, RandomAccessStreamReference,
+            )
+
+        du.update()  # D-08: single batched update per publish_metadata
+
+    def _build_thumbnail_ref(
+        self,
+        cover_pixmap,
+        station_id,
+        InMemoryRandomAccessStream,
+        DataWriter,
+        RandomAccessStreamReference,
+    ):
+        """Wrap the cached PNG bytes in a RandomAccessStreamReference, or None on failure.
+
+        D-03 revised: uses InMemoryRandomAccessStream + DataWriter instead of
+        create_from_uri (Pitfall #2 -- file:// URIs rejected).
+        Pitfall #3: store_async().get() is the synchronous path; if it
+        deadlocks on Qt's STA main thread, Plan 06 UAT surfaces it and
+        a follow-up can pivot to asyncio.run().
+        """
+        if cover_pixmap is None:
+            return None
+
+        path = write_cover_png(cover_pixmap, station_id)
+        if not path:
+            return None
+
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+            stream = InMemoryRandomAccessStream()
+            writer = DataWriter(stream)
+            writer.write_bytes(data)
+            store_op = writer.store_async()
+            # Pitfall #3: synchronous block; surface deadlock risk in UAT
+            if hasattr(store_op, "get"):
+                store_op.get()
+            stream.seek(0)
+            return RandomAccessStreamReference.create_from_stream(stream)
+        except Exception as exc:
+            _log.warning(
+                "SMTC thumbnail build failed for station %s: %s", station_id, exc
+            )
+            return None
 
 
 def create_windows_backend(player, repo) -> MediaKeysBackend:
