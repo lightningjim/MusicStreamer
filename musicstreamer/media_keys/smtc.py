@@ -96,8 +96,9 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
         self._smtc.is_next_enabled = False
         self._smtc.is_previous_enabled = False
 
-        # Pitfall #4: store the token -- shutdown (Plan 05) needs it for remove_button_pressed.
+        # Pitfall #4: store the token -- shutdown needs it for remove_button_pressed.
         self._bp_token = self._smtc.add_button_pressed(self._on_button_pressed)
+        self._shutdown_complete: bool = False
 
         # Cache enum refs for hot-path callback (avoids re-import on each call)
         self._button_enum = SystemMediaTransportControlsButton
@@ -215,6 +216,37 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
                 "SMTC thumbnail build failed for station %s: %s", station_id, exc
             )
             return None
+
+    def shutdown(self) -> None:
+        """Detach from SMTC + release COM object (D-09).
+
+        Symmetric with LinuxMprisBackend.shutdown -- idempotent, independent
+        try/except per step so one failure does not skip the others.
+        T-43.1-01: explicitly sets `is_enabled = False` to prevent the
+        MusicStreamer SMTC session from lingering in the Windows media
+        overlay if COM GC is slow.
+        Pitfall #4: remove_button_pressed requires the exact token stored
+        by __init__.
+        """
+        if self._shutdown_complete:
+            return
+
+        try:
+            self._smtc.remove_button_pressed(self._bp_token)  # Pitfall #4
+        except Exception as exc:
+            _log.debug("SMTC remove_button_pressed failed: %s", exc)
+
+        try:
+            self._smtc.is_enabled = False  # T-43.1-01 defensive
+        except Exception as exc:
+            _log.debug("SMTC is_enabled=False failed: %s", exc)
+
+        try:
+            self._media_player.close()  # release COM object
+        except Exception as exc:
+            _log.debug("MediaPlayer.close() failed: %s", exc)
+
+        self._shutdown_complete = True
 
 
 def create_windows_backend(player, repo) -> MediaKeysBackend:

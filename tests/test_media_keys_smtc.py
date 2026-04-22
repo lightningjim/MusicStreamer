@@ -504,3 +504,86 @@ def test_publish_metadata_none_station_clears(mock_winrt_modules, qtbot, tmp_pat
     assert backend._title == ""
     # update() called twice total
     assert backend._smtc.display_updater.update.call_count == 2
+
+
+# -------------------------------------------------------------------------
+# Plan 05: shutdown() + idempotency + factory fallback end-to-end
+# -------------------------------------------------------------------------
+
+def test_shutdown_detaches_handler_and_closes(mock_winrt_modules, qtbot):
+    """D-09: shutdown detaches button_pressed handler, disables SMTC, closes MediaPlayer."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+
+    token = backend._bp_token
+    smtc = backend._smtc
+    mp = backend._media_player
+
+    backend.shutdown()
+
+    smtc.remove_button_pressed.assert_called_once_with(token)
+    assert smtc.is_enabled is False
+    mp.close.assert_called_once()
+    assert backend._shutdown_complete is True
+
+
+def test_shutdown_idempotent(mock_winrt_modules, qtbot):
+    """D-09: shutdown() called twice does not raise; second call is a no-op."""
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+
+    backend.shutdown()
+    backend.shutdown()  # must not raise
+
+    assert backend._smtc.remove_button_pressed.call_count == 1
+    assert backend._media_player.close.call_count == 1
+
+
+def test_shutdown_continues_on_partial_failure(mock_winrt_modules, qtbot, caplog):
+    """A failure in step 1 (remove_button_pressed) does not skip steps 2 and 3."""
+    import logging
+    caplog.set_level(logging.DEBUG, logger="musicstreamer.media_keys.smtc")
+
+    from musicstreamer.media_keys.smtc import WindowsMediaKeysBackend
+    backend = WindowsMediaKeysBackend(None, None)
+
+    backend._smtc.remove_button_pressed.side_effect = RuntimeError("simulated detach error")
+
+    backend.shutdown()  # must not raise
+
+    assert backend._smtc.is_enabled is False, "step 2 should run despite step 1 failure"
+    assert backend._media_player.close.called, "step 3 should run despite step 1 failure"
+    assert backend._shutdown_complete is True
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("remove_button_pressed" in m for m in messages), (
+        f"expected DEBUG log about remove_button_pressed failure, got: {messages}"
+    )
+
+
+def test_end_to_end_factory_fallback_on_win32_without_winrt(monkeypatch, caplog):
+    """D-07 closed-loop: sys.platform='win32' + no winrt -> factory returns NoOp + logs warning."""
+    import logging
+    caplog.set_level(logging.WARNING, logger="musicstreamer.media_keys")
+
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    # Force clean re-import so the factory's lazy `from .smtc import ...` runs fresh.
+    for mod in list(sys.modules):
+        if mod.startswith("musicstreamer.media_keys"):
+            del sys.modules[mod]
+
+    from musicstreamer.media_keys import create, NoOpMediaKeysBackend
+    backend = create(None, None)
+
+    assert isinstance(backend, NoOpMediaKeysBackend), (
+        f"expected NoOp fallback on Linux, got {type(backend).__name__}"
+    )
+
+    # T-43.1-03: log message should be the fixed install-hint, not stack trace
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings, "expected WARNING-level log from factory fallback"
+    combined = " ".join(r.getMessage() for r in warnings).lower()
+    assert "windows" in combined or "winrt" in combined or "smtc" in combined, (
+        f"warning should hint at Windows/winrt/SMTC: {combined!r}"
+    )
