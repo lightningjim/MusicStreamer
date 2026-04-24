@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: Phase 43.1 ready to ship (squash-merge to main)
-stopped_at: Phase 44 context gathered
-last_updated: "2026-04-24T02:40:08.152Z"
+stopped_at: Phase 999.1 context gathered
+last_updated: "2026-04-24T12:36:21.259Z"
 last_activity: 2026-04-23 -- UAT-1..10 passed on Win11 VM, 4 root-cause fixes committed
 progress:
   total_phases: 23
@@ -118,7 +118,7 @@ Key v2.0 decisions already settled:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 44 context gathered
+Stopped at: Phase 999.1 context gathered
 Resume file: --resume-file
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
