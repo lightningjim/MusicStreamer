@@ -29,7 +29,7 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
-from musicstreamer import paths
+from musicstreamer import constants, cookie_utils, paths
 from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
 from musicstreamer.eq_profile import EqBand, EqProfile, parse_autoeq
 from musicstreamer.gst_bus_bridge import GstBusLoopThread
@@ -66,6 +66,7 @@ class Player(QObject):
     youtube_resolved           = Signal(str)     # internal: resolved YouTube HLS URL -- queued back to main thread
     youtube_resolution_failed  = Signal(str)     # internal: yt-dlp error message -- queued back to main thread
     playback_error             = Signal(str)     # GStreamer error text
+    cookies_cleared            = Signal(str)     # Phase 999.7: advisory toast — cookies.txt auto-cleared due to yt-dlp corruption
     elapsed_updated            = Signal(int)     # wall-clock seconds since play began (40.1-06)
     buffer_percent             = Signal(int)     # 0-100 GStreamer buffer fill; de-duped in _on_gst_buffering (47.1 D-12)
     # Internal cross-thread marshaling (43.1 follow-up fix). Bus handlers run
@@ -461,8 +462,23 @@ class Player(QObject):
 
     def _youtube_resolve_worker(self, url: str) -> None:
         """Call yt_dlp.YoutubeDL.extract_info on a worker thread. Emits
-        youtube_resolved or youtube_resolution_failed (both queued to main)."""
+        youtube_resolved or youtube_resolution_failed (both queued to main).
+
+        Phase 999.7: cookies.txt is routed through ``cookie_utils.temp_cookies_copy``
+        so yt-dlp's save_cookies() side effect on ``__exit__`` never touches the
+        canonical file. If the canonical file is corrupted (yt-dlp marker header
+        from a previous unprotected call), it is auto-cleared and the
+        ``cookies_cleared`` Signal is emitted (queued to main thread for toast).
+        """
         import yt_dlp
+
+        # Phase 999.7 corruption check — MUST run BEFORE building opts.
+        canonical = paths.cookies_path()
+        if os.path.exists(canonical) and cookie_utils.is_cookie_file_corrupted(canonical):
+            constants.clear_cookies()
+            self.cookies_cleared.emit(
+                "YouTube cookies cleared — re-import via Accounts menu."
+            )
 
         opts = {
             "quiet": True,
@@ -473,15 +489,22 @@ class Player(QObject):
                 "youtubepot-jsruntime": {"remote_components": ["ejs:github"]},
             },
         }
-        cookies = paths.cookies_path()
-        if os.path.exists(cookies):
-            opts["cookiefile"] = cookies
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-        except Exception as e:
-            self.youtube_resolution_failed.emit(str(e))
-            return
+
+        # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE
+        # temp_cookies_copy so yt-dlp's save_cookies() on __exit__ writes to
+        # the temp path, not canonical. Unlinking the temp after yt-dlp closes
+        # is handled by the context manager's finally.
+        info = None
+        with cookie_utils.temp_cookies_copy() as cookiefile:
+            if cookiefile is not None:
+                opts["cookiefile"] = cookiefile
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+            except Exception as e:
+                self.youtube_resolution_failed.emit(str(e))
+                return
+
         resolved = (info or {}).get("url") or ""
         if not resolved:
             formats = (info or {}).get("formats") or []
