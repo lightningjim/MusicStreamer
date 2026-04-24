@@ -362,10 +362,10 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9" },
     { name = "pytest-qt", marker = "extra == 'test'", specifier = ">=4" },
     { name = "streamlink", specifier = ">=8.3" },
-    { name = "winrt-windows-foundation", marker = "extra == 'windows'" },
-    { name = "winrt-windows-media", marker = "extra == 'windows'" },
-    { name = "winrt-windows-media-playback", marker = "extra == 'windows'" },
-    { name = "winrt-windows-storage-streams", marker = "extra == 'windows'" },
+    { name = "winrt-windows-foundation", marker = "extra == 'windows'", specifier = ">=3.2,<4" },
+    { name = "winrt-windows-media", marker = "extra == 'windows'", specifier = ">=3.2,<4" },
+    { name = "winrt-windows-media-playback", marker = "extra == 'windows'", specifier = ">=3.2,<4" },
+    { name = "winrt-windows-storage-streams", marker = "extra == 'windows'", specifier = ">=3.2,<4" },
     { name = "yt-dlp" },
 ]
 provides-extras = ["test", "windows"]
