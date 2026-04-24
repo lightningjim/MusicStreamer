@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: Phase 43.1 ready to ship (squash-merge to main)
-stopped_at: Phase 999.1 context gathered
-last_updated: "2026-04-24T13:04:18.114Z"
-last_activity: 2026-04-23 -- UAT-1..10 passed on Win11 VM, 4 root-cause fixes committed
+status: executing
+stopped_at: Completed 999.1-00-PLAN.md
+last_updated: "2026-04-24T13:10:56.647Z"
+last_activity: 2026-04-24
 progress:
   total_phases: 23
   completed_phases: 17
   total_plans: 68
-  completed_plans: 64
-  percent: 94
+  completed_plans: 65
+  percent: 96
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 43.1 complete — ready to ship; Phase 44 (Windows packaging) unblocked
+**Current focus:** Phase 999.1 — add-new-station-primary-action
 
 ## Current Position
 
-Phase: 43.1 (windows-media-keys-smtc) — COMPLETE (UAT signed off 2026-04-23)
-Plan: 6 of 6 complete
-Status: Phase 43.1 ready to ship (squash-merge to main)
-Last activity: 2026-04-23 -- UAT-1..10 passed on Win11 VM, 4 root-cause fixes committed
+Phase: 999.1 (add-new-station-primary-action) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-04-24
 
-Progress: [██████████] 100%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -89,6 +89,8 @@ Key v2.0 decisions already settled:
 - [Phase 43.1 AUMID]: `SetCurrentProcessExplicitAppUserModelID` must run BEFORE `QApplication()` (AUMID binds at first window creation) and must use explicit `LPCWSTR` argtypes (default ctypes marshaling can pass `str` as narrow pointer). Shell still shows "Unknown app" until a registered Start Menu shortcut carries the matching AUMID — deferred to Phase 44 installer.
 - [Phase 43.1 SMTC thumbnail]: `asyncio.run(await writer.store_async())` avoids the STA-reentry raise on Qt's main thread (Pitfall #3); `writer.detach_stream()` before `RandomAccessStreamReference.create_from_stream` is also required, otherwise the reference reader sees an unreadable stream owned by the DataWriter.
 - [Phase 43.1 cross-OS regression]: `QTimer.singleShot(0, callable)` from a non-`QThread` (GStreamer bus-loop thread) silently drops — the bridge thread has no Qt event loop. Any cross-thread work from a bus handler MUST go through a queued `Signal`, same pattern already used for `title_changed`. Latent everywhere; surfaced as a 10 s Shoutcast-death regression once bus handlers reliably dispatched on the bridge thread. Documented in `.claude/skills/spike-findings-musicstreamer/references/qt-glib-bus-threading.md`.
+- Wave 0 stubs use fixture mirroring (not pytest.fail placeholders) to encode exact contracts for Plans 01/02/03
+- fresh_station fixture added alongside existing station fixture; existing tests untouched
 
 ### Roadmap Evolution
 
@@ -117,9 +119,9 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 999.1 context gathered
-Resume file: --resume-file
+Last session: 2026-04-24T13:10:56.641Z
+Stopped at: Completed 999.1-00-PLAN.md
+Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
 
