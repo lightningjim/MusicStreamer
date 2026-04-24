@@ -187,11 +187,17 @@ class EditStationDialog(QDialog):
     station_saved = Signal()
     station_deleted = Signal(int)
 
-    def __init__(self, station: Station, player, repo, parent=None) -> None:
+    def __init__(self, station: Station, player, repo,
+                 parent=None, is_new: bool = False) -> None:
         super().__init__(parent)
         self._station = station
         self._player = player
         self._repo = repo
+        # Phase 999.1 D-04/D-05/SAVE-CLEANUP: tracks "new station" lifecycle.
+        # When True: (a) _build_ui+_populate pre-add one blank stream row,
+        # (b) reject()/closeEvent() delete the placeholder station row,
+        # (c) _on_save flips this False before accept() to prevent double-delete.
+        self._is_new = is_new
 
         # Map tag name -> QPushButton chip
         self._tag_chips: dict[str, QPushButton] = {}
@@ -202,6 +208,9 @@ class EditStationDialog(QDialog):
 
         self._build_ui()
         self._populate()
+        if self._is_new:
+            # D-05: pre-add one blank stream row so user can type URL immediately.
+            self._add_stream_row()
 
     # ------------------------------------------------------------------
     # UI construction
