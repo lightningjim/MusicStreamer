@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 999.7-01-PLAN.md (RED gate)
-last_updated: "2026-04-24T19:37:17.464Z"
+stopped_at: Completed 999.7-02-PLAN.md
+last_updated: "2026-04-24T19:43:00.227Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 26
   completed_phases: 19
   total_plans: 75
-  completed_plans: 72
-  percent: 96
+  completed_plans: 74
+  percent: 99
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 999.7 (yt-dlp-overwrites-cookies-txt-regression-of-fix-02) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-04-24
 
-Progress: [██████████] 96%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -95,6 +95,8 @@ Key v2.0 decisions already settled:
 - 999.1-02: select_station walks source model inline and maps via proxy.mapFromSource (StationTreeModel API kept minimal)
 - [Phase 999.1-03]: Shared slot _on_new_station_clicked handles BOTH hamburger menu action and StationListPanel.new_station_requested signal — single code path for menu and panel '+' button (D-02). Lambda-capture of new_id matches _on_edit_requested precedent (no functools import added to main_window.py).
 - 999.7-01: Shared cookie_utils helper module at package root with @contextlib.contextmanager + mkstemp for per-call tempfile copies; 2/9 tests green immediately, 7 RED for Plans 02/03
+- Phase 999.7-02: Wired cookie_utils.temp_cookies_copy into yt_import.scan_playlist + forwarded toast_callback through _YtScanWorker
+- [Phase 999.7-03]: Player.cookies_cleared declared at class scope next to playback_error; _youtube_resolve_worker wraps yt_dlp.YoutubeDL inside cookie_utils.temp_cookies_copy with corruption auto-clear before the ctxmgr (outside the yt-dlp block). Direct connect to MainWindow.show_toast — no intermediate slot.
 
 ### Roadmap Evolution
 
@@ -123,8 +125,8 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-24T19:37:17.458Z
-Stopped at: Completed 999.7-01-PLAN.md (RED gate)
+Last session: 2026-04-24T19:42:53.333Z
+Stopped at: Completed 999.7-02-PLAN.md
 Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
