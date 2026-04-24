@@ -35,6 +35,7 @@ and .claude/skills/spike-findings-musicstreamer/SKILL.md).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from musicstreamer.media_keys._art_cache import write_cover_png
@@ -227,8 +228,22 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
             # Qt's STA main thread. Drive the IAsyncOperation with asyncio.run
             # instead -- winrt IAsyncOperation objects implement __await__ and
             # complete on a winrt threadpool thread, bypassing STA re-entry.
-            import asyncio
-            asyncio.run(_await_store(writer))
+            # WR-01 (43.1 review): asyncio.run() raises if a loop is already
+            # running in this thread. Qt's main loop is not asyncio today, but
+            # future qasync/qtinter bridges would make this path fail silently.
+            # Detect a running loop and schedule threadsafely as a fallback.
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop is None:
+                asyncio.run(_await_store(writer))
+            else:
+                fut = asyncio.run_coroutine_threadsafe(
+                    _await_store(writer), running_loop
+                )
+                fut.result(timeout=5.0)
             # DataWriter owns the underlying stream until detach_stream() --
             # RandomAccessStreamReference readers get an unreadable stream
             # otherwise, which reads as "thumbnail missing" in SMTC overlay.
