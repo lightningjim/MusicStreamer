@@ -516,5 +516,14 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 999.8: Twitch stations play silent — likely Phase 47.2 EQ regression (BACKLOG — BUG)
+
+**Goal:** After Phase 999.3 fixed Twitch OAuth login, Twitch stations resolve and GStreamer "plays" (elapsed timer ticks) but produce no audio, while other stations (ShoutCast, YouTube) play with audio on the same install. Verified that streamlink returns a valid HLS URL and `gst-play-1.0` plays that URL with audio standalone — so the fault is inside MusicStreamer's playbin3 pipeline, not streamlink or OAuth. Strong suspicion: the Phase 47.2 equalizer plugged into `playbin3.audio-filter` silences Twitch's HLS audio format (bad band config, preamp at -∞, or audio-filter slot incompatibility with Twitch's HLS variant). Diagnostic: toggle EQ off and retry; compare `gst-launch-1.0 playbin3 uri=<URL>` (no EQ filter) against in-app playback; inspect `_apply_eq_state` behavior for Twitch streams. Hidden since Phase 32 because Twitch login was failing before audio could ever be tested end-to-end.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
-*Last updated: 2026-04-24 — Phase 999.7 added to backlog (yt-dlp cookies regression)*
+*Last updated: 2026-04-24 — Phase 999.8 added to backlog (Twitch silent playback)*
