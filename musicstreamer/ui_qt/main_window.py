@@ -221,6 +221,7 @@ class MainWindow(QMainWindow):
         self._player.failover.connect(self._on_failover)
         self._player.offline.connect(self._on_offline)
         self._player.playback_error.connect(self._on_playback_error)
+        self._player.cookies_cleared.connect(self.show_toast)  # Phase 999.7
 
         # Track star → toast (D-10)
         self.now_playing.track_starred.connect(self._on_track_starred)
