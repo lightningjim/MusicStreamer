@@ -10,10 +10,12 @@ Thread model:
 - Twitch and YouTube resolvers run on ad-hoc threading.Thread workers because
   they make blocking HTTP calls; they emit Qt signals when done.
 
-YouTube playback (Plan 35-06 -- supersedes the original Phase 35 spike):
-- _play_youtube uses yt_dlp.YoutubeDL library with the EJS JS challenge
-  solver (extractor_args youtubepot-jsruntime.remote_components=ejs:github)
-  to resolve the direct HLS URL, then feeds it to playbin3 via the queued
+YouTube playback (Plan 35-06 -- supersedes the original Phase 35 spike;
+amended Phase 999.9):
+- _play_youtube uses yt_dlp.YoutubeDL library; player_client is pinned to
+  "web" via extractor_args (per 999.9 probe matrix). The bundled yt_dlp_ejs
+  package handles JS challenges; no extra remote_components flag needed.
+  Resolves to a direct HLS URL, then feeds it to playbin3 via the queued
   youtube_resolved signal. Cookies (if present) are attached via cookiefile.
 - Node.js runtime required on PATH for yt-dlp EJS. No external player
   process is launched this phase (see 35-SPIKE-MPV.md "Superseded" section
@@ -485,8 +487,13 @@ class Player(QObject):
             "no_warnings": True,
             "skip_download": True,
             "format": "best[protocol^=m3u8]/bestaudio/best",
+            # Phase 999.9: pinned player_client per probe; bundled yt_dlp_ejs
+            # is sufficient (probe row 7 succeeded without --remote-components).
+            # The previous EJS PO-token extractor_args namespace was removed in
+            # yt-dlp 2026.03.17 and was silently ignored. See 999.9-RESEARCH.md
+            # and tests/integration/yt_player_client_audit.txt.
             "extractor_args": {
-                "youtubepot-jsruntime": {"remote_components": ["ejs:github"]},
+                "youtube": {"player_client": ["web"]},
             },
         }
 
