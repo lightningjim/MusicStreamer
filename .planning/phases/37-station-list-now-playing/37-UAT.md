@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 phase: 37-station-list-now-playing
 source: [37-01-SUMMARY.md, 37-02-SUMMARY.md, 37-03-SUMMARY.md, 37-04-SUMMARY.md]
 started: 2026-04-12T19:00:00Z
