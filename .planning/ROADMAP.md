@@ -453,7 +453,7 @@ Plans:
 **Goal:** Investigate and fix OAuth login flows for Twitch and Google (YouTube) — both currently fail immediately and fall back to the failure path with no successful token exchange. Likely causes to rule out: stale/expired OAuth client credentials, redirect-URI mismatch, browser launcher + loopback listener timing, or a regression in the auth-dialogs introduced during Phase 40. Check the auth dialog + token-exchange callpaths in both providers; reproduce with fresh credentials and capture the exact failure mode (network error vs. bad-response vs. user-cancel misread).
 **Requirements:** TBD
 **Depends on:** none (bug fix in existing auth flows)
-**Plans:** 0 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
