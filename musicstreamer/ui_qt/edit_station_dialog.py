@@ -678,10 +678,22 @@ class EditStationDialog(QDialog):
         worker.wait(2000)
 
     def closeEvent(self, event):  # noqa: N802 (Qt override)
+        # D-04b: in is_new mode, delete the placeholder row before teardown so
+        # the DB does not accumulate empty-shell stations. Flag-flip prevents
+        # double-delete if reject() also fires (Qt may route both). delete_station
+        # is a silent no-op on missing id (repo.py:286-288) so a double-delete is
+        # harmless, but the flag-flip makes intent explicit.
+        if self._is_new:
+            self._repo.delete_station(self._station.id)
+            self._is_new = False
         self._shutdown_logo_fetch_worker()
         super().closeEvent(event)
 
     def reject(self) -> None:
+        # D-04a: symmetric to closeEvent — delete placeholder on Discard/Cancel/Esc.
+        if self._is_new:
+            self._repo.delete_station(self._station.id)
+            self._is_new = False
         self._shutdown_logo_fetch_worker()
         super().reject()
 
@@ -763,6 +775,9 @@ class EditStationDialog(QDialog):
             repo.reorder_streams(station.id, ordered_ids)
 
         self.station_saved.emit()
+        # SAVE-CLEANUP: flip _is_new False BEFORE accept() so a later
+        # reject()/closeEvent() does not delete the just-saved station.
+        self._is_new = False
         self.accept()
 
     # ------------------------------------------------------------------
