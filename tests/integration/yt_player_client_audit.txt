@@ -1,0 +1,47 @@
+URL: https://www.youtube.com/watch?v=jfKfPfyJRdk
+Cookies: /home/kcreasey/.local/share/musicstreamer/cookies.txt
+yt-dlp: 2026.03.17
+Date: 2026-04-24T18:37:05-05:00
+
+=== ROW | client=web | remote_components=yes ===
+Command: uv run yt-dlp --remote-components ejs:github --extractor-args "youtube:player_client=web" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+96 | m3u8_native | https://manifest.googlevideo.com/api/manifest/hls_playlist/expire/1777095428/ei/
+Exit: 0
+
+=== ROW | client=web_safari | remote_components=yes ===
+Command: uv run yt-dlp --remote-components ejs:github --extractor-args "youtube:player_client=web_safari" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+96 | m3u8_native | https://manifest.googlevideo.com/api/manifest/hls_playlist/expire/1777095430/ei/
+Exit: 0
+
+=== ROW | client=mweb | remote_components=yes ===
+Command: uv run yt-dlp --remote-components ejs:github --extractor-args "youtube:player_client=mweb" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+96 | m3u8_native | https://manifest.googlevideo.com/api/manifest/hls_playlist/expire/1777095435/ei/
+Exit: 0
+
+=== ROW | client=ios | remote_components=yes ===
+Command: uv run yt-dlp --remote-components ejs:github --extractor-args "youtube:player_client=ios" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+WARNING: [youtube] Skipping client "ios" since it does not support cookies
+ERROR: [youtube] jfKfPfyJRdk: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+Exit: 1
+
+=== ROW | client=android | remote_components=yes ===
+Command: uv run yt-dlp --remote-components ejs:github --extractor-args "youtube:player_client=android" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+WARNING: [youtube] Skipping client "android" since it does not support cookies
+ERROR: [youtube] jfKfPfyJRdk: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+Exit: 1
+
+=== ROW | client=tv | remote_components=yes ===
+Command: uv run yt-dlp --remote-components ejs:github --extractor-args "youtube:player_client=tv" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+ERROR: [youtube] jfKfPfyJRdk: No video formats found!; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+Exit: 1
+
+=== ROW | client=web | remote_components=NO (control) ===
+Command: uv run yt-dlp --extractor-args "youtube:player_client=web" --format "best[protocol^=m3u8]/bestaudio/best" --simulate --print "%(format_id)s | %(protocol)s | %(url).80s" --cookies "/home/kcreasey/.local/share/musicstreamer/cookies.txt" 'https://www.youtube.com/watch?v=jfKfPfyJRdk'
+96 | m3u8_native | https://manifest.googlevideo.com/api/manifest/hls_playlist/expire/1777095451/ei/
+Exit: 0
+
+=== DECISION ===
+Branch: A
+Working clients: web, web_safari, mweb
+Pinned client (if Branch A or C+A): web
+Notes: Row 7 (control, NO --remote-components, client=web) succeeded — bundled yt_dlp_ejs is sufficient. Rows 1-3 (web, web_safari, mweb) all succeeded with --remote-components. Rows 4-5 (ios, android) failed only because those clients do not support cookies (warning shown). Row 6 (tv) also failed. Branch A: pin player_client=web (current default, proven working in row 1 AND row 7); remove the dead extractor_args["youtubepot-jsruntime"] namespace; do NOT add top-level remote_components since row 7 proved it is unnecessary.
