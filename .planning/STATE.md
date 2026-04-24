@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: executing
-stopped_at: Phase 43.1 complete -- ready to ship
-last_updated: "2026-04-23T00:00:00.000Z"
-last_activity: 2026-04-23 -- Phase 43.1 UAT signed off, 4 root-cause fixes committed
+status: Phase 43.1 ready to ship (squash-merge to main)
+stopped_at: Phase 44 context gathered
+last_updated: "2026-04-24T02:40:08.152Z"
+last_activity: 2026-04-23 -- UAT-1..10 passed on Win11 VM, 4 root-cause fixes committed
 progress:
   total_phases: 23
   completed_phases: 17
   total_plans: 64
-  completed_plans: 59
-  percent: 92
+  completed_plans: 64
+  percent: 100
 ---
 
 # Project State
@@ -117,8 +117,8 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-23
-Stopped at: Phase 43.1 complete — UAT-1..10 signed off, 4 root-cause fixes committed on `phase-43.1-uat-diag`; ready to squash-merge to `main`
-Resume file: none (HANDOFF.json deleted; Phase 43.1 closed)
+Last session: --stopped-at
+Stopped at: Phase 44 context gathered
+Resume file: --resume-file
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
