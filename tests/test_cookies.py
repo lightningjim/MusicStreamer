@@ -149,9 +149,14 @@ def test_youtube_resolve_passes_cookiefile_when_present(tmp_path, monkeypatch, q
     assert cf is not None, "cookiefile must be set when canonical file exists"
     assert cf != str(cookies_file), "cookiefile is now a temp copy, not canonical (Phase 999.7)"
     assert cf.startswith(_tempfile.gettempdir()), f"expected temp path, got {cf}"
-    # EJS solver must still be wired for the JS-challenge path
-    ejs = captured_opts.get("extractor_args", {}).get("youtubepot-jsruntime", {})
-    assert ejs.get("remote_components") == ["ejs:github"]
+    # Phase 999.9: player_client pinned to "web" (probe matrix Branch A);
+    # the dead "youtubepot-jsruntime" namespace was removed (yt-dlp 2026.03.17
+    # silently ignored it). Bundled yt_dlp_ejs handles JS challenges; no
+    # remote_components flag needed.
+    yt_args = captured_opts.get("extractor_args", {}).get("youtube", {})
+    assert yt_args.get("player_client") == ["web"]
+    assert "youtubepot-jsruntime" not in captured_opts.get("extractor_args", {})
+    assert "remote_components" not in captured_opts
 
 
 def test_youtube_resolve_omits_cookiefile_when_absent(tmp_path, monkeypatch, qtbot):
@@ -182,8 +187,12 @@ def test_youtube_resolve_omits_cookiefile_when_absent(tmp_path, monkeypatch, qtb
         player._youtube_resolve_worker("https://youtube.com/watch?v=test")
 
     assert "cookiefile" not in captured_opts
-    ejs = captured_opts.get("extractor_args", {}).get("youtubepot-jsruntime", {})
-    assert ejs.get("remote_components") == ["ejs:github"]
+    # Phase 999.9: player_client pinned to "web"; dead "youtubepot-jsruntime"
+    # namespace removed (see test above for rationale).
+    yt_args = captured_opts.get("extractor_args", {}).get("youtube", {})
+    assert yt_args.get("player_client") == ["web"]
+    assert "youtubepot-jsruntime" not in captured_opts.get("extractor_args", {})
+    assert "remote_components" not in captured_opts
 
 
 # ---------------------------------------------------------------------------
