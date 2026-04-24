@@ -235,6 +235,8 @@ class MainWindow(QMainWindow):
         self.now_playing.edit_requested.connect(self._on_edit_requested)
         # Right-click edit from station list
         self.station_panel.edit_requested.connect(self._on_edit_requested)
+        # Phase 999.1 D-02: "+" button in panel header shares MainWindow slot
+        self.station_panel.new_station_requested.connect(self._on_new_station_clicked)
 
         # Plan 39: failover → stream picker sync
         self._player.failover.connect(self.now_playing._sync_stream_picker)
@@ -341,8 +343,29 @@ class MainWindow(QMainWindow):
         self.show_toast("Station added to favorites" if is_fav else "Station removed from favorites")
 
     def _on_new_station_clicked(self) -> None:
-        """Stub — full implementation in Task 03-02."""
-        pass
+        """Create a placeholder station and open EditStationDialog in new-station mode.
+
+        D-03: placeholder row is INSERTed by repo.create_station() so the dialog's
+        existing update_station / insert_stream / assets paths work unchanged.
+        D-04 cleanup-on-cancel is handled inside EditStationDialog — no cleanup here.
+        D-07: on save, refresh list and select the new station (no auto-play).
+        """
+        new_id = self._repo.create_station()
+        fresh = self._repo.get_station(new_id)
+        dlg = EditStationDialog(
+            fresh, self._player, self._repo,
+            parent=self, is_new=True,
+        )
+        dlg.station_saved.connect(self._refresh_station_list)
+        # D-07: select the new station after save. Lambda matches the precedent
+        # set by _on_edit_requested (self-capturing id is accepted pattern here).
+        dlg.station_saved.connect(
+            lambda: self.station_panel.select_station(new_id)
+        )
+        # D-07: intentionally NOT wired to the now-playing-sync slot — a brand-new
+        # station is never the currently-playing one. No auto-play.
+        dlg.station_deleted.connect(self._on_station_deleted)
+        dlg.exec()
 
     def _on_edit_requested(self, station: Station) -> None:
         """Open EditStationDialog for the given station (D-08)."""
