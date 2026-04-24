@@ -564,3 +564,119 @@ def test_bitrate_delegate_persists_empty_string_on_commit(qtbot, station, player
     assert repo.update_stream.called
     call = repo.update_stream.call_args
     assert call.kwargs.get("bitrate_kbps") == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 999.1 Wave 0 — Add-New-Station primary-action test stubs (RED).
+# These tests exercise the `is_new=True` EditStationDialog mode introduced by
+# Plan 01 and the SAVE-CLEANUP flag flip. They are expected to FAIL until
+# Plan 01 lands; do not fix production code from this plan.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def fresh_station():
+    """A brand-new placeholder Station — provider unset, no streams, no tags.
+
+    Mirrors what `repo.create_station()` would hand EditStationDialog in
+    is_new mode: id=42, name="New Station" (the repo-assigned placeholder),
+    provider_id=None, provider_name=None, streams=[], tags="".
+    """
+    return Station(
+        id=42,
+        name="New Station",
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[],
+    )
+
+
+def test_is_new_mode_constructs_and_populates(qtbot, station, player, repo):
+    """D-03b: constructing with is_new=True sets _is_new and populates the name."""
+    d = EditStationDialog(station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    assert d._is_new is True
+    assert d.name_edit.text() == station.name
+
+
+def test_is_new_mode_pre_adds_blank_stream_row(qtbot, fresh_station, player, repo):
+    """D-05: is_new mode with zero streams pre-adds one blank URL row."""
+    # Fresh placeholder — no streams from repo.
+    repo.list_streams.return_value = []
+    d = EditStationDialog(fresh_station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    assert d.streams_table.rowCount() == 1
+    # URL cell (column 0) must be empty string.
+    cell = d.streams_table.item(0, 0)
+    assert cell is None or cell.text() == ""
+
+
+def test_reject_in_new_mode_deletes_placeholder(qtbot, station, player, repo):
+    """D-04a: rejecting (Cancel) in is_new mode deletes the placeholder station."""
+    station.id = 42
+    d = EditStationDialog(station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    d.reject()
+    repo.delete_station.assert_called_once_with(42)
+
+
+def test_close_in_new_mode_deletes_placeholder(qtbot, station, player, repo):
+    """D-04b: closing the dialog (X button / close()) in is_new mode deletes the placeholder."""
+    station.id = 42
+    d = EditStationDialog(station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    d.close()
+    repo.delete_station.assert_called_once_with(42)
+
+
+def test_reject_in_edit_mode_does_not_delete(qtbot, station, player, repo):
+    """D-04c (REGRESSION GUARD): the default edit-mode path must NOT delete on reject."""
+    d = EditStationDialog(station, player, repo)  # default: is_new absent/False
+    qtbot.addWidget(d)
+    d.reject()
+    assert repo.delete_station.call_count == 0
+
+
+def test_new_mode_empty_name_blocks_save(qtbot, station, player, repo, monkeypatch):
+    """D-06: in is_new mode, blank name blocks save and surfaces a warning dialog."""
+    from PySide6.QtWidgets import QMessageBox
+
+    warning_calls: list = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(lambda *a, **kw: warning_calls.append((a, kw)) or QMessageBox.Ok),
+    )
+
+    d = EditStationDialog(station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    d.name_edit.setText("")
+    d._on_save()
+
+    assert repo.update_station.call_count == 0
+    assert len(warning_calls) == 1
+
+
+def test_new_mode_provider_combo_blank(qtbot, fresh_station, player, repo):
+    """D-08: is_new mode with no provider leaves the provider combo text blank."""
+    d = EditStationDialog(fresh_station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    assert d.provider_combo.currentText() == ""
+
+
+def test_save_clears_is_new_flag_to_prevent_delete_on_close(qtbot, station, player, repo):
+    """SAVE-CLEANUP: a successful save must flip _is_new=False so a later
+    reject()/close() does not delete the (now persisted) station."""
+    station.id = 42
+    d = EditStationDialog(station, player, repo, is_new=True)
+    qtbot.addWidget(d)
+    d.name_edit.setText("Saved Name")
+    d._on_save()
+    # The dialog has closed from the user's perspective; the close cleanup path
+    # must see _is_new=False and NOT call delete_station.
+    d.reject()
+    assert repo.delete_station.call_count == 0

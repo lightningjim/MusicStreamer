@@ -125,7 +125,40 @@ class FakeRepo:
         for s in self._stations:
             if s.id == station_id:
                 return s
+        # Fall back to the Phase 999.1 placeholder path: if a new id was handed
+        # out by create_station() but not yet pushed into _stations, return a
+        # freshly-constructed placeholder Station. Plan 01/02/03 tests exercise
+        # this path when they rehydrate the dialog from a just-created id.
+        if station_id in getattr(self, "_created_ids", []):
+            return Station(
+                id=station_id,
+                name="New Station",
+                provider_id=None,
+                provider_name=None,
+                tags="",
+                station_art_path=None,
+                album_fallback_path=None,
+                icy_disabled=False,
+                streams=[],
+                last_played_at=None,
+            )
         return None
+
+    # ------------------------------------------------------------------
+    # Phase 999.1 Wave 0 — create/delete hooks required by Plan 03 tests.
+    # ------------------------------------------------------------------
+
+    def create_station(self) -> int:
+        self._created_ids: list = getattr(self, "_created_ids", [])
+        self._next_station_id: int = getattr(self, "_next_station_id", 100)
+        new_id = self._next_station_id
+        self._next_station_id += 1
+        self._created_ids.append(new_id)
+        return new_id
+
+    def delete_station(self, station_id: int) -> None:
+        self._deleted_ids: list = getattr(self, "_deleted_ids", [])
+        self._deleted_ids.append(station_id)
 
 
 def _make_station(name="Test Station", provider="TestFM") -> Station:
@@ -477,3 +510,160 @@ def test_buffer_percent_bound_method_connect_no_lambda(qtbot, window, fake_playe
             break
     else:
         raise AssertionError("buffer_percent.connect line not found in MainWindow source")
+
+
+# ---------------------------------------------------------------------------
+# Phase 999.1 Wave 0 — Add-New-Station menu wiring integration tests (RED).
+# These tests cover MainWindow's "New Station" hamburger-menu action added
+# by Plan 03. Expected to FAIL until Plan 03 lands.
+# ---------------------------------------------------------------------------
+
+
+def test_hamburger_menu_has_new_station_first_in_group1(qtbot, fake_player, fake_repo):
+    """D-01: 'New Station' is the first item in the hamburger menu's Group 1
+    (precedes Discover Stations and Import Stations)."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    action_texts = [
+        a.text() for a in w._menu.actions() if not a.isSeparator()
+    ]
+    assert "New Station" in action_texts, \
+        f"Expected 'New Station' action in hamburger menu; got {action_texts!r}"
+
+    idx_new = action_texts.index("New Station")
+    idx_discover = action_texts.index("Discover Stations")
+    idx_import = action_texts.index("Import Stations")
+    assert idx_new < idx_discover
+    assert idx_new < idx_import
+
+
+def test_new_station_menu_creates_placeholder_and_opens_dialog(
+    qtbot, fake_player, fake_repo, monkeypatch
+):
+    """D-03a: triggering the 'New Station' action calls repo.create_station()
+    and opens EditStationDialog; on dialog reject, repo.delete_station(new_id)
+    must be called to clean up the placeholder row (ties D-04a into the
+    menu-triggered flow)."""
+    from PySide6.QtWidgets import QDialog
+    from musicstreamer.ui_qt import edit_station_dialog as esd_mod
+
+    monkeypatch.setattr(
+        esd_mod.EditStationDialog, "exec", lambda self: QDialog.Rejected
+    )
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    action = next(
+        (a for a in w._menu.actions() if a.text() == "New Station"), None
+    )
+    assert action is not None, "New Station action must exist on hamburger menu"
+    action.trigger()
+
+    # FakeRepo tracked exactly one create_station() call.
+    created = getattr(fake_repo, "_created_ids", [])
+    assert len(created) == 1, \
+        f"expected exactly one create_station call, got {created!r}"
+    new_id = created[0]
+
+    # Because the dialog was rejected, the placeholder must be cleaned up.
+    deleted = getattr(fake_repo, "_deleted_ids", [])
+    assert new_id in deleted, \
+        f"expected delete_station({new_id}) after dialog reject; deleted={deleted!r}"
+
+
+def test_new_station_save_refreshes_and_selects(
+    qtbot, fake_player, fake_repo, monkeypatch
+):
+    """D-07a: after a successful save in the New Station flow, MainWindow
+    refreshes the station panel model and selects the newly-created row."""
+    from PySide6.QtWidgets import QDialog
+    from musicstreamer.ui_qt import edit_station_dialog as esd_mod
+    from musicstreamer.ui_qt import station_list_panel as slp_mod
+
+    def _fake_exec(self):
+        # Simulate "user hit Save" — emit station_saved, then accept.
+        self.station_saved.emit()
+        return QDialog.Accepted
+
+    monkeypatch.setattr(esd_mod.EditStationDialog, "exec", _fake_exec)
+
+    select_calls: list = []
+    refresh_calls: list = []
+
+    def _record_select(self, station_id):
+        select_calls.append(station_id)
+
+    def _record_refresh(self, *args, **kwargs):
+        refresh_calls.append((args, kwargs))
+
+    monkeypatch.setattr(
+        slp_mod.StationListPanel, "select_station", _record_select, raising=False
+    )
+    monkeypatch.setattr(
+        slp_mod.StationListPanel, "refresh_model", _record_refresh, raising=False
+    )
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    action = next(
+        (a for a in w._menu.actions() if a.text() == "New Station"), None
+    )
+    assert action is not None
+    action.trigger()
+
+    created = getattr(fake_repo, "_created_ids", [])
+    assert len(created) == 1
+    new_id = created[0]
+
+    assert select_calls == [new_id], \
+        f"expected select_station({new_id}) exactly once; got {select_calls!r}"
+    assert len(refresh_calls) >= 1, \
+        "expected at least one refresh_model() call after successful save"
+
+
+def test_new_station_save_does_not_auto_play(
+    qtbot, fake_player, fake_repo, monkeypatch
+):
+    """D-07c: the New Station save path must never auto-play the new station
+    or call _sync_now_playing_station for it."""
+    from PySide6.QtWidgets import QDialog
+    from musicstreamer.ui_qt import edit_station_dialog as esd_mod
+
+    def _fake_exec(self):
+        self.station_saved.emit()
+        return QDialog.Accepted
+
+    monkeypatch.setattr(esd_mod.EditStationDialog, "exec", _fake_exec)
+
+    sync_calls: list = []
+    from musicstreamer.ui_qt.main_window import MainWindow as _MW
+
+    orig_sync = _MW._sync_now_playing_station
+
+    def _spy_sync(self, station_id):
+        sync_calls.append(station_id)
+        return orig_sync(self, station_id)
+
+    monkeypatch.setattr(_MW, "_sync_now_playing_station", _spy_sync)
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    action = next(
+        (a for a in w._menu.actions() if a.text() == "New Station"), None
+    )
+    assert action is not None
+    action.trigger()
+
+    created = getattr(fake_repo, "_created_ids", [])
+    assert len(created) == 1
+    new_id = created[0]
+
+    # The new placeholder must NOT have been auto-played.
+    assert not any(s.id == new_id for s in fake_player.play_calls), \
+        f"new station (id={new_id}) must not auto-play; play_calls={fake_player.play_calls!r}"
+    assert new_id not in sync_calls, \
+        f"_sync_now_playing_station must not fire for new id={new_id}; sync_calls={sync_calls!r}"
