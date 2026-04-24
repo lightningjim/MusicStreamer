@@ -146,15 +146,20 @@ def test_pyproject_has_windows_optional_deps():
     optional = data["project"]["optional-dependencies"]
     assert "windows" in optional, "expected [project.optional-dependencies].windows group (D-05)"
 
+    # WR-02 (43.1 review): deps are pinned to >=3.2,<4 to protect against
+    # pywinrt namespace reshuffles (e.g. 2.x -> 3.x rearranged winrt.windows.*).
+    # Phase 43.1 UAT validated the 3.2.x namespace layout, so codify it.
     windows_deps = set(optional["windows"])
-    expected = {
+    expected_pkg_prefixes = {
         "winrt-Windows.Media.Playback",
         "winrt-Windows.Media",
         "winrt-Windows.Storage.Streams",
         "winrt-Windows.Foundation",
     }
-    missing = expected - windows_deps
-    assert not missing, f"[windows] group missing packages: {sorted(missing)}"
+    # Each package must be present; version specifier may follow the package name.
+    for pkg in expected_pkg_prefixes:
+        matches = [d for d in windows_deps if d == pkg or d.startswith(pkg + ">") or d.startswith(pkg + "=") or d.startswith(pkg + "<") or d.startswith(pkg + "~") or d.startswith(pkg + "!")]
+        assert matches, f"[windows] group missing package: {pkg}"
 
 
 # -------------------------------------------------------------------------
