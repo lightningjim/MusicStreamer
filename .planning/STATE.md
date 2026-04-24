@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: completed
-stopped_at: Phase 999.9 context gathered
-last_updated: "2026-04-24T23:25:18.534Z"
-last_activity: 2026-04-24
+status: executing
+stopped_at: Phase 999.9 Plan 01 Tasks 1-2 complete; Task 3 UAT pending
+last_updated: "2026-04-24T23:42:24.666Z"
+last_activity: 2026-04-24 -- Phase --phase execution started
 progress:
   total_phases: 28
-  completed_phases: 20
-  total_plans: 75
-  completed_plans: 76
+  completed_phases: 21
+  total_plans: 76
+  completed_plans: 77
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 999.9 — youtube-playback-broken-no-video-formats-found-regression (next backlog bug)
+**Current focus:** Phase --phase — 999.9
 
 ## Current Position
 
-Phase: 999.8 (twitch-stations-play-silent — REFUTED) — COMPLETE
-Plan: 0 of 0 (resolved by 9df84de; planned work dropped against refuted hypothesis)
-Status: Complete
-Last activity: 2026-04-24
+Phase: --phase (999.9) — EXECUTING
+Plan: 1 of --name
+Status: Executing Phase --phase
+Last activity: 2026-04-24 -- Phase --phase execution started
 
 Progress: [██████████] 100%
 
@@ -99,6 +99,7 @@ Key v2.0 decisions already settled:
 - [Phase 999.7-03]: Player.cookies_cleared declared at class scope next to playback_error; _youtube_resolve_worker wraps yt_dlp.YoutubeDL inside cookie_utils.temp_cookies_copy with corruption auto-clear before the ctxmgr (outside the yt-dlp block). Direct connect to MainWindow.show_toast — no intermediate slot.
 - [Phase 999.7-03]: FakePlayer test doubles in 3 MainWindow test modules extended with cookies_cleared Signal(str) — fixture parity over shared base class (minimal-diff).
 - Phase 999.7: FIX-02 (yt-dlp temp-copy protection) restored on the library-API path via shared cookie_utils.py (mkstemp+copy2+unlink). Both read sites (player + yt_import) route cookies through a per-call temp file; yt-dlp's save_cookies() on __exit__ can no longer clobber canonical cookies.txt. Corruption auto-clear + toast wired on both sites. Byte-equality UAT approved on live YouTube playback (sha256 stable).
+- [Phase 999.9]: yt-dlp 2026.03.17 silently dropped extractor_args["youtubepot-jsruntime"]; pinned player_client=web in musicstreamer/player.py::_youtube_resolve_worker. Bundled yt_dlp_ejs handles JS challenges without --remote-components (probe row 7 confirmed). Phase 999.7 cookie invariant preserved.
 
 ### Roadmap Evolution
 
@@ -128,10 +129,12 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 999.9 context gathered
-Resume file: --resume-file
+Last session: 2026-04-24T23:42:24.660Z
+Stopped at: Phase 999.9 Plan 01 Tasks 1-2 complete; Task 3 UAT pending
+Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
 
 **Completed Phase:** 999.8 (twitch-stations-play-silent — REFUTED, resolved by 9df84de) — 2026-04-24
+
+**Planned Phase:** 999.9 (youtube-playback-broken-no-video-formats-found-regression) — 1 plans — 2026-04-24T23:35:12.701Z
