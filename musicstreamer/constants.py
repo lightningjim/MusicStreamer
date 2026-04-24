@@ -62,6 +62,11 @@ YT_MIN_WAIT_S = 15
 QUALITY_PRESETS = ("hi", "med", "low")
 QUALITY_SETTING_KEY = "preferred_quality"
 
+# Twitch OAuth (Phase 999.3 D-01, D-03 — piggyback implicit flow)
+TWITCH_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+TWITCH_REDIRECT_PORT = 17823  # D-03: fixed port in IANA-unassigned dynamic range
+TWITCH_AUTH_URL_BASE = "https://id.twitch.tv/oauth2/authorize"
+
 # Accent color (Phase 19 / ACCENT-01)
 ACCENT_COLOR_DEFAULT = "#3584e4"
 ACCENT_PRESETS = [
