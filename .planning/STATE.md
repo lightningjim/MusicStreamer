@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: executing
-stopped_at: Phase 999.8 closed (refuted — actual fix was streamlink 8.x API regression in 9df84de)
-last_updated: "2026-04-24T23:30:00.000Z"
+status: completed
+stopped_at: Phase 999.9 context gathered
+last_updated: "2026-04-24T23:25:18.534Z"
 last_activity: 2026-04-24
 progress:
-  total_phases: 27
-  completed_phases: 21
-  total_plans: 78
-  completed_plans: 75
-  percent: 96
+  total_phases: 28
+  completed_phases: 20
+  total_plans: 75
+  completed_plans: 76
+  percent: 100
 ---
 
 # Project State
@@ -109,6 +109,7 @@ Key v2.0 decisions already settled:
 - Phase 43.1 inserted: Windows Media Keys (SMTC), depends on Phase 41 (factory) + Phase 43 (runtime); requires live Windows VM validation — 2026-04-14
 - Phase 44 success criteria amended: added Phase 42 Linux↔Windows settings-export round-trip UAT — 2026-04-14
 - Phase 48 added: Fix AudioAddict listen key not persisting to DB (surfaced by Phase 42 UAT test 7; skipped as out-of-scope) — 2026-04-17
+- Phase 49 added: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries — 2026-04-24
 
 ### Pending Todos
 
@@ -128,7 +129,7 @@ Key v2.0 decisions already settled:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 999.8 closed (REFUTED — fixed by 9df84de streamlink API patch)
+Stopped at: Phase 999.9 context gathered
 Resume file: --resume-file
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
