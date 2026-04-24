@@ -121,6 +121,12 @@ class FakeRepo:
     def list_streams(self, station_id: int) -> list:
         return []
 
+    def list_providers(self) -> list:
+        # Phase 999.1 Plan 03: EditStationDialog._populate enumerates providers;
+        # an empty list is sufficient for the new-station flow since no
+        # provider pre-selection is exercised by these integration tests.
+        return []
+
     def get_station(self, station_id: int):
         for s in self._stations:
             if s.id == station_id:
@@ -549,8 +555,15 @@ def test_new_station_menu_creates_placeholder_and_opens_dialog(
     from PySide6.QtWidgets import QDialog
     from musicstreamer.ui_qt import edit_station_dialog as esd_mod
 
+    # Simulate user clicking Cancel: invoke the dialog's own reject() override
+    # so the Plan-01 is_new delete-on-reject path fires (Pitfall 3). Returning
+    # Rejected alone bypasses the override and leaves the placeholder orphaned.
+    def _fake_exec_reject(self):
+        self.reject()
+        return QDialog.Rejected
+
     monkeypatch.setattr(
-        esd_mod.EditStationDialog, "exec", lambda self: QDialog.Rejected
+        esd_mod.EditStationDialog, "exec", _fake_exec_reject
     )
 
     w = MainWindow(fake_player, fake_repo)
