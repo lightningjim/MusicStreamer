@@ -529,5 +529,14 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
+### Phase 999.9: YouTube playback broken — yt-dlp "No video formats found" despite cookies intact (BACKLOG — BUG)
+
+**Goal:** Reproduced 2026-04-24 during Phase 999.7 UAT. Attempting to play a YouTube live stream (e.g. LoFi Girl) yields `ERROR: [youtube] <id>: No video formats found!` and the worker emits `youtube_resolution_failed` → failover. Verified NOT a cookies issue: Phase 999.7's byte-equality proof holds (canonical `cookies.txt` sha256 unchanged before/after the failing call), so FIX-02 is working. yt-dlp is on the latest release (2026.03.17). Likely culprits: (a) YouTube shipped a client-side change after yt-dlp 2026.03.17 — monitor upstream for a fix, file a yt-dlp issue if it persists; (b) the EJS PO-token solver (Plan 35-06) is not firing — confirm `which node` resolves on PATH and that `extractor_args={'youtubepot-jsruntime': {'remote_components': ['ejs:github']}}` is still being honored by `_youtube_resolve_worker`; (c) imported Google cookies have expired or the age-gate tightened for the test stream. Diagnostic plan: run `yt-dlp --extractor-args "youtube:player_client=ios" <URL>` standalone to isolate the client, try `player_client=web_safari` / `android` via `opts["extractor_args"]["youtube"]`, and check `yt-dlp` GitHub issues for matching reports. Not a Phase 999.7 regression — cookie protection is verified intact.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
-*Last updated: 2026-04-24 — Phase 999.7 planned (4 plans; yt-dlp cookies.txt regression)*
+*Last updated: 2026-04-24 — Phase 999.9 added to backlog (YouTube playback regression)*
