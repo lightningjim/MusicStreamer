@@ -425,15 +425,18 @@ Plans:
 
 > Unsequenced ideas parked for later promotion via `/gsd-review-backlog`.
 
-### Phase 999.1: Add "New Station" primary action (BACKLOG)
+### Phase 999.1: Add "New Station" primary action (PLANNED)
 
-**Goal:** Provide a direct UX path to create a station from scratch. Currently there is no "New Station" menu item or button — users can only get new stations via **Discover Stations** (AudioAddict) or **Import Stations** (YouTube/playlist). EditStationDialog already supports the fields; a hamburger menu entry (or "+" button) that opens EditStationDialog with a blank Station model would close the gap. Surfaced while exercising Phase 46 UAT (logo-fetch AA-no-key flow required an existing station to reach the dialog).
-**Requirements:** TBD
+**Goal:** Provide a direct UX path to create a station from scratch via a hamburger-menu entry and a "+" button on the StationListPanel header. Both entry points pre-create a placeholder station via `repo.create_station()` and open `EditStationDialog` in `is_new=True` mode; cancel/close deletes the placeholder; save refreshes the list and selects the new station (no auto-play). Closes the v1.x UX gap surfaced during Phase 46 UAT where the only paths to a new station were Discover (AudioAddict) or Import (YouTube/playlist).
+**Requirements:** D-01..D-08 (backlog UX phase — no REQ-XX IDs; D-IDs from CONTEXT.md are the requirement anchors)
 **Depends on:** none (independent UX addition)
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (promote with /gsd-review-backlog when ready)
+- [ ] 999.1-00-PLAN.md — Wave 0: 15 failing test stubs across test_edit_station_dialog.py, test_station_list_panel.py, test_main_window_integration.py
+- [ ] 999.1-01-PLAN.md — EditStationDialog `is_new` mode: constructor flag, pre-added blank stream row (D-05), delete-on-reject/close (D-04), provider-blank (D-08), save-cleanup flag flip
+- [ ] 999.1-02-PLAN.md — StationListPanel: right-aligned "+" QToolButton + `new_station_requested` signal (D-02) + `select_station(id)` helper with proxy mapping (D-07b)
+- [ ] 999.1-03-PLAN.md — MainWindow wiring: "New Station" menu action first in Group 1 (D-01), `_on_new_station_clicked` shared slot (D-03), post-save refresh + select + no-auto-play (D-07a/c)
 
 ### Phase 999.2: Recently Played list does not update live (BACKLOG — BUG)
 
