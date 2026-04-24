@@ -108,6 +108,24 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
         self._smtc.is_next_enabled = False
         self._smtc.is_previous_enabled = False
 
+        # Cache enum refs for hot-path callback (avoids re-import on each call).
+        # Must be set BEFORE the WR-03 placeholder seed below, which uses
+        # self._type_enum.MUSIC.
+        self._button_enum = SystemMediaTransportControlsButton
+        self._status_enum = MediaPlaybackStatus
+        self._type_enum = MediaPlaybackType  # consumed in Plan 04 (publish_metadata)
+
+        # WR-03 (43.1 review): seed a neutral placeholder BEFORE enabling the
+        # session, so the Win+V overlay never shows a blank "MusicStreamer"
+        # entry with empty title/artist in the window between app launch and
+        # the first publish_metadata() call. publish_metadata() overwrites
+        # these values when a station is selected.
+        du = self._smtc.display_updater
+        du.type = self._type_enum.MUSIC
+        du.music_properties.title = "MusicStreamer"
+        du.music_properties.artist = "Idle"
+        du.update()
+
         # UAT-discovered 2026-04-21 (Pitfall #7): must explicitly enable the SMTC
         # session -- default `is_enabled` is False, which means the session is
         # created but hidden from the Win+V media overlay. Without this flag,
@@ -117,11 +135,6 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
         # Pitfall #4: store the token -- shutdown needs it for remove_button_pressed.
         self._bp_token = self._smtc.add_button_pressed(self._on_button_pressed)
         self._shutdown_complete: bool = False
-
-        # Cache enum refs for hot-path callback (avoids re-import on each call)
-        self._button_enum = SystemMediaTransportControlsButton
-        self._status_enum = MediaPlaybackStatus
-        self._type_enum = MediaPlaybackType  # consumed in Plan 04 (publish_metadata)
 
         _log.debug("WindowsMediaKeysBackend initialized (SMTC session active)")
 

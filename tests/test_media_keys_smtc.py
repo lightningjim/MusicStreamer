@@ -423,9 +423,14 @@ def test_publish_metadata_calls_update(mock_winrt_modules, qtbot, tmp_path, monk
     backend = WindowsMediaKeysBackend(None, None)
     station = _make_station()
 
+    # WR-03 fix: __init__ seeds a neutral placeholder with a du.update() call
+    # so the Win+V overlay never shows a blank entry. Reset the mock to count
+    # only updates driven by publish_metadata.
+    du = backend._smtc.display_updater
+    du.update.reset_mock()
+
     backend.publish_metadata(station, "title", None)
 
-    du = backend._smtc.display_updater
     assert du.update.called
     assert du.update.call_count == 1
 
@@ -498,6 +503,10 @@ def test_publish_metadata_none_station_clears(mock_winrt_modules, qtbot, tmp_pat
     backend = WindowsMediaKeysBackend(None, None)
     station = _make_station(3, "Test")
 
+    # WR-03 fix: __init__ seeds a neutral placeholder with a du.update() call.
+    # Reset to count only publish_metadata-driven updates.
+    backend._smtc.display_updater.update.reset_mock()
+
     # First publish real metadata
     backend.publish_metadata(station, "some title", None)
 
@@ -510,7 +519,7 @@ def test_publish_metadata_none_station_clears(mock_winrt_modules, qtbot, tmp_pat
     assert backend._smtc.display_updater.thumbnail is None
     assert backend._station is None
     assert backend._title == ""
-    # update() called twice total
+    # update() called twice total (excluding init-time seed)
     assert backend._smtc.display_updater.update.call_count == 2
 
 
