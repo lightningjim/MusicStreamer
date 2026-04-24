@@ -555,8 +555,8 @@ class Player(QObject):
         if token:
             # Scope the header to the Twitch plugin only -- NOT global
             # http-header (RESEARCH.md Pitfall 6).
-            session.set_plugin_option(
-                "twitch", "api-header",
+            session.set_option(
+                "twitch-api-header",
                 [("Authorization", f"OAuth {token}")],
             )
         try:
