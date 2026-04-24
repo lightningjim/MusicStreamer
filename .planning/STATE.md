@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 999.1-02-PLAN.md
-last_updated: "2026-04-24T13:16:20.561Z"
+stopped_at: Completed 999.1-03-PLAN.md
+last_updated: "2026-04-24T13:36:01.631Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 23
-  completed_phases: 17
+  completed_phases: 18
   total_plans: 68
-  completed_plans: 67
-  percent: 99
+  completed_plans: 68
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 999.1 (add-new-station-primary-action) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-04-24
 
-Progress: [██████████] 99%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -93,6 +93,7 @@ Key v2.0 decisions already settled:
 - fresh_station fixture added alongside existing station fixture; existing tests untouched
 - 999.1-02: header row placed at top-level layout (not inside stations_page) so '+' button is visible in Favorites mode too
 - 999.1-02: select_station walks source model inline and maps via proxy.mapFromSource (StationTreeModel API kept minimal)
+- [Phase 999.1-03]: Shared slot _on_new_station_clicked handles BOTH hamburger menu action and StationListPanel.new_station_requested signal — single code path for menu and panel '+' button (D-02). Lambda-capture of new_id matches _on_edit_requested precedent (no functools import added to main_window.py).
 
 ### Roadmap Evolution
 
@@ -121,8 +122,8 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-24T13:16:20.555Z
-Stopped at: Completed 999.1-02-PLAN.md
+Last session: 2026-04-24T13:36:01.626Z
+Stopped at: Completed 999.1-03-PLAN.md
 Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
