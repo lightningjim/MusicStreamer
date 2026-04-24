@@ -6,15 +6,20 @@ UI-08: AccountsDialog shows Connected/Not connected, launches QProcess OAuth,
 Phase 48 D-04..D-07: AA group reflects ``audioaddict_listen_key`` saved state
        and lets the user clear it via Yes/No confirm. Dialog never writes a
        new AA key — editing lives in ImportDialog (plan 48-02).
+
+Phase 999.3 D-08..D-12: Category+detail failure dialog with inline Retry;
+       stderr JSON parser; persistent oauth.log.
 """
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtWidgets import QApplication, QDialogButtonBox, QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QLabel, QMessageBox
 
 from musicstreamer import paths
 
@@ -57,6 +62,21 @@ def tmp_data_dir(tmp_path, monkeypatch):
 def app(qapp):
     """Re-use qtbot's QApplication; just return it."""
     return qapp
+
+
+def _mock_proc_with_stderr(stderr_bytes: bytes = b"", stdout_bytes: bytes = b""):
+    """Build a MagicMock QProcess whose readAll*Error/Output return given bytes."""
+    from PySide6.QtCore import QProcess
+    proc = MagicMock(spec=QProcess)
+    # readAllStandardError().data() → bytes
+    err_chunk = MagicMock()
+    err_chunk.data.return_value = stderr_bytes
+    proc.readAllStandardError.return_value = err_chunk
+    # readAllStandardOutput().data() → bytes
+    out_chunk = MagicMock()
+    out_chunk.data.return_value = stdout_bytes
+    proc.readAllStandardOutput.return_value = out_chunk
+    return proc
 
 
 # ---------------------------------------------------------------------------
@@ -184,16 +204,16 @@ class TestAccountsDialogOAuthFinished:
         token_path = paths.twitch_token_path()
         os.makedirs(os.path.dirname(token_path), exist_ok=True)
 
-        mock_proc = MagicMock(spec=QProcess)
         fake_token = "oauth-abc123"
-        mock_proc.readAllStandardOutput.return_value.data.return_value.decode.return_value = fake_token
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=b'{"ts":1.0,"category":"Success","detail":"","provider":"twitch"}\n',
+            stdout_bytes=fake_token.encode(),
+        )
 
         with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
             dlg = AccountsDialog(fake_repo)
             qtbot.addWidget(dlg)
-            # Simulate process start
             dlg._on_action_clicked()
-            # Simulate finished with success
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(0, QProcess.ExitStatus.NormalExit)
 
@@ -203,19 +223,22 @@ class TestAccountsDialogOAuthFinished:
         assert perms == oct(0o600)
         assert "connected" in dlg._status_label.text().lower()
 
-    def test_oauth_finished_failure_shows_warning(self, tmp_data_dir, qtbot, monkeypatch, fake_repo):
-        """Exit code 1: QMessageBox.warning shown, status reverts to Not connected."""
+    def test_oauth_finished_failure_calls_show_failure_dialog(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Phase 999.3 D-08: failure calls _show_failure_dialog with parsed category+detail."""
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        warning_calls = []
+        recorded: list[tuple[str, str]] = []
         monkeypatch.setattr(
-            QMessageBox, "warning",
-            staticmethod(lambda *args, **kwargs: warning_calls.append(args)),
+            AccountsDialog,
+            "_show_failure_dialog",
+            lambda self, cat, det: recorded.append((cat, det)),
         )
 
-        mock_proc = MagicMock(spec=QProcess)
-        mock_proc.readAllStandardOutput.return_value.data.return_value.decode.return_value = ""
+        stderr = b'{"ts":1.0,"category":"TwitchRejectedRequest","detail":"access_denied","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
 
         with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
             dlg = AccountsDialog(fake_repo)
@@ -224,8 +247,357 @@ class TestAccountsDialogOAuthFinished:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert len(warning_calls) > 0
+        assert recorded == [("TwitchRejectedRequest", "access_denied")]
         assert "not connected" in dlg._status_label.text().lower()
+
+
+class TestAccountsDialogStderrParsing:
+    """Phase 999.3 D-12: parent parses last valid JSON line from stderr."""
+
+    def test_oauth_finished_parses_stderr_category(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Single valid JSON event → _show_failure_dialog receives (category, detail)."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        recorded: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog",
+            lambda self, c, d: recorded.append((c, d)),
+        )
+
+        stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert recorded == [("LoginTimeout", "120s")]
+
+    def test_oauth_finished_keeps_last_event(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Multiple valid events — parser keeps the LAST one (D-12)."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        recorded: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog",
+            lambda self, c, d: recorded.append((c, d)),
+        )
+
+        stderr = (
+            b'{"ts":1.0,"category":"PortBusy","detail":"98","provider":"twitch"}\n'
+            b'{"ts":2.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
+        )
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert recorded == [("LoginTimeout", "120s")]
+
+    def test_oauth_finished_skips_malformed_json(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """T-999.3-05: malformed JSON lines are skipped, valid trailing event wins."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        recorded: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog",
+            lambda self, c, d: recorded.append((c, d)),
+        )
+
+        stderr = (
+            b'not json at all\n'
+            b'{"garbage": true}\n'  # dict but no category key → skipped
+            b'{"ts":1.0,"category":"WindowClosedBeforeLogin","detail":"","provider":"twitch"}\n'
+        )
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert recorded == [("WindowClosedBeforeLogin", "")]
+
+    def test_oauth_finished_synthesizes_crash_on_no_event(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """No parseable event + non-zero exit → synthetic SubprocessCrash."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        recorded: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog",
+            lambda self, c, d: recorded.append((c, d)),
+        )
+
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=b"")
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert recorded == [("SubprocessCrash", "exit=1")]
+
+    def test_oauth_finished_synthesizes_invalid_on_empty_token(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """exit_code=0, empty stdout, empty stderr → InvalidTokenResponse empty_stdout."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        recorded: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog",
+            lambda self, c, d: recorded.append((c, d)),
+        )
+
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=b"", stdout_bytes=b"")
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(0, QProcess.ExitStatus.NormalExit)
+
+        assert recorded == [("InvalidTokenResponse", "empty_stdout")]
+
+
+class TestAccountsDialogRetry:
+    """Phase 999.3 D-09: Retry relaunches subprocess inline."""
+
+    def test_retry_relaunches_subprocess(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Clicking Retry in the failure dialog re-invokes _launch_oauth_subprocess."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        # Simulate the dialog exec() returning Accepted (Retry clicked).
+        monkeypatch.setattr(
+            QDialog, "exec",
+            lambda self: QDialog.DialogCode.Accepted,
+        )
+
+        relaunch_calls: list[int] = []
+        # Patch AFTER the first launch via _on_action_clicked is done — we
+        # want to observe the RETRY call specifically.
+        original_launch = AccountsDialog._launch_oauth_subprocess
+
+        def counting_launch(self):
+            relaunch_calls.append(1)
+
+        stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            # Now swap the launch method so the Retry invocation is observable.
+            monkeypatch.setattr(
+                AccountsDialog, "_launch_oauth_subprocess", counting_launch
+            )
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert len(relaunch_calls) == 1
+
+    def test_close_does_not_relaunch(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Close (Rejected) does NOT relaunch subprocess."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        monkeypatch.setattr(
+            QDialog, "exec",
+            lambda self: QDialog.DialogCode.Rejected,
+        )
+
+        relaunch_calls: list[int] = []
+
+        def counting_launch(self):
+            relaunch_calls.append(1)
+
+        stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            monkeypatch.setattr(
+                AccountsDialog, "_launch_oauth_subprocess", counting_launch
+            )
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert relaunch_calls == []
+
+
+class TestAccountsDialogFailureDialogPlainText:
+    """T-40-04: every QLabel in the failure dialog uses PlainText format."""
+
+    def test_failure_dialog_uses_plain_text(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        built_dialogs: list[QDialog] = []
+        original_exec = QDialog.exec
+
+        def capture_exec(self):
+            built_dialogs.append(self)
+            # Walk children; we don't actually need to show the dialog.
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", capture_exec)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._show_failure_dialog("LoginTimeout", "120s")
+
+        assert len(built_dialogs) == 1
+        failure_dlg = built_dialogs[0]
+        labels = failure_dlg.findChildren(QLabel)
+        assert len(labels) >= 2, "dialog should contain at least title+detail labels"
+        for lbl in labels:
+            assert lbl.textFormat() == Qt.TextFormat.PlainText, (
+                f"T-40-04: label {lbl.text()!r} is not PlainText"
+            )
+
+    def test_failure_dialog_unknown_category_uses_fallback(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        built: list[QDialog] = []
+
+        def capture_exec(self):
+            built.append(self)
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", capture_exec)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._show_failure_dialog("SomeUnknownCategory", "")
+
+        assert len(built) == 1
+        labels = built[0].findChildren(QLabel)
+        texts = " | ".join(lbl.text() for lbl in labels)
+        assert "Unknown error" in texts
+        assert "(no details provided)" in texts
+
+
+class TestAccountsDialogOAuthLog:
+    """Phase 999.3 D-11: failure + success events persist to oauth.log."""
+
+    def test_failure_logs_event_to_oauth_log(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        # Swallow the dialog exec so the test doesn't block.
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog", lambda self, c, d: None
+        )
+
+        stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        log_path = paths.oauth_log_path()
+        assert os.path.exists(log_path), "oauth.log should have been created"
+        with open(log_path) as fh:
+            lines = fh.readlines()
+        assert len(lines) == 1
+        obj = json.loads(lines[0])
+        assert obj["category"] == "LoginTimeout"
+        assert obj["detail"] == "120s"
+        assert obj["provider"] == "twitch"
+
+    def test_success_logs_success_event(
+        self, tmp_data_dir, qtbot, fake_repo
+    ):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        token_path = paths.twitch_token_path()
+        os.makedirs(os.path.dirname(token_path), exist_ok=True)
+
+        stderr = b'{"ts":2.5,"category":"Success","detail":"","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=stderr, stdout_bytes=b"abc123token"
+        )
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(0, QProcess.ExitStatus.NormalExit)
+
+        log_path = paths.oauth_log_path()
+        assert os.path.exists(log_path)
+        with open(log_path) as fh:
+            lines = fh.readlines()
+        assert len(lines) == 1
+        obj = json.loads(lines[0])
+        assert obj["category"] == "Success"
+        assert obj["provider"] == "twitch"
+
+    def test_logger_failure_does_not_block_dialog(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Phase 999.3 D-11: if OAuthLogger init raises, failure dialog still shown."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from musicstreamer import oauth_log
+        from PySide6.QtCore import QProcess
+
+        def boom(self, log_path):  # replaces __init__
+            raise OSError("disk full")
+
+        monkeypatch.setattr(oauth_log.OAuthLogger, "__init__", boom)
+
+        recorded: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_show_failure_dialog",
+            lambda self, c, d: recorded.append((c, d)),
+        )
+
+        stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._oauth_proc = mock_proc
+            dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
+
+        # Logging failure must NOT prevent the user-facing dialog.
+        assert recorded == [("LoginTimeout", "120s")]
 
 
 class TestAccountsDialogAudioAddict:
