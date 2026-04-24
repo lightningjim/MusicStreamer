@@ -520,14 +520,12 @@ Plans:
 - [ ] 999.7-03-PLAN.md — Wave 2 (parallel with 02): `Player._youtube_resolve_worker` routes cookies through `temp_cookies_copy()` + class-level `cookies_cleared = Signal(str)` + MainWindow wiring to `show_toast`
 - [ ] 999.7-04-PLAN.md — Wave 3: full-suite regression guard + human UAT (byte-identity + tempfile-leak + corruption recovery) + PROJECT.md Key Decisions entry
 
-### Phase 999.8: Twitch stations play silent — likely Phase 47.2 EQ regression (BACKLOG — BUG)
+### Phase 999.8: Twitch stations play silent — REFUTED, actual root cause was streamlink 8.x API regression (COMPLETE)
 
-**Goal:** After Phase 999.3 fixed Twitch OAuth login, Twitch stations resolve and GStreamer "plays" (elapsed timer ticks) but produce no audio, while other stations (ShoutCast, YouTube) play with audio on the same install. Verified that streamlink returns a valid HLS URL and `gst-play-1.0` plays that URL with audio standalone — so the fault is inside MusicStreamer's playbin3 pipeline, not streamlink or OAuth. Strong suspicion: the Phase 47.2 equalizer plugged into `playbin3.audio-filter` silences Twitch's HLS audio format (bad band config, preamp at -∞, or audio-filter slot incompatibility with Twitch's HLS variant). Diagnostic: toggle EQ off and retry; compare `gst-launch-1.0 playbin3 uri=<URL>` (no EQ filter) against in-app playback; inspect `_apply_eq_state` behavior for Twitch streams. Hidden since Phase 32 because Twitch login was failing before audio could ever be tested end-to-end.
+**Goal:** After Phase 999.3 fixed Twitch OAuth login, Twitch stations resolve and GStreamer "plays" (elapsed timer ticks) but produce no audio. Original hypothesis: Phase 47.2 equalizer plugged into `playbin3.audio-filter` silences Twitch's HLS audio format. **REFUTED 2026-04-24.**
+**Outcome:** Actual root cause was `streamlink` 8.x dropping `Streamlink.set_plugin_option`. The Twitch resolution worker crashed with `AttributeError` before assigning a URI to playbin3 — symptom (timer ticks, no audio) was indistinguishable from EQ-induced silencing because the crash happened in a `daemon=True` thread without surfacing as `playback_error`. Fixed in `9df84de` (one-line API update: `session.set_plugin_option("twitch", "api-header", v)` → `session.set_option("twitch-api-header", v)`). EQ was never at fault. Planned GstBin wrapper + matrix harness dropped per single-user pragmatic policy. See `999.8-DIAGNOSTIC.md` and `999.8-SUMMARY.md` for full record.
 **Requirements:** TBD
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (promote with /gsd-review-backlog when ready)
+**Plans:** 0 plans (resolved by `9df84de`; planned work was against refuted hypothesis)
 
 ### Phase 999.9: YouTube playback broken — yt-dlp "No video formats found" despite cookies intact (BACKLOG — BUG)
 

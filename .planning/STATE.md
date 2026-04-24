@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 999.8 context gathered
-last_updated: "2026-04-24T20:38:29.965Z"
+stopped_at: Phase 999.8 closed (refuted — actual fix was streamlink 8.x API regression in 9df84de)
+last_updated: "2026-04-24T23:30:00.000Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 27
-  completed_phases: 20
-  total_plans: 75
+  completed_phases: 21
+  total_plans: 78
   completed_plans: 75
-  percent: 100
+  percent: 96
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 999.7 — yt-dlp-overwrites-cookies-txt-regression-of-fix-02
+**Current focus:** Phase 999.9 — youtube-playback-broken-no-video-formats-found-regression (next backlog bug)
 
 ## Current Position
 
-Phase: 999.7 (yt-dlp-overwrites-cookies-txt-regression-of-fix-02) — EXECUTING
-Plan: 4 of 4
-Status: Ready to execute
+Phase: 999.8 (twitch-stations-play-silent — REFUTED) — COMPLETE
+Plan: 0 of 0 (resolved by 9df84de; planned work dropped against refuted hypothesis)
+Status: Complete
 Last activity: 2026-04-24
 
 Progress: [██████████] 100%
@@ -128,9 +128,9 @@ Key v2.0 decisions already settled:
 ## Session Continuity
 
 Last session: --stopped-at
-Stopped at: Phase 999.8 context gathered
+Stopped at: Phase 999.8 closed (REFUTED — fixed by 9df84de streamlink API patch)
 Resume file: --resume-file
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
 
-**Planned Phase:** 999.7 (yt-dlp-overwrites-cookies-txt-regression-of-fix-02) — 4 plans — 2026-04-24T19:32:51.654Z
+**Completed Phase:** 999.8 (twitch-stations-play-silent — REFUTED, resolved by 9df84de) — 2026-04-24
