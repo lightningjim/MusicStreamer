@@ -21,11 +21,16 @@ test = [
     "pytest>=9",
     "pytest-qt>=4",
 ]
+# WR-02 (43.1 review): pin pywinrt deps to >=3.2,<4. pywinrt 3.x has had
+# breaking namespace reshuffles between minor versions (2.x -> 3.x moved
+# winrt.windows.* layout). Phase 43.1 UAT validated the 3.2.x layout
+# (see smtc.py lines 18-24); codify it here so a future pywinrt release
+# cannot silently break the SMTC backend with a confusing ImportError.
 windows = [
-    "winrt-Windows.Media.Playback",
-    "winrt-Windows.Media",
-    "winrt-Windows.Storage.Streams",
-    "winrt-Windows.Foundation",
+    "winrt-Windows.Media.Playback>=3.2,<4",
+    "winrt-Windows.Media>=3.2,<4",
+    "winrt-Windows.Storage.Streams>=3.2,<4",
+    "winrt-Windows.Foundation>=3.2,<4",
 ]
 
 [project.scripts]
