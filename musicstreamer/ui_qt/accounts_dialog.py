@@ -9,9 +9,16 @@ Phase 48 (D-04/D-05/D-06/D-07): Adds an AudioAddict view/clear group
        key is persisted in the settings table and lets the user clear it
        with a Yes/No confirmation. AccountsDialog never writes a new AA key
        — editing lives in ImportDialog on successful fetch (plan 48-02).
+
+Phase 999.3 (D-08/D-09/D-11/D-12): Replaces the generic "Try again"
+       QMessageBox with a category+detail failure QDialog that offers an
+       inline Retry button. Parses the structured JSON-line stderr events
+       emitted by oauth_helper.py and appends them to a persistent rotating
+       log at paths.oauth_log_path().
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -21,6 +28,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -29,6 +37,18 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer import constants, paths
+from musicstreamer.oauth_log import OAuthLogger
+
+# Phase 999.3 D-08: category → user-facing label.
+# Keep in sync with oauth_helper._emit_event categories (Plan 01 contract).
+_CATEGORY_LABELS = {
+    "InvalidTokenResponse":    "Login did not return a valid token",
+    "TwitchRejectedRequest":   "Twitch rejected the login request",
+    "LoginTimeout":            "Login took too long (2 min)",
+    "WindowClosedBeforeLogin": "Login window was closed before completing",
+    "PortBusy":                "Local port 17823 is in use — close other login attempts and retry",
+    "SubprocessCrash":         "Login helper crashed unexpectedly",
+}
 
 
 class AccountsDialog(QDialog):
@@ -42,6 +62,8 @@ class AccountsDialog(QDialog):
     Status label reflects whether ``audioaddict_listen_key`` is saved in
     the settings table. Clear button prompts Yes/No confirm; Yes clears
     the setting, No is a no-op. Dialog never writes a new AA key.
+
+    Phase 999.3 D-08..D-12: Category-aware failure UX + persistent log.
     """
 
     def __init__(self, repo, parent: QWidget | None = None) -> None:
@@ -51,6 +73,7 @@ class AccountsDialog(QDialog):
         self.setMinimumWidth(360)
 
         self._oauth_proc: QProcess | None = None
+        self._oauth_logger: OAuthLogger | None = None  # Phase 999.3 D-11: lazy-init
 
         # Twitch group box
         twitch_box = QGroupBox("Twitch", self)
@@ -128,6 +151,29 @@ class AccountsDialog(QDialog):
             self._aa_clear_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
+    # OAuth logger (lazy)
+    # ------------------------------------------------------------------
+
+    def _get_oauth_logger(self) -> OAuthLogger | None:
+        """Phase 999.3 D-11: lazy-init OAuthLogger.
+
+        Returns None on failure — logging is supplementary and MUST NOT
+        block the user from seeing the failure dialog.
+        """
+        if self._oauth_logger is not None:
+            return self._oauth_logger
+        try:
+            log_path = paths.oauth_log_path()
+            os.makedirs(os.path.dirname(log_path), exist_ok=True)
+            self._oauth_logger = OAuthLogger(log_path)
+        except OSError:
+            return None
+        except Exception:
+            # Defensive: any logger-init failure is swallowed (D-11 accept disposition).
+            return None
+        return self._oauth_logger
+
+    # ------------------------------------------------------------------
     # Action slot
     # ------------------------------------------------------------------
 
@@ -147,14 +193,18 @@ class AccountsDialog(QDialog):
                 self._update_status()
         else:
             # D-02: launch OAuth subprocess
-            self._oauth_proc = QProcess(self)
-            self._oauth_proc.finished.connect(self._on_oauth_finished)
-            # T-40-05: use sys.executable — no PATH injection; never shell=True
-            self._oauth_proc.start(
-                sys.executable,
-                ["-m", "musicstreamer.oauth_helper", "--mode", "twitch"],
-            )
-            self._update_status()
+            self._launch_oauth_subprocess()
+
+    def _launch_oauth_subprocess(self) -> None:
+        """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
+        self._oauth_proc = QProcess(self)
+        self._oauth_proc.finished.connect(self._on_oauth_finished)
+        # T-40-05: use sys.executable — no PATH injection; never shell=True
+        self._oauth_proc.start(
+            sys.executable,
+            ["-m", "musicstreamer.oauth_helper", "--mode", "twitch"],
+        )
+        self._update_status()
 
     def _on_aa_clear_clicked(self) -> None:
         """Phase 48 D-06: confirm then clear the saved AudioAddict listen key."""
@@ -179,25 +229,147 @@ class AccountsDialog(QDialog):
         exit_code: int,
         exit_status: QProcess.ExitStatus,
     ) -> None:
-        if exit_code == 0:
-            token = (
-                self._oauth_proc.readAllStandardOutput()  # type: ignore[union-attr]
-                .data()
-                .decode()
-                .strip()
-            )
-            if token:
-                token_path = paths.twitch_token_path()
-                os.makedirs(os.path.dirname(token_path), exist_ok=True)
-                with open(token_path, "w") as fh:
-                    fh.write(token)
-                os.chmod(token_path, 0o600)  # T-40-03: restrict permissions immediately
-        else:
-            QMessageBox.warning(
-                self,
-                "Twitch Connection Failed",
-                "Twitch connection failed. Try again.",
-            )
-
+        proc = self._oauth_proc
         self._oauth_proc = None
+
+        # Phase 999.3 D-12: parse stderr line-by-line, keep last valid event.
+        last_event: dict | None = None
+        if proc is not None:
+            try:
+                stderr_bytes = proc.readAllStandardError().data()
+            except Exception:
+                stderr_bytes = b""
+            try:
+                stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+            except Exception:
+                stderr_text = ""
+            for line in stderr_text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    # T-999.3-05: malformed line → skip, no eval/no code path.
+                    continue
+                if isinstance(obj, dict) and "category" in obj:
+                    last_event = obj
+
+        # Read stdout (token on success)
+        token = ""
+        if proc is not None:
+            try:
+                token = (
+                    proc.readAllStandardOutput().data().decode("utf-8", errors="replace").strip()
+                )
+            except Exception:
+                token = ""
+
+        # ---- Success path --------------------------------------------
+        success_category = last_event is None or last_event.get("category") == "Success"
+        if exit_code == 0 and token and success_category:
+            token_path = paths.twitch_token_path()
+            os.makedirs(os.path.dirname(token_path), exist_ok=True)
+            with open(token_path, "w") as fh:
+                fh.write(token)
+            os.chmod(token_path, 0o600)  # T-40-03: restrict permissions immediately
+            logger = self._get_oauth_logger()
+            if logger is not None:
+                try:
+                    logger.log_event({
+                        "ts": (last_event or {}).get("ts", 0.0),
+                        "category": "Success",
+                        "detail": "",
+                        "provider": "twitch",
+                    })
+                except Exception:
+                    pass
+            self._update_status()
+            return
+
+        # ---- Failure path --------------------------------------------
+        # Defensive classification precedence:
+        # 1. exit_code==0 with empty token → InvalidTokenResponse empty_stdout
+        #    (takes precedence over missing event; subprocess exited cleanly
+        #    but produced no token — semantically an invalid response, not a crash)
+        # 2. No parseable event at all → SubprocessCrash exit=<code>
+        # 3. Event present and exit_code==0 but empty token → upgrade to
+        #    InvalidTokenResponse empty_stdout
+        if exit_code == 0 and not token:
+            last_event = {
+                "ts": (last_event or {}).get("ts", 0.0),
+                "category": "InvalidTokenResponse",
+                "detail": "empty_stdout",
+                "provider": "twitch",
+            }
+        elif last_event is None:
+            last_event = {
+                "ts": 0.0,
+                "category": "SubprocessCrash",
+                "detail": f"exit={exit_code}",
+                "provider": "twitch",
+            }
+
+        logger = self._get_oauth_logger()
+        if logger is not None:
+            try:
+                logger.log_event(last_event)
+            except Exception:
+                pass
+
         self._update_status()
+        # T-999.3-05: coerce category/detail to str before UI consumption.
+        category = str(last_event.get("category", "SubprocessCrash"))
+        detail = str(last_event.get("detail", ""))
+        self._show_failure_dialog(category, detail)
+
+    # ------------------------------------------------------------------
+    # Failure dialog (Phase 999.3 D-08, D-09)
+    # ------------------------------------------------------------------
+
+    def _show_failure_dialog(self, category: str, detail: str) -> None:
+        """Category + detail failure dialog with inline Retry.
+
+        T-40-04: all labels use PlainText format — user-visible detail
+        strings cannot inject HTML/links.
+        """
+        label = _CATEGORY_LABELS.get(category, "Unknown error")
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Twitch Connection Failed")
+        dlg.setMinimumWidth(380)
+
+        title_lbl = QLabel(label, dlg)
+        title_lbl.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04
+        title_lbl.setWordWrap(True)
+        title_font = QFont()
+        title_font.setPointSize(11)
+        title_font.setBold(True)
+        title_lbl.setFont(title_font)
+
+        detail_text = detail if detail else "(no details provided)"
+        detail_lbl = QLabel(detail_text, dlg)
+        detail_lbl.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04
+        detail_lbl.setWordWrap(True)
+        detail_font = QFont()
+        detail_font.setPointSize(9)
+        detail_lbl.setFont(detail_font)
+
+        retry_btn = QPushButton("Retry", dlg)
+        close_btn = QPushButton("Close", dlg)
+        close_btn.clicked.connect(dlg.reject)
+        retry_btn.clicked.connect(dlg.accept)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        btn_row.addWidget(close_btn)
+        btn_row.addWidget(retry_btn)
+
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.addWidget(title_lbl)
+        layout.addWidget(detail_lbl)
+        layout.addLayout(btn_row)
+
+        # D-09: Retry (Accepted) relaunches inline without closing AccountsDialog.
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._launch_oauth_subprocess()
