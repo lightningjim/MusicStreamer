@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
-status: planning
-stopped_at: Phase 999.7 context gathered
-last_updated: "2026-04-24T19:07:26.712Z"
+status: executing
+stopped_at: Completed 999.7-01-PLAN.md (RED gate)
+last_updated: "2026-04-24T19:37:17.464Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 26
   completed_phases: 19
-  total_plans: 71
-  completed_plans: 71
-  percent: 100
+  total_plans: 75
+  completed_plans: 72
+  percent: 96
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 999.3 — Twitch OAuth login fix
+**Current focus:** Phase 999.7 — yt-dlp-overwrites-cookies-txt-regression-of-fix-02
 
 ## Current Position
 
-Phase: 999.4
-Plan: Not started
-Status: Ready to plan
+Phase: 999.7 (yt-dlp-overwrites-cookies-txt-regression-of-fix-02) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-04-24
 
-Progress: [██████████] 100%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -94,6 +94,7 @@ Key v2.0 decisions already settled:
 - 999.1-02: header row placed at top-level layout (not inside stations_page) so '+' button is visible in Favorites mode too
 - 999.1-02: select_station walks source model inline and maps via proxy.mapFromSource (StationTreeModel API kept minimal)
 - [Phase 999.1-03]: Shared slot _on_new_station_clicked handles BOTH hamburger menu action and StationListPanel.new_station_requested signal — single code path for menu and panel '+' button (D-02). Lambda-capture of new_id matches _on_edit_requested precedent (no functools import added to main_window.py).
+- 999.7-01: Shared cookie_utils helper module at package root with @contextlib.contextmanager + mkstemp for per-call tempfile copies; 2/9 tests green immediately, 7 RED for Plans 02/03
 
 ### Roadmap Evolution
 
@@ -122,10 +123,10 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 999.7 context gathered
-Resume file: --resume-file
+Last session: 2026-04-24T19:37:17.458Z
+Stopped at: Completed 999.7-01-PLAN.md (RED gate)
+Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
 
-**Planned Phase:** 999.3 (Twitch OAuth login fix) — 3 plans — 2026-04-24T17:04:28.753Z
+**Planned Phase:** 999.7 (yt-dlp-overwrites-cookies-txt-regression-of-fix-02) — 4 plans — 2026-04-24T19:32:51.654Z
