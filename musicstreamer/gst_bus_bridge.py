@@ -83,6 +83,39 @@ class GstBusLoopThread:
     def is_running(self) -> bool:
         return self._loop is not None and self._loop.is_running()
 
+    def run_sync(self, fn, timeout: float = 5.0):
+        """Run `fn()` on the bridge thread and return its result (or raise).
+
+        Used so callers (player.py) can invoke `bus.add_signal_watch()` from
+        the bridge thread -- the only thread that has acquired the bridge's
+        MainContext. Called from the main thread, add_signal_watch attaches
+        its GSource to the calling thread's default MainContext, which no
+        one iterates on Windows; the watch silently drops every bus message
+        (Phase 43.1 bugfix).
+        """
+        if self._ctx is None:
+            raise RuntimeError("GstBusLoopThread not started")
+        done = threading.Event()
+        result: list = [None]
+        exc: list = [None]
+
+        def _runner(*_: object) -> bool:
+            try:
+                result[0] = fn()
+            except BaseException as e:  # noqa: BLE001 -- re-raised on caller thread
+                exc[0] = e
+            done.set()
+            return False  # one-shot
+
+        src = GLib.idle_source_new()
+        src.set_callback(_runner)
+        src.attach(self._ctx)
+        if not done.wait(timeout=timeout):
+            raise RuntimeError("GstBusLoopThread.run_sync timed out")
+        if exc[0] is not None:
+            raise exc[0]
+        return result[0]
+
 
 def attach_bus(bus, bridge: "GstBusLoopThread | None" = None) -> None:
     """Wire a GStreamer bus to the bridge-thread main loop per D-07.
@@ -100,4 +133,12 @@ def attach_bus(bus, bridge: "GstBusLoopThread | None" = None) -> None:
     (Pitfall 5). This helper intentionally does not expose such a hook.
     """
     bus.enable_sync_message_emission()  # D-07 literal -- also a PORT-02 gate
-    bus.add_signal_watch()               # async watch, dispatched on bridge thread
+    # Phase 43.1 bugfix: add_signal_watch attaches its GSource to the calling
+    # thread's thread-default MainContext. Called from the main thread the
+    # GSource lands on a context nobody iterates on Windows -- bus handlers
+    # silently never fire. Marshal the call onto the bridge thread so the
+    # GSource lands on the bridge's iterated MainContext.
+    if bridge is not None:
+        bridge.run_sync(lambda: bus.add_signal_watch())
+    else:
+        bus.add_signal_watch()           # fallback: caller must drive default context

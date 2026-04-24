@@ -1,6 +1,6 @@
 ---
 name: spike-findings-musicstreamer
-description: Validated patterns, constraints, and implementation knowledge from MusicStreamer spike experiments. Auto-load during Windows packaging, GStreamer, PyInstaller, or conda-forge-related implementation work.
+description: Validated patterns, constraints, and implementation knowledge from MusicStreamer spike experiments. Auto-load during Windows packaging, GStreamer, PyInstaller, conda-forge, or Qt/GLib bus-handler threading work.
 ---
 
 <context>
@@ -17,6 +17,7 @@ Spike wrapped: 2026-04-20
 | Area | Reference | Key Finding |
 |------|-----------|-------------|
 | Windows GStreamer Bundling | references/windows-gstreamer-bundling.md | conda-forge is the only viable path for PyGObject on Windows. Custom runtime hook sets `GIO_EXTRA_MODULES`/`GI_TYPELIB_PATH`/`GST_PLUGIN_SCANNER` that the stock rthook misses. Explicit `Tree()` blocks override the broken stock `hook-gi.repository.Gio.py` on conda-forge layout. Empirically proved self-contained ~110 MB bundle. |
+| Qt ↔ GLib Bus Threading | references/qt-glib-bus-threading.md | Two cross-platform correctness rules for GStreamer bus handlers in a PySide6 app. (1) `bus.add_signal_watch()` must run on the thread iterating its own thread-default MainContext — marshal onto the `GstBusLoopThread` via `run_sync`. (2) `QTimer.singleShot(0, callable)` from a non-QThread silently drops — any cross-thread work from a bus handler must go through a queued Qt `Signal`. Both rules validated by Phase 43.1 Windows failure + Linux latent-bug reproduction. |
 
 ## Source Files
 
