@@ -87,3 +87,7 @@ Related backlog / project memory:
 - Revisit whether Node.js runtime requirement from Phase 35-06 (added for
   yt-dlp EJS solver) has any bearing on GBS.FM client choice before
   committing to an implementation language/library.
+- **Single-user scope:** MusicStreamer is Kyle-only (confirmed 2026-04-24).
+  Assume one GBS.FM account, one credential set. Skip multi-profile UX,
+  account switching, and anti-abuse/moderation UI aimed at third parties.
+  See memory: `project_single_user_scope.md`.
