@@ -35,6 +35,7 @@ class FakePlayer(QObject):
     failover = Signal(object)
     offline = Signal(str)
     playback_error = Signal(str)
+    cookies_cleared = Signal(str)  # Phase 999.7
     elapsed_updated = Signal(int)
     buffer_percent = Signal(int)  # Phase 47.1 D-12
 

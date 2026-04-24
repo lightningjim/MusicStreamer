@@ -79,7 +79,10 @@ def test_ytdlp_passes_cookiefile_when_file_exists(tmp_path, monkeypatch):
         from musicstreamer import yt_import
         yt_import.scan_playlist("https://youtube.com/playlist?list=test")
 
-    assert captured_opts.get("cookiefile") == str(cookies_file)
+    cf = captured_opts.get("cookiefile")
+    assert cf is not None, "cookiefile must be set when canonical file exists"
+    assert cf != str(cookies_file), "cookiefile is now a temp copy, not canonical (Phase 999.7)"
+    assert cf.startswith(_tempfile.gettempdir()), f"expected temp path, got {cf}"
 
 
 def test_ytdlp_omits_cookiefile_when_absent(tmp_path, monkeypatch):
@@ -142,8 +145,11 @@ def test_youtube_resolve_passes_cookiefile_when_present(tmp_path, monkeypatch, q
     with patch.object(yt_dlp, "YoutubeDL", FakeYDL):
         player._youtube_resolve_worker("https://youtube.com/watch?v=test")
 
-    assert captured_opts.get("cookiefile") == str(cookies_file)
-    # EJS solver must be wired for the JS-challenge path
+    cf = captured_opts.get("cookiefile")
+    assert cf is not None, "cookiefile must be set when canonical file exists"
+    assert cf != str(cookies_file), "cookiefile is now a temp copy, not canonical (Phase 999.7)"
+    assert cf.startswith(_tempfile.gettempdir()), f"expected temp path, got {cf}"
+    # EJS solver must still be wired for the JS-challenge path
     ejs = captured_opts.get("extractor_args", {}).get("youtubepot-jsruntime", {})
     assert ejs.get("remote_components") == ["ejs:github"]
 
