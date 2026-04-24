@@ -120,7 +120,10 @@ class MainWindow(QMainWindow):
         menubar: QMenuBar = self.menuBar()
         self._menu = menubar.addMenu("\u2261")
 
-        # Group 1: Discovery + Import (D-14, D-15)
+        # Group 1: New + Discovery + Import (D-01, D-14, D-15)
+        act_new = self._menu.addAction("New Station")
+        act_new.triggered.connect(self._on_new_station_clicked)
+
         act_discover = self._menu.addAction("Discover Stations")
         act_discover.triggered.connect(self._open_discovery_dialog)
 
@@ -336,6 +339,10 @@ class MainWindow(QMainWindow):
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
         """Called when a station star is toggled in StationListPanel."""
         self.show_toast("Station added to favorites" if is_fav else "Station removed from favorites")
+
+    def _on_new_station_clicked(self) -> None:
+        """Stub — full implementation in Task 03-02."""
+        pass
 
     def _on_edit_requested(self, station: Station) -> None:
         """Open EditStationDialog for the given station (D-08)."""
