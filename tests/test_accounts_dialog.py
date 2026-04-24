@@ -237,7 +237,7 @@ class TestAccountsDialogOAuthFinished:
             lambda self, cat, det: recorded.append((cat, det)),
         )
 
-        stderr = b'{"ts":1.0,"category":"TwitchRejectedRequest","detail":"access_denied","provider":"twitch"}\n'
+        stderr = b'{"ts":1.0,"category":"WindowClosedBeforeLogin","detail":"","provider":"twitch"}\n'
         mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)
 
         with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
@@ -247,7 +247,7 @@ class TestAccountsDialogOAuthFinished:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("TwitchRejectedRequest", "access_denied")]
+        assert recorded == [("WindowClosedBeforeLogin", "")]
         assert "not connected" in dlg._status_label.text().lower()
 
 
@@ -292,7 +292,7 @@ class TestAccountsDialogStderrParsing:
         )
 
         stderr = (
-            b'{"ts":1.0,"category":"PortBusy","detail":"98","provider":"twitch"}\n'
+            b'{"ts":1.0,"category":"WindowClosedBeforeLogin","detail":"","provider":"twitch"}\n'
             b'{"ts":2.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
         )
         mock_proc = _mock_proc_with_stderr(stderr_bytes=stderr)

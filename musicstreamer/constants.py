@@ -62,10 +62,12 @@ YT_MIN_WAIT_S = 15
 QUALITY_PRESETS = ("hi", "med", "low")
 QUALITY_SETTING_KEY = "preferred_quality"
 
-# Twitch OAuth (Phase 999.3 D-01, D-03 — piggyback implicit flow)
-TWITCH_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
-TWITCH_REDIRECT_PORT = 17823  # D-03: fixed port in IANA-unassigned dynamic range
-TWITCH_AUTH_URL_BASE = "https://id.twitch.tv/oauth2/authorize"
+# Twitch login (Phase 999.3 pivot — cookie-harvest from twitch.tv web session).
+# The OAuth-redirect approach was abandoned: the piggyback web client_id has
+# redirect_uri whitelisting we cannot bypass. Instead, we harvest the auth-token
+# cookie that twitch.tv sets after login — the same token streamlink's GQL
+# endpoint accepts.
+TWITCH_LOGIN_URL = "https://www.twitch.tv/login"
 
 # Accent color (Phase 19 / ACCENT-01)
 ACCENT_COLOR_DEFAULT = "#3584e4"
