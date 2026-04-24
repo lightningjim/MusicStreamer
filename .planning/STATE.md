@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 999.1-00-PLAN.md
-last_updated: "2026-04-24T13:10:56.647Z"
+stopped_at: Completed 999.1-02-PLAN.md
+last_updated: "2026-04-24T13:16:20.561Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 23
   completed_phases: 17
   total_plans: 68
-  completed_plans: 65
-  percent: 96
+  completed_plans: 67
+  percent: 99
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 999.1 (add-new-station-primary-action) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-04-24
 
-Progress: [██████████] 96%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -91,6 +91,8 @@ Key v2.0 decisions already settled:
 - [Phase 43.1 cross-OS regression]: `QTimer.singleShot(0, callable)` from a non-`QThread` (GStreamer bus-loop thread) silently drops — the bridge thread has no Qt event loop. Any cross-thread work from a bus handler MUST go through a queued `Signal`, same pattern already used for `title_changed`. Latent everywhere; surfaced as a 10 s Shoutcast-death regression once bus handlers reliably dispatched on the bridge thread. Documented in `.claude/skills/spike-findings-musicstreamer/references/qt-glib-bus-threading.md`.
 - Wave 0 stubs use fixture mirroring (not pytest.fail placeholders) to encode exact contracts for Plans 01/02/03
 - fresh_station fixture added alongside existing station fixture; existing tests untouched
+- 999.1-02: header row placed at top-level layout (not inside stations_page) so '+' button is visible in Favorites mode too
+- 999.1-02: select_station walks source model inline and maps via proxy.mapFromSource (StationTreeModel API kept minimal)
 
 ### Roadmap Evolution
 
@@ -119,8 +121,8 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-24T13:10:56.641Z
-Stopped at: Completed 999.1-00-PLAN.md
+Last session: 2026-04-24T13:16:20.555Z
+Stopped at: Completed 999.1-02-PLAN.md
 Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
