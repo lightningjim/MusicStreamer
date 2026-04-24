@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 43.1 context gathered
-last_updated: "2026-04-21T22:45:08.090Z"
-last_activity: 2026-04-21 -- Phase 43.1 execution started
+stopped_at: Phase 43.1 complete -- ready to ship
+last_updated: "2026-04-23T00:00:00.000Z"
+last_activity: 2026-04-23 -- Phase 43.1 UAT signed off, 4 root-cause fixes committed
 progress:
   total_phases: 23
-  completed_phases: 16
+  completed_phases: 17
   total_plans: 64
-  completed_plans: 58
-  percent: 91
+  completed_plans: 59
+  percent: 92
 ---
 
 # Project State
@@ -21,15 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 43.1 — windows-media-keys-smtc
+**Current focus:** Phase 43.1 complete — ready to ship; Phase 44 (Windows packaging) unblocked
 
 ## Current Position
 
-Phase: 43.1 (windows-media-keys-smtc) — EXECUTING
-Plan: 1 of 6
-Plans: 3 of 3 complete
-Status: Executing Phase 43.1
-Last activity: 2026-04-21 -- Phase 43.1 execution started
+Phase: 43.1 (windows-media-keys-smtc) — COMPLETE (UAT signed off 2026-04-23)
+Plan: 6 of 6 complete
+Status: Phase 43.1 ready to ship (squash-merge to main)
+Last activity: 2026-04-23 -- UAT-1..10 passed on Win11 VM, 4 root-cause fixes committed
 
 Progress: [██████████] 100%
 
@@ -86,6 +85,10 @@ Key v2.0 decisions already settled:
 - [Phase 43 findings]: Stock `hook-gi.repository.Gio.py` warns "Could not determine Gio modules path!" on conda-forge and ships broken bundle. Explicit `Tree(GST_ROOT/lib/gio/modules, prefix='gio/modules')` in .spec compensates.
 - [Phase 43 findings]: Bundle self-contained at 110.7 MB — 126 top-level DLLs + 184 plugins (hooks-contrib 2026.2 places in `_internal/gst_plugins/`, not older `gstreamer-1.0/`) + 57 typelibs. Validated with deactivated-conda re-run.
 - [Phase 43 gotcha]: DI.fm premium URLs reject HTTPS server-side (TLS handshake succeeds, stream returns error -5). GStreamer not at fault. Phase 44 policy decision: HTTP for DI.fm specifically, or accept server-side HTTPS unavailability.
+- [Phase 43.1 bus-watch]: `bus.add_signal_watch()` MUST run on the thread iterating its own thread-default `MainContext` (the `GstBusLoopThread` bridge). Inline-on-main attaches the GSource to the default MainContext which no one iterates on Windows → bus handlers silently drop. Helper: `GstBusLoopThread.run_sync(callable)` marshals the attach.
+- [Phase 43.1 AUMID]: `SetCurrentProcessExplicitAppUserModelID` must run BEFORE `QApplication()` (AUMID binds at first window creation) and must use explicit `LPCWSTR` argtypes (default ctypes marshaling can pass `str` as narrow pointer). Shell still shows "Unknown app" until a registered Start Menu shortcut carries the matching AUMID — deferred to Phase 44 installer.
+- [Phase 43.1 SMTC thumbnail]: `asyncio.run(await writer.store_async())` avoids the STA-reentry raise on Qt's main thread (Pitfall #3); `writer.detach_stream()` before `RandomAccessStreamReference.create_from_stream` is also required, otherwise the reference reader sees an unreadable stream owned by the DataWriter.
+- [Phase 43.1 cross-OS regression]: `QTimer.singleShot(0, callable)` from a non-`QThread` (GStreamer bus-loop thread) silently drops — the bridge thread has no Qt event loop. Any cross-thread work from a bus handler MUST go through a queued `Signal`, same pattern already used for `title_changed`. Latent everywhere; surfaced as a 10 s Shoutcast-death regression once bus handlers reliably dispatched on the bridge thread. Documented in `.claude/skills/spike-findings-musicstreamer/references/qt-glib-bus-threading.md`.
 
 ### Roadmap Evolution
 
@@ -106,14 +109,16 @@ Key v2.0 decisions already settled:
 ### Blockers/Concerns
 
 - ~~Phase 43 (GStreamer Windows Spike) must complete before Phase 44 can be planned~~ — **resolved 2026-04-20**: Phase 43 passed iteration 1, findings doc + skill persisted, Phase 44 unblocked
-- Phase 41 (SMTC on Windows): winrt async pattern for button_pressed needs real Windows validation before planning — now unblocked by Phase 43 completion (Phase 43.1)
+- ~~Phase 41 (SMTC on Windows): winrt async pattern for button_pressed needs real Windows validation~~ — **resolved 2026-04-23**: Phase 43.1 UAT signed off on Win11 VM, all 10 items pass, MEDIA-03/04/05 complete
 - Phase 40 (OAuth): QWebEngineCookieStore.cookieAdded in subprocess context needs proof-of-concept before planning
-- **NEW (Phase 44 scope):** DI.fm premium rejects HTTPS server-side; Phase 44 must decide HTTP-fallback policy for DI.fm specifically vs. universal HTTPS
+- **Phase 44 scope:** DI.fm premium rejects HTTPS server-side; Phase 44 must decide HTTP-fallback policy for DI.fm specifically vs. universal HTTPS
+- **Phase 44 scope (new):** register Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` so the SMTC overlay shows "MusicStreamer" instead of "Unknown app" (AUMID is correctly bound to the process; this is the shell display-name path)
+- **Phase 44 backlog:** audio pause/restart glitch + ignored volume setting on Windows (GStreamer, not SMTC); fix `test_thumbnail_from_in_memory_stream` (`MagicMock` not awaitable — needs `AsyncMock` for `store_async`)
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 43.1 context gathered
-Resume file: --resume-file
+Last session: 2026-04-23
+Stopped at: Phase 43.1 complete — UAT-1..10 signed off, 4 root-cause fixes committed on `phase-43.1-uat-diag`; ready to squash-merge to `main`
+Resume file: none (HANDOFF.json deleted; Phase 43.1 closed)
 
-**Planned Phase:** 43.1 (windows-media-keys-smtc) — 6 plans — 2026-04-21T22:44:20.940Z
+**Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.

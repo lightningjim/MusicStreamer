@@ -68,12 +68,20 @@ class Player(QObject):
     playback_error             = Signal(str)     # GStreamer error text
     elapsed_updated            = Signal(int)     # wall-clock seconds since play began (40.1-06)
     buffer_percent             = Signal(int)     # 0-100 GStreamer buffer fill; de-duped in _on_gst_buffering (47.1 D-12)
+    # Internal cross-thread marshaling (43.1 follow-up fix). Bus handlers run
+    # on the GstBusLoopThread (pure GLib, not a QThread), so a bare
+    # `QTimer.singleShot(0, fn)` from there posts to a nonexistent Qt loop and
+    # fn never runs. Using a Signal with QueuedConnection auto-marshals the
+    # call onto the main thread, identical to how `title_changed` already
+    # crosses the same boundary.
+    _cancel_timers_requested   = Signal()        # bus-loop → main: stop failover timer
+    _error_recovery_requested  = Signal()        # bus-loop → main: run _handle_gst_error_recovery
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
 
         # Ensure the bus-loop thread is running BEFORE the bus is wired
-        _ensure_bus_bridge()
+        _bridge = _ensure_bus_bridge()
 
         self._pipeline = Gst.ElementFactory.make("playbin3", "player")
         self._pipeline.set_property(
@@ -99,7 +107,13 @@ class Player(QObject):
         # Order is grep-verified by the PORT-02 acceptance gate.
         bus = self._pipeline.get_bus()
         bus.enable_sync_message_emission()  # D-07 literal -- exactly 1 call in player.py
-        bus.add_signal_watch()              # async watch, dispatched by bridge thread
+        # Phase 43.1 bugfix: marshal add_signal_watch onto the bridge thread.
+        # Called inline on the main thread, the watch's GSource attaches to
+        # the main thread's default MainContext -- never iterated on Windows;
+        # bus handlers silently never fire (no ICY tags, no errors, no
+        # buffering updates). run_sync executes on the bridge thread, whose
+        # thread-default MainContext IS the one the bridge's MainLoop drives.
+        _bridge.run_sync(lambda: bus.add_signal_watch())  # D-07 literal
         bus.connect("message::error", self._on_gst_error)  # async handler
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
         bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
@@ -134,6 +148,13 @@ class Player(QObject):
         )
         self.youtube_resolution_failed.connect(
             self._on_youtube_resolution_failed, Qt.ConnectionType.QueuedConnection
+        )
+        # 43.1 follow-up: queue bus-loop → main for timer/recovery work.
+        self._cancel_timers_requested.connect(
+            self._cancel_timers, Qt.ConnectionType.QueuedConnection
+        )
+        self._error_recovery_requested.connect(
+            self._handle_gst_error_recovery, Qt.ConnectionType.QueuedConnection
         )
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
@@ -294,9 +315,9 @@ class Player(QObject):
     def _on_gst_error(self, bus, msg) -> None:
         err, debug = msg.parse_error()
         self.playback_error.emit(f"{err} | {debug}")
-        # Route recovery through a queued slot so QTimer work happens on the
-        # main thread, not the bus-loop thread.
-        QTimer.singleShot(0, self._handle_gst_error_recovery)
+        # Marshal recovery onto the main thread via queued signal. Bus-loop
+        # thread has no Qt event loop, so QTimer.singleShot from here vanishes.
+        self._error_recovery_requested.emit()
 
     def _handle_gst_error_recovery(self) -> None:
         # Gap-05 fix: coalesce cascading bus errors for a single failing URL.
@@ -332,10 +353,9 @@ class Player(QObject):
     def _on_gst_tag(self, bus, msg) -> None:
         taglist = msg.parse_tag()
         found, value = taglist.get_string(Gst.TAG_TITLE)
-        # Cancel the failover timer -- audio data arrived, stream is working.
-        # QTimer.stop() can only be called on the owning thread, so route it
-        # through a zero-delay singleShot to marshal onto the main thread.
-        QTimer.singleShot(0, self._cancel_timers)
+        # Audio arrived -- cancel failover timer on the main thread via queued
+        # signal. Bus-loop thread has no Qt event loop, so singleShot vanishes.
+        self._cancel_timers_requested.emit()
         if not found:
             return
         title = _fix_icy_encoding(value)

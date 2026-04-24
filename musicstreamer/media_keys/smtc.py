@@ -48,6 +48,17 @@ _INSTALL_HINT = (
 )
 
 
+async def _await_store(writer) -> None:
+    """Await DataWriter.store_async() without blocking the STA main thread.
+
+    winrt IAsyncOperation instances implement __await__, completing on a
+    winrt threadpool thread. asyncio.run drives a fresh event loop around
+    this single await, which is safe to call from the Qt main thread because
+    asyncio.run never re-enters Qt's loop. 43.1 UAT resolution of Pitfall #3.
+    """
+    await writer.store_async()
+
+
 class WindowsMediaKeysBackend(MediaKeysBackend):
     """Windows SMTC media-keys backend (Phase 43.1 MEDIA-03/04/05).
 
@@ -211,10 +222,17 @@ class WindowsMediaKeysBackend(MediaKeysBackend):
             stream = InMemoryRandomAccessStream()
             writer = DataWriter(stream)
             writer.write_bytes(data)
-            store_op = writer.store_async()
-            # Pitfall #3: synchronous block; surface deadlock risk in UAT
-            if hasattr(store_op, "get"):
-                store_op.get()
+            # 43.1 UAT finding (Pitfall #3 resolved): store_async().get() raises
+            # "Cannot call blocking method from single-threaded apartment" on
+            # Qt's STA main thread. Drive the IAsyncOperation with asyncio.run
+            # instead -- winrt IAsyncOperation objects implement __await__ and
+            # complete on a winrt threadpool thread, bypassing STA re-entry.
+            import asyncio
+            asyncio.run(_await_store(writer))
+            # DataWriter owns the underlying stream until detach_stream() --
+            # RandomAccessStreamReference readers get an unreadable stream
+            # otherwise, which reads as "thumbnail missing" in SMTC overlay.
+            writer.detach_stream()
             stream.seek(0)
             return RandomAccessStreamReference.create_from_stream(stream)
         except Exception as exc:

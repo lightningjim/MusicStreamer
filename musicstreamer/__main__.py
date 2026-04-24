@@ -96,8 +96,38 @@ def _apply_windows_palette(app) -> None:
     app.setPalette(p)
 
 
+def _set_windows_aumid(app_id: str = "org.lightningjim.MusicStreamer") -> None:
+    """Set the Windows AppUserModelID so the SMTC overlay + taskbar group
+    under the app's own identity instead of 'Unknown app' / python.exe.
+
+    Must be called BEFORE QApplication is constructed -- Windows binds the
+    process AUMID at first window creation. No-op off Windows.
+
+    AUMID -> friendly display name mapping requires a registered Start Menu
+    shortcut that carries the same AUMID (System.AppUserModel.ID property).
+    Without it the shell falls back to a generic label even when the AUMID
+    is correctly set on the process. Shortcut registration lands in the
+    Phase 44 installer; for Phase 43.1 we only guarantee the AUMID value
+    is correct (verified by the readback below).
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    shell32 = ctypes.windll.shell32
+    # Explicit LPCWSTR signature -- default ctypes marshaling can pass
+    # Python str as a narrow (A) pointer on some CPython builds; this
+    # Win32 call only accepts wide strings. Readback confirmed via
+    # GetCurrentProcessExplicitAppUserModelID during 43.1 UAT.
+    shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [wintypes.LPCWSTR]
+    shell32.SetCurrentProcessExplicitAppUserModelID.restype = ctypes.HRESULT
+    shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+
+
 def _run_gui(argv: list[str]) -> int:
     """Open the Qt GUI — QApplication + MainWindow."""
+    _set_windows_aumid()  # Phase 43.1: before QApplication (binds on first window)
     Gst.init(None)
 
     from musicstreamer import migration
