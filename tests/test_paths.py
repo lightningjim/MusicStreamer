@@ -29,6 +29,7 @@ def test_root_override_redirects_all_accessors(tmp_path):
     assert paths.assets_dir() == os.path.join(root, "assets")
     assert paths.cookies_path() == os.path.join(root, "cookies.txt")
     assert paths.twitch_token_path() == os.path.join(root, "twitch-token.txt")
+    assert paths.oauth_log_path() == os.path.join(root, "oauth.log")
     assert paths.accent_css_path() == os.path.join(root, "accent.css")
     assert paths.migration_marker() == os.path.join(root, ".platformdirs-migrated")
 
@@ -48,10 +49,24 @@ def test_paths_do_no_io_on_import(tmp_path):
     paths.assets_dir()
     paths.cookies_path()
     paths.twitch_token_path()
+    paths.oauth_log_path()
     paths.accent_css_path()
     paths.migration_marker()
     after = set(os.listdir(tmp_path))
     assert before == after
+
+
+def test_oauth_log_path_honors_root_override(monkeypatch, tmp_path):
+    """Phase 999.3 D-10: oauth.log path resolves under the override root."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    assert paths.oauth_log_path() == os.path.join(str(tmp_path), "oauth.log")
+
+
+def test_oauth_log_path_does_not_create_file(monkeypatch, tmp_path):
+    """Purity contract: helper returns a string; does NOT touch disk."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    result = paths.oauth_log_path()
+    assert os.path.exists(result) is False
 
 
 def test_db_path_filename(tmp_path):
