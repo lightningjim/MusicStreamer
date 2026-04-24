@@ -104,6 +104,7 @@ def test_scan_playlist_other_error_raises_runtimeerror():
 
 def test_scan_playlist_passes_cookies_when_file_exists(tmp_path):
     # tmp_path is already the root override via the autouse fixture.
+    import tempfile as _tempfile
     cookies = tmp_path / "cookies.txt"
     cookies.write_text("# Netscape HTTP Cookie File\n")
     info = {"entries": []}
@@ -112,7 +113,11 @@ def test_scan_playlist_passes_cookies_when_file_exists(tmp_path):
         yt_import.scan_playlist("https://youtube.com/@x/streams")
     youtubedl_cls.assert_called_once()
     opts = youtubedl_cls.call_args.args[0]
-    assert opts.get("cookiefile") == str(cookies)
+    # Phase 999.7: cookiefile is now a per-call temp copy, not the canonical path.
+    cf = opts.get("cookiefile")
+    assert cf is not None, "cookiefile must be set when canonical file exists"
+    assert cf != str(cookies), "cookiefile must NOT point at canonical path (Phase 999.7 temp-copy)"
+    assert cf.startswith(_tempfile.gettempdir()), f"expected temp path, got {cf}"
 
 
 def test_scan_playlist_omits_cookiefile_when_missing(tmp_path):
