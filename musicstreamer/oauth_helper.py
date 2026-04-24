@@ -29,8 +29,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
+
+# Must be set BEFORE any QtWebEngine imports or QApplication construction.
+# Twitch's page-level browser sniffing rejects QtWebEngine's default UA with
+# "Your browser is not currently supported." The profile-level setHttpUserAgent
+# is applied too late for Twitch's initial detection; we need the browser
+# process itself to advertise Chrome from the start.
+_CHROME_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/140.0.0.0 Safari/537.36"
+)
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
+    os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+    + f' --user-agent="{_CHROME_UA}"'
+).strip()
 
 # Guard QtWebEngineWidgets import — it is a separate apt package
 try:
@@ -115,13 +130,11 @@ class _TwitchCookieWindow(QMainWindow):
         profile.setPersistentCookiesPolicy(
             profile.PersistentCookiesPolicy.NoPersistentCookies  # type: ignore[attr-defined]
         )
-        # Twitch's web page sniffs User-Agent and rejects QtWebEngine's default
-        # with "Your browser is not currently supported." Override with a recent
-        # Chrome UA so the login flow actually renders.
-        profile.setHttpUserAgent(
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/131.0.0.0 Safari/537.36"
-        )
+        # Belt-and-suspenders UA override at the profile level.
+        # Primary UA override is the --user-agent Chromium flag set at module
+        # import time (above); this profile-level call keeps the two in sync
+        # so any later page() → profile() inspection shows the same string.
+        profile.setHttpUserAgent(_CHROME_UA)
         cookie_store = profile.cookieStore()
         cookie_store.cookieAdded.connect(self._on_cookie_added)
 
