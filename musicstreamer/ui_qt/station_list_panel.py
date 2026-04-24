@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QStackedWidget,
+    QToolButton,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -86,6 +87,7 @@ class StationListPanel(QWidget):
     station_activated = Signal(Station)
     station_favorited = Signal(Station, bool)  # (station, is_now_favorite)
     edit_requested = Signal(Station)
+    new_station_requested = Signal()  # D-02: "+" button in panel header
 
     def __init__(self, repo, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -95,6 +97,26 @@ class StationListPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(0)
+
+        # ------------------------------------------------------------------
+        # Phase 999.1 D-02: "+" button for New Station entry point.
+        # Top-level header row so the button is visible in both Stations and
+        # Favorites modes (New Station is globally relevant).
+        # ------------------------------------------------------------------
+        header_row = QWidget(self)
+        header_layout = QHBoxLayout(header_row)
+        header_layout.setContentsMargins(16, 4, 16, 4)
+        header_layout.setSpacing(0)
+        header_layout.addStretch(1)
+
+        self._new_station_btn = QToolButton(header_row)
+        self._new_station_btn.setText("+")
+        self._new_station_btn.setToolTip("New Station")
+        self._new_station_btn.setFixedSize(24, 24)
+        self._new_station_btn.clicked.connect(self._on_new_station_btn_clicked)
+        header_layout.addWidget(self._new_station_btn)
+
+        layout.insertWidget(0, header_row)
 
         # ------------------------------------------------------------------
         # Segmented control [Stations | Favorites] (D-05, D-12) — always visible
@@ -437,6 +459,10 @@ class StationListPanel(QWidget):
         self._stack.setCurrentIndex(0)
         self._set_seg_state(self._stations_btn, True)
         self._set_seg_state(self._favorites_btn, False)
+
+    def _on_new_station_btn_clicked(self) -> None:
+        """D-02: re-emit button click as the panel-level signal for MainWindow."""
+        self.new_station_requested.emit()
 
     def _on_favorites_clicked(self) -> None:
         self._stack.setCurrentIndex(1)
