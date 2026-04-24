@@ -380,3 +380,95 @@ def test_cache_invalidation_on_logo_change(qtbot, tmp_path, monkeypatch):
     assert not pix_b.isNull()
     # Cache should not return the stale a-path pixmap bytes:
     assert pix_a.toImage() != pix_b.toImage()
+
+
+# ---------------------------------------------------------------------------
+# Phase 999.1 Wave 0 — "+" New Station button + select_station API (RED).
+# These tests exercise additions introduced by Plan 02. Expected to FAIL
+# until Plan 02 lands (new_station_requested signal + select_station method
+# + _new_station_btn on the panel header row).
+# ---------------------------------------------------------------------------
+
+
+def test_new_station_button_exists_and_right_aligned(qtbot):
+    """D-02a: panel exposes a QToolButton _new_station_btn, right-aligned
+    (i.e. preceded by a stretch) in its host layout, with tooltip "New Station"."""
+    from PySide6.QtWidgets import QToolButton
+
+    panel = StationListPanel(_sample_repo())
+    qtbot.addWidget(panel)
+
+    assert hasattr(panel, "_new_station_btn"), \
+        "StationListPanel must expose a _new_station_btn attribute"
+    btn = panel._new_station_btn
+    assert isinstance(btn, QToolButton), "_new_station_btn must be a QToolButton"
+    assert btn.toolTip() == "New Station"
+
+    # Walk up to find the parent layout containing the button and verify an
+    # addStretch (QSpacerItem with expanding horizontal policy) precedes it.
+    from PySide6.QtWidgets import QLayout, QSpacerItem
+    from PySide6.QtWidgets import QSizePolicy as _SP
+
+    def _layout_has_stretch_before(btn_widget) -> bool:
+        # Find the layout that owns this widget.
+        for lay in panel.findChildren(QLayout):
+            btn_index = -1
+            for i in range(lay.count()):
+                item = lay.itemAt(i)
+                if item is not None and item.widget() is btn_widget:
+                    btn_index = i
+                    break
+            if btn_index <= 0:
+                continue
+            # Scan items before btn_index for a spacer with horizontal Expanding.
+            for j in range(btn_index):
+                item = lay.itemAt(j)
+                if item is None:
+                    continue
+                spacer = item.spacerItem()
+                if spacer is None:
+                    continue
+                sp = spacer.sizePolicy()
+                if sp.horizontalPolicy() == _SP.Expanding:
+                    return True
+            # Also accept the "any stretch factor > 0 on a prior item" heuristic
+            # in case the button is on a BoxLayout row with addStretch().
+            # (QSpacerItem from addStretch has Expanding horizontal policy by
+            # default, so the branch above should catch it; this is a fallback.)
+        return False
+
+    assert _layout_has_stretch_before(btn), \
+        "_new_station_btn must be right-aligned via addStretch() in its row layout"
+
+
+def test_new_station_button_emits_signal(qtbot):
+    """D-02b: clicking _new_station_btn emits the new_station_requested signal."""
+    from PySide6.QtCore import Qt as _Qt
+
+    panel = StationListPanel(_sample_repo())
+    qtbot.addWidget(panel)
+
+    assert hasattr(panel, "new_station_requested"), \
+        "StationListPanel must expose new_station_requested = Signal()"
+
+    with qtbot.waitSignal(panel.new_station_requested, timeout=500):
+        qtbot.mouseClick(panel._new_station_btn, _Qt.LeftButton)
+
+
+def test_select_station_by_id_sets_current_index(qtbot):
+    """D-07b: panel.select_station(station_id) sets a valid current index on
+    the tree whose underlying Station has the requested id."""
+    panel = StationListPanel(_sample_repo())
+    qtbot.addWidget(panel)
+
+    assert hasattr(panel, "select_station"), \
+        "StationListPanel must expose a select_station(station_id) method"
+    panel.select_station(2)
+
+    idx = panel.tree.currentIndex()
+    assert idx.isValid(), "select_station must produce a valid current index"
+
+    source_idx = panel._proxy.mapToSource(idx)
+    st = panel.model.station_for_index(source_idx)
+    assert st is not None, "current index must map to a Station (not a provider row)"
+    assert st.id == 2
