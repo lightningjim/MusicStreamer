@@ -51,6 +51,11 @@ def twitch_token_path() -> str:
     return os.path.join(_root(), "twitch-token.txt")
 
 
+def oauth_log_path() -> str:
+    """Phase 999.3 D-10: path to the persistent OAuth diagnostic log."""
+    return os.path.join(_root(), "oauth.log")
+
+
 def accent_css_path() -> str:
     return os.path.join(_root(), "accent.css")
 
