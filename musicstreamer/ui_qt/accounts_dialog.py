@@ -40,13 +40,12 @@ from musicstreamer import constants, paths
 from musicstreamer.oauth_log import OAuthLogger
 
 # Phase 999.3 D-08: category → user-facing label.
-# Keep in sync with oauth_helper._emit_event categories (Plan 01 contract).
+# Keep in sync with oauth_helper._emit_event categories (post-pivot contract:
+# cookie-harvest flow from twitch.tv — no OAuth-redirect categories).
 _CATEGORY_LABELS = {
     "InvalidTokenResponse":    "Login did not return a valid token",
-    "TwitchRejectedRequest":   "Twitch rejected the login request",
     "LoginTimeout":            "Login took too long (2 min)",
     "WindowClosedBeforeLogin": "Login window was closed before completing",
-    "PortBusy":                "Local port 17823 is in use — close other login attempts and retry",
     "SubprocessCrash":         "Login helper crashed unexpectedly",
 }
 
