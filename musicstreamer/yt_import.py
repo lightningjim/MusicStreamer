@@ -10,10 +10,11 @@ Uses the yt_dlp Python library API directly (PORT-09 / D-17). No subprocess.
 """
 import os
 import re
+from typing import Callable, Optional
 
 import yt_dlp
 
-from musicstreamer import paths
+from musicstreamer import constants, cookie_utils, paths
 
 
 def is_yt_playlist_url(url: str) -> bool:
@@ -35,31 +36,51 @@ def _entry_is_live(entry: dict) -> bool:
     return entry.get("is_live") is True
 
 
-def scan_playlist(url: str) -> list[dict]:
+def scan_playlist(
+    url: str,
+    toast_callback: Optional[Callable[[str], None]] = None,
+) -> list[dict]:
     """Scan a YouTube playlist/channel tab and return currently-live entries.
 
     Each returned dict has keys: "title", "url", "provider".
     Raises ValueError for private/unavailable playlists.
     Raises RuntimeError on other yt-dlp failures.
+
+    Phase 999.7: cookies.txt is routed through ``cookie_utils.temp_cookies_copy``
+    so yt-dlp's save_cookies() side effect on ``__exit__`` never touches the
+    canonical file. If the canonical file is already corrupted (yt-dlp marker
+    header from a previous unprotected call), it is auto-cleared and the
+    optional ``toast_callback`` is invoked.
     """
+    # Phase 999.7 corruption check — MUST run BEFORE building opts.
+    canonical = paths.cookies_path()
+    if os.path.exists(canonical) and cookie_utils.is_cookie_file_corrupted(canonical):
+        constants.clear_cookies()
+        if toast_callback is not None:
+            toast_callback("YouTube cookies cleared — re-import via Accounts menu.")
+
     opts = {
         "extract_flat": "in_playlist",
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
     }
-    cookies = paths.cookies_path()
-    if os.path.exists(cookies):
-        opts["cookiefile"] = cookies
 
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except yt_dlp.utils.DownloadError as e:
-        msg = str(e).lower()
-        if "private" in msg or "unavailable" in msg or "not accessible" in msg:
-            raise ValueError("Playlist Not Accessible") from e
-        raise RuntimeError(str(e)) from e
+    # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE temp_cookies_copy
+    # so yt-dlp's save_cookies() on __exit__ writes to the temp path, not
+    # canonical. Unlinking the temp after yt-dlp closes is handled by the
+    # context manager's finally.
+    with cookie_utils.temp_cookies_copy() as cookiefile:
+        if cookiefile is not None:
+            opts["cookiefile"] = cookiefile
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except yt_dlp.utils.DownloadError as e:
+            msg = str(e).lower()
+            if "private" in msg or "unavailable" in msg or "not accessible" in msg:
+                raise ValueError("Playlist Not Accessible") from e
+            raise RuntimeError(str(e)) from e
 
     entries = (info or {}).get("entries") or []
     results: list[dict] = []
