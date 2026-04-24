@@ -319,6 +319,31 @@ class StationListPanel(QWidget):
         self._populate_recent()
         self._build_chip_rows()
 
+    def select_station(self, station_id: int) -> None:
+        """Programmatically select a station in the tree by id (D-07).
+
+        Switches to Stations mode if currently showing Favorites so the
+        selection is visible to the user. Maps source-model index through
+        the filter proxy (Pitfall #2 — selection on bare source index does
+        not render through the proxied view).
+
+        No-op if no station with the given id exists in the source model.
+        """
+        # Ensure Stations page is visible so the selection is user-facing
+        if self._stack.currentIndex() != 0:
+            self._on_stations_clicked()
+
+        for prov_row in range(self.model.rowCount()):
+            prov_idx = self.model.index(prov_row, 0)
+            for child_row in range(self.model.rowCount(prov_idx)):
+                child_idx = self.model.index(child_row, 0, prov_idx)
+                station = self.model.station_for_index(child_idx)
+                if station is not None and station.id == station_id:
+                    proxy_idx = self._proxy.mapFromSource(child_idx)
+                    self.tree.setCurrentIndex(proxy_idx)
+                    self.tree.scrollTo(proxy_idx)
+                    return
+
     # ----------------------------------------------------------------------
 
     def _populate_recent(self) -> None:
