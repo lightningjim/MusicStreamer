@@ -4,14 +4,14 @@ milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: Phase 43.1 ready to ship (squash-merge to main)
 stopped_at: Phase 999.1 context gathered
-last_updated: "2026-04-24T12:36:21.259Z"
+last_updated: "2026-04-24T13:04:18.114Z"
 last_activity: 2026-04-23 -- UAT-1..10 passed on Win11 VM, 4 root-cause fixes committed
 progress:
   total_phases: 23
   completed_phases: 17
-  total_plans: 64
+  total_plans: 68
   completed_plans: 64
-  percent: 100
+  percent: 94
 ---
 
 # Project State
@@ -122,3 +122,5 @@ Stopped at: Phase 999.1 context gathered
 Resume file: --resume-file
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
+
+**Planned Phase:** 999.1 (add-new-station-primary-action) — 4 plans — 2026-04-24T13:04:18.109Z
