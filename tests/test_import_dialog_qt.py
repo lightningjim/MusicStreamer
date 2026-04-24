@@ -224,7 +224,7 @@ def test_yt_scan_passes_through(qtbot, monkeypatch, dialog):
     ]
     monkeypatch.setattr(
         "musicstreamer.yt_import.scan_playlist",
-        lambda url: scan_results,
+        lambda url, toast_callback=None: scan_results,
     )
 
     # Wire worker finished signal to the dialog handler that populates the list

@@ -76,13 +76,19 @@ class _YtScanWorker(QThread):
     finished = Signal(list)
     error = Signal(str)
 
-    def __init__(self, url: str, parent=None):
+    def __init__(
+        self,
+        url: str,
+        toast_callback: Optional[Callable[[str], None]] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._url = url
+        self._toast = toast_callback
 
     def run(self):
         try:
-            results = yt_import.scan_playlist(self._url)
+            results = yt_import.scan_playlist(self._url, toast_callback=self._toast)
             self.finished.emit(results)
         except Exception as exc:
             self.error.emit(str(exc))
@@ -333,7 +339,7 @@ class ImportDialog(QDialog):
         self._yt_progress.setRange(0, 0)  # indeterminate
         self._yt_progress.setVisible(True)
 
-        self._yt_scan_worker = _YtScanWorker(url, parent=self)
+        self._yt_scan_worker = _YtScanWorker(url, toast_callback=self._toast, parent=self)
         self._yt_scan_worker.finished.connect(self._on_yt_scan_complete, Qt.QueuedConnection)
         self._yt_scan_worker.error.connect(self._on_yt_scan_error, Qt.QueuedConnection)
         self._yt_scan_worker.start()
