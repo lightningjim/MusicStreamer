@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Completed 999.7-03-PLAN.md (Wave 2 GREEN gate on player path)
-last_updated: "2026-04-24T19:43:06.370Z"
+stopped_at: Completed 999.7-04-PLAN.md (Phase 999.7 complete)
+last_updated: "2026-04-24T20:11:08.745Z"
 last_activity: 2026-04-24
 progress:
-  total_phases: 26
-  completed_phases: 19
+  total_phases: 27
+  completed_phases: 20
   total_plans: 75
-  completed_plans: 74
-  percent: 99
+  completed_plans: 75
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 ## Current Position
 
 Phase: 999.7 (yt-dlp-overwrites-cookies-txt-regression-of-fix-02) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-04-24
 
-Progress: [██████████] 99%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -98,6 +98,7 @@ Key v2.0 decisions already settled:
 - Phase 999.7-02: Wired cookie_utils.temp_cookies_copy into yt_import.scan_playlist + forwarded toast_callback through _YtScanWorker
 - [Phase 999.7-03]: Player.cookies_cleared declared at class scope next to playback_error; _youtube_resolve_worker wraps yt_dlp.YoutubeDL inside cookie_utils.temp_cookies_copy with corruption auto-clear before the ctxmgr (outside the yt-dlp block). Direct connect to MainWindow.show_toast — no intermediate slot.
 - [Phase 999.7-03]: FakePlayer test doubles in 3 MainWindow test modules extended with cookies_cleared Signal(str) — fixture parity over shared base class (minimal-diff).
+- Phase 999.7: FIX-02 (yt-dlp temp-copy protection) restored on the library-API path via shared cookie_utils.py (mkstemp+copy2+unlink). Both read sites (player + yt_import) route cookies through a per-call temp file; yt-dlp's save_cookies() on __exit__ can no longer clobber canonical cookies.txt. Corruption auto-clear + toast wired on both sites. Byte-equality UAT approved on live YouTube playback (sha256 stable).
 
 ### Roadmap Evolution
 
@@ -126,8 +127,8 @@ Key v2.0 decisions already settled:
 
 ## Session Continuity
 
-Last session: 2026-04-24T19:43:02.673Z
-Stopped at: Completed 999.7-03-PLAN.md (Wave 2 GREEN gate on player path)
+Last session: 2026-04-24T20:11:02.586Z
+Stopped at: Completed 999.7-04-PLAN.md (Phase 999.7 complete)
 Resume file: None
 
 **Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
