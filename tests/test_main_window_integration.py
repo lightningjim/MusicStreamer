@@ -354,6 +354,7 @@ def test_widget_lifetime_no_runtime_error(qtbot):
 # ---------------------------------------------------------------------------
 
 EXPECTED_ACTION_TEXTS = [
+    "New Station",         # Phase 999.1 D-01 (Plan 03)
     "Discover Stations",
     "Import Stations",
     "Accent Color",
