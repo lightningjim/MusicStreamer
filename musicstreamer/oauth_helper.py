@@ -115,6 +115,13 @@ class _TwitchCookieWindow(QMainWindow):
         profile.setPersistentCookiesPolicy(
             profile.PersistentCookiesPolicy.NoPersistentCookies  # type: ignore[attr-defined]
         )
+        # Twitch's web page sniffs User-Agent and rejects QtWebEngine's default
+        # with "Your browser is not currently supported." Override with a recent
+        # Chrome UA so the login flow actually renders.
+        profile.setHttpUserAgent(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/131.0.0.0 Safari/537.36"
+        )
         cookie_store = profile.cookieStore()
         cookie_store.cookieAdded.connect(self._on_cookie_added)
 
