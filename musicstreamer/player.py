@@ -12,14 +12,16 @@ Thread model:
 
 YouTube playback (Plan 35-06 -- supersedes the original Phase 35 spike;
 amended Phase 999.9):
-- _play_youtube uses yt_dlp.YoutubeDL library; player_client is pinned to
-  "web" via extractor_args (per 999.9 probe matrix). The bundled yt_dlp_ejs
-  package handles JS challenges; no extra remote_components flag needed.
-  Resolves to a direct HLS URL, then feeds it to playbin3 via the queued
-  youtube_resolved signal. Cookies (if present) are attached via cookiefile.
-- Node.js runtime required on PATH for yt-dlp EJS. No external player
-  process is launched this phase (see 35-SPIKE-MPV.md "Superseded" section
-  and Plan 35-06 for the rationale that replaces the original KEEP branch).
+- _play_youtube uses yt_dlp.YoutubeDL library and resolves to a direct HLS
+  URL, then feeds it to playbin3 via the queued youtube_resolved signal.
+  Cookies (if present) are attached via cookiefile.
+- Node.js runtime required on PATH for the EJS n-challenge solver. The
+  library API does NOT auto-discover JS runtimes the way the CLI does, so
+  opts must include js_runtimes={"node": {"path": None}} (Phase 999.9 fix —
+  without it extract_info returns "No video formats found!" even though
+  `uv run yt-dlp` works at the shell). No external player process is
+  launched this phase (see 35-SPIKE-MPV.md "Superseded" section and Plan
+  35-06 for the rationale that replaces the original KEEP branch).
 """
 from __future__ import annotations
 
@@ -487,14 +489,12 @@ class Player(QObject):
             "no_warnings": True,
             "skip_download": True,
             "format": "best[protocol^=m3u8]/bestaudio/best",
-            # Phase 999.9: pinned player_client per probe; bundled yt_dlp_ejs
-            # is sufficient (probe row 7 succeeded without --remote-components).
-            # The previous EJS PO-token extractor_args namespace was removed in
-            # yt-dlp 2026.03.17 and was silently ignored. See 999.9-RESEARCH.md
-            # and tests/integration/yt_player_client_audit.txt.
-            "extractor_args": {
-                "youtube": {"player_client": ["web"]},
-            },
+            # Phase 999.9: yt-dlp's library API does NOT auto-discover JS runtimes
+            # the way the CLI does. Without an explicit js_runtimes entry the YouTube
+            # n-challenge solver cannot run, so extract_info returns "No video formats
+            # found!" even though `uv run yt-dlp <url>` works at the shell. Node is the
+            # runtime declared by RUNTIME-01; path=None lets yt-dlp resolve it via PATH.
+            "js_runtimes": {"node": {"path": None}},
         }
 
         # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE
