@@ -1114,7 +1114,7 @@ def test_hamburger_indicator_present_when_node_missing(qtbot, main_window_factor
 | A6 | Inno Setup default uninstaller respects `DisableProgramGroupPage=yes` + `DisableDirPage=yes` without surprising the user | Pattern 1 | Low — these flags just suppress the wizard pages; functionality unchanged. |
 | A7 | The `%APPDATA%\microsoft\windows\start menu\programs\MusicStreamer.lnk` path created by `{userprograms}` is the correct AUMID-carrying location for per-user install | Pattern 1 | Low — confirmed by Inno Setup's `{userprograms}` docs; UAT D-21 item 1 verifies shortcut presence + item 7 verifies AUMID binding. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 None — all architectural choices are locked (CONTEXT.md D-01..D-23); all implementation details are covered by Patterns 1-8. The only unknowns are things UAT will surface (e.g., whether `FlashWindowEx` is actually needed, whether any yt-dlp `hiddenimports` are missed by hooks-contrib 2026.2). These follow Phase 43's iteration discipline — discover during build, not during planning.
 
