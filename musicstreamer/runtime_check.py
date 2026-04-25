@@ -9,7 +9,9 @@ mid-session must restart the app.
 """
 from __future__ import annotations
 
+import glob
 import logging
+import os
 import shutil
 import sys
 from dataclasses import dataclass
@@ -58,7 +60,50 @@ def _which_node() -> Optional[str]:
         if result and result.lower().endswith(".exe"):
             return result
         return None
-    return shutil.which("node")
+    result = shutil.which("node")
+    if result:
+        return result
+    return _which_node_version_manager_fallback()
+
+
+def _which_node_version_manager_fallback() -> Optional[str]:
+    """POSIX fallback: find node managed by fnm/nvm/volta/asdf when PATH is bare.
+
+    GUI launches (.desktop Exec=) inherit a non-interactive PATH, so version-
+    manager shims (fnm's per-shell /run/user/$UID/fnm_multishells/..., nvm's
+    sourced shell function) are missing. Probe known $HOME-rooted layouts
+    instead. Returns the first executable node found, or None.
+    """
+    home = os.path.expanduser("~")
+    xdg_data = os.environ.get("XDG_DATA_HOME") or os.path.join(home, ".local", "share")
+
+    candidates: list[str] = [
+        # fnm — default alias is a stable symlink to the active version
+        os.path.join(xdg_data, "fnm", "aliases", "default", "bin", "node"),
+        # volta
+        os.path.join(home, ".volta", "bin", "node"),
+        # asdf shim
+        os.path.join(home, ".asdf", "shims", "node"),
+    ]
+
+    # nvm — no "default" symlink; pick the lexicographically highest version.
+    nvm_versions = sorted(
+        glob.glob(os.path.join(home, ".nvm", "versions", "node", "*", "bin", "node"))
+    )
+    if nvm_versions:
+        candidates.append(nvm_versions[-1])
+
+    # fnm — also try newest installed version if the default alias is missing.
+    fnm_versions = sorted(
+        glob.glob(os.path.join(xdg_data, "fnm", "node-versions", "*", "installation", "bin", "node"))
+    )
+    if fnm_versions:
+        candidates.append(fnm_versions[-1])
+
+    for path in candidates:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
 
 
 def check_node() -> NodeRuntime:
