@@ -561,46 +561,56 @@ class Player(QObject):
         ).start()
 
     def _twitch_resolve_worker(self, url: str) -> None:
+        # 999.8 WR-01: top-level try/except is a backstop so ANY unexpected
+        # error in this daemon thread surfaces as playback_error + failover
+        # advance instead of silently killing the thread (which leaves the
+        # UI stuck in NULL state with no error toast). Covers Streamlink()
+        # constructor, set_option() API renames/typos, property access on
+        # streams["best"], and any import errors from the narrow imports.
         from streamlink.session import Streamlink
         from streamlink.exceptions import NoPluginError, PluginError
 
-        session = Streamlink()
-        token = ""
         try:
-            with open(paths.twitch_token_path()) as fh:
-                token = fh.read().strip()
-        except OSError:
-            pass
-        if token:
-            # Scope the header to the Twitch plugin only -- NOT global
-            # http-header (RESEARCH.md Pitfall 6).
-            session.set_option(
-                "twitch-api-header",
-                [("Authorization", f"OAuth {token}")],
-            )
-        try:
-            streams = session.streams(url)
-        except NoPluginError:
-            self.playback_error.emit("streamlink: no plugin")
-            # 999.8 WR-03: worker thread has no Qt loop -- emit queued signal
-            # instead of QTimer.singleShot so failover actually advances.
-            self._try_next_stream_requested.emit()
-            return
-        except PluginError as e:
-            if "No playable streams" in str(e) or "offline" in str(e).lower():
+            session = Streamlink()
+            token = ""
+            try:
+                with open(paths.twitch_token_path()) as fh:
+                    token = fh.read().strip()
+            except OSError:
+                pass
+            if token:
+                # Scope the header to the Twitch plugin only -- NOT global
+                # http-header (RESEARCH.md Pitfall 6).
+                session.set_option(
+                    "twitch-api-header",
+                    [("Authorization", f"OAuth {token}")],
+                )
+            try:
+                streams = session.streams(url)
+            except NoPluginError:
+                self.playback_error.emit("streamlink: no plugin")
+                # 999.8 WR-03: worker thread has no Qt loop -- emit queued signal
+                # instead of QTimer.singleShot so failover actually advances.
+                self._try_next_stream_requested.emit()
+                return
+            except PluginError as e:
+                if "No playable streams" in str(e) or "offline" in str(e).lower():
+                    channel = url.rstrip("/").split("/")[-1]
+                    self.offline.emit(channel)
+                    return
+                self.playback_error.emit(f"streamlink: {e}")
+                # 999.8 WR-03: see note above.
+                self._try_next_stream_requested.emit()
+                return
+            if not streams or "best" not in streams:
                 channel = url.rstrip("/").split("/")[-1]
                 self.offline.emit(channel)
                 return
-            self.playback_error.emit(f"streamlink: {e}")
-            # 999.8 WR-03: see note above.
+            # Success -- queued emission marshals back to main thread
+            self.twitch_resolved.emit(streams["best"].url)
+        except Exception as e:  # noqa: BLE001 — daemon worker must surface ALL failures
+            self.playback_error.emit(f"twitch resolve crashed: {e!r}")
             self._try_next_stream_requested.emit()
-            return
-        if not streams or "best" not in streams:
-            channel = url.rstrip("/").split("/")[-1]
-            self.offline.emit(channel)
-            return
-        # Success -- queued emission marshals back to main thread
-        self.twitch_resolved.emit(streams["best"].url)
 
     def _on_twitch_resolved(self, resolved_url: str) -> None:
         """Runs on main thread (connected via Qt.QueuedConnection in __init__)."""
