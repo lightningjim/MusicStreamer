@@ -4,3 +4,8 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .eggs/
+
+# Phase 44 Windows packaging build outputs
+dist/installer/
+packaging/windows/artifacts/
+packaging/windows/build/
