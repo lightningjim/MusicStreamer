@@ -729,6 +729,81 @@ def test_yt_fail_toast_uses_generic_when_node_present(qtbot, fake_player, fake_r
     assert "Playback error" in args[0]
 
 
+def test_yt_live_stream_ended_shows_dialog_not_toast(qtbot, window, fake_player, monkeypatch):
+    """yt-dlp 'live stream recording is not available' (broadcaster ended the
+    stream) routes to a persistent dialog instead of the transient toast."""
+    from unittest import mock
+
+    window.show_toast = mock.Mock()
+    dialog_calls = mock.Mock()
+    monkeypatch.setattr(window, "_show_youtube_stream_ended_dialog", dialog_calls)
+
+    fake_player.playback_error.emit(
+        "YouTube resolve failed: ERROR: [youtube] abc123: This live stream recording is not available."
+    )
+
+    dialog_calls.assert_called_once()
+    window.show_toast.assert_not_called()
+
+
+def test_yt_live_stream_ended_delete_route_calls_repo(qtbot, window, fake_player, fake_repo, monkeypatch):
+    """Clicking 'Delete station' in the dialog → confirm → repo.delete_station."""
+    from unittest import mock
+    from PySide6.QtWidgets import QMessageBox
+
+    station = _make_station()
+    window.now_playing.bind_station(station)
+
+    # First QMessageBox is the warning dialog; clickedButton returns the
+    # delete button. Second QMessageBox is the confirmation; exec returns Yes.
+    boxes: list = []
+
+    real_qmessagebox = QMessageBox
+
+    class FakeBox:
+        # Re-expose the real enums so main_window.py code paths that read
+        # QMessageBox.Icon / .ButtonRole / .StandardButton resolve correctly
+        # after monkeypatching.
+        Icon = real_qmessagebox.Icon
+        ButtonRole = real_qmessagebox.ButtonRole
+        StandardButton = real_qmessagebox.StandardButton
+
+        def __init__(self, *a, **kw):
+            self._buttons: list = []
+            self._clicked = None
+            self._exec_return = real_qmessagebox.StandardButton.Yes
+            boxes.append(self)
+        def setIcon(self, *_): pass
+        def setWindowTitle(self, *_): pass
+        def setText(self, *_): pass
+        def addButton(self, label, role):
+            btn = mock.Mock()
+            btn._label = label
+            btn._role = role
+            self._buttons.append(btn)
+            return btn
+        def setDefaultButton(self, *_): pass
+        def setStandardButtons(self, *_): pass
+        def exec(self):
+            if len(boxes) == 1:
+                # Warning dialog: simulate clicking the destructive button.
+                for b in self._buttons:
+                    if b._role == real_qmessagebox.ButtonRole.DestructiveRole:
+                        self._clicked = b
+                return 0
+            return self._exec_return  # confirmation
+        def clickedButton(self):
+            return self._clicked
+
+    monkeypatch.setattr("musicstreamer.ui_qt.main_window.QMessageBox", FakeBox)
+
+    fake_player.playback_error.emit(
+        "YouTube resolve failed: This live stream recording is not available."
+    )
+
+    assert station.id in getattr(fake_repo, "_deleted_ids", [])
+
+
 def test_player_emits_expected_yt_failure_prefix():
     """Plan 03 issue 4 regression guard. MainWindow._on_playback_error
     matches the literal substring 'YouTube resolve failed' in the message

@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMainWindow,
     QMenuBar,
+    QMessageBox,
     QSplitter,
     QStatusBar,
     QWidget,
@@ -346,6 +347,14 @@ class MainWindow(QMainWindow):
 
     def _on_playback_error(self, message: str) -> None:
         """Called by Player.playback_error(str)."""
+        # YouTube live stream that has ended (broadcaster stopped the live
+        # recording \u2014 usually relaunched as a new video ID). yt-dlp surfaces
+        # this as "This live stream recording is not available." Surface a
+        # persistent dialog instead of a toast so the user can update or
+        # delete the dead station.
+        if "live stream recording is not available" in message:
+            self._show_youtube_stream_ended_dialog()
+            return
         # Phase 44 D-13 part 2: nudge toward Node install when YT resolve fails
         # AND Node is known missing. Early-return keeps non-YT errors on the
         # existing truncation path. The "YouTube resolve failed" prefix is
@@ -359,6 +368,50 @@ class MainWindow(QMainWindow):
             return
         truncated = message[:80] + "\u2026" if len(message) > 80 else message
         self.show_toast(f"Playback error: {truncated}")
+
+    def _show_youtube_stream_ended_dialog(self) -> None:
+        """Persistent acknowledgment for an ended YouTube live stream.
+
+        Offers Update URL\u2026 / Delete station / Dismiss. Update routes through
+        the existing EditStationDialog flow; delete confirms then reuses
+        _on_station_deleted for list refresh + now-playing teardown.
+        """
+        station = self.now_playing.current_station
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("YouTube live stream ended")
+        body = (
+            "This YouTube live stream is no longer available.\n\n"
+            "The broadcaster has ended the recording \u2014 often because they "
+            "relaunched a new stream with a different video ID."
+        )
+        if station is not None:
+            body += f"\n\nStation: {station.name}"
+        box.setText(body)
+        update_btn = box.addButton("Update URL\u2026", QMessageBox.ButtonRole.AcceptRole)
+        delete_btn = box.addButton("Delete station", QMessageBox.ButtonRole.DestructiveRole)
+        dismiss_btn = box.addButton("Dismiss", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(dismiss_btn)
+        # Disable station-scoped actions if no station context is available.
+        if station is None:
+            update_btn.setEnabled(False)
+            delete_btn.setEnabled(False)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is update_btn and station is not None:
+            self._on_edit_requested(station)
+        elif clicked is delete_btn and station is not None:
+            confirm = QMessageBox(self)
+            confirm.setIcon(QMessageBox.Icon.Warning)
+            confirm.setWindowTitle("Delete station?")
+            confirm.setText(f"Permanently delete \u201c{station.name}\u201d?")
+            confirm.setStandardButtons(
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            confirm.setDefaultButton(QMessageBox.StandardButton.No)
+            if confirm.exec() == QMessageBox.StandardButton.Yes:
+                self._repo.delete_station(station.id)
+                self._on_station_deleted(station.id)
 
     def _on_node_install_clicked(self) -> None:
         """Phase 44 D-13: hamburger Node-missing indicator click handler.
