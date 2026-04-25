@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 999.9 complete (real fix in ea6aa87 — js_runtimes wired into yt-dlp library opts; UAT approved)
-last_updated: "2026-04-25T00:05:00.000Z"
+stopped_at: Phase 49 deferred to backlog 999.12; v2.0 remaining = Phase 44 (Windows packaging)
+last_updated: "2026-04-25T00:30:00.000Z"
 last_activity: 2026-04-24
 progress:
   total_phases: 28
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 49 — Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries
+**Current focus:** Phase 44 — Windows Packaging + Installer (final v2.0 phase)
 
 ## Current Position
 
@@ -111,6 +111,7 @@ Key v2.0 decisions already settled:
 - Phase 44 success criteria amended: added Phase 42 Linux↔Windows settings-export round-trip UAT — 2026-04-14
 - Phase 48 added: Fix AudioAddict listen key not persisting to DB (surfaced by Phase 42 UAT test 7; skipped as out-of-scope) — 2026-04-17
 - Phase 49 added: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries — 2026-04-24
+- Phase 49 → Backlog 999.12 (deferred to next milestone so v2.0 can ship after Phase 44) — 2026-04-25
 
 ### Pending Todos
 

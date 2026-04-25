@@ -555,15 +555,14 @@ Plans:
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
 
-### Phase 49: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries
+### Phase 999.12: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries (BACKLOG — FEATURE)
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 48
+**Goal:** [Captured for future planning] — In the station editor, allow pasting/loading a PLS playlist URL into the Streams section; the app should auto-fetch the PLS, parse out each entry, and add them as individual stream rows (with bitrate/codec resolved where possible). Originally captured as Phase 49; deferred to next milestone so v2.0 can ship after Phase 44.
+**Requirements:** TBD
 **Plans:** 0 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 49 to break down)
+- [ ] TBD (promote with /gsd-review-backlog when ready)
 
 ---
-*Last updated: 2026-04-24 — added backlog 999.10 (logo viewport aspect ratio) + 999.11 (save recloses sections)*
+*Last updated: 2026-04-25 — moved Phase 49 → backlog 999.12 (deferred to next milestone; v2.0 ships after Phase 44)*
