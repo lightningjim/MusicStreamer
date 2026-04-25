@@ -9,10 +9,11 @@ On Windows QLocalSocket uses a named pipe under the hood — no socket file
 to clean up (removeServer is a no-op on Windows). On Linux, removeServer
 deletes a stale socket file so a crashed prior instance does not block us.
 
-Lifetime: signal connections use bound methods (no self-capturing lambdas)
-per QA-05. The single permitted lambda is parameter-only —
-``lambda: self._drain(socket)`` — which captures the local ``socket`` and
-delegates to a bound method.
+Lifetime: signal connections use bound methods only (QA-05). Incoming
+sockets are parented to the server (``socket.setParent(self)``) so their
+lifetime is tied to it, and ``readyRead`` dispatches via ``QObject.sender()``
+rather than a captured-lambda. This avoids a deleteLater-then-readyRead
+race that segfaults pytest-qt's event-loop processing during teardown.
 """
 from __future__ import annotations
 
@@ -46,10 +47,20 @@ class SingleInstanceServer(QObject):
         socket = self._server.nextPendingConnection()
         if socket is None:
             return
-        # Bound method — QA-05-compliant. The single permitted lambda is
-        # parameter-only (captures the local ``socket``, not ``self``).
-        socket.readyRead.connect(lambda: self._drain(socket))
+        # Parent the socket to self so its lifetime is tied to this server
+        # — prevents a deleteLater-then-readyRead race that segfaults
+        # pytest-qt event processing during teardown.
+        socket.setParent(self)
+        # QA-05 compliant: bound method, no captured lambda. We resolve the
+        # signaling socket at handler time via QObject.sender().
+        socket.readyRead.connect(self._on_socket_ready)
         socket.disconnected.connect(socket.deleteLater)
+
+    def _on_socket_ready(self) -> None:
+        socket = self.sender()
+        if not isinstance(socket, QLocalSocket):
+            return
+        self._drain(socket)
 
     def _drain(self, socket: QLocalSocket) -> None:
         data = bytes(socket.readAll()).strip()
