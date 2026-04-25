@@ -149,14 +149,13 @@ def test_youtube_resolve_passes_cookiefile_when_present(tmp_path, monkeypatch, q
     assert cf is not None, "cookiefile must be set when canonical file exists"
     assert cf != str(cookies_file), "cookiefile is now a temp copy, not canonical (Phase 999.7)"
     assert cf.startswith(_tempfile.gettempdir()), f"expected temp path, got {cf}"
-    # Phase 999.9: player_client pinned to "web" (probe matrix Branch A);
-    # the dead "youtubepot-jsruntime" namespace was removed (yt-dlp 2026.03.17
-    # silently ignored it). Bundled yt_dlp_ejs handles JS challenges; no
-    # remote_components flag needed.
-    yt_args = captured_opts.get("extractor_args", {}).get("youtube", {})
-    assert yt_args.get("player_client") == ["web"]
+    # Phase 999.9: js_runtimes={"node": ...} is required because the yt-dlp
+    # library API does not auto-discover JS runtimes the way the CLI does.
+    # The dead "youtubepot-jsruntime" extractor_args namespace (yt-dlp 2026.03.17
+    # silently ignored it) is gone; no player_client pin is needed once the
+    # JS runtime is wired.
+    assert captured_opts.get("js_runtimes") == {"node": {"path": None}}
     assert "youtubepot-jsruntime" not in captured_opts.get("extractor_args", {})
-    assert "remote_components" not in captured_opts
 
 
 def test_youtube_resolve_omits_cookiefile_when_absent(tmp_path, monkeypatch, qtbot):
@@ -187,12 +186,9 @@ def test_youtube_resolve_omits_cookiefile_when_absent(tmp_path, monkeypatch, qtb
         player._youtube_resolve_worker("https://youtube.com/watch?v=test")
 
     assert "cookiefile" not in captured_opts
-    # Phase 999.9: player_client pinned to "web"; dead "youtubepot-jsruntime"
-    # namespace removed (see test above for rationale).
-    yt_args = captured_opts.get("extractor_args", {}).get("youtube", {})
-    assert yt_args.get("player_client") == ["web"]
+    # Phase 999.9: js_runtimes={"node": ...} required (see test above for rationale).
+    assert captured_opts.get("js_runtimes") == {"node": {"path": None}}
     assert "youtubepot-jsruntime" not in captured_opts.get("extractor_args", {})
-    assert "remote_components" not in captured_opts
 
 
 # ---------------------------------------------------------------------------
