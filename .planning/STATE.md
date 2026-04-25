@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: executing
-stopped_at: Phase 999.9 Plan 01 Tasks 1-2 complete; Task 3 UAT pending
-last_updated: "2026-04-24T23:42:24.666Z"
-last_activity: 2026-04-24 -- Phase --phase execution started
+stopped_at: Phase 999.9 complete (real fix in ea6aa87 — js_runtimes wired into yt-dlp library opts; UAT approved)
+last_updated: "2026-04-25T00:05:00.000Z"
+last_activity: 2026-04-24
 progress:
   total_phases: 28
-  completed_phases: 21
+  completed_phases: 22
   total_plans: 76
-  completed_plans: 77
+  completed_plans: 76
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-10)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase --phase — 999.9
+**Current focus:** Phase 49 — Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries
 
 ## Current Position
 
-Phase: --phase (999.9) — EXECUTING
-Plan: 1 of --name
-Status: Executing Phase --phase
-Last activity: 2026-04-24 -- Phase --phase execution started
+Phase: 999.9 (youtube-playback-broken-no-video-formats-found-regression) — COMPLETE
+Plan: 1 of 1 (resolved by ea6aa87; first-pass 0fcff6d superseded — see 999.9-01-SUMMARY.md)
+Status: Complete
+Last activity: 2026-04-24
 
 Progress: [██████████] 100%
 

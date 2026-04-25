@@ -527,14 +527,15 @@ Plans:
 **Requirements:** TBD
 **Plans:** 0 plans (resolved by `9df84de`; planned work was against refuted hypothesis)
 
-### Phase 999.9: YouTube playback broken — yt-dlp "No video formats found" despite cookies intact (BACKLOG — BUG)
+### Phase 999.9: YouTube playback broken — library API needed explicit js_runtimes (COMPLETE 2026-04-24)
 
-**Goal:** Reproduced 2026-04-24 during Phase 999.7 UAT. Attempting to play a YouTube live stream (e.g. LoFi Girl) yields `ERROR: [youtube] <id>: No video formats found!` and the worker emits `youtube_resolution_failed` → failover. Verified NOT a cookies issue: Phase 999.7's byte-equality proof holds (canonical `cookies.txt` sha256 unchanged before/after the failing call), so FIX-02 is working. yt-dlp is on the latest release (2026.03.17). Likely culprits: (a) YouTube shipped a client-side change after yt-dlp 2026.03.17 — monitor upstream for a fix, file a yt-dlp issue if it persists; (b) the EJS PO-token solver (Plan 35-06) is not firing — confirm `which node` resolves on PATH and that `extractor_args={'youtubepot-jsruntime': {'remote_components': ['ejs:github']}}` is still being honored by `_youtube_resolve_worker`; (c) imported Google cookies have expired or the age-gate tightened for the test stream. Diagnostic plan: run `yt-dlp --extractor-args "youtube:player_client=ios" <URL>` standalone to isolate the client, try `player_client=web_safari` / `android` via `opts["extractor_args"]["youtube"]`, and check `yt-dlp` GitHub issues for matching reports. Not a Phase 999.7 regression — cookie protection is verified intact.
+**Goal:** Reproduced 2026-04-24 during Phase 999.7 UAT. YouTube live streams (e.g. LoFi Girl) yielded `ERROR: [youtube] <id>: No video formats found!` from `yt_dlp.YoutubeDL.extract_info()`, while the same URL played fine via `uv run yt-dlp` at the shell. Cookies, yt-dlp version, and Node availability all ruled out by Phase 999.7 + pre-flight checks.
+**Outcome:** Real root cause was a CLI-vs-library divergence in yt-dlp 2026.03.17: the library API does NOT auto-discover JS runtimes the way the CLI does, so the YouTube n-challenge solver never ran. Fix shipped in `ea6aa87`: added `js_runtimes={"node": {"path": None}}` to the `_youtube_resolve_worker` opts dict; dropped the player_client pin from the first-pass fix (no longer needed once the runtime is wired). Dead `extractor_args["youtubepot-jsruntime"]` namespace also removed (was silently ignored by 2026.03.17). UAT approved: LoFi Girl plays end-to-end, cookies sha256 unchanged across UAT and reboot. Phase 999.7 invariant intact. See `999.9-01-SUMMARY.md` for the full diagnostic trail (the first-pass Branch A pin in `0fcff6d` was a misdiagnosis — historical record preserved).
 **Requirements:** TBD
-**Plans:** 1 plan
+**Plans:** 1 plan (complete)
 
 Plans:
-- [ ] 999.9-01-PLAN.md — Probe yt-dlp player_client matrix (6 clients + control), apply Branch A/B/C fix per outcome (most likely: replace dead extractor_args["youtubepot-jsruntime"] with top-level remote_components=["ejs:github"]), in-app UAT (D-01..D-07)
+- [x] 999.9-01-PLAN.md — Probe yt-dlp player_client matrix + apply fix + in-app UAT (D-01..D-07) — completed 2026-04-24
 
 ### Phase 49: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries
 
