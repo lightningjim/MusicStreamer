@@ -480,6 +480,9 @@ class Player(QObject):
         canonical = paths.cookies_path()
         if os.path.exists(canonical) and cookie_utils.is_cookie_file_corrupted(canonical):
             constants.clear_cookies()
+            # cookies_cleared is emitted from this worker thread; receivers (e.g.
+            # MainWindow.show_toast) must be on the main thread so Qt.AutoConnection
+            # resolves to QueuedConnection. Mirrors the youtube_resolved contract above.
             self.cookies_cleared.emit(
                 "YouTube cookies cleared — re-import via Accounts menu."
             )
