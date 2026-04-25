@@ -537,6 +537,24 @@ Plans:
 Plans:
 - [x] 999.9-01-PLAN.md — Probe yt-dlp player_client matrix + apply fix + in-app UAT (D-01..D-07) — completed 2026-04-24
 
+### Phase 999.10: Radio logo viewport on station section is rectangular — logos cut off (BACKLOG — BUG)
+
+**Goal:** [Captured for future planning] — The logo display area in the station section renders more rectangular than square, so square station logos are cropped on the top/bottom (or left/right) edges. Fix the viewport aspect ratio (or the image fit policy) so logos display fully without cropping.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.11: Editing a station and saving recloses all open sections (BACKLOG — BUG)
+
+**Goal:** [Captured for future planning] — When the user edits a station and saves changes, the UI collapses/closes everything that was previously expanded or open in the station view. Save should preserve the current expansion/open state instead of resetting it.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ### Phase 49: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries
 
 **Goal:** [To be planned]
@@ -548,4 +566,4 @@ Plans:
 - [ ] TBD (run /gsd-plan-phase 49 to break down)
 
 ---
-*Last updated: 2026-04-24 — Phase 999.9 planned (1 plan: probe matrix + conditional fix + UAT)*
+*Last updated: 2026-04-24 — added backlog 999.10 (logo viewport aspect ratio) + 999.11 (save recloses sections)*
