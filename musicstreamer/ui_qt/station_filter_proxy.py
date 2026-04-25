@@ -50,6 +50,9 @@ class StationFilterProxyModel(QSortFilterProxyModel):
         self._tag_set = set()
         self.invalidate()
 
+    def has_active_filter(self) -> bool:
+        return bool(self._search_text or self._provider_set or self._tag_set)
+
     # ------------------------------------------------------------------
     # QSortFilterProxyModel override
     # ------------------------------------------------------------------

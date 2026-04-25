@@ -100,13 +100,36 @@ def test_tree_configuration(qtbot):
     assert panel.tree.selectionMode() == QAbstractItemView.SingleSelection
 
 
-def test_all_provider_groups_expanded_after_construction(qtbot):
+def test_provider_groups_collapsed_after_construction(qtbot):
     panel = StationListPanel(_sample_repo())
     qtbot.addWidget(panel)
 
-    # At least the first provider group is expanded (proxy index)
-    first_group_proxy = panel._proxy.index(0, 0)
-    assert panel.tree.isExpanded(first_group_proxy) is True
+    # Groups start collapsed so the full list is scannable without scrolling
+    for row in range(panel._proxy.rowCount()):
+        group_proxy = panel._proxy.index(row, 0)
+        assert panel.tree.isExpanded(group_proxy) is False
+
+
+def test_provider_groups_expand_when_search_active(qtbot):
+    panel = StationListPanel(_sample_repo())
+    qtbot.addWidget(panel)
+
+    panel._search_box.setText("a")
+
+    # Any group that survives the filter should be expanded so matches are visible
+    any_expanded = False
+    for row in range(panel._proxy.rowCount()):
+        group_proxy = panel._proxy.index(row, 0)
+        if panel.tree.isExpanded(group_proxy):
+            any_expanded = True
+            break
+    assert any_expanded is True
+
+    # Clearing the search collapses them again
+    panel._search_box.clear()
+    for row in range(panel._proxy.rowCount()):
+        group_proxy = panel._proxy.index(row, 0)
+        assert panel.tree.isExpanded(group_proxy) is False
 
 
 def test_tree_click_on_station_emits_station_activated(qtbot):

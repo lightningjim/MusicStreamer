@@ -281,7 +281,6 @@ class StationListPanel(QWidget):
         self.tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tree.expandAll()
         self.tree.clicked.connect(self._on_tree_activated)
         self.tree.doubleClicked.connect(self._on_tree_activated)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -315,9 +314,17 @@ class StationListPanel(QWidget):
     def refresh_model(self) -> None:
         """Reload station tree and recently played after external changes (edit/delete/import)."""
         self.model.refresh(self._repo.list_stations())
-        self.tree.expandAll()
+        self._sync_tree_expansion()
         self._populate_recent()
         self._build_chip_rows()
+
+    def _sync_tree_expansion(self) -> None:
+        # Expand groups when a filter is active so matches are visible;
+        # collapse them otherwise so the full station list is scannable.
+        if self._proxy.has_active_filter():
+            self.tree.expandAll()
+        else:
+            self.tree.collapseAll()
 
     def select_station(self, station_id: int) -> None:
         """Programmatically select a station in the tree by id (D-07).
@@ -340,6 +347,7 @@ class StationListPanel(QWidget):
                 station = self.model.station_for_index(child_idx)
                 if station is not None and station.id == station_id:
                     proxy_idx = self._proxy.mapFromSource(child_idx)
+                    self.tree.expand(proxy_idx.parent())
                     self.tree.setCurrentIndex(proxy_idx)
                     self.tree.scrollTo(proxy_idx)
                     return
@@ -403,6 +411,7 @@ class StationListPanel(QWidget):
 
     def _on_search_changed(self, text: str) -> None:
         self._proxy.set_search(text)
+        self._sync_tree_expansion()
 
     def _on_provider_chip_clicked(self, btn: QPushButton) -> None:
         self._set_chip_state(btn, btn.isChecked())
@@ -412,6 +421,7 @@ class StationListPanel(QWidget):
             if b.isChecked()
         }
         self._proxy.set_providers(provider_set)
+        self._sync_tree_expansion()
 
     def _on_tag_chip_clicked(self, btn: QPushButton) -> None:
         self._set_chip_state(btn, btn.isChecked())
@@ -421,6 +431,7 @@ class StationListPanel(QWidget):
             if b.isChecked()
         }
         self._proxy.set_tags(tag_set)
+        self._sync_tree_expansion()
 
     def _toggle_filter_strip(self) -> None:
         visible = not self._filter_strip.isVisible()
@@ -436,6 +447,7 @@ class StationListPanel(QWidget):
             btn.setChecked(False)
             self._set_chip_state(btn, False)
         self._proxy.clear_all()
+        self._sync_tree_expansion()
 
     def _on_tree_activated(self, index: QModelIndex) -> None:
         # CRITICAL (Pitfall 1): map proxy index to source before station_for_index
