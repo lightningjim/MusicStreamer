@@ -482,57 +482,68 @@ class Player(QObject):
         canonical file. If the canonical file is corrupted (yt-dlp marker header
         from a previous unprotected call), it is auto-cleared and the
         ``cookies_cleared`` Signal is emitted (queued to main thread for toast).
+
+        Phase 999.8 WR-02: wrapped in top-level try/except backstop so ANY
+        unexpected error in this daemon thread surfaces as
+        ``youtube_resolution_failed`` instead of silently killing the thread
+        (which leaves the UI stuck with no error toast and no failover
+        advance). Covers ImportError on yt_dlp, filesystem errors in the
+        cookies corruption check, PermissionError from temp_cookies_copy
+        __enter__, etc. The inner extract_info except stays as-is.
         """
-        import yt_dlp
+        try:
+            import yt_dlp
 
-        # Phase 999.7 corruption check — MUST run BEFORE building opts.
-        canonical = paths.cookies_path()
-        if os.path.exists(canonical) and cookie_utils.is_cookie_file_corrupted(canonical):
-            constants.clear_cookies()
-            # cookies_cleared is emitted from this worker thread; receivers (e.g.
-            # MainWindow.show_toast) must be on the main thread so Qt.AutoConnection
-            # resolves to QueuedConnection. Mirrors the youtube_resolved contract above.
-            self.cookies_cleared.emit(
-                "YouTube cookies cleared — re-import via Accounts menu."
-            )
+            # Phase 999.7 corruption check — MUST run BEFORE building opts.
+            canonical = paths.cookies_path()
+            if os.path.exists(canonical) and cookie_utils.is_cookie_file_corrupted(canonical):
+                constants.clear_cookies()
+                # cookies_cleared is emitted from this worker thread; receivers (e.g.
+                # MainWindow.show_toast) must be on the main thread so Qt.AutoConnection
+                # resolves to QueuedConnection. Mirrors the youtube_resolved contract above.
+                self.cookies_cleared.emit(
+                    "YouTube cookies cleared — re-import via Accounts menu."
+                )
 
-        opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "format": "best[protocol^=m3u8]/bestaudio/best",
-            # Phase 999.9: yt-dlp's library API does NOT auto-discover JS runtimes
-            # the way the CLI does. Without an explicit js_runtimes entry the YouTube
-            # n-challenge solver cannot run, so extract_info returns "No video formats
-            # found!" even though `uv run yt-dlp <url>` works at the shell. Node is the
-            # runtime declared by RUNTIME-01; path=None lets yt-dlp resolve it via PATH.
-            "js_runtimes": {"node": {"path": None}},
-        }
+            opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "format": "best[protocol^=m3u8]/bestaudio/best",
+                # Phase 999.9: yt-dlp's library API does NOT auto-discover JS runtimes
+                # the way the CLI does. Without an explicit js_runtimes entry the YouTube
+                # n-challenge solver cannot run, so extract_info returns "No video formats
+                # found!" even though `uv run yt-dlp <url>` works at the shell. Node is the
+                # runtime declared by RUNTIME-01; path=None lets yt-dlp resolve it via PATH.
+                "js_runtimes": {"node": {"path": None}},
+            }
 
-        # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE
-        # temp_cookies_copy so yt-dlp's save_cookies() on __exit__ writes to
-        # the temp path, not canonical. Unlinking the temp after yt-dlp closes
-        # is handled by the context manager's finally.
-        info = None
-        with cookie_utils.temp_cookies_copy() as cookiefile:
-            if cookiefile is not None:
-                opts["cookiefile"] = cookiefile
-            try:
-                with yt_dlp.YoutubeDL(opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-            except Exception as e:
-                self.youtube_resolution_failed.emit(str(e))
+            # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE
+            # temp_cookies_copy so yt-dlp's save_cookies() on __exit__ writes to
+            # the temp path, not canonical. Unlinking the temp after yt-dlp closes
+            # is handled by the context manager's finally.
+            info = None
+            with cookie_utils.temp_cookies_copy() as cookiefile:
+                if cookiefile is not None:
+                    opts["cookiefile"] = cookiefile
+                try:
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                except Exception as e:
+                    self.youtube_resolution_failed.emit(str(e))
+                    return
+
+            resolved = (info or {}).get("url") or ""
+            if not resolved:
+                formats = (info or {}).get("formats") or []
+                if formats:
+                    resolved = formats[-1].get("url") or ""
+            if not resolved:
+                self.youtube_resolution_failed.emit("No video formats returned")
                 return
-
-        resolved = (info or {}).get("url") or ""
-        if not resolved:
-            formats = (info or {}).get("formats") or []
-            if formats:
-                resolved = formats[-1].get("url") or ""
-        if not resolved:
-            self.youtube_resolution_failed.emit("No video formats returned")
-            return
-        self.youtube_resolved.emit(resolved)
+            self.youtube_resolved.emit(resolved)
+        except Exception as e:  # noqa: BLE001 — daemon worker must surface ALL failures
+            self.youtube_resolution_failed.emit(f"youtube resolve crashed: {e!r}")
 
     def _on_youtube_resolved(self, resolved_url: str) -> None:
         """Main-thread handler: hand the resolved HLS URL to playbin3 and arm
