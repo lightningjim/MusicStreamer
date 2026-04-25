@@ -66,7 +66,7 @@ $env:PYTHONPATH     = ""                          # avoid leaking site packages 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Push-Location $here
 try {
-    Remove-Item -Recurse -Force "build", "dist" -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force "build", "dist", "..\..\dist" -ErrorAction SilentlyContinue
 
     # --- 3. Install/confirm build deps ----------------------------------
     if ($SkipPipInstall) {
@@ -107,13 +107,13 @@ try {
 
     # --- 4. PyInstaller -------------------------------------------------
     Write-Host "=== MUSICSTREAMER BUILD: pyinstaller ==="
-    Invoke-Native { python -m PyInstaller MusicStreamer.spec --noconfirm --log-level INFO *>&1 | Tee-Object -FilePath "artifacts\build.log" }
+    Invoke-Native { python -m PyInstaller MusicStreamer.spec --noconfirm --log-level INFO --distpath ..\..\dist --workpath build *>&1 | Tee-Object -FilePath "artifacts\build.log" }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "BUILD_FAIL reason=pyinstaller_nonzero exitcode=$LASTEXITCODE"
         exit 2
     }
 
-    Write-Host "BUILD_OK step=pyinstaller exe='$here\dist\MusicStreamer\MusicStreamer.exe'"
+    Write-Host "BUILD_OK step=pyinstaller exe='$here\..\..\dist\MusicStreamer\MusicStreamer.exe'"
 
     # --- 5. Smoke test --------------------------------------------------
     if (-not $SkipSmoke) {
