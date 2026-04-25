@@ -309,7 +309,14 @@ Plans:
   4. PKG-03 is a no-op at ship time (Plan 35-06 eliminated all subprocess launches in `musicstreamer/`); if any reappear before Phase 44, they must go through a centralized `_popen()` helper with `CREATE_NO_WINDOW`
   5. Windows smoke test passes: station playback (ShoutCast + HLS), YouTube via yt-dlp library + EJS, Twitch via streamlink library, failover, media keys, and installer round-trip all verified on a clean VM
   6. Phase 42 settings export round-trip UAT: export on Linux → import on Windows (and reverse) preserves stations, streams, favorites, tag chips, and logo paths correctly via `platformdirs.user_data_dir()` resolution at each end
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 44-01-PLAN.md — Wave 0 test scaffolds + tooling guards (PKG-03, PKG-04, QA-03)
+- [ ] 44-02-PLAN.md — single_instance.py + runtime_check.py + __version__.py + pyproject 2.0.0 bump (PKG-04, RUNTIME-01)
+- [ ] 44-03-PLAN.md — Wire single_instance + Node.js into __main__.py + MainWindow (PKG-04, RUNTIME-01)
+- [ ] 44-04-PLAN.md — Windows packaging artifacts: .spec, runtime_hook, build.ps1, MusicStreamer.iss, EULA, README, .ico (PKG-01, PKG-02, PKG-03)
+- [ ] 44-05-PLAN.md — QA-05 audit doc + 44-UAT.md + Win11 VM UAT execution (QA-03, QA-05, all PKG)
 
 ## Progress
 
@@ -326,7 +333,7 @@ Plans:
 | 42. Settings Export/Import | v2.0 | 3/3 | Complete    | 2026-04-17 |
 | 43. GStreamer Windows Spike | v2.0 | 0/3 | Planned | - |
 | 43.1. Windows Media Keys (SMTC) | v2.0 | 0/6 | Planned | - |
-| 44. Windows Packaging + Installer | v2.0 | 0/TBD | Not started | - |
+| 44. Windows Packaging + Installer | v2.0 | 0/5 | Planned | - |
 
 ### Phase 45: Unify station-icon loader — dedup station_tree_model + favorites_view + station_list_panel paths into a shared _art_paths helper; fixes broken station-list logo rendering where raw relative station_art_path is passed to QPixmap() without abs_art_path resolution
 
