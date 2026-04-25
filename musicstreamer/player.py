@@ -81,6 +81,11 @@ class Player(QObject):
     # crosses the same boundary.
     _cancel_timers_requested   = Signal()        # bus-loop → main: stop failover timer
     _error_recovery_requested  = Signal()        # bus-loop → main: run _handle_gst_error_recovery
+    # Worker threads (twitch/youtube resolve) have no Qt event loop, so
+    # QTimer.singleShot(0, ...) from those threads posts to a nonexistent loop
+    # and the callback never runs. Queued signal marshals _try_next_stream
+    # onto the main thread -- same pattern as _cancel_timers_requested.
+    _try_next_stream_requested = Signal()        # worker → main: advance failover queue
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -160,6 +165,10 @@ class Player(QObject):
         )
         self._error_recovery_requested.connect(
             self._handle_gst_error_recovery, Qt.ConnectionType.QueuedConnection
+        )
+        # 999.8 WR-03: queue worker-thread → main failover advance.
+        self._try_next_stream_requested.connect(
+            self._try_next_stream, Qt.ConnectionType.QueuedConnection
         )
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
@@ -573,7 +582,9 @@ class Player(QObject):
             streams = session.streams(url)
         except NoPluginError:
             self.playback_error.emit("streamlink: no plugin")
-            QTimer.singleShot(0, self._try_next_stream)
+            # 999.8 WR-03: worker thread has no Qt loop -- emit queued signal
+            # instead of QTimer.singleShot so failover actually advances.
+            self._try_next_stream_requested.emit()
             return
         except PluginError as e:
             if "No playable streams" in str(e) or "offline" in str(e).lower():
@@ -581,7 +592,8 @@ class Player(QObject):
                 self.offline.emit(channel)
                 return
             self.playback_error.emit(f"streamlink: {e}")
-            QTimer.singleShot(0, self._try_next_stream)
+            # 999.8 WR-03: see note above.
+            self._try_next_stream_requested.emit()
             return
         if not streams or "best" not in streams:
             channel = url.rstrip("/").split("/")[-1]
