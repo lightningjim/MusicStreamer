@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "musicstreamer"
-version = "1.1.0"
+version = "2.0.0"
 description = "GNOME internet radio stream player"
 requires-python = ">=3.10"
 dependencies = [
