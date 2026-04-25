@@ -146,12 +146,31 @@ def _run_gui(argv: list[str]) -> int:
         app.setStyle("Fusion")          # D-14: BEFORE widget construction
         _apply_windows_palette(app)     # D-15: dark-mode palette if applicable
 
+    # D-10: single-instance BEFORE MainWindow construction (after QApplication).
+    # ORDER REQUIRED — QLocalServer needs the event loop; MainWindow must not be
+    # constructed if another instance already owns the lock.
+    from musicstreamer import single_instance  # lazy
+    server = single_instance.acquire_or_forward()
+    if server is None:
+        return 0  # second instance forwarded — exit cleanly
+
+    # D-11/D-12: Node.js detection BEFORE MainWindow so node_runtime can be passed
+    # as kwarg, and AFTER single-instance so a forwarded second invocation never
+    # shows the dialog.
+    from musicstreamer import runtime_check  # lazy
+    node_runtime = runtime_check.check_node()
+    if not node_runtime.available:
+        runtime_check.show_missing_node_dialog(parent=None)
+
     con = db_connect()
     db_init(con)
     player = Player()
     repo = Repo(con)
 
-    window = MainWindow(player, repo)
+    window = MainWindow(player, repo, node_runtime=node_runtime)
+    server.activate_requested.connect(  # parameter-only lambda — captures `window`, not self
+        lambda: single_instance.raise_and_focus(window)
+    )
     window.show()
     return app.exec()
 

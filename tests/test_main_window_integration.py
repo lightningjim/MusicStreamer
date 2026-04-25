@@ -682,3 +682,62 @@ def test_new_station_save_does_not_auto_play(
         f"new station (id={new_id}) must not auto-play; play_calls={fake_player.play_calls!r}"
     assert new_id not in sync_calls, \
         f"_sync_now_playing_station must not fire for new id={new_id}; sync_calls={sync_calls!r}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 44 Plan 03 — Node-missing YT-fail toast branch (D-13 part 2)
+# ---------------------------------------------------------------------------
+
+
+def test_yt_fail_toast_when_node_missing(qtbot, fake_player, fake_repo):
+    """D-13 part 2: when node_runtime is missing AND Player emits a
+    'YouTube resolve failed: ...' message, MainWindow surfaces the
+    install-Node toast instead of the generic Playback-error toast."""
+    from unittest import mock
+    from musicstreamer.runtime_check import NodeRuntime
+
+    w = MainWindow(
+        fake_player, fake_repo,
+        node_runtime=NodeRuntime(available=False, path=None),
+    )
+    qtbot.addWidget(w)
+
+    w.show_toast = mock.Mock()
+    fake_player.playback_error.emit("YouTube resolve failed: nodejs not on PATH")
+
+    w.show_toast.assert_called_with("Install Node.js for YouTube playback")
+
+
+def test_yt_fail_toast_uses_generic_when_node_present(qtbot, fake_player, fake_repo):
+    """Inverse of test_yt_fail_toast_when_node_missing: when Node IS available,
+    a 'YouTube resolve failed' message falls through to the generic
+    'Playback error: ...' toast (no Node-install nudge)."""
+    from unittest import mock
+    from musicstreamer.runtime_check import NodeRuntime
+
+    w = MainWindow(
+        fake_player, fake_repo,
+        node_runtime=NodeRuntime(available=True, path="/usr/bin/node"),
+    )
+    qtbot.addWidget(w)
+
+    w.show_toast = mock.Mock()
+    fake_player.playback_error.emit("YouTube resolve failed: transient")
+
+    args, _ = w.show_toast.call_args
+    assert "Install Node.js" not in args[0]
+    assert "Playback error" in args[0]
+
+
+def test_player_emits_expected_yt_failure_prefix():
+    """Plan 03 issue 4 regression guard. MainWindow._on_playback_error
+    matches the literal substring 'YouTube resolve failed' in the message
+    string. If musicstreamer/player.py drifts to a different prefix
+    ('YT resolve failed:', 'YouTube playback failed:', etc.), the
+    Node-missing toast branch silently stops firing — this pinning test
+    fails fast on that drift."""
+    import re
+    import pathlib
+    src = pathlib.Path("musicstreamer/player.py").read_text()
+    assert re.search(r'playback_error\.emit\(\s*f?["\']YouTube resolve failed:', src), \
+        "player.py drifted — MainWindow Node-missing toast branch will silently break (Plan 03 issue 4 regression guard)"

@@ -100,11 +100,19 @@ class _ImportPreviewWorker(QThread):
 class MainWindow(QMainWindow):
     """Main application window — station list + now-playing + toast overlay."""
 
-    def __init__(self, player, repo, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        player,
+        repo,
+        *,
+        node_runtime=None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
 
         self._player = player
         self._repo = repo
+        self._node_runtime = node_runtime
 
         # D-02: window title + default geometry. No QSettings persistence.
         self.setWindowTitle("MusicStreamer")
@@ -168,6 +176,17 @@ class MainWindow(QMainWindow):
         # Worker reference retention (SYNC-05) — prevents GC before thread finishes
         self._export_worker: QThread | None = None
         self._import_preview_worker: QThread | None = None
+
+        # Phase 44 D-13 part 3: persistent Node-missing indicator. Added AFTER
+        # existing Group 3 to keep menu order stable; only surfaces when
+        # node_runtime was passed AND Node is absent. The "⚠" warning glyph
+        # matches the existing copywriting convention (e.g., "…" ellipsis).
+        if self._node_runtime is not None and not self._node_runtime.available:
+            self._menu.addSeparator()
+            self._act_node_missing = self._menu.addAction(
+                "⚠ Node.js: Missing (click to install)"
+            )
+            self._act_node_missing.triggered.connect(self._on_node_install_clicked)
 
         # D-12: apply saved accent color on startup (UI-11)
         _saved_accent = self._repo.get_setting("accent_color", "")
@@ -327,8 +346,26 @@ class MainWindow(QMainWindow):
 
     def _on_playback_error(self, message: str) -> None:
         """Called by Player.playback_error(str)."""
+        # Phase 44 D-13 part 2: nudge toward Node install when YT resolve fails
+        # AND Node is known missing. Early-return keeps non-YT errors on the
+        # existing truncation path. The "YouTube resolve failed" prefix is
+        # pinned to player.py:557 \u2014 see test_player_emits_expected_yt_failure_prefix.
+        if (
+            self._node_runtime is not None
+            and not self._node_runtime.available
+            and "YouTube resolve failed" in message
+        ):
+            self.show_toast("Install Node.js for YouTube playback")
+            return
         truncated = message[:80] + "\u2026" if len(message) > 80 else message
         self.show_toast(f"Playback error: {truncated}")
+
+    def _on_node_install_clicked(self) -> None:
+        """Phase 44 D-13: hamburger Node-missing indicator click handler.
+        Opens nodejs.org in the user's default browser."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl("https://nodejs.org/en/download"))
 
     def _on_track_starred(self, station_name: str, track_title: str, provider: str, is_fav: bool) -> None:
         """Called when the track star button is toggled in NowPlayingPanel."""

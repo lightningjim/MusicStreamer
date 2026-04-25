@@ -21,6 +21,15 @@ _log = logging.getLogger(__name__)
 
 NODEJS_INSTALL_URL = "https://nodejs.org/en/download"
 
+# Capture enum values at module import time so they are resolved against the
+# real PySide6 QMessageBox class. Tests monkeypatch ``QMessageBox`` at module
+# level with a fake that does not expose the Icon/ButtonRole enums; resolving
+# these once here keeps show_missing_node_dialog operating on stable values
+# regardless of the fake.
+_ICON_WARNING = QMessageBox.Icon.Warning
+_ROLE_ACTION = QMessageBox.ButtonRole.ActionRole
+_ROLE_ACCEPT = QMessageBox.ButtonRole.AcceptRole
+
 
 @dataclass(frozen=True)
 class NodeRuntime:
@@ -66,15 +75,15 @@ def show_missing_node_dialog(parent) -> None:
     """Non-blocking warning (D-12). Returns immediately; dialog is modal to
     ``parent`` when parent is a QWidget, but app-modal otherwise."""
     box = QMessageBox(parent)
-    box.setIcon(QMessageBox.Icon.Warning)
+    box.setIcon(_ICON_WARNING)
     box.setWindowTitle("Node.js not found")
     box.setText(
         "MusicStreamer needs Node.js for YouTube playback.\n\n"
         "Install from nodejs.org. All other stream types (ShoutCast, HLS, "
         "Twitch, AudioAddict) will work without it."
     )
-    open_btn = box.addButton("Open nodejs.org", QMessageBox.ButtonRole.ActionRole)
-    ok_btn = box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+    open_btn = box.addButton("Open nodejs.org", _ROLE_ACTION)
+    ok_btn = box.addButton("OK", _ROLE_ACCEPT)
     box.setDefaultButton(ok_btn)
     box.exec()  # modal (blocks the dialog, not the app) — "non-blocking" per
                 # D-12 means non-blocking in the sense that the user can
