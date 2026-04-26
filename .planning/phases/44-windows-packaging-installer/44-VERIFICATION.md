@@ -1,8 +1,8 @@
 ---
 phase: 44-windows-packaging-installer
 verified: 2026-04-25T17:30:00Z
-status: human_needed
-score: 13/13 static must-haves verified; 6/6 ROADMAP success criteria require live UAT on Win11 VM
+status: passed
+score: 13/13 static must-haves verified; 6/6 ROADMAP success criteria via UAT (signed off 2026-04-25)
 overrides_applied: 0
 re_verification: null  # initial verification
 human_verification:
