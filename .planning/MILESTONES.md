@@ -1,5 +1,77 @@
 # Milestones
 
+## v2.0 OS-Agnostic Revamp (Shipped: 2026-04-26)
+
+**Phases completed:** 29 phases, 81 plans, 73 tasks
+
+**Key accomplishments:**
+
+- One-liner:
+- One-liner:
+- One-liner:
+- KEEP_MPV.
+- `musicstreamer/__main__.py`
+- Completed:
+- 1. [Rule 3 — Blocking issue] icons.qrc produced nested resource path `:/icons/icons/<name>.svg`
+- 1. [Rule 3 — Blocking issue] Patched `PySide6.QtGui.QGuiApplication.styleHints` directly instead of the `musicstreamer.__main__` attribute path
+- 1. [Rule 3 - Blocking] Test assertion `findChild(QFrame)` returned first QLabel
+- One-liner:
+- One-liner:
+- One-liner:
+- One-liner:
+- 1. [Rule 3 - Blocking] pytest-qt not installed in uv venv
+- One-liner:
+- 1. [Rule 1 - Bug] Actual yt_import/aa_import signatures differ from plan interfaces
+- NowPlayingPanel additions:
+- Task 1 — build_accent_qss + palette helpers
+- One-liner:
+- One-liner:
+- One-liner:
+- `musicstreamer/ui_qt/discovery_dialog.py`:
+- Shared resolver (`musicstreamer/ui_qt/_art_paths.py`)
+- +5 tests
+- `musicstreamer/media_keys/` package scaffolded: abstract `MediaKeysBackend(QObject)` with D-02 signal+method surface, `NoOpMediaKeysBackend` fallback, `create()` platform factory, and Windows `smtc.py` stub — 9/9 pytest-qt tests passing
+- `LinuxMprisBackend` implemented via PySide6.QtDBus with Root + Player MPRIS2 adaptors, cover-art PNG cache, and 11/12 pytest-qt tests passing — `playerctl` can target the service by name on any machine with a D-Bus session bus
+- MainWindow wired to MediaKeysBackend via factory: title_changed bridges to publish_metadata, 4 state transitions call set_playback_state, closeEvent calls shutdown — 8/8 spy-backend tests passing
+- Cleared MPRIS metadata on all five stop transitions and wired logging.basicConfig so media_keys warnings reach stderr
+- 1. [Rule 1 - Bug] Fixed logo filename mismatch in test helper
+- 1. [Rule 1 - Bug] Fixed replace warning visibility test — isVisible() vs isHidden()
+- Renamed `_ImportCommitWorker.finished` → `commit_done` (and `error` → `commit_error`) so PySide6's C++ `QThread::finished` stops misrouting error-path thread exits through the success slot; added a real-filesystem chmod 0o444 regression test the previous monkeypatch test was blind to.
+- Everything verbatim
+- Completed:
+- Completed:
+- Renamed _art_cache.py cache subdir to media-art/ with module-sentinel migration helper, enabling shared cover-art path for MPRIS2 and SMTC backends
+- [windows] optional-dep group declared in pyproject.toml, smtc.py deferred-import skeleton replacing NotImplementedError stub, and 4 Wave-0 unit tests confirming Linux importability and NoOp factory fallback
+- WindowsMediaKeysBackend wired to SMTC via MediaPlayer conduit: button routing (play/pause/stop), state mapping (playing/paused/stopped->MediaPlaybackStatus), Pitfall #1 + #4 + T-43.1-04 mitigations, 14 unit tests green on Linux with mocked winrt
+- 7 RED test scaffolds + 2 build-time guard tools land Wave 0 contracts (SERVER_NAME, NodeRuntime shape, "Node.js: Missing" QAction text, .spec hiddenimports list) so Plans 02–05 have a single feedback loop.
+- QLocalServer-based single-instance helper with FlashWindowEx focus fallback, Node.js host-runtime detection with CPython #109590 Windows safety, and version 2.0.0 source-of-truth landed.
+- 1. [Rule 1 - Bug] `runtime_check.show_missing_node_dialog` AttributeError under Plan 01 test fake
+- Windows packaging pipeline lands: PyInstaller .spec + GStreamer runtime hook + PowerShell build driver (with Python-tool PKG-03 guard) + Inno Setup per-user installer + EULA + README + multi-resolution .ico, all wired to the AUMID `org.lightningjim.MusicStreamer` and the pinned AppId GUID `914e9cb6-f320-478a-a2c4-e104cd450c88`.
+- QA-05 widget-lifetime audit clean (23 subclasses + 9 dialog launch sites + 13 signal connections + zero UAT-log regressions); 44-UAT.md template ready for Win11 VM execution with 16 pending checklist rows including the new UAT-21-1.5 AppId 3-brace acceptance check.
+- Cache key parity.
+- New `_theme.py` design-token module with ERROR_COLOR_HEX/QCOLOR + STATION_ICON_SIZE; 9 hex sites and all 3 icon-size sites migrated; `edit_station_dialog.py:131` deliberately deferred to Plan 46-02 Task 2 for Wave 1 parallel-execution disjointness
+- Three-arg _LogoFetchWorker signal distinguishes AudioAddict-URL-but-no-key from generic unsupported URLs, a parented 3s auto-clear timer scrubs stale status, and a stack-balanced wait cursor covers the fetch window.
+- Pure failover ordering module (`stream_ordering.py`) with `codec_rank` + `order_streams`, plus `StationStream.bitrate_kbps: int = 0` field — zero coupling to DB, Qt, or GStreamer, 18 tests green.
+- Extended `station_streams` with `bitrate_kbps INTEGER NOT NULL DEFAULT 0` (CREATE TABLE + idempotent ALTER TABLE), widened `Repo.insert_stream` / `Repo.update_stream` / `Repo.list_streams` to carry it, and swapped `player.py::play`'s position-only sort for `order_streams(station.streams)` — failover now prioritizes (codec rank desc, bitrate desc).
+- Wired `bitrate_kbps` end-to-end through the three user-facing surfaces: AudioAddict import (DI.fm tier -> 320/128/64 map), RadioBrowser discovery-save (post-insert update_stream fix-up), Edit Station dialog (5th column with QIntValidator delegate), and settings export/import roundtrip (8-column INSERT in both _insert_station and _replace_station with forward-compat defensive coerce).
+- 1. [Rule 3 — Blocking] Updated 9 pre-existing `_resolve_pls` mock side_effects
+- None.
+- New Player.buffer_percent Signal(int) sourced from GStreamer message::buffering with defensive parse, sentinel de-dup, and per-stream reset — backend half of Phase 47.1 ready for UI wiring in plan 02.
+- Live GStreamer buffer-fill percent surfaced in NowPlayingPanel as a mini QProgressBar + {N}% QLabel row inside a hidden-by-default QFormLayout wrapper, toggled via a new checkable hamburger-menu QAction with SQLite persistence, and wired end-to-end to Player.buffer_percent via a bound-method connect (no lambda).
+- Write side
+- Adds a right-aligned "+" QToolButton header row emitting `new_station_requested`, plus a `select_station(station_id)` helper that maps source-model indexes through `StationFilterProxyModel` before calling `setCurrentIndex`.
+- Twitch OAuth token capture rebuilt on 127.0.0.1 loopback listener + self-contained HTML bounce page, replacing the broken urlChanged fragment capture with CSRF-validated POST /capture and structured JSON-line stderr diagnostics.
+- One-liner:
+- Date:
+- Shared cookie_utils.py helper (is_cookie_file_corrupted + temp_cookies_copy @contextmanager) and 9 RED tests that drive FIX-02 restoration and corruption auto-recovery in Plans 02/03.
+- Ported the v1.5 FIX-02 temp-copy protection to `yt_import.scan_playlist` (the playlist-scan read site), added corruption auto-recovery with toast-callback plumbing through `_YtScanWorker`, and turned 5 RED cookie tests green.
+- Player._youtube_resolve_worker now routes cookies through cookie_utils.temp_cookies_copy with corruption auto-clear + cookies_cleared Signal wired to MainWindow.show_toast — yt-dlp's save_cookies() side effect can no longer overwrite canonical cookies.txt on the player path.
+- Closed out Phase 999.7 with full-suite pytest green (764 passed, 10 pre-existing baseline failures unchanged), human UAT sign-off on byte-equality of canonical cookies.txt across real YouTube playback, and a PROJECT.md Key Decisions entry anchoring the FIX-02 restoration for future phases.
+- Outcome:
+- Real root cause: yt-dlp's library API does not auto-discover JS runtimes the way the CLI does.
+
+---
+
 ## v1.5 Further Polish (Shipped: 2026-04-10)
 
 **Phases completed:** 14 phases (21–34), 21 plans | **Stats:** 265/265 tests passing, ~9,900 LOC Python total | **Timeline:** 2026-04-06 → 2026-04-10 (5 days)

@@ -4,8 +4,8 @@ milestone: v2.0
 milestone_name: OS-Agnostic Revamp
 status: Phase 44 shipped — Windows packaging UAT signed off
 stopped_at: Phase 999.9 Plan 01 Tasks 1-2 complete; Task 3 UAT pending
-last_updated: "2026-04-26T02:59:07.219Z"
-last_activity: 2026-04-25
+last_updated: "2026-04-26T03:11:36.339Z"
+last_activity: 2026-04-26
 progress:
   total_phases: 30
   completed_phases: 22
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-10)
 Phase: 44 (windows-packaging-installer) — EXECUTING
 Plan: 1 of 5
 Status: Phase 44 shipped — Windows packaging UAT signed off
-Last activity: 2026-04-25
+Last activity: 2026-04-26
 
 Progress: [██████████] 100%
 
@@ -127,6 +127,16 @@ Key v2.0 decisions already settled:
 - **Phase 44 scope:** DI.fm premium rejects HTTPS server-side; Phase 44 must decide HTTP-fallback policy for DI.fm specifically vs. universal HTTPS
 - **Phase 44 scope (new):** register Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` so the SMTC overlay shows "MusicStreamer" instead of "Unknown app" (AUMID is correctly bound to the process; this is the shell display-name path)
 - **Phase 44 backlog:** audio pause/restart glitch + ignored volume setting on Windows (GStreamer, not SMTC); fix `test_thumbnail_from_in_memory_stream` (`MagicMock` not awaitable — needs `AsyncMock` for `store_async`)
+
+## Deferred Items
+
+Items acknowledged and deferred at v2.0 milestone close on 2026-04-25:
+
+| Category | Item | Status |
+|----------|------|--------|
+| seed | 006-visual-color-picker | dormant — defer to v2.1+ |
+| seed | 008-gbs-fm-integration | dormant — defer to v2.1+ |
+| uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | unknown — backlog phase, not v2.0 gate |
 
 ## Session Continuity
 

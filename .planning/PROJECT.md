@@ -8,22 +8,22 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v2.0 OS Agnostic
+## Current Milestone: TBD (post-v2.0)
 
-**Goal:** Port MusicStreamer to Windows by replacing GTK4/Libadwaita with Qt/PySide6, retiring the GTK codebase so Linux and Windows share one frontend.
+Next milestone scoping pending. Run `/gsd-new-milestone` to define v2.1 (or whichever).
 
-**Target features:**
-- Qt/PySide6 frontend with feature-parity to v1.5 (stations, filters, favorites, discovery, imports, now-playing, multi-stream failover, elapsed timer, accent color, cookies, Twitch OAuth, hamburger menu)
-- Cross-platform media keys (Windows SMTC + Linux MPRIS) replacing dbus-python-only MPRIS2
-- Windows packaging (installer/distributable binary)
-- Manual settings export/import (stations + config as a file) for moving between machines
+## Previous Milestone: v2.0 OS-Agnostic Revamp ✓ SHIPPED 2026-04-25
 
-**Key context:**
-- Keep Python + GStreamer backend — only the UI layer changes
-- Retire GTK entirely; Linux users migrate to the Qt build (single codebase)
-- Scope is port-only — no new user features beyond manual sync
-- Qt on GNOME uses `adwaita-qt` theming (good-enough, not pixel-perfect)
-- Libadwaita and dbus-python leave the stack; PySide6 and a cross-platform media-keys shim enter
+**Delivered:** 17 phases in core scope (35–48 with .x sub-phases) + 5 backlog regression fixes (999.1, 999.3, 999.7, 999.8, 999.9), 81 plans total. All 35 active requirements satisfied (PKG-05 retired). Cross-phase integration verified clean (182 wiring tests pass). Windows installer EXE shipped via PyInstaller + Inno Setup, signed off via Win11 VM UAT.
+
+**Headline outcomes:**
+- GTK4/Libadwaita fully retired — single PySide6 codebase across Linux + Windows
+- Player.py rewritten as QObject with typed Qt signals; GLib calls eliminated
+- Cross-platform media keys: MPRIS2 (Linux) via QtDBus + SMTC (Windows) via winrt
+- Settings export/import ZIP with merge dialog (manual sync replaces v2.1+ cloud-sync goal)
+- Windows installer at `%LOCALAPPDATA%\Programs\MusicStreamer` with single-instance + Node.js runtime check
+- Stream quality ordering by codec rank + bitrate (Phase 47); buffer-fill indicator (47.1); AutoEQ parametric EQ (47.2)
+- GStreamer 1.28+ on Windows pinned: requires `flags & ~0x1` to skip video pad on audio-only consumption + `gst-libav` for AAC/H.264 decoders + `chardet>=5,<6` for requests' char-detection (charset_normalizer mypyc shared module not bundle-collectible)
 
 ## Previous Milestone: v1.5 Further Polish ✓ SHIPPED 2026-04-10
 
@@ -258,4 +258,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-16 — Phase 42 Settings Export/Import complete (ZIP export/import with merge dialog)*
+*Last updated: 2026-04-25 — v2.0 OS-Agnostic Revamp shipped (Windows packaging + cross-platform Qt port complete)*

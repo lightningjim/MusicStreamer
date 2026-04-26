@@ -247,16 +247,76 @@
 
 ---
 
+## Milestone: v2.0 — OS-Agnostic Revamp
+
+**Shipped:** 2026-04-25
+**Phases:** 17 in core scope (35–48 with .x sub-phases) + 5 backlog regression fixes (999.1, 999.3, 999.7, 999.8, 999.9) | **Plans:** 81 | **Timeline:** ~14 days (2026-04-11 → 2026-04-25)
+
+### What Was Built
+
+- GTK4/Libadwaita fully retired; PySide6 codebase shared between Linux + Windows
+- Player.py rewritten as QObject with typed Qt signals; GLib calls eliminated; bus messages routed via GstBusLoopThread + queued connections
+- platformdirs migration with non-destructive Linux data move
+- Cross-platform media keys: MPRIS2 (Linux QtDBus) + SMTC (Windows winrt)
+- Settings export/import ZIP with merge-by-URL dialog (replaces v2.1+ cloud-sync goal)
+- Windows installer EXE via PyInstaller + Inno Setup; bundled GStreamer 1.28.2 conda-forge runtime; AUMID-bound Start Menu shortcut; single-instance enforcement; Node.js host-runtime check
+- Stream quality ordering by codec rank + bitrate (47); buffer-fill indicator (47.1); AutoEQ parametric EQ pipeline (47.2)
+- Twitch via streamlink + OAuth subprocess capture; YouTube via yt-dlp library + EJS solver (Node runtime)
+- Cookie protection: temp-copy contextmanager so yt-dlp save_cookies() never overwrites canonical cookies.txt
+
+### What Worked
+
+- **Spike before packaging** — Phase 43 spike on a clean Win11 VM caught the GStreamer 1.28 layout flip + TLS backend change BEFORE Phase 44 planning; without it Phase 44 would have hit the same walls cold
+- **Decimal sub-phases for sub-scope** — 40.1, 43.1, 47.1, 47.2 gave a clean way to split work that surfaced mid-execution without renumbering
+- **Spike-findings skill** — Phase 43 outcomes pinned into a project-local skill that auto-loaded for subsequent Windows work; saved re-deriving cost on every session
+- **Diagnostic logging instrumentation in worker threads** — adding `diagnostics.log` for YT/Twitch worker exceptions in the bundled build was the only way to surface PyInstaller-bundle-specific failures (windowed `console=False` swallows stderr)
+- **Memory-driven context across sessions** — `project_v15_milestone.md`, `feedback_*` memories kept Kyle's profile (terse, fast-decisions) consistent across many sessions; spike-findings memory stayed warm across Phase 43 → 44 → 47.2 → 999.x
+- **Audit before close** — `/gsd-audit-milestone` caught REQUIREMENTS.md checkbox staleness (25 unchecked items that were actually shipped) that would have corrupted the v2.0 archive
+
+### What Was Inefficient
+
+- **REQUIREMENTS.md checkboxes drifted across the milestone** — most UI/MEDIA/SYNC/PKG items stayed `[ ]` despite being verified by their owning phases; mechanical sync at close took ~25 line edits. Lesson: SUMMARY-frontmatter `requirements-completed` should drive a CLI auto-update, not a human-tick step
+- **Phase 44 UAT debugging burned ~3 hours** chasing layered bundle issues (chardet missing → mypyc shared module → streamlink plugins → yt_dlp extractors → gst-libav not in conda env → GStreamer 1.28 video-pad strict-decode). Each layer needed its own diagnostic round-trip on the Win11 VM; would have been faster with a Linux-bundle preflight smoke test that exercised HLS playback BEFORE the Windows VM
+- **VERIFICATION.md skipped on 4 sub-phases (40.1, 41, 43, 43.1)** — by-convention OK for spikes/regressions, but the audit had to special-case them. SUMMARY frontmatter `requirements-completed` partially compensated, but full traceability would have been cleaner
+- **`%LOCALAPPDATA%\MusicStreamer` (capital) vs `%LOCALAPPDATA%\musicstreamer` (platformdirs lowercase) collision** — the Phase 44 plan didn't catch that NTFS case-insensitivity would alias the install dir into the user-data dir, blocking the uninstaller. Caught at UAT time only. Lesson: case-collision is a Windows-specific class of bug worth a checklist item for cross-platform work
+
+### Patterns Established
+
+- **`flags & ~0x1` on playbin3 for audio-only HLS consumption** under GStreamer 1.28+ (decodebin3 hard-fails if any pad lacks a decoder, even pads not routed to a sink)
+- **`gst-libav` is REQUIRED, not optional** in the conda build env — without it AAC/H.264 decoders are absent and any HLS stream fails
+- **chardet 5.x as the requests char-detection backend** — charset_normalizer 3.4 mypyc-compiled wheels reference a hash-prefixed shared module that PyInstaller's `collect_all` doesn't pick up; chardet pure-Python sidesteps the entire mypyc landmine, requests prefers it when present
+- **`bus.add_signal_watch()` MUST run on the thread iterating its own thread-default MainContext** — inline-on-main attaches to the main MainContext which no one iterates on Windows; bus handlers silently drop. Helper: `GstBusLoopThread.run_sync()` marshals the attach
+- **`SetCurrentProcessExplicitAppUserModelID` must run BEFORE `QApplication()`** with explicit `LPCWSTR` argtypes; AUMID binds at first window creation
+- **Diagnostic-log instrumentation pattern** for daemon worker threads in PyInstaller windowed bundles: append timestamped tracebacks to `paths.data_dir()/diagnostics.log` from each top-level except, since stderr is swallowed
+- **Goal-backward verification (verify-work)** found multiple plans that "passed" their tasks but missed the actual phase goal (Phase 35 Plan 35-05 self-reported partial when the criterion was actually met; Phase 47 gap-closure on bitrate ordering)
+
+### Key Lessons
+
+- **Always smoke-test the packaged bundle on the target OS BEFORE UAT** — the gap between "Linux dev passes" and "Windows bundle works" is a chain of layered packaging-specific failures (PyInstaller hooks, hash-prefixed mypyc files, Windows-only GStreamer plugin requirements, NTFS case collisions). Each layer needs its own round-trip diagnostic
+- **`collect_all(package)` for any dynamically-imported package** — streamlink plugins, yt_dlp extractors, charset_normalizer compiled modules. Standard hooks miss too much
+- **Conda-forge for PyGObject + GStreamer Windows bundling is the only path** — PyPI has no PyGObject wheels; source build needs ~1 GB of VS Build Tools. spike-findings codified this
+- **Verification snapshots can go stale within a session** if a bug fix lands after verify runs — re-verify after late commits
+- **Single-user pragmatic policy paid off** — Phase 999.8's planned matrix harness was dropped after the actual root cause (one-line streamlink API change) was found by reading the daemon-thread crash. Don't over-engineer for hypotheticals
+- **Cross-platform parity is a continuous tax** — `paths.py` with platformdirs absorbed the OS-difference, but case-sensitivity, decoder availability, and stderr handling all needed Windows-specific awareness
+
+### Cost Observations
+
+- Model mix: opus for plan-phase, sonnet for execute/verify/check (GSD defaults); opus for Phase 44 UAT debugging since context-spanning diagnostic chains benefit from a stronger reasoner
+- Sessions: ~15+ across 14 days
+- Notable: Phase 44 UAT alone consumed multiple sessions across multiple days due to the Windows-VM round-trip cost (rebuild + reinstall + reproduce loop). Each fix-rebuild-test cycle was ~10–20 min of wall time. The diagnostic-log instrumentation pattern paid for itself by capturing all subsequent failures in one log file vs requiring multiple Windows VM sessions
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 |
-|--------|------|------|------|------|------|------|
-| Phases | 4 | 2 | 5 | 4 | 5 | 14 |
-| Plans | 8 | 4 | 12 | 8 | 8 | 21 |
-| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) |
-| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) |
-| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 |
-| Days | 35 | 1 | 3 | 8 | 2 | 5 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v2.0 |
+|--------|------|------|------|------|------|------|------|
+| Phases | 4 | 2 | 5 | 4 | 5 | 14 | 17 (+5 backlog) |
+| Plans | 8 | 4 | 12 | 8 | 8 | 21 | 81 |
+| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) | ~750 (+485) |
+| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) | ~16,000 (+6,100) |
+| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| Days | 35 | 1 | 3 | 8 | 2 | 5 | 14 |
 
 ## Milestone: v1.1 — Polish & Station Management
 
