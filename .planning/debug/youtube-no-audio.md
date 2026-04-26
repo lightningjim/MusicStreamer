@@ -1,8 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "YouTube station playback — stream appears to start (pipeline transitions) but no audio comes out. Normal HTTP radio streams work fine."
 created: 2026-03-18T00:00:00Z
-updated: 2026-03-18T00:00:00Z
+updated: 2026-04-25T22:00:00Z
+resolution: "Phase 44 fix — clear GST_PLAY_FLAG_VIDEO on playbin3 (`flags & ~0x1`) so decodebin3 doesn't try to plug a video decoder for muxed HLS streams; combined with adding gst-libav to the conda build env so AAC + H.264 decoders are bundled. See `.claude/projects/-home-kcreasey-OneDrive-Projects-MusicStreamer/memory/project_gstreamer_128_video_flag.md`."
 ---
 
 ## Current Focus
