@@ -1,7 +1,7 @@
 ---
 phase: 44
 plan: 05
-status: in-progress
+status: signed-off
 created: 2026-04-25
 updated: 2026-04-25
 ---
@@ -72,6 +72,7 @@ pip list | findstr "PySide6 winrt yt-dlp streamlink pyinstaller":
    ```
    .\build.ps1
    ```
+   
    Expected output:
    - `PKG-03 OK: zero bare subprocess.* calls in musicstreamer/`
    - PyInstaller produces `..\..\dist\MusicStreamer\` (~110 MB, ~126 DLLs, ~184 plugins)
@@ -85,12 +86,14 @@ pip list | findstr "PySide6 winrt yt-dlp streamlink pyinstaller":
 
 ## Sign-Off
 
-- [ ] All D-20 items pass (DI.fm HTTPS waiver per D-15 acceptable)
-- [ ] All D-21 items pass (including UAT-21-1.5 AppId brace-form acceptance)
-- [ ] No new entries in `%APPDATA%\musicstreamer\logs\` with tracebacks from this UAT session
-- [ ] QA-05 audit doc reviewed (`44-QA05-AUDIT.md`)
+- [X] All D-20 items pass (DI.fm HTTPS waiver per D-15 acceptable)
+- [X] All D-21 items pass (including UAT-21-1.5 AppId brace-form acceptance)
+- [X] No new tracebacks in `%LOCALAPPDATA%\musicstreamer\musicstreamer\diagnostics.log` from this UAT session (the app writes user data under `platformdirs.user_data_dir` = `%LOCALAPPDATA%\musicstreamer\musicstreamer\` on Windows, NOT under `%APPDATA%\musicstreamer\logs\`; that subfolder does not exist. `diagnostics.log` was added Phase 44 for YT/Twitch worker exception logging — only file to check.)
+- [X] QA-05 audit doc reviewed (`44-QA05-AUDIT.md`)
 
 After all rows checked, set `status: signed-off` in the frontmatter and commit.
 
-**Signed off by:** _____________________
-**Date:** _____________________
+**Signed off by:** Kyle Creasey
+**Date:** 2026-04-25
+
+    
