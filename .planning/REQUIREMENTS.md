@@ -24,43 +24,43 @@
 
 - [x] **UI-01**: Station list — provider groups (custom `ExpanderSection` widget), recently-played section at top, per-row logo, click-to-play.
 - [x] **UI-02**: Now-playing panel — logo, `Name · Provider` label, ICY track title, cover art, elapsed timer, volume slider, star, edit icon, play/pause, stop.
-- [ ] **UI-03**: Filter strip — provider and tag chip rows using a wrapping `FlowLayout`, OR-within-dimension, AND-between-dimension multi-select.
-- [ ] **UI-04**: Favorites view — segmented `Stations`/`Favorites` toggle replacing the station list inline, trash button to remove.
-- [ ] **UI-05**: `EditStationDialog` — provider picker, wrapping tag chip FlowLayout, multi-stream management (reorder, quality presets hi/med/low/custom), ICY disable toggle, delete with playing guard.
-- [ ] **UI-06**: `DiscoveryDialog` — Radio-Browser.info search, tag/country filters, per-row preview play, save-to-library.
-- [ ] **UI-07**: `ImportDialog` — YouTube playlist tab (scan → checklist → import with progress) and AudioAddict tab (API key, quality selector, network import, logo download).
-- [ ] **UI-08**: `AccountsDialog` — Twitch OAuth via a `QWebEngineView` launched in an isolated subprocess helper (`oauth_helper.py`); captured token written to `TWITCH_TOKEN_PATH` with restricted permissions.
-- [ ] **UI-09**: YouTube cookie import — file picker, paste, and Google login (via the same subprocess OAuth helper pattern); stored at the platform-appropriate path with restricted permissions.
-- [ ] **UI-10**: Hamburger menu — Discover, Import, Accent Color, YouTube Cookies, Accounts, Export/Import Settings.
-- [ ] **UI-11**: Accent color picker — 8 presets + hex entry, applied as runtime QSS, persisted in SQLite settings.
-- [ ] **UI-12**: Toast overlay — custom `ToastOverlay` widget (no Adw.Toast equivalent); used for failover, connecting, and error messages on all play paths.
-- [ ] **UI-13**: Stream picker on now-playing panel — manual stream selection dropdown; reflects round-robin and quality fallback state.
+- [x] **UI-03**: Filter strip — provider and tag chip rows using a wrapping `FlowLayout`, OR-within-dimension, AND-between-dimension multi-select.
+- [x] **UI-04**: Favorites view — segmented `Stations`/`Favorites` toggle replacing the station list inline, trash button to remove.
+- [x] **UI-05**: `EditStationDialog` — provider picker, wrapping tag chip FlowLayout, multi-stream management (reorder, quality presets hi/med/low/custom), ICY disable toggle, delete with playing guard.
+- [x] **UI-06**: `DiscoveryDialog` — Radio-Browser.info search, tag/country filters, per-row preview play, save-to-library.
+- [x] **UI-07**: `ImportDialog` — YouTube playlist tab (scan → checklist → import with progress) and AudioAddict tab (API key, quality selector, network import, logo download).
+- [x] **UI-08**: `AccountsDialog` — Twitch OAuth via a `QWebEngineView` launched in an isolated subprocess helper (`oauth_helper.py`); captured token written to `TWITCH_TOKEN_PATH` with restricted permissions.
+- [x] **UI-09**: YouTube cookie import — file picker, paste, and Google login (via the same subprocess OAuth helper pattern); stored at the platform-appropriate path with restricted permissions.
+- [x] **UI-10**: Hamburger menu — Discover, Import, Accent Color, YouTube Cookies, Accounts, Export/Import Settings.
+- [x] **UI-11**: Accent color picker — 8 presets + hex entry, applied as runtime QSS, persisted in SQLite settings.
+- [x] **UI-12**: Toast overlay — custom `ToastOverlay` widget (no Adw.Toast equivalent); used for failover, connecting, and error messages on all play paths.
+- [x] **UI-13**: Stream picker on now-playing panel — manual stream selection dropdown; reflects round-robin and quality fallback state.
 - [x] **UI-14**: YouTube 16:9 thumbnail displayed via Qt pre-scaled pixmap in a fixed slot (no panel sizing regression).
 
 ### MEDIA — Cross-platform media keys
 
 - [x] **MEDIA-01**: `musicstreamer/media_keys/` package with a platform factory selecting the Linux or Windows backend at runtime based on `sys.platform`.
-- [ ] **MEDIA-02**: Linux MPRIS2 adaptor implemented via `PySide6.QtDBus` + `QDBusAbstractAdaptor`; `dbus-python` dependency removed from the stack.
-- [ ] **MEDIA-03**: Windows SMTC backend implemented via `winrt-Windows.Media.Playback` (System Media Transport Controls).
+- [x] **MEDIA-02**: Linux MPRIS2 adaptor implemented via `PySide6.QtDBus` + `QDBusAbstractAdaptor`; `dbus-python` dependency removed from the stack.
+- [x] **MEDIA-03**: Windows SMTC backend implemented via `winrt-Windows.Media.Playback` (System Media Transport Controls).
 - [x] **MEDIA-04**: Play/pause, stop, next/previous signals from the OS media session wire into `Player` on both platforms.
 - [x] **MEDIA-05**: Now-playing metadata (station name, track title, cover art pixmap) published to the OS media session and updates on ICY change.
 
 ### SYNC — Manual settings export/import
 
-- [ ] **SYNC-01**: Export action produces a single `.zip` containing `settings.json` (stations, streams, favorites, accent, volume, ICY flags) and a `logos/` folder with cached station art.
-- [ ] **SYNC-02**: Export explicitly excludes cookies, Twitch OAuth tokens, and AudioAddict API keys (credential risk).
-- [ ] **SYNC-03**: Import merges by stream URL — replace-on-match, new entries added, user-facing toggle for "replace all" vs "merge".
-- [ ] **SYNC-04**: Import produces a summary dialog (N added, M replaced, K skipped, L errors) before committing.
-- [ ] **SYNC-05**: Export/Import entries accessible from the hamburger menu.
+- [x] **SYNC-01**: Export action produces a single `.zip` containing `settings.json` (stations, streams, favorites, accent, volume, ICY flags) and a `logos/` folder with cached station art.
+- [x] **SYNC-02**: Export explicitly excludes cookies, Twitch OAuth tokens, and AudioAddict API keys (credential risk).
+- [x] **SYNC-03**: Import merges by stream URL — replace-on-match, new entries added, user-facing toggle for "replace all" vs "merge".
+- [x] **SYNC-04**: Import produces a summary dialog (N added, M replaced, K skipped, L errors) before committing.
+- [x] **SYNC-05**: Export/Import entries accessible from the hamburger menu.
 
 ### PACKAGING — Windows distributable
 
-- [ ] **PKG-01**: PyInstaller spec bundles the GStreamer Windows runtime DLLs + plugins with HTTPS streams verified working (souphttpsrc SSL CA bundle + libgiognutls.dll included).
-- [ ] **PKG-02**: NSIS (or Inno Setup) installer produces a Windows distributable installing to `%LOCALAPPDATA%\MusicStreamer` with Start Menu shortcut.
-- [ ] **PKG-03**: All subprocess launches that remain (if any — current state is zero after Plan 35-06) go through a centralized `_popen()` helper with `CREATE_NO_WINDOW` on Windows; no console window flashes. As of Plan 35-06, `musicstreamer/` has no subprocess launches, so this requirement may be retired in a later phase if nothing reintroduces subprocess usage.
-- [ ] **PKG-04**: Single-instance enforcement on both platforms (secondary launches forward the activation to the running instance).
+- [x] **PKG-01**: PyInstaller spec bundles the GStreamer Windows runtime DLLs + plugins with HTTPS streams verified working (souphttpsrc SSL CA bundle + libgiognutls.dll included).
+- [x] **PKG-02**: NSIS (or Inno Setup) installer produces a Windows distributable installing to `%LOCALAPPDATA%\MusicStreamer` with Start Menu shortcut.
+- [x] **PKG-03**: All subprocess launches that remain (if any — current state is zero after Plan 35-06) go through a centralized `_popen()` helper with `CREATE_NO_WINDOW` on Windows; no console window flashes. As of Plan 35-06, `musicstreamer/` has no subprocess launches, so this requirement may be retired in a later phase if nothing reintroduces subprocess usage.
+- [x] **PKG-04**: Single-instance enforcement on both platforms (secondary launches forward the activation to the running instance).
 - [x] ~~**PKG-05**~~: **RETIRED (Plan 35-06)**. Original intent: bundle `mpv.exe` on Windows as a YouTube fallback. Superseded — mpv was removed entirely after the spike decision was superseded. yt-dlp and streamlink are pulled in as Python dependencies by PyInstaller (see PORT-09) and Node.js is a host-system runtime requirement (RUNTIME-01) rather than a bundled binary.
-- [ ] **PKG-06**: A dedicated GStreamer Windows bundling spike completes before the installer phase begins, with HTTPS stream playback verified on a clean Windows VM.
+- [x] **PKG-06**: A dedicated GStreamer Windows bundling spike completes before the installer phase begins, with HTTPS stream playback verified on a clean Windows VM.
 
 ### RUNTIME — Host-system runtime requirements
 
@@ -70,9 +70,9 @@
 
 - [x] **QA-01**: `pytest-qt` with offscreen platform replaces the GTK fake-display test infrastructure; all v1.5 tests ported to Qt equivalents.
 - [x] **QA-02**: Test count ≥ 265 passing on Linux after the port; zero GTK imports in the test suite.
-- [ ] **QA-03**: Windows smoke test suite runs on a clean Windows VM or manual UAT before the milestone ships (station playback, YouTube, Twitch, failover, media keys, installer round-trip).
+- [x] **QA-03**: Windows smoke test suite runs on a clean Windows VM or manual UAT before the milestone ships (station playback, YouTube, Twitch, failover, media keys, installer round-trip).
 - [x] **QA-04**: Per-phase feature-parity checklist gates plan approval — explicit "no new behavior" rule enforced during port phases.
-- [ ] **QA-05**: Widget lifetime audit performed on all dialog and GStreamer callback flows to prevent `RuntimeError: Internal C++ object already deleted`.
+- [x] **QA-05**: Widget lifetime audit performed on all dialog and GStreamer callback flows to prevent `RuntimeError: Internal C++ object already deleted`.
 
 ---
 
