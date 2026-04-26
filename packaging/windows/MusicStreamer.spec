@@ -14,6 +14,24 @@ import os
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_all
+
+# Phase 44 UAT fix: PyInstaller hooks-contrib hook for charset_normalizer
+# misses its mypyc-compiled .pyd modules (md__mypyc.cpXX-win_amd64.pyd),
+# leaving the package unimportable in the bundle. Without it, `requests`
+# has no character detection dependency → streamlink/yt_dlp crash at
+# import time with "AttributeError: 'NoneType' object has no attribute
+# 'detect'". collect_all picks up datas + compiled binaries + submodules.
+_cn_datas, _cn_binaries, _cn_hiddenimports = collect_all("charset_normalizer")
+
+# Phase 44 UAT fix: streamlink discovers plugins (twitch, etc.) via dynamic
+# import over its `plugins/` package. The standard hook misses them in this
+# build, producing NoPluginError at runtime. yt_dlp has the same dynamic
+# discovery pattern across hundreds of extractor submodules. collect_all
+# pulls every submodule + plugin data file into the bundle.
+_sl_datas, _sl_binaries, _sl_hiddenimports = collect_all("streamlink")
+_yt_datas, _yt_binaries, _yt_hiddenimports = collect_all("yt_dlp")
+
 # --------------------------------------------------------------------------
 # Paths — the user sets GSTREAMER_ROOT env var before invoking pyinstaller.
 # build.ps1 does this automatically; fallback to the default MSI location.
@@ -78,11 +96,11 @@ block_cipher = None
 a = Analysis(
     ["../../musicstreamer/__main__.py"],
     pathex=[str(Path(".").resolve())],
-    binaries=extra_binaries,
+    binaries=extra_binaries + _cn_binaries + _sl_binaries + _yt_binaries,
     datas=[
         ("../../musicstreamer/ui_qt/icons", "musicstreamer/ui_qt/icons"),  # SVG source
         ("icons/MusicStreamer.ico", "icons"),                              # installed icon
-    ],
+    ] + _cn_datas + _sl_datas + _yt_datas,
     hiddenimports=[
         "gi",
         "gi.repository.Gst",
@@ -97,7 +115,11 @@ a = Analysis(
         "winrt.windows.media.playback",
         "winrt.windows.storage.streams",
         "winrt.windows.foundation",
-    ],
+        # Phase 44 UAT fix: requests prefers chardet over charset_normalizer,
+        # and chardet is pure-Python (no mypyc shared-module landmines).
+        # Required by streamlink/compat.py and yt_dlp HTTP fetches.
+        "chardet",
+    ] + _cn_hiddenimports + _sl_hiddenimports + _yt_hiddenimports,
     hookspath=[],
     hooksconfig={
         "gstreamer": {

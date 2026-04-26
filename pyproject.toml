@@ -14,6 +14,13 @@ dependencies = [
     "yt-dlp",
     "streamlink>=8.3",
     "platformdirs>=4.3",
+    # Phase 44 UAT: requests needs a char-detection backend. charset_normalizer
+    # 3.4.x ships mypyc-compiled .pyd modules whose hash-prefixed shared helper
+    # PyInstaller's hooks-contrib does not collect, leaving the package
+    # unimportable in the Windows bundle. chardet 5.x is pure-Python and works
+    # everywhere; requests prefers it over charset_normalizer when both exist.
+    # Pin <6 because requests rejects chardet >= 6.0.0 (compat assertion).
+    "chardet>=5.2,<6",
 ]
 
 [project.optional-dependencies]

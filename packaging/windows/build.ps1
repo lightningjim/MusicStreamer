@@ -18,11 +18,22 @@ Set-StrictMode -Version Latest
 # when $ErrorActionPreference = "Stop". PyInstaller, pip, and MusicStreamer.exe all log
 # INFO/DEBUG to stderr. Invoke-Native wraps a native call with Continue semantics
 # and propagates $LASTEXITCODE so explicit checks still fire on real failures.
+#
+# It ALSO stringifies any ErrorRecord output that the inner block emits — even with
+# `*>&1` redirection, PS 5.1 keeps stderr as ErrorRecord objects, which the host
+# formats as red "command : message / At ... char:NN" blocks when they reach the
+# console. Forcing them to plain strings inside the pipeline gives clean white
+# output that's still tee-able to a logfile.
 function Invoke-Native {
     param([scriptblock]$Block)
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    try { & $Block } finally { $ErrorActionPreference = $prev }
+    try {
+        & $Block | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) { "$($_.Exception.Message)" }
+            else { $_ }
+        }
+    } finally { $ErrorActionPreference = $prev }
 }
 
 # artifacts/ must exist before Tee-Object writes build.log / smoke.log into it.

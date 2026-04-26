@@ -1,5 +1,5 @@
 ; MusicStreamer Inno Setup installer
-; Per-user install (PrivilegesRequired=lowest), %LOCALAPPDATA%\MusicStreamer target.
+; Per-user install (PrivilegesRequired=lowest), %LOCALAPPDATA%\Programs\MusicStreamer target.
 ; Version passed in by build.ps1 via /DAppVersion=2.0.0 on iscc.exe command line.
 ; AppId GUID is pinned — NEVER change it without planning a migration path.
 
@@ -17,7 +17,13 @@ AppPublisherURL=https://github.com/lightningjim/MusicStreamer
 ; Per-user install (D-02): no admin elevation, installs under user profile.
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=
-DefaultDirName={localappdata}\MusicStreamer
+; Phase 44 UAT fix: install into {userpf} (= %LOCALAPPDATA%\Programs\MusicStreamer)
+; instead of {localappdata}\MusicStreamer. The latter collides with the
+; platformdirs user_data_dir on case-insensitive NTFS (`musicstreamer` outer
+; folder), so the uninstaller cannot remove the install dir while user data
+; subdirs exist beneath it. {userpf} is Microsoft's recommended per-user
+; install location and avoids the collision entirely.
+DefaultDirName={userpf}\MusicStreamer
 DefaultGroupName=MusicStreamer
 DisableProgramGroupPage=yes
 DisableDirPage=yes
