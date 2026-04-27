@@ -1,36 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: OS-Agnostic Revamp
-status: Phase 44 shipped — Windows packaging UAT signed off
-stopped_at: Phase 999.9 Plan 01 Tasks 1-2 complete; Task 3 UAT pending
-last_updated: "2026-04-26T03:11:36.339Z"
-last_activity: 2026-04-26
+milestone: v2.1
+milestone_name: Fixes and Tweaks
+status: planning
+last_updated: "2026-04-27T21:49:38.094Z"
+last_activity: 2026-04-27
 progress:
-  total_phases: 30
-  completed_phases: 22
-  total_plans: 81
-  completed_plans: 82
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-10)
+See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 44 — windows-packaging-installer
+**Current focus:** v2.1 Fixes and Tweaks — defining requirements
 
 ## Current Position
 
-Phase: 44 (windows-packaging-installer) — EXECUTING
-Plan: 1 of 5
-Status: Phase 44 shipped — Windows packaging UAT signed off
-Last activity: 2026-04-26
-
-Progress: [██████████] 100%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-04-27 — Milestone v2.1 started
 
 ## Performance Metrics
 
@@ -116,36 +113,27 @@ Key v2.0 decisions already settled:
 ### Pending Todos
 
 - .planning/notes/2026-03-21-sdr-live-radio-support.md
-- .planning/notes/2026-03-21-sync-config-between-computers.md
-- .planning/notes/2026-03-20-icy-override-per-station.md
+- .planning/notes/2026-04-03-station-art-fetching-beyond-youtube.md
 
 ### Blockers/Concerns
 
-- ~~Phase 43 (GStreamer Windows Spike) must complete before Phase 44 can be planned~~ — **resolved 2026-04-20**: Phase 43 passed iteration 1, findings doc + skill persisted, Phase 44 unblocked
-- ~~Phase 41 (SMTC on Windows): winrt async pattern for button_pressed needs real Windows validation~~ — **resolved 2026-04-23**: Phase 43.1 UAT signed off on Win11 VM, all 10 items pass, MEDIA-03/04/05 complete
-- Phase 40 (OAuth): QWebEngineCookieStore.cookieAdded in subprocess context needs proof-of-concept before planning
-- **Phase 44 scope:** DI.fm premium rejects HTTPS server-side; Phase 44 must decide HTTP-fallback policy for DI.fm specifically vs. universal HTTPS
-- **Phase 44 scope (new):** register Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` so the SMTC overlay shows "MusicStreamer" instead of "Unknown app" (AUMID is correctly bound to the process; this is the shell display-name path)
-- **Phase 44 backlog:** audio pause/restart glitch + ignored volume setting on Windows (GStreamer, not SMTC); fix `test_thumbnail_from_in_memory_stream` (`MagicMock` not awaitable — needs `AsyncMock` for `store_async`)
+- Phase 40 (OAuth): QWebEngineCookieStore.cookieAdded in subprocess context needs proof-of-concept before planning *(carried from v2.0 — not in v2.1 initial scope)*
+- **v2.1 scope:** DI.fm premium rejects HTTPS server-side — Phase 44 carry-forward needs an HTTP-fallback policy decision (DI.fm-specific vs. universal HTTPS)
+- **v2.1 scope:** register Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` so the SMTC overlay shows "MusicStreamer" instead of "Unknown app" (AUMID is correctly bound to the process; this is the shell display-name path)
+- **v2.1 scope:** audio pause/restart glitch + ignored volume setting on Windows (GStreamer, not SMTC); fix `test_thumbnail_from_in_memory_stream` (`MagicMock` not awaitable — needs `AsyncMock` for `store_async`)
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.0 milestone close on 2026-04-25:
+Items previously deferred at v2.0 close, now folded into v2.1 initial scope (2026-04-27):
 
-| Category | Item | Status |
-|----------|------|--------|
-| seed | 006-visual-color-picker | dormant — defer to v2.1+ |
-| seed | 008-gbs-fm-integration | dormant — defer to v2.1+ |
-| uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | unknown — backlog phase, not v2.0 gate |
+| Category | Item | v2.1 disposition |
+|----------|------|------------------|
+| seed | 006-visual-color-picker | in scope — UI polish phase |
+| seed | 008-gbs-fm-integration | in scope — feature phase |
+| uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
 
 ## Session Continuity
 
-Last session: 2026-04-24T23:42:24.660Z
-Stopped at: Phase 999.9 Plan 01 Tasks 1-2 complete; Task 3 UAT pending
+Last session: 2026-04-27 — v2.1 Fixes and Tweaks milestone started
+Stopped at: Defining requirements
 Resume file: None
-
-**Ship step pending (manual):** squash-merge `phase-43.1-uat-diag` → `main`, then advance to Phase 44 planning.
-
-**Completed Phase:** 999.8 (twitch-stations-play-silent — REFUTED, resolved by 9df84de) — 2026-04-24
-
-**Planned Phase:** 44 (windows-packaging-installer) — 5 plans — 2026-04-25T15:46:15.980Z
