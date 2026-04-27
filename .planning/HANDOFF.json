@@ -1,46 +1,50 @@
 {
   "version": "1.0",
-  "timestamp": "2026-04-24T02:55:11.161Z",
-  "phase": "44",
-  "phase_name": "windows-packaging-installer",
-  "phase_dir": ".planning/phases/44-windows-packaging-installer",
+  "timestamp": "2026-04-26T22:30:18-05:00",
+  "phase": null,
+  "phase_name": null,
+  "phase_dir": null,
   "plan": null,
   "task": null,
   "total_tasks": null,
   "status": "paused",
-  "pipeline_stage": "plan-phase (auto-chain active) — paused before gsd-pattern-mapper spawn",
+  "context": "between-milestones",
   "completed_tasks": [
-    {"id": 1, "name": "discuss-phase — CONTEXT.md written (D-01..D-23)", "status": "done", "commit": "4e2f3f5"},
-    {"id": 2, "name": "discuss-phase — DISCUSSION-LOG.md written", "status": "done", "commit": "4e2f3f5"},
-    {"id": 3, "name": "STATE.md updated for phase 44 session", "status": "done", "commit": "f77ff87"},
-    {"id": 4, "name": "plan-phase — RESEARCH.md written (gsd-phase-researcher)", "status": "done", "commit": "3f527ae"},
-    {"id": 5, "name": "plan-phase — VALIDATION.md written from template", "status": "done", "commit": "578df05"}
+    {"id": 1, "name": "Diagnose OneDrive data loss vs git state", "status": "done"},
+    {"id": 2, "name": "Add gitea remote, fetch, confirm clean fast-forward (8 commits ahead)", "status": "done"},
+    {"id": 3, "name": "Stash working tree, FF-merge to gitea/main", "status": "done"},
+    {"id": 4, "name": "Reset stash-pop conflicts, restore 46 files from HEAD", "status": "done"},
+    {"id": 5, "name": "Triage stash: discard stale/unwanted edits, drop stash", "status": "done"},
+    {"id": 6, "name": "Move logos to packaging/linux/ and commit (77cdfed)", "status": "done"},
+    {"id": 7, "name": "Push logo commit to origin", "status": "done", "note": "user pushed manually"},
+    {"id": 8, "name": "Consolidate remotes: repoint origin to coldpool.myqnapcloud.com, drop gitea", "status": "done"}
   ],
   "remaining_tasks": [
-    {"id": 6, "name": "Spawn gsd-pattern-mapper → PATTERNS.md (user cancelled this step)", "status": "not_started"},
-    {"id": 7, "name": "Spawn gsd-planner → PLAN.md files", "status": "not_started"},
-    {"id": 8, "name": "Spawn gsd-plan-checker → verify plans (≤3 revision iterations)", "status": "not_started"},
-    {"id": 9, "name": "Requirements coverage gate (phase_req_ids: PKG-01..04, QA-03, QA-05)", "status": "not_started"},
-    {"id": 10, "name": "Auto-advance to /gsd-execute-phase 44 --auto (chain flag is active)", "status": "not_started"}
+    {"id": 9, "name": "Verify spike-findings-musicstreamer skill content covers what was in the untracked spike phase dir", "status": "pending"},
+    {"id": 10, "name": "Decide fate of untracked .planning/phases/43-gstreamer-windows-spike/ (build artifacts and logs only)", "status": "pending"},
+    {"id": 11, "name": "Decide fate of untracked .planning/phases/999.7-yt-dlp-overwrites-cookies-txt-regression-of-fix-02/999.7-PATTERNS.md", "status": "pending"},
+    {"id": 12, "name": "Decide fate of other untracked items: .clone/, .idea/, musicstreamer/musicstreamer.sqlite3", "status": "pending"}
   ],
-  "blockers": [
-    {"description": "User cancelled pattern mapper spawn — reason not stated", "type": "human_action", "workaround": "On resume, confirm whether to skip pattern mapper (disable via gsd-sdk config-set workflow.pattern_mapper false) or proceed"}
-  ],
+  "blockers": [],
   "human_actions_pending": [
-    {"action": "Decide whether to continue plan-phase with or without pattern mapper, or start over with different parameters", "context": "Pipeline was in --auto/--chain mode from discuss-phase; user interrupted the pattern-mapper Agent call", "blocking": true}
+    {"action": "Confirm spike findings in skill cover everything from untracked 43-spike dir before deleting it", "context": "Skill is intact: .claude/skills/spike-findings-musicstreamer/references/{qt-glib-bus-threading.md, windows-gstreamer-bundling.md} both present. Untracked spike dir contains only build/smoke logs and test_url.txt — no findings docs. Likely safe to discard but user wanted to verify tomorrow.", "blocking": false}
   ],
   "decisions": [
-    {"decision": "Inno Setup over NSIS", "rationale": "Simpler Pascal scripting, first-class per-user install mode, built-in AUMID shortcut properties (D-01)", "phase": "44"},
-    {"decision": "QLocalServer/QLocalSocket for single-instance", "rationale": "Qt-native, cross-platform, raises existing window for free (D-08/D-09)", "phase": "44"},
-    {"decision": "Node.js check = soft warning dialog + continue; surfaces in 3 places (startup dialog + toast at YT play time + hamburger menu indicator)", "rationale": "Three-pronged UX ensures prerequisite is impossible to miss without blocking non-YT users (D-11..D-14)", "phase": "44"},
-    {"decision": "DI.fm HTTPS = server-side issue, no code workaround", "rationale": "SomaFM proves TLS stack works; DI.fm servers reject HTTPS post-handshake (D-15)", "phase": "44"},
-    {"decision": "Broad-collect all 184 GStreamer plugins (~110 MB bundle)", "rationale": "Phase 43 proved this config works; risk of pruning-induced breakage > size savings (D-16)", "phase": "44"},
-    {"decision": "Strictly Windows packaging this phase", "rationale": "Linux keeps pip install flow; AppImage/Flatpak deferred to v2.1+ (Scope edges)", "phase": "44"},
-    {"decision": "Start Menu shortcut only (no Desktop, no Taskbar pin)", "rationale": "Start Menu carries AUMID; Pin-to-Taskbar is fragile and user can pin manually (user explicit revision)", "phase": "44"},
-    {"decision": "pyproject version bump 1.1.0 → 2.0.0 in this phase", "rationale": "Aligns with v2.0 milestone ship (D-06)", "phase": "44"},
-    {"decision": "Auto-chain flag _auto_chain_active=true persisted in config", "rationale": "Invoked from /gsd-discuss-phase 44 --chain; plan-phase must auto-advance to execute-phase on completion", "phase": "44"}
+    {"decision": "Discard stash-captured edits as stale (uv.lock 1.1.0->2.0.0 already in HEAD; config.json identical; install.sh mode change was OneDrive artifact)", "rationale": "Stash was based on old HEAD 3263def; gitea's 8 newer commits had already incorporated equivalent work"},
+    {"decision": "Discard 44-UAT.md regression notes from stash", "rationale": "User confirmed those issues were resolved later"},
+    {"decision": "Place logos in packaging/linux/ (option 2)", "rationale": "User's choice; org.lightningjim.MusicStreamer.png is XDG desktop integration asset; brand logos co-locate naturally"},
+    {"decision": "Repoint origin to WAN hostname coldpool.myqnapcloud.com:2222 and drop redundant gitea remote", "rationale": "Both pointed at same Gitea server; single origin works LAN and off-network"},
+    {"decision": "Leave references to logo paths in archived Phase 44 planning docs unchanged", "rationale": "Phase 44 is signed-off and shipped; updating archived docs would distort historical record. .ico already generated and committed."}
   ],
   "uncommitted_files": [],
-  "next_action": "On resume, read .planning/phases/44-windows-packaging-installer/.continue-here.md. Decide: (a) proceed with gsd-pattern-mapper spawn (resume from step 7.8 of plan-phase workflow), (b) skip pattern mapper and spawn gsd-planner directly (step 8), or (c) re-run /gsd-plan-phase 44 --auto from the top.",
-  "context_notes": "Running /gsd-discuss-phase 44 --chain from this session. Discuss-phase completed interactively (all 4 gray areas + wrap-up), CONTEXT.md and DISCUSSION-LOG.md committed. Chain flag triggered plan-phase --auto. Research agent returned RESEARCH COMPLETE with HIGH confidence; 79KB RESEARCH.md committed. VALIDATION.md template filled + committed. UI gate and security gate both passed (no blockers). Next step was pattern-mapper spawn — user cancelled before the Agent call started work. Pipeline is mid-flow. No files are uncommitted. workflow._auto_chain_active=true is still set in config — if resuming plan-phase, it will continue to auto-advance to execute-phase after plans pass the checker."
+  "untracked_items": [
+    ".claude/worktrees/ (Claude scratch dirs, ignored)",
+    ".clone/ (unknown)",
+    ".idea/ (JetBrains IDE state)",
+    "musicstreamer/musicstreamer.sqlite3 (local app DB)",
+    ".planning/phases/43-gstreamer-windows-spike/ (build artifacts only: build.log, smoke-clean.log, smoke.log, test_url.txt)",
+    ".planning/phases/999.7-yt-dlp-overwrites-cookies-txt-regression-of-fix-02/ (one file: 999.7-PATTERNS.md)"
+  ],
+  "next_action": "Read .planning/.continue-here.md. Cross-check spike-findings-musicstreamer skill content against any artifacts in .planning/phases/43-gstreamer-windows-spike/. Then triage remaining untracked items.",
+  "context_notes": "Recovery session after OneDrive lost data. Local repo was at 3263def, gitea had 8 newer commits including v2.0 milestone close. All tracked-file losses recoverable via FF-merge from gitea. Final HEAD: logo commit 77cdfed pushed to origin. v2.0 milestone is shipped/archived. Single remote: origin -> coldpool.myqnapcloud.com:2222. Previous HANDOFF.json (Phase 44 plan-phase, Apr 24) is stale and superseded — Phase 44 has since been completed and shipped."
 }
