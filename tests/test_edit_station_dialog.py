@@ -768,3 +768,182 @@ def test_is_dirty_after_stream_row_added(dialog):
     assert dialog.streams_table.rowCount() == initial_rows + 1
     assert dialog._is_dirty() is True
 
+
+# ---------------------------------------------------------------------------
+# Phase 51-03 / D-04..D-08 — cross-network "Also on:" sibling label.
+#
+# These tests cover the rendering surface added in Plan 51-03: hide for
+# non-AA stations, hide when no siblings, render with Qt.RichText <a> links
+# when siblings exist, link-text format (network-only when names match,
+# "Network — SiblingName" otherwise), and the html.escape mitigation for
+# the T-39-01 deviation.
+# ---------------------------------------------------------------------------
+
+
+def _make_aa_station(station_id, name, url):
+    """Factory: a minimal Station with one stream at `url`.
+
+    Used by the sibling-label tests below to construct AA-flavored
+    stations whose first stream URL drives find_aa_siblings.
+    """
+    return Station(
+        id=station_id,
+        name=name,
+        provider_id=1,
+        provider_name="DI.fm",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=station_id * 10,
+                station_id=station_id,
+                url=url,
+                position=1,
+            )
+        ],
+    )
+
+
+@pytest.fixture()
+def aa_repo():
+    r = MagicMock()
+    r.list_providers.return_value = [Provider(1, "DI.fm")]
+    # Default: no other stations in the library — sibling label hidden.
+    # Tests that need siblings override list_stations.return_value in-test.
+    r.list_stations.return_value = []
+    # _populate calls list_streams for the current station (used to set url_edit).
+    r.list_streams.return_value = [
+        StationStream(
+            id=10,
+            station_id=1,
+            url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+            position=1,
+        )
+    ]
+    r.ensure_provider.return_value = 1
+    return r
+
+
+@pytest.fixture()
+def aa_station():
+    return _make_aa_station(
+        1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc"
+    )
+
+
+@pytest.fixture()
+def aa_dialog(qtbot, aa_station, player, aa_repo):
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    return d
+
+
+def test_sibling_section_hidden_for_non_aa_station(qtbot, player):
+    """D-04, D-06: a non-AA URL never derives siblings -> label hidden.
+
+    Uses isHidden() rather than isVisible() so the assertion does not
+    depend on the dialog being shown by the windowing system (parent
+    hidden -> isVisible() is False even when setVisible(True) was called).
+    isHidden() reflects the explicit setVisible(False) state directly.
+    """
+    non_aa = _make_aa_station(
+        1, "Whatever", "https://www.youtube.com/watch?v=xyz"
+    )
+    repo = MagicMock()
+    repo.list_providers.return_value = [Provider(1, "YouTube")]
+    repo.list_streams.return_value = [
+        StationStream(
+            id=10,
+            station_id=1,
+            url="https://www.youtube.com/watch?v=xyz",
+            position=1,
+        )
+    ]
+    repo.list_stations.return_value = [non_aa]
+    repo.ensure_provider.return_value = 1
+    d = EditStationDialog(non_aa, player, repo, parent=None)
+    qtbot.addWidget(d)
+    assert d._sibling_label.isHidden() is True
+
+
+def test_sibling_section_hidden_when_no_siblings(aa_dialog):
+    """D-06: AA station, no other AA stations on other networks -> hidden."""
+    # aa_repo.list_stations.return_value = [] by default.
+    assert aa_dialog._sibling_label.isHidden() is True
+
+
+def test_sibling_section_renders_links_for_aa_station_with_siblings(
+    qtbot, player, aa_repo, aa_station
+):
+    """D-04, D-07: AA station with cross-network sibling -> label visible
+    with <a href="sibling://..."> link to the sibling's network name."""
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    # isHidden() is False because _refresh_siblings called setVisible(True).
+    # isVisible() would require the parent dialog to actually be shown by
+    # the WM, which qtbot.addWidget does not do.
+    assert d._sibling_label.isHidden() is False
+    text = d._sibling_label.text()
+    assert "Also on:" in text
+    assert 'href="sibling://2"' in text
+    assert "ZenRadio" in text
+
+
+def test_sibling_link_text_uses_network_name_when_station_names_match(
+    qtbot, player, aa_repo, aa_station
+):
+    """D-08: when current and sibling names match, link text is just the
+    network display name (no em-dash, no station name)."""
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    text = d._sibling_label.text()
+    # The em-dash (U+2014) only appears in the differing-names form.
+    assert "—" not in text
+    assert ">ZenRadio</a>" in text
+
+
+def test_sibling_link_text_uses_network_dash_name_when_station_names_differ(
+    qtbot, player, aa_repo, aa_station
+):
+    """D-08: when names differ, link text is "Network — SiblingName" with
+    U+2014 EM DASH and surrounding spaces."""
+    zenradio_sibling = _make_aa_station(
+        2,
+        "Ambient (Sleep)",
+        "http://prem1.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    text = d._sibling_label.text()
+    assert "ZenRadio — Ambient (Sleep)" in text
+
+
+def test_sibling_html_escapes_station_name(
+    qtbot, player, aa_repo, aa_station
+):
+    """T-39-01 deviation mitigation: a malicious sibling station name must
+    be HTML-escaped in the rendered RichText label so script tags are
+    rendered as text, not parsed by Qt."""
+    evil_sibling = _make_aa_station(
+        2,
+        "<script>alert(1)</script>",
+        "http://prem1.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo.list_stations.return_value = [aa_station, evil_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    text = d._sibling_label.text()
+    # Raw <script> tag must NOT appear; escaped form MUST appear.
+    assert "<script>" not in text
+    assert "&lt;script&gt;" in text
