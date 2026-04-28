@@ -195,7 +195,12 @@ def test_player_eq_element_created(player):
 
 def test_player_eq_apply_profile(player):
     """D-02, D-05: profile apply writes freq/gain/bandwidth per band;
-    disable zeros every band gain (bypass semantics)."""
+    disable zeros every band gain (bypass semantics).
+
+    Phase 52: gain is now ramped over 8 ticks; freq/bandwidth/type are still
+    written synchronously in _start_eq_ramp's fresh-ramp branch. Drive the
+    ramp to completion before asserting final gain values.
+    """
     from musicstreamer.eq_profile import EqBand, EqProfile
     profile = EqProfile(preamp_db=0.0, bands=[
         EqBand("PK", 1000.0, -3.5, 1.0),
@@ -203,6 +208,9 @@ def test_player_eq_apply_profile(player):
     ])
     player.set_eq_profile(profile)
     player.set_eq_enabled(True)
+    # Phase 52: drive the gain ramp to completion (final tick commits exact target).
+    for _ in range(player._EQ_RAMP_TICKS):
+        player._eq_ramp_timer.timeout.emit()
 
     b0 = player._eq.get_child_by_index(0)
     b1 = player._eq.get_child_by_index(1)
@@ -213,8 +221,10 @@ def test_player_eq_apply_profile(player):
     assert b1.get_property("gain") == pytest.approx(2.0)
     assert b1.get_property("bandwidth") == pytest.approx(2000.0)  # 4000 / 2.0
 
-    # D-05: disable → every band gain zeroed (bypass)
+    # D-05: disable → every band gain zeroed (bypass) -- via ramp.
     player.set_eq_enabled(False)
+    for _ in range(player._EQ_RAMP_TICKS):
+        player._eq_ramp_timer.timeout.emit()
     n = player._eq.get_children_count()
     for i in range(n):
         assert player._eq.get_child_by_index(i).get_property("gain") == pytest.approx(0.0), (
@@ -243,7 +253,11 @@ def test_player_eq_rebuild_on_band_count_change(player):
 
 
 def test_player_eq_preamp_uniform_offset(player):
-    """D-17, D-18, Pitfall 5: preamp is ADDED to every band gain (not subtracted)."""
+    """D-17, D-18, Pitfall 5: preamp is ADDED to every band gain (not subtracted).
+
+    Phase 52: gain is now ramped on set_eq_enabled; drive the ramp to commit
+    the exact target before asserting Pitfall 5 ADD semantics.
+    """
     from musicstreamer.eq_profile import EqBand, EqProfile
     profile = EqProfile(preamp_db=0.0, bands=[
         EqBand("PK", 100.0, 4.0, 1.0),
@@ -252,6 +266,9 @@ def test_player_eq_preamp_uniform_offset(player):
     player.set_eq_profile(profile)
     player.set_eq_preamp(-6.0)
     player.set_eq_enabled(True)
+    # Phase 52: drive the gain ramp to completion (final tick commits exact target).
+    for _ in range(player._EQ_RAMP_TICKS):
+        player._eq_ramp_timer.timeout.emit()
 
     b0 = player._eq.get_child_by_index(0)
     b1 = player._eq.get_child_by_index(1)
@@ -363,3 +380,198 @@ def test_player_eq_handles_missing_plugin(qtbot, monkeypatch):
         p.set_eq_preamp(5.0)
     finally:
         p.stop()
+
+
+# ----------------------------------------------------------------------
+# Phase 52: EQ toggle smooth-ramp tests (BUG-03)
+#
+# These tests exercise the QTimer-driven gain ramp introduced in
+# Player._start_eq_ramp / _on_eq_ramp_tick. The ramp lerps each band's
+# gain from its current value to its target over _EQ_RAMP_TICKS ticks.
+# Tests drive the timer manually via _eq_ramp_timer.timeout.emit() --
+# same idiom as test_elapsed_timer_emits_seconds_while_playing (no wall
+# clock). The real-pipeline `player` fixture is used so get_property('gain')
+# reads are authoritative GstChildProxy reads.
+# ----------------------------------------------------------------------
+
+
+def test_player_eq_ramp_progression_lerps_each_band(player):
+    """D-02: ticks 1..7 lerp gain linearly from 0.0 to target; tick 8 exact."""
+    from musicstreamer.eq_profile import EqBand, EqProfile
+    profile = EqProfile(preamp_db=0.0, bands=[
+        EqBand("PK", 1000.0, -3.5, 1.0),  # target band 0: -3.5
+        EqBand("PK", 4000.0,  2.0, 1.0),  # target band 1:  2.0
+    ])
+    player.set_eq_profile(profile)
+    # Initial state: bypass (gains zeroed). Profile applied -> ramp starts.
+    player.set_eq_enabled(True)
+
+    targets = [-3.5, 2.0]
+    b0 = player._eq.get_child_by_index(0)
+    b1 = player._eq.get_child_by_index(1)
+
+    # Drive 7 intermediate ticks; each must lerp linearly.
+    for k in range(1, 8):
+        player._eq_ramp_timer.timeout.emit()
+        t = k / 8.0
+        assert b0.get_property("gain") == pytest.approx(0.0 + (targets[0] - 0.0) * t, abs=1e-6), (
+            f"tick {k}: band 0 gain mismatch (D-02 lerp)"
+        )
+        assert b1.get_property("gain") == pytest.approx(0.0 + (targets[1] - 0.0) * t, abs=1e-6), (
+            f"tick {k}: band 1 gain mismatch (D-02 lerp)"
+        )
+
+
+def test_player_eq_ramp_final_tick_commits_exact_target(player):
+    """D-02 final-tick exact-commit: tick 8 writes target verbatim, no residual.
+
+    Also: ramp timer is stopped and ramp state cleared after final tick.
+    """
+    from musicstreamer.eq_profile import EqBand, EqProfile
+    profile = EqProfile(preamp_db=0.0, bands=[
+        EqBand("PK", 1000.0, -3.5, 1.0),
+        EqBand("PK", 4000.0,  2.0, 1.0),
+    ])
+    player.set_eq_profile(profile)
+    player.set_eq_enabled(True)
+
+    # Drive all 8 ticks.
+    for _ in range(8):
+        player._eq_ramp_timer.timeout.emit()
+
+    b0 = player._eq.get_child_by_index(0)
+    b1 = player._eq.get_child_by_index(1)
+    assert b0.get_property("gain") == pytest.approx(-3.5, abs=1e-9), (
+        "tick 8 must commit exact target on band 0 (no lerp residual)"
+    )
+    assert b1.get_property("gain") == pytest.approx(2.0, abs=1e-9), (
+        "tick 8 must commit exact target on band 1 (no lerp residual)"
+    )
+    assert player._eq_ramp_timer.isActive() is False, (
+        "timer must stop after final tick"
+    )
+    assert player._eq_ramp_state is None, (
+        "ramp state must clear after final tick"
+    )
+
+
+def test_player_eq_ramp_reverses_from_current_on_re_toggle(player):
+    """D-05: mid-ramp re-toggle captures live gains as new start_gain.
+
+    A ramp toward T1=non-zero is in flight after 3 ticks; flipping
+    set_eq_enabled(False) does NOT snap the start back to 0.0 nor forward
+    to T1 -- it captures the LIVE mid-ramp gains as the new start and
+    interpolates from there to all-zeros over the next 8 ticks.
+    """
+    from musicstreamer.eq_profile import EqBand, EqProfile
+    profile = EqProfile(preamp_db=0.0, bands=[
+        EqBand("PK", 1000.0, -6.0, 1.0),
+        EqBand("PK", 4000.0,  4.0, 1.0),
+    ])
+    player.set_eq_profile(profile)
+    player.set_eq_enabled(True)
+    targets_phase1 = [-6.0, 4.0]
+
+    # Drive 3 ticks of the first ramp.
+    for _ in range(3):
+        player._eq_ramp_timer.timeout.emit()
+
+    b0 = player._eq.get_child_by_index(0)
+    b1 = player._eq.get_child_by_index(1)
+    mid0 = b0.get_property("gain")
+    mid1 = b1.get_property("gain")
+    # Sanity: mid-ramp values are between 0 and the original targets.
+    assert 0.0 < abs(mid0) < abs(targets_phase1[0]), (
+        "phase 1: mid-ramp gain must be partial, not snapped"
+    )
+    assert 0.0 < abs(mid1) < abs(targets_phase1[1]), (
+        "phase 1: mid-ramp gain must be partial, not snapped"
+    )
+
+    # Re-toggle mid-ramp: target becomes [0, 0]; start MUST be the
+    # live mid-ramp gains (D-05 reverse-from-current).
+    player.set_eq_enabled(False)
+    state = player._eq_ramp_state
+    assert state is not None, "ramp state must exist after re-toggle"
+    assert state["tick_index"] == 0, "tick_index resets on re-toggle"
+    assert state["target_gain"][0] == pytest.approx(0.0)
+    assert state["target_gain"][1] == pytest.approx(0.0)
+    assert state["start_gain"][0] == pytest.approx(mid0, abs=1e-6), (
+        "D-05: start_gain must be live mid-ramp gain (not 0.0, not original target)"
+    )
+    assert state["start_gain"][1] == pytest.approx(mid1, abs=1e-6), (
+        "D-05: start_gain must be live mid-ramp gain (not 0.0, not original target)"
+    )
+
+    # Drive 8 more ticks: gains must converge exactly to zero.
+    for _ in range(8):
+        player._eq_ramp_timer.timeout.emit()
+    assert b0.get_property("gain") == pytest.approx(0.0, abs=1e-9)
+    assert b1.get_property("gain") == pytest.approx(0.0, abs=1e-9)
+    assert player._eq_ramp_timer.isActive() is False
+
+
+def test_player_eq_ramp_graceful_degrade_no_timer_when_eq_missing(qtbot, monkeypatch):
+    """When equalizer-nbands plugin is missing (_eq is None), set_eq_enabled
+    flips the state flag (D-06) but starts NO ramp timer (graceful-degrade)."""
+    import musicstreamer.player as player_mod
+
+    real_make = player_mod.Gst.ElementFactory.make
+
+    def fake_make(factory_name, *args, **kwargs):
+        if factory_name == "equalizer-nbands":
+            return None
+        return real_make(factory_name, *args, **kwargs)
+
+    monkeypatch.setattr(player_mod.Gst.ElementFactory, "make", fake_make)
+
+    p = player_mod.Player()
+    try:
+        assert p._eq is None
+        # Must not raise; must not start the timer.
+        p.set_eq_enabled(True)
+        assert p._eq_enabled is True, "D-06: state flag flips immediately"
+        assert p._eq_ramp_timer.isActive() is False, (
+            "graceful-degrade: ramp timer NOT started when _eq is None"
+        )
+        assert p._eq_ramp_state is None, (
+            "graceful-degrade: no ramp state when _eq is None"
+        )
+        p.set_eq_enabled(False)
+        assert p._eq_enabled is False
+        assert p._eq_ramp_timer.isActive() is False
+    finally:
+        p.stop()
+
+
+def test_player_eq_ramp_set_eq_profile_stops_in_flight_ramp(player):
+    """T-52-01: set_eq_profile cancels any in-flight ramp (the new profile
+    will get a fresh ramp on the next set_eq_enabled call). Avoids writing
+    via stale GstChildProxy after _rebuild_eq_element runs.
+    """
+    from musicstreamer.eq_profile import EqBand, EqProfile
+    profile_a = EqProfile(preamp_db=0.0, bands=[
+        EqBand("PK", 1000.0, -3.0, 1.0),
+        EqBand("PK", 4000.0,  3.0, 1.0),
+    ])
+    player.set_eq_profile(profile_a)
+    player.set_eq_enabled(True)
+    # Mid-ramp: timer is active, ramp state is populated.
+    player._eq_ramp_timer.timeout.emit()
+    player._eq_ramp_timer.timeout.emit()
+    assert player._eq_ramp_timer.isActive() is True
+    assert player._eq_ramp_state is not None
+
+    # Same band count as profile_a -> _rebuild_eq_element NOT triggered;
+    # we are testing the explicit ramp-cancel guard at set_eq_profile entry.
+    profile_b = EqProfile(preamp_db=0.0, bands=[
+        EqBand("PK", 1500.0, -2.0, 1.0),
+        EqBand("PK", 5000.0,  2.0, 1.0),
+    ])
+    player.set_eq_profile(profile_b)
+    assert player._eq_ramp_timer.isActive() is False, (
+        "set_eq_profile must stop any in-flight ramp (T-52-01)"
+    )
+    assert player._eq_ramp_state is None, (
+        "set_eq_profile must clear ramp state (T-52-01)"
+    )

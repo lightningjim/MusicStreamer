@@ -147,6 +147,14 @@ class Player(QObject):
         self._elapsed_timer.setInterval(1000)
         self._elapsed_timer.timeout.connect(self._on_elapsed_tick)
 
+        # Phase 52 (D-02, D-03): EQ gain ramp timer. GUI-thread interval timer
+        # that ticks _EQ_RAMP_TICKS times then stops itself in _on_eq_ramp_tick.
+        # Pitfall 2: parented to self (main-thread). QA-05: bound method.
+        self._eq_ramp_timer = QTimer(self)
+        self._eq_ramp_timer.setInterval(self._EQ_RAMP_INTERVAL_MS)
+        self._eq_ramp_timer.timeout.connect(self._on_eq_ramp_tick)
+        self._eq_ramp_state: dict | None = None
+
         # Internal: twitch_resolved / youtube_resolved / youtube_resolution_failed
         # are emitted from worker threads; queued connections marshal the slot
         # calls to this (main) thread.
@@ -209,12 +217,24 @@ class Player(QObject):
     # ------------------------------------------------------------------ #
 
     def set_eq_enabled(self, enabled: bool) -> None:
-        """D-05: Hot-toggle EQ by zeroing band gains (bypass) vs applying profile."""
+        """Hot-toggle EQ via smooth gain ramp (Phase 52 D-02, D-05, D-06).
+
+        The state flag flips immediately (D-06); the audio-output gains
+        interpolate from current to target over _EQ_RAMP_MS in
+        _EQ_RAMP_TICKS ticks. Re-toggling mid-ramp reverses from the
+        current in-progress gains (D-05).
+        """
         self._eq_enabled = bool(enabled)
-        self._apply_eq_state()
+        if self._eq is None:
+            return  # graceful-degrade preserved
+        self._start_eq_ramp()
 
     def set_eq_profile(self, profile: "EqProfile | None") -> None:
         """D-04: Rebuild element if band count differs; else mutate in place."""
+        # Phase 52 T-52-01: a ramp in flight on the old element would write
+        # to a stale GstChildProxy after _rebuild_eq_element. Stop it cleanly.
+        self._eq_ramp_timer.stop()
+        self._eq_ramp_state = None
         self._eq_profile = profile
         needed = len(profile.bands) if profile else 0
         if self._eq is not None and self._eq.get_property("num-bands") != max(1, needed):
@@ -273,6 +293,11 @@ class Player(QObject):
         """Stop audio output without clearing station context (D-04)."""
         self._cancel_timers()
         self._elapsed_timer.stop()
+        # Phase 52: cancel any in-flight EQ ramp; the pipeline going NULL
+        # silences output anyway, but stopping the timer prevents a dangling
+        # tick on a torn-down element.
+        self._eq_ramp_timer.stop()
+        self._eq_ramp_state = None
         self._streams_queue = []
         self._recovery_in_flight = False
         self._pipeline.set_state(Gst.State.NULL)
@@ -281,6 +306,9 @@ class Player(QObject):
     def stop(self) -> None:
         self._cancel_timers()
         self._elapsed_timer.stop()
+        # Phase 52: same rationale as pause() above.
+        self._eq_ramp_timer.stop()
+        self._eq_ramp_state = None
         self._elapsed_seconds = 0
         self._streams_queue = []
         self._recovery_in_flight = False
@@ -634,6 +662,13 @@ class Player(QObject):
 
     _EQ_BAND_TYPE = {"PK": 0, "LSC": 1, "HSC": 2}  # Pitfall 3: enum starts at 0
 
+    # Phase 52 (D-02): smooth gain ramp on EQ toggle (40ms / 8 ticks of 5ms).
+    # Eliminates the IIR-coefficient-discontinuity click on equalizer-nbands
+    # band-gain mutation. dB-linear lerp.
+    _EQ_RAMP_MS = 40
+    _EQ_RAMP_TICKS = 8
+    _EQ_RAMP_INTERVAL_MS = 5  # _EQ_RAMP_MS // _EQ_RAMP_TICKS
+
     def _apply_eq_state(self) -> None:
         """Write band properties for the current (profile, enabled, preamp) state.
 
@@ -657,6 +692,110 @@ class Player(QObject):
             # Pitfall 5: ADD preamp (usually negative) -- do NOT subtract abs().
             band.set_property("gain", float(b.gain_db) + self._eq_preamp_db)
             band.set_property("type", self._EQ_BAND_TYPE.get(b.filter_type, 0))
+
+    # ------------------------------------------------------------------ #
+    # Phase 52: EQ smooth gain ramp (D-02, D-03, D-04, D-05)
+    # ------------------------------------------------------------------ #
+
+    def _capture_current_gains(self) -> list[float]:
+        """Read live per-band gains from the equalizer element (D-05).
+
+        Authoritative source for ramp start_gain. Used both on fresh ramp
+        start and on mid-ramp reverse-from-current.
+        """
+        n = self._eq.get_children_count()
+        return [
+            float(self._eq.get_child_by_index(i).get_property("gain"))
+            for i in range(n)
+        ]
+
+    def _compute_target_gains(self) -> list[float]:
+        """Compute per-band target gains from current (_eq_enabled,
+        _eq_profile, _eq_preamp_db) state (D-04).
+
+        Bypass (disabled or no profile) -> [0.0] * n. Profile-applied ->
+        b.gain_db + preamp_db per band (Pitfall 5: ADD), padded with 0.0
+        to children_count when profile has fewer bands.
+        """
+        n = self._eq.get_children_count()
+        if self._eq_profile is None or not self._eq_enabled:
+            return [0.0] * n
+        gains = [0.0] * n
+        for i, b in enumerate(self._eq_profile.bands):
+            if i >= n:
+                break
+            # Pitfall 5: ADD preamp (do NOT subtract abs).
+            gains[i] = float(b.gain_db) + self._eq_preamp_db
+        return gains
+
+    def _start_eq_ramp(self) -> None:
+        """Begin or reverse a gain ramp toward the current target state.
+
+        Fresh ramp: capture live start gains, write freq/bandwidth/type
+        ONCE (Pitfall 4: bandwidth=Hz, not Q), seed ramp_state, start timer.
+        In-progress ramp (D-05 reverse-from-current): re-capture live gains
+        as new start_gain, replace target_gain, reset tick_index, keep timer
+        running.
+        """
+        if self._eq is None:
+            return
+        target = self._compute_target_gains()
+        start = self._capture_current_gains()
+        # On fresh ramp into the profile-applied path, write the static
+        # band properties (freq/bandwidth/type) once. Bypass path leaves
+        # them untouched (matches existing _apply_eq_state bypass branch).
+        if (
+            self._eq_ramp_state is None
+            and self._eq_profile is not None
+            and self._eq_enabled
+        ):
+            n = self._eq.get_children_count()
+            for i, b in enumerate(self._eq_profile.bands):
+                if i >= n:
+                    break
+                band = self._eq.get_child_by_index(i)
+                band.set_property("freq", float(b.freq_hz))
+                # Pitfall 4: bandwidth (Hz) = freq_hz / max(Q, 0.01).
+                band.set_property(
+                    "bandwidth", float(b.freq_hz) / max(float(b.q), 0.01)
+                )
+                band.set_property(
+                    "type", self._EQ_BAND_TYPE.get(b.filter_type, 0)
+                )
+        self._eq_ramp_state = {
+            "start_gain": start,
+            "target_gain": target,
+            "tick_index": 0,
+        }
+        if not self._eq_ramp_timer.isActive():
+            self._eq_ramp_timer.start()
+
+    def _on_eq_ramp_tick(self) -> None:
+        """Per-tick gain interpolation; final tick commits exact target (D-02)."""
+        state = self._eq_ramp_state
+        if self._eq is None or state is None:
+            self._eq_ramp_timer.stop()
+            self._eq_ramp_state = None
+            return
+        state["tick_index"] += 1
+        k = state["tick_index"]
+        n = self._eq.get_children_count()
+        target = state["target_gain"]
+        start = state["start_gain"]
+        if k >= self._EQ_RAMP_TICKS:
+            # Final tick: commit exact target (no lerp residual).
+            for i in range(n):
+                t_i = target[i] if i < len(target) else 0.0
+                self._eq.get_child_by_index(i).set_property("gain", t_i)
+            self._eq_ramp_timer.stop()
+            self._eq_ramp_state = None
+            return
+        t = float(k) / float(self._EQ_RAMP_TICKS)
+        for i in range(n):
+            s_i = start[i] if i < len(start) else 0.0
+            t_i = target[i] if i < len(target) else 0.0
+            g = s_i + (t_i - s_i) * t
+            self._eq.get_child_by_index(i).set_property("gain", g)
 
     def _rebuild_eq_element(self, num_bands: int) -> None:
         """D-04 + Pitfall 1: num-bands realloc unreliable; rebuild the whole element.
