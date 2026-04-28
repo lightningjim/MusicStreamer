@@ -33,6 +33,10 @@ def station():
 @pytest.fixture()
 def repo():
     r = MagicMock()
+    # Phase 51-03 (W4 fix): _populate now calls _refresh_siblings ->
+    # repo.list_stations(). Default to empty so existing tests deterministically
+    # hit the "no siblings" path. Tests that need siblings override this in-test.
+    r.list_stations.return_value = []
     r.list_providers.return_value = [
         Provider(1, "TestProvider"),
         Provider(2, "Other"),
