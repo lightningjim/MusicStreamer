@@ -356,12 +356,13 @@ No security-relevant changes in this phase. The fix adds one method call in an e
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Final name: `refresh_recent()` vs. `bump_recent(station)` vs. another name**
+1. **Final name: `refresh_recent()` vs. `bump_recent(station)` vs. another name** — RESOLVED
    - What we know: `refresh_model()` is the precedent. The CONTEXT.md asks the planner to pick. `refresh_recent()` is the natural analog.
    - What's unclear: Whether the planner prefers `bump_recent(station)` (which would accept a station argument for possible future optimization) or the simpler no-arg `refresh_recent()`.
    - Recommendation: Use `refresh_recent()` (no-arg). The body is just `self._populate_recent()` regardless; the station argument is unnecessary because `_populate_recent` queries the DB directly. No-arg keeps the interface consistent with `refresh_model()`.
+   - **Resolution (planner, 2026-04-27):** `refresh_recent()` adopted (no-arg). Plan 50-01 uses this name throughout — frontmatter, key_links, acceptance criteria, code samples.
 
 ---
 
