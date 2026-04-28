@@ -680,3 +680,87 @@ def test_save_clears_is_new_flag_to_prevent_delete_on_close(qtbot, station, play
     # must see _is_new=False and NOT call delete_station.
     d.reject()
     assert repo.delete_station.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 51-02 / D-11 / D-12 — EditStationDialog._is_dirty() snapshot predicate.
+#
+# These tests assert the dialog-level dirty-state mechanism that Plan 51-04
+# will use to gate the Save / Discard / Cancel confirm when the user clicks
+# a sibling "Also on:" link. Scope: name, URL, provider, tags, ICY, streams.
+# The `_is_new` lifecycle flag is orthogonal and untouched.
+# ---------------------------------------------------------------------------
+
+
+def test_is_dirty_false_after_populate(dialog):
+    """D-12: a freshly populated dialog reports clean (no edits)."""
+    assert dialog._is_dirty() is False
+
+
+def test_is_dirty_after_name_edit(dialog):
+    """D-12: editing the name field marks the dialog dirty."""
+    dialog.name_edit.setText("New Name")
+    assert dialog._is_dirty() is True
+
+
+def test_is_dirty_after_url_edit(dialog):
+    """D-12: editing the URL field marks the dialog dirty."""
+    dialog.url_edit.setText("http://other.example/stream")
+    assert dialog._is_dirty() is True
+
+
+def test_is_dirty_after_provider_change(dialog):
+    """D-12: changing the provider combo marks the dialog dirty."""
+    dialog.provider_combo.setCurrentText("Other")
+    assert dialog._is_dirty() is True
+
+
+def test_is_dirty_after_tag_toggle(dialog):
+    """D-12: toggling a tag chip from selected -> unselected marks dirty."""
+    # The `station` fixture has tags="jazz,electronic" — chips render selected.
+    jazz_chip = dialog._tag_chips["jazz"]
+    assert jazz_chip.property("chipState") == "selected"
+    jazz_chip.click()  # toggles to unselected
+    assert jazz_chip.property("chipState") == "unselected"
+    assert dialog._is_dirty() is True
+
+
+def test_is_dirty_after_icy_toggle(dialog):
+    """D-12: flipping the ICY checkbox marks the dialog dirty."""
+    initial = dialog.icy_checkbox.isChecked()
+    dialog.icy_checkbox.setChecked(not initial)
+    assert dialog._is_dirty() is True
+
+
+def test_is_dirty_after_stream_cell_edit(dialog):
+    """D-12: editing a cell in the streams table marks the dialog dirty."""
+    from PySide6.QtWidgets import QTableWidgetItem
+
+    table = dialog.streams_table
+    assert table.rowCount() >= 1, "fixture must populate at least one stream row"
+
+    cell = table.item(0, 0)
+    if cell is None:
+        table.setItem(0, 0, QTableWidgetItem("http://changed.example/stream"))
+    else:
+        cell.setText("http://changed.example/stream")
+    assert dialog._is_dirty() is True
+
+
+def test_is_dirty_after_stream_row_added(dialog):
+    """D-12: adding a new stream row marks the dialog dirty.
+
+    Also exercises the orthogonality of _is_new — calling _add_stream_row()
+    on an existing-station dialog (is_new=False) must flip _is_dirty() to
+    True. The is_new placeholder branch in __init__ re-captures the
+    baseline AFTER its own _add_stream_row() so a fresh `is_new` dialog
+    is still clean — that contract is verified separately by the existing
+    `test_is_new_mode_pre_adds_blank_stream_row` plus the clean-baseline
+    test above (constructed via the default `dialog` fixture which is
+    is_new=False).
+    """
+    initial_rows = dialog.streams_table.rowCount()
+    dialog._add_stream_row()
+    assert dialog.streams_table.rowCount() == initial_rows + 1
+    assert dialog._is_dirty() is True
+
