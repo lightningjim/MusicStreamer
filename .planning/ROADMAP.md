@@ -140,7 +140,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md`
 Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new issues surface.
 
 - [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after user reinstalled both yt-dlp and the GStreamer plugins; suspected fix is one of those two, not formally bisected)
-- [ ] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing
+- [x] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing (completed 2026-04-28)
 - [ ] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player
 - [ ] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off
 - [ ] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu
@@ -174,9 +174,9 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
   1. When the user starts playing a station, it appears at the top of the Recently Played section within the same session — no restart required
   2. The previously-playing station moves down the list (or out of the top 3) correctly
   3. No full list rebuild occurs — provider group expand/collapse states are preserved during the update
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 Plans:
-- [ ] 50-01-PLAN.md — Add refresh_recent() to StationListPanel and call it from _on_station_activated (TDD: RED tests → GREEN implementation → UAT)
+- [x] 50-01-PLAN.md — Add refresh_recent() to StationListPanel and call it from _on_station_activated (TDD: RED tests → GREEN implementation → UAT)
 
 ### Phase 51: AudioAddict Cross-Network Siblings
 **Goal:** AudioAddict stations that share a channel key across networks (e.g. "Ambient" on DI.FM and ZenRadio) are surfaced as related siblings — visible in the editor and jumpable — without merging them or enabling cross-network failover.
@@ -296,7 +296,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 49. YouTube Linux Playback Regression | 0/0 | ✓ Resolved (no code change) | 2026-04-27 |
-| 50. Recently Played Live Update | 0/? | Not started | - |
+| 50. Recently Played Live Update | 1/1 | Complete   | 2026-04-28 |
 | 51. AudioAddict Cross-Network Siblings | 0/? | Not started | - |
 | 52. EQ Toggle Dropout Fix | 0/? | Not started | - |
 | 53. YouTube Cookies into Accounts Menu | 0/? | Not started | - |

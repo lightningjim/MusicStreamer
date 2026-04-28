@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 50 context gathered
-last_updated: "2026-04-28T02:55:08.956Z"
-last_activity: 2026-04-28 -- Phase 50 planning complete
+status: verifying
+stopped_at: Phase 50-01 complete — BUG-01 closed; ready for /gsd-verify-work
+last_updated: "2026-04-28T03:25:31.529Z"
+last_activity: 2026-04-28
 progress:
   total_phases: 12
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** v2.1 Fixes and Tweaks — Phase 49 resolved without code change; ready to plan Phase 50
+**Current focus:** Phase 50 — Recently Played Live Update
 
 ## Current Position
 
-Phase: 50 — Recently Played Live Update (not started)
-Plan: —
-Status: Ready to execute
-Last activity: 2026-04-28 -- Phase 50 planning complete
+Phase: 50 (Recently Played Live Update) — PLAN COMPLETE, AWAITING /gsd-verify-work
+Plan: 1 of 1 complete (50-01)
+Status: Phase complete — ready for verification
+Last activity: 2026-04-28 -- Phase 50-01 SUMMARY committed; BUG-01 closed
 
 ## Performance Metrics
 
@@ -98,6 +98,8 @@ Key v2.0 decisions already settled:
 - [Phase 999.7-03]: FakePlayer test doubles in 3 MainWindow test modules extended with cookies_cleared Signal(str) — fixture parity over shared base class (minimal-diff).
 - Phase 999.7: FIX-02 (yt-dlp temp-copy protection) restored on the library-API path via shared cookie_utils.py (mkstemp+copy2+unlink). Both read sites (player + yt_import) route cookies through a per-call temp file; yt-dlp's save_cookies() on __exit__ can no longer clobber canonical cookies.txt. Corruption auto-clear + toast wired on both sites. Byte-equality UAT approved on live YouTube playback (sha256 stable).
 - [Phase 999.9]: yt-dlp 2026.03.17 silently dropped extractor_args["youtubepot-jsruntime"]; pinned player_client=web in musicstreamer/player.py::_youtube_resolve_worker. Bundled yt_dlp_ejs handles JS challenges without --remote-components (probe row 7 confirmed). Phase 999.7 cookie invariant preserved.
+- [Phase 50-01]: StationListPanel.refresh_recent() public method placed parallel to refresh_model in the '# Public refresh API' block; delegates only to _populate_recent — does NOT call model.refresh or _sync_tree_expansion (preserves provider tree expand/collapse state, SC #3)
+- [Phase 50-01]: _on_station_activated calls station_panel.refresh_recent() via direct method call (D-04 — no Signal/connect, no QTimer.singleShot, no Qt.QueuedConnection); ordering update_last_played → refresh_recent is load-bearing per Pitfall #1 (DB write must precede UI re-query)
 
 ### Roadmap Evolution
 
@@ -133,9 +135,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | seed | 006-visual-color-picker | in scope — Phase 59 |
 | seed | 008-gbs-fm-integration | in scope — Phase 60 |
 | uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
+| Phase 50 P01 | 25min | 3 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-04-28T02:37:00.043Z
-Stopped at: Phase 50 context gathered
-Resume file: .planning/phases/50-recently-played-live-update/50-CONTEXT.md
+Last session: 2026-04-28T03:25:31.521Z
+Stopped at: Phase 50-01 complete — BUG-01 closed; ready for /gsd-verify-work
+Resume file: None
