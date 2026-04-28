@@ -13,7 +13,7 @@ Initial committed scope. Each maps to a roadmap phase.
 
 Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 
-- [ ] **BUG-07** *(MUST BE FIRST PHASE)*: YouTube live stream playback works again on Linux — investigate regression (root cause + fix). Suspected to have broken since v2.0 ship; Phase 999.9 closed an earlier YT regression on the JS-runtime path, so this is either a new regression or a Linux-specific facet of the same area. Phase scope is **investigation-led**: identify the root cause first, then either ship the fix in the same phase (if scoped) or split into a follow-up.
+- [x] **BUG-07** *(was MUST-BE-FIRST-PHASE — resolved 2026-04-27 without code change)*: YouTube live stream playback works again on Linux — Phase 49. Resolved before investigation began; user suspects a previously-missing system dependency was reinstalled at the OS level. Root cause not formally documented. If regression returns, reopen as new phase 49.1 and bisect.
 - [ ] **BUG-01**: Recently played list updates live as new stations are played — no manual refresh required *(stub: 999.2)*
 - [ ] **BUG-02**: Cross-network AudioAddict mirror/sibling streams surface as related streams when editing or playing a station *(stub: 999.4)*
 - [ ] **BUG-03**: Toggling EQ on/off does not produce an audible audio dropout *(stub: 999.5)*
@@ -72,7 +72,7 @@ Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-07 | Phase 49 | Pending |
+| BUG-07 | Phase 49 | ✓ Complete (no code change) |
 | BUG-01 | Phase 50 | Pending |
 | BUG-02 | Phase 51 | Pending |
 | BUG-03 | Phase 52 | Pending |
@@ -91,7 +91,9 @@ Which phases cover which requirements.
 - v2.1 requirements: 14 total
 - Mapped to phases: 14 ✓
 - Unmapped: 0 ✓
+- Complete: 1 (BUG-07 — env-level fix, no code change)
+- Pending: 13
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-04-27 — traceability populated by gsd-roadmapper (Phases 49–60)*
+*Last updated: 2026-04-27 — Phase 49 / BUG-07 resolved without code change (suspected env-level dependency reinstall)*

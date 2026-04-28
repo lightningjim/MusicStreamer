@@ -7,10 +7,10 @@ last_updated: "2026-04-27T00:00:00.000Z"
 last_activity: 2026-04-27
 progress:
   total_phases: 12
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 0
   completed_plans: 0
-  percent: 0
+  percent: 8
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** v2.1 Fixes and Tweaks — roadmap created, awaiting Phase 49 plan
+**Current focus:** v2.1 Fixes and Tweaks — Phase 49 resolved without code change; ready to plan Phase 50
 
 ## Current Position
 
-Phase: 49 — YouTube Linux Playback Regression (not started)
+Phase: 50 — Recently Played Live Update (not started)
 Plan: —
-Status: Roadmap defined; ready to plan Phase 49
-Last activity: 2026-04-27 — v2.1 roadmap created (12 phases, 49–60)
+Status: Phase 49 closed without execution (env-level fix); ready to plan Phase 50
+Last activity: 2026-04-27 — Phase 49 / BUG-07 resolved, no code change shipped
 
 ## Performance Metrics
 
@@ -110,6 +110,7 @@ Key v2.0 decisions already settled:
 - Phase 49 added: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries — 2026-04-24
 - Phase 49 → Backlog 999.12 (deferred to next milestone so v2.0 can ship after Phase 44) — 2026-04-25
 - v2.1 roadmap created 2026-04-27: Phases 49–60 (12 phases), 14 requirements mapped. BUG-07 (Phase 49) is first. Backlog stubs 999.2/4/5/6/10/11/12 renumbered as core phases 50–58.
+- Phase 49 (BUG-07 — YouTube Linux Playback Regression) resolved without code change 2026-04-27 — playback resumed working after suspected reinstall of a missing system dependency at the OS level. Root cause not formally documented. Pattern matches v2.0 Phase 999.8 (REFUTED, resolved via separate commit). If regression returns, reopen as Phase 49.1 and bisect.
 
 ### Pending Todos
 
@@ -118,7 +119,7 @@ Key v2.0 decisions already settled:
 
 ### Blockers/Concerns
 
-- Phase 49: YouTube Linux playback regression — root cause unknown; investigation-led phase
+- ~~Phase 49: YouTube Linux playback regression~~ — **resolved 2026-04-27** without code change (env-level fix). If regression returns, open Phase 49.1 to bisect.
 - Phase 56: DI.fm HTTPS-fallback policy not yet decided (HTTP-for-DI.fm-only vs. universal)
 - Phase 60: GBS.FM sub-capability scope to be refined at /gsd-discuss-phase time
 
@@ -134,6 +135,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-04-27 — v2.1 roadmap created (12 phases, 49–60)
-Stopped at: Roadmap defined — ready to plan Phase 49
+Last session: 2026-04-27 — Phase 49 resolved without code change (env-level fix); 1/12 v2.1 phases complete
+Stopped at: Ready to plan Phase 50 (Recently Played Live Update — BUG-01)
 Resume file: None

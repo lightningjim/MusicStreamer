@@ -139,7 +139,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md`
 
 Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new issues surface.
 
-- [ ] **Phase 49: YouTube Linux Playback Regression** — Investigate and fix YouTube live stream regression on Linux
+- [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after suspected reinstall of a missing system dependency; root cause not formally root-caused)
 - [ ] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing
 - [ ] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player
 - [ ] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off
@@ -154,16 +154,17 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 
 ## Phase Details
 
-### Phase 49: YouTube Linux Playback Regression
+### Phase 49: YouTube Linux Playback Regression — ✓ RESOLVED (no code change)
 **Goal:** YouTube live stream playback works again on Linux — root cause identified and fix shipped (or a follow-up phase scoped via /gsd-add-phase if the fix is too large).
 **Depends on:** Nothing
 **Requirements:** BUG-07
-**Success Criteria** (what must be TRUE):
-  1. A YouTube live stream station plays to audible audio on Linux without error
-  2. The root cause of the regression is documented (player.py code site, yt-dlp version delta, or extractor arg change)
-  3. No existing test suite regressions introduced by the fix
-  4. If the fix is split, a follow-up phase is created and sequenced immediately after
-**Plans:** TBD
+**Resolution:** 2026-04-27 — playback resumed working before any investigation began. User suspects a previously-missing system dependency was reinstalled and that fixed the environment. No code change shipped. Root cause not formally root-caused; if the regression returns, reopen as a new phase (e.g. 49.1) and bisect from there.
+**Success Criteria** (what was TRUE at resolution):
+  1. ✓ YouTube live stream stations play to audible audio on Linux
+  2. ⚠ Root cause not documented — suspected env-level (system dep reinstall), not codebase
+  3. ✓ No code change → no test suite regressions introduced
+  4. n/a (no fix shipped, no follow-up split needed)
+**Plans:** none (closed without execution)
 
 ### Phase 50: Recently Played Live Update
 **Goal:** The Recently Played section in the station list reflects the current playing station immediately, without requiring an app restart.
@@ -292,7 +293,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 49. YouTube Linux Playback Regression | 0/? | Not started | - |
+| 49. YouTube Linux Playback Regression | 0/0 | ✓ Resolved (no code change) | 2026-04-27 |
 | 50. Recently Played Live Update | 0/? | Not started | - |
 | 51. AudioAddict Cross-Network Siblings | 0/? | Not started | - |
 | 52. EQ Toggle Dropout Fix | 0/? | Not started | - |
@@ -306,4 +307,4 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 | 60. GBS.FM Integration | 0/? | Not started | - |
 
 ---
-*Last updated: 2026-04-27 — v2.1 Fixes and Tweaks roadmap created (12 phases, 49–60, 14 requirements mapped)*
+*Last updated: 2026-04-27 — Phase 49 resolved without code change (suspected env-level fix); v2.1 progress 1/12*
