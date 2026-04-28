@@ -151,6 +151,10 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [ ] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows
 - [ ] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry
 - [ ] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer
+- [ ] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer"
+- [ ] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation
+- [ ] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close
+- [ ] **Phase 64: AudioAddict Siblings on Now Playing** — Surface AA siblings of the currently-playing station as one-click jumps in the Now Playing panel (continuation of Phase 51)
 
 ## Phase Details
 
@@ -337,7 +341,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 49. YouTube Linux Playback Regression | 0/0 | ✓ Resolved (no code change) | 2026-04-27 |
 | 50. Recently Played Live Update | 1/1 | Complete    | 2026-04-28 |
-| 51. AudioAddict Cross-Network Siblings | 3/5 | In Progress|  |
+| 51. AudioAddict Cross-Network Siblings | 5/5 | Complete    | 2026-04-28 |
 | 52. EQ Toggle Dropout Fix | 0/? | Not started | - |
 | 53. YouTube Cookies into Accounts Menu | 0/? | Not started | - |
 | 54. Station Logo Aspect Ratio Fix | 0/? | Not started | - |
@@ -350,6 +354,23 @@ Plans:
 | 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
+| 64. AudioAddict Siblings on Now Playing | 0/? | Not started | - |
+
+### Phase 64: AudioAddict Siblings on Now Playing
+**Goal:** When an AudioAddict station is currently playing, the Now Playing panel surfaces same-channel-key siblings on other AA networks as one-click jumps — playing DI.fm "Ambient" shows a "Also on: ZenRadio • JazzRadio" affordance that, when clicked, switches playback to the chosen sibling. Continuation of Phase 51, which scoped sibling visibility to EditStationDialog only.
+**Depends on:** Phase 51 (find_aa_siblings helper + sibling-rendering pattern; navigate_to_sibling signal precedent)
+**Requirements:** BUG-02 (closure follow-up — surface beyond the edit dialog)
+**Success Criteria** (what must be TRUE):
+  1. While playing an AA station that has at least one cross-network sibling, the Now Playing panel renders an "Also on:" line listing the sibling networks
+  2. Clicking a sibling network switches active playback to that sibling station (unlike Phase 51's edit-dialog flow, this DOES change playback — that is the whole point)
+  3. The line is hidden entirely when the playing station is non-AA, when there are no siblings, or when no station is playing
+  4. Sibling detection reuses Phase 51's `find_aa_siblings` helper — no parallel detection logic, no new schema, no manual tagging
+  5. The currently-playing station's own row is not listed as a sibling of itself
+**Plans:** 0 plans
+**UI hint**: yes
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 64 to break down)
 
 ---
-*Last updated: 2026-04-28 — Phase 51 complete (BUG-02 closed: AA cross-network siblings + dirty-state confirm + on-demand detection); v2.1 progress 2/12*
+*Last updated: 2026-04-28 — Phase 51 complete (BUG-02 closed); Phase 64 added (AA siblings on Now Playing — Phase 51 follow-up); v2.1 progress 2/16*
