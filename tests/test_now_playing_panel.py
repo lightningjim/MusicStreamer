@@ -674,3 +674,44 @@ def test_eq_toggle_click_calls_player_and_persists(qtbot):
     panel.eq_toggle_btn.click()
     assert ("enabled", False) in player.calls
     assert repo.get_setting("eq_enabled") == "0"
+
+
+def test_eq_toggle_fires_exactly_once_per_click(qtbot):
+    """SC #3 (Phase 52): each click of eq_toggle_btn invokes
+    player.set_eq_enabled exactly once.
+
+    Defensive against accidental double-wiring (e.g., connecting both
+    `clicked` and `toggled` to `_on_eq_toggled`, or adding a programmatic
+    `.click()` somewhere in the toggle path). The existing test above
+    uses `in` membership, which would NOT distinguish 1 call from 2 of
+    the same value. This test asserts the exact call-count delta.
+
+    The wiring under test lives at
+    musicstreamer/ui_qt/now_playing_panel.py:261 (`clicked.connect(...)`).
+    """
+    repo = FakeRepo({"volume": "80"})
+    player = FakePlayer()
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.eq_toggle_btn.setChecked(False)
+
+    initial = len(player.calls)
+    panel.eq_toggle_btn.click()
+    assert len(player.calls) - initial == 1, (
+        "SC #3: exactly one set_eq_enabled call per click "
+        "(no double-fire from clicked+toggled both connected)"
+    )
+    after_first = len(player.calls)
+    panel.eq_toggle_btn.click()
+    assert len(player.calls) - after_first == 1, (
+        "SC #3: second click also fires set_eq_enabled exactly once"
+    )
+
+    # Sanity: the per-click values are correct (True then False) and each
+    # appears exactly once across the two clicks.
+    assert player.calls.count(("enabled", True)) == 1, (
+        "exactly one True call across the two clicks"
+    )
+    assert player.calls.count(("enabled", False)) == 1, (
+        "exactly one False call across the two clicks"
+    )
