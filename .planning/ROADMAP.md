@@ -139,7 +139,7 @@ Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md`
 
 Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new issues surface.
 
-- [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after suspected reinstall of a missing system dependency; root cause not formally root-caused)
+- [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after user reinstalled both yt-dlp and the GStreamer plugins; suspected fix is one of those two, not formally bisected)
 - [ ] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing
 - [ ] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player
 - [ ] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off
@@ -158,10 +158,10 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 **Goal:** YouTube live stream playback works again on Linux — root cause identified and fix shipped (or a follow-up phase scoped via /gsd-add-phase if the fix is too large).
 **Depends on:** Nothing
 **Requirements:** BUG-07
-**Resolution:** 2026-04-27 — playback resumed working before any investigation began. User suspects a previously-missing system dependency was reinstalled and that fixed the environment. No code change shipped. Root cause not formally root-caused; if the regression returns, reopen as a new phase (e.g. 49.1) and bisect from there.
+**Resolution:** 2026-04-27 — playback resumed working before any code-level investigation began. User reinstalled both `yt-dlp` and the GStreamer plugins at the OS level; suspected fix is one of those two but was not bisected (both reinstalled together). No code change shipped. If the regression returns, reopen as a new phase (e.g. 49.1) and bisect — first try reverting yt-dlp, then GStreamer plugins, to isolate which dep was actually at fault.
 **Success Criteria** (what was TRUE at resolution):
   1. ✓ YouTube live stream stations play to audible audio on Linux
-  2. ⚠ Root cause not documented — suspected env-level (system dep reinstall), not codebase
+  2. ⚠ Root cause not documented — suspected env-level (yt-dlp and/or GStreamer plugin reinstall), not codebase
   3. ✓ No code change → no test suite regressions introduced
   4. n/a (no fix shipped, no follow-up split needed)
 **Plans:** none (closed without execution)
@@ -307,4 +307,4 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 | 60. GBS.FM Integration | 0/? | Not started | - |
 
 ---
-*Last updated: 2026-04-27 — Phase 49 resolved without code change (suspected env-level fix); v2.1 progress 1/12*
+*Last updated: 2026-04-27 — Phase 49 resolved without code change (suspected env-level fix: yt-dlp and/or GStreamer plugin reinstall); v2.1 progress 1/12*
