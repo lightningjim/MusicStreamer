@@ -947,3 +947,159 @@ def test_sibling_html_escapes_station_name(
     # Raw <script> tag must NOT appear; escaped form MUST appear.
     assert "<script>" not in text
     assert "&lt;script&gt;" in text
+
+
+# ---------------------------------------------------------------------------
+# Phase 51-04: navigate_to_sibling click handler — clean, Save, Discard, Cancel,
+# malformed href.
+# ---------------------------------------------------------------------------
+
+
+def test_link_activated_emits_navigate_to_sibling_when_clean(
+    qtbot, player, aa_repo, aa_station
+):
+    """SC #2: clicking a sibling link on a clean dialog emits the signal immediately."""
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    # Sanity: dialog is clean (Plan 51-02 baseline captured at end of _populate)
+    assert d._is_dirty() is False
+
+    with qtbot.waitSignal(d.navigate_to_sibling, timeout=1000) as blocker:
+        d._on_sibling_link_activated("sibling://2")
+    assert blocker.args == [2]
+
+
+def test_link_activated_save_path_emits_when_save_succeeds(
+    qtbot, player, aa_repo, aa_station, monkeypatch
+):
+    """D-11 Save path: dirty + valid → save runs, signal fires."""
+    from PySide6.QtWidgets import QMessageBox
+
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    # Make dirty by editing the name (still valid — non-empty)
+    d.name_edit.setText("Ambient (renamed)")
+    assert d._is_dirty() is True
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Save),
+    )
+
+    with qtbot.waitSignal(d.navigate_to_sibling, timeout=1000) as blocker:
+        d._on_sibling_link_activated("sibling://2")
+    assert blocker.args == [2]
+    assert aa_repo.update_station.called
+
+
+def test_link_activated_save_path_does_not_emit_when_save_fails(
+    qtbot, player, aa_repo, aa_station, monkeypatch
+):
+    """D-11 Save path: validation failure (empty name) → warning, NO navigate."""
+    from PySide6.QtWidgets import QMessageBox
+
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    d.name_edit.setText("")
+    assert d._is_dirty() is True
+
+    warning_calls: list = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Save),
+    )
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(
+            lambda *a, **kw: warning_calls.append((a, kw)) or QMessageBox.Ok
+        ),
+    )
+
+    emitted: list = []
+    d.navigate_to_sibling.connect(lambda sid: emitted.append(sid))
+    d._on_sibling_link_activated("sibling://2")
+    assert len(warning_calls) == 1
+    assert emitted == []
+    assert d._save_succeeded is False
+
+
+def test_link_activated_discard_path_emits_without_saving(
+    qtbot, player, aa_repo, aa_station, monkeypatch
+):
+    """D-11 Discard path: emit signal, no save attempted, reject() runs."""
+    from PySide6.QtWidgets import QMessageBox
+
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    d.name_edit.setText("Ambient (renamed)")
+    assert d._is_dirty() is True
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Discard),
+    )
+
+    with qtbot.waitSignal(d.navigate_to_sibling, timeout=1000) as blocker:
+        d._on_sibling_link_activated("sibling://2")
+    assert blocker.args == [2]
+    assert not aa_repo.update_station.called
+
+
+def test_link_activated_cancel_path_no_signal(
+    qtbot, player, aa_repo, aa_station, monkeypatch
+):
+    """D-11 Cancel path: no signal, no save, dialog stays open."""
+    from PySide6.QtWidgets import QMessageBox
+
+    zenradio_sibling = _make_aa_station(
+        2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc"
+    )
+    aa_repo.list_stations.return_value = [aa_station, zenradio_sibling]
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    d.name_edit.setText("Ambient (renamed)")
+    assert d._is_dirty() is True
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Cancel),
+    )
+
+    emitted: list = []
+    d.navigate_to_sibling.connect(lambda sid: emitted.append(sid))
+    d._on_sibling_link_activated("sibling://2")
+    assert emitted == []
+    assert not aa_repo.update_station.called
+    # Dialog is still open (not accepted, not rejected)
+    assert d.result() == 0
+
+
+def test_link_activated_ignores_malformed_href(aa_dialog):
+    """Defensive: malformed hrefs are silently ignored (no exception, no signal)."""
+    emitted: list = []
+    aa_dialog.navigate_to_sibling.connect(lambda sid: emitted.append(sid))
+    aa_dialog._on_sibling_link_activated("not://a/sibling")
+    aa_dialog._on_sibling_link_activated("sibling://notanint")
+    aa_dialog._on_sibling_link_activated("")
+    assert emitted == []
