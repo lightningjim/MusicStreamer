@@ -848,3 +848,121 @@ def test_player_emits_expected_yt_failure_prefix():
     src = pathlib.Path("musicstreamer/player.py").read_text()
     assert re.search(r'playback_error\.emit\(\s*f?["\']YouTube resolve failed:', src), \
         "player.py drifted — MainWindow Node-missing toast branch will silently break (Plan 03 issue 4 regression guard)"
+
+
+# ---------------------------------------------------------------------------
+# Phase 51-05: end-to-end sibling navigation integration test (BUG-02)
+# ---------------------------------------------------------------------------
+
+
+def test_phase_51_sibling_navigation_end_to_end(
+    qtbot, fake_player, fake_repo, monkeypatch
+):
+    """Phase 51 SC #1, #2, #3, #4 end-to-end:
+
+    - SC #1: DI.fm Ambient dialog renders 'Also on:' with a ZenRadio link
+    - SC #2: Clicking the link opens EditStationDialog for the ZenRadio sibling
+    - SC #3: No aa_channel_key column on Station — siblings derived from URL
+    - SC #4: Cross-network failover NOT introduced — fake_player.play_calls
+              remains empty (FakePlayer.play_calls at line 44 is the canonical
+              spy, appended on every play() call at line 53)
+    """
+    from PySide6.QtWidgets import QDialog
+    from musicstreamer.models import Provider
+    from musicstreamer.ui_qt import edit_station_dialog as esd_mod
+
+    # ── ARRANGE ────────────────────────────────────────────────────────
+    di_station = Station(
+        id=1, name="Ambient", provider_id=1, provider_name="DI.fm",
+        tags="", station_art_path=None, album_fallback_path=None,
+        icy_disabled=False,
+        streams=[StationStream(
+            id=10, station_id=1,
+            url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+            position=1,
+        )],
+        last_played_at=None,
+    )
+    zen_station = Station(
+        id=2, name="Ambient", provider_id=2, provider_name="ZenRadio",
+        tags="", station_art_path=None, album_fallback_path=None,
+        icy_disabled=False,
+        streams=[StationStream(
+            id=20, station_id=2,
+            url="http://prem1.zenradio.com/zrambient?listen_key=abc",
+            position=1,
+        )],
+        last_played_at=None,
+    )
+
+    # FakeRepo is a real class (not MagicMock); patch class methods so this
+    # test stays consistent with the file's existing monkeypatch.setattr
+    # convention (see test_new_station_save_refreshes_and_selects line 623+).
+    # Do NOT shadow with MagicMock(...) instance attributes (W5 fix).
+    # W5 fix: use monkeypatch.setattr(type(fake_repo), ...) to patch class
+    # methods on the real FakeRepo class — consistent with line 623+ idiom.
+    monkeypatch.setattr(type(fake_repo), "list_stations", lambda self: [di_station, zen_station])
+    monkeypatch.setattr(
+        type(fake_repo), "get_station",
+        lambda self, sid: {1: di_station, 2: zen_station}.get(sid),
+    )
+    monkeypatch.setattr(
+        type(fake_repo), "list_streams",
+        lambda self, sid: {1: di_station.streams, 2: zen_station.streams}.get(sid, []),
+    )
+    monkeypatch.setattr(
+        type(fake_repo), "list_providers",
+        lambda self: [Provider(1, "DI.fm"), Provider(2, "ZenRadio")],
+    )
+    monkeypatch.setattr(
+        type(fake_repo), "ensure_provider",
+        lambda self, name: 1,
+        raising=False,
+    )
+
+    # ── MONKEYPATCH EditStationDialog.exec ─────────────────────────────
+    exec_calls: list[int] = []
+    captured_sibling_label_text: list[str] = []
+
+    def _fake_exec(self):
+        exec_calls.append(self._station.id)
+        if len(exec_calls) == 1:
+            # First exec: this is the DI.fm dialog. Capture sibling-label
+            # state and simulate a link click.
+            captured_sibling_label_text.append(self._sibling_label.text())
+            self._on_sibling_link_activated("sibling://2")
+        return QDialog.Accepted
+
+    monkeypatch.setattr(esd_mod.EditStationDialog, "exec", _fake_exec)
+
+    # ── ACT ────────────────────────────────────────────────────────────
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    w._on_edit_requested(di_station)
+
+    # ── ASSERT ─────────────────────────────────────────────────────────
+    # SC #2: clicking the link opened the sibling's edit dialog
+    assert exec_calls == [1, 2], f"expected [1, 2], got {exec_calls}"
+
+    # SC #1: 'Also on:' rendered with a sibling://2 link to ZenRadio
+    assert len(captured_sibling_label_text) == 1
+    text = captured_sibling_label_text[0]
+    assert "Also on:" in text, f"sibling label missing 'Also on:': {text!r}"
+    assert 'href="sibling://2"' in text, f"sibling label missing href: {text!r}"
+    assert "ZenRadio" in text, f"sibling label missing ZenRadio: {text!r}"
+
+    # SC #4: assert no playback occurred during sibling navigation.
+    # FakePlayer.play_calls (line 44) records every play() call (line 53).
+    # Empty list ⇒ navigation did not invoke playback. (B1 fix: replaced
+    # the hasattr-guarded MagicMock check that was a silent no-op.)
+    assert fake_player.play_calls == [], (
+        f"SC #4 violation: player.play was called during sibling navigation; "
+        f"play_calls={fake_player.play_calls!r}"
+    )
+
+    # SC #3: Station dataclass has NO aa_channel_key field — sibling
+    # detection is purely URL-derived (D-01). Verify by inspecting fields.
+    from dataclasses import fields as dc_fields
+    station_field_names = {f.name for f in dc_fields(Station)}
+    assert "aa_channel_key" not in station_field_names, \
+        "SC #3 violation: Station gained aa_channel_key field — D-01 says no schema change"
