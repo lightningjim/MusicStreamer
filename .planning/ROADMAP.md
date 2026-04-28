@@ -337,7 +337,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 49. YouTube Linux Playback Regression | 0/0 | ✓ Resolved (no code change) | 2026-04-27 |
 | 50. Recently Played Live Update | 1/1 | Complete    | 2026-04-28 |
-| 51. AudioAddict Cross-Network Siblings | 0/5 | Planning   | - |
+| 51. AudioAddict Cross-Network Siblings | 1/5 | In progress | - |
 | 52. EQ Toggle Dropout Fix | 0/? | Not started | - |
 | 53. YouTube Cookies into Accounts Menu | 0/? | Not started | - |
 | 54. Station Logo Aspect Ratio Fix | 0/? | Not started | - |

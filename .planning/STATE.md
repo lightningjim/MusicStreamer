@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 51 context gathered
-last_updated: "2026-04-28T14:53:05.108Z"
-last_activity: 2026-04-28 -- Phase 51 planning complete
+last_updated: "2026-04-28T15:01:00.094Z"
+last_activity: 2026-04-28
 progress:
   total_phases: 15
   completed_phases: 1
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 33
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 50 — Recently Played Live Update
+**Current focus:** Phase 51 — AudioAddict Cross-Network Siblings
 
 ## Current Position
 
-Phase: 51
-Plan: Not started
+Phase: 51 (AudioAddict Cross-Network Siblings) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-04-28 -- Phase 51 planning complete
+Last activity: 2026-04-28
 
 ## Performance Metrics
 
@@ -100,6 +100,8 @@ Key v2.0 decisions already settled:
 - [Phase 999.9]: yt-dlp 2026.03.17 silently dropped extractor_args["youtubepot-jsruntime"]; pinned player_client=web in musicstreamer/player.py::_youtube_resolve_worker. Bundled yt_dlp_ejs handles JS challenges without --remote-components (probe row 7 confirmed). Phase 999.7 cookie invariant preserved.
 - [Phase 50-01]: StationListPanel.refresh_recent() public method placed parallel to refresh_model in the '# Public refresh API' block; delegates only to _populate_recent — does NOT call model.refresh or _sync_tree_expansion (preserves provider tree expand/collapse state, SC #3)
 - [Phase 50-01]: _on_station_activated calls station_panel.refresh_recent() via direct method call (D-04 — no Signal/connect, no QTimer.singleShot, no Qt.QueuedConnection); ordering update_last_played → refresh_recent is load-bearing per Pitfall #1 (DB write must precede UI re-query)
+- [Phase ?]: Phase 51-01: Extended url_helpers.py rather than creating aa_siblings.py — all dependencies (NETWORKS, _is_aa_url, _aa_slug_from_url, _aa_channel_key_from_url) already in module
+- [Phase ?]: Phase 51-01: find_aa_siblings returns tuple[network_slug, station_id, station_name] over dict — cheaper unpacking by Plan 03 renderer; HTML escaping is renderer's responsibility
 
 ### Roadmap Evolution
 
@@ -144,6 +146,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-04-28T13:30:23.066Z
+Last session: 2026-04-28T15:01:00.086Z
 Stopped at: Phase 51 context gathered
-Resume file: .planning/phases/51-audioaddict-cross-network-siblings/51-CONTEXT.md
+Resume file: None
