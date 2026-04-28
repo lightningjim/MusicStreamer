@@ -198,7 +198,10 @@ Plans:
   1. Toggling EQ off while a stream is playing produces no audible gap, click, or dropout
   2. Toggling EQ back on while a stream is playing produces no audible gap, click, or dropout
   3. The toggle fires exactly once per click (no double-fire from signal wiring)
-**Plans:** TBD
+**Plans:** 1/2 plans complete (Wave 1, parallel)
+Plans:
+- [x] 52-01-PLAN.md — QTimer-driven smooth gain ramp on Player.set_eq_enabled (40ms / 8 ticks of 5ms / dB-linear lerp; reverse-from-current on rapid re-toggle; T-52-01 mitigation in set_eq_profile) — completed 2026-04-28
+- [ ] 52-02-PLAN.md — SC #3 defensive test in test_now_playing_panel.py (clicked-wiring + exact-once invocation per click)
 
 ### Phase 53: YouTube Cookies into Accounts Menu
 **Goal:** YouTube cookies are managed from the Accounts menu alongside Twitch, rather than as a separate top-level hamburger menu entry.

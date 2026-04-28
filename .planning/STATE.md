@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: Phase 50-01 complete — BUG-01 closed; ready for /gsd-verify-work
-last_updated: "2026-04-28T03:25:31.529Z"
+status: completed
+stopped_at: Phase 52-01 complete — EQ ramp shipped; awaiting Plan 52-02 + UAT
+last_updated: "2026-04-28T23:17:26.293Z"
 last_activity: 2026-04-28
 progress:
-  total_phases: 12
-  completed_phases: 2
+  total_phases: 15
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 100
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 50 — Recently Played Live Update
+**Current focus:** Phase 52 — EQ Toggle Dropout Fix (BUG-03)
 
 ## Current Position
 
-Phase: 51
-Plan: Not started
-Status: Ready to plan
+Phase: 52
+Plan: 01 complete (Wave 1, parallel with 52-02)
+Status: 52-01 implementation done; awaiting 52-02 wave 1 sibling + UAT
 Last activity: 2026-04-28
 
 ## Performance Metrics
@@ -100,6 +100,10 @@ Key v2.0 decisions already settled:
 - [Phase 999.9]: yt-dlp 2026.03.17 silently dropped extractor_args["youtubepot-jsruntime"]; pinned player_client=web in musicstreamer/player.py::_youtube_resolve_worker. Bundled yt_dlp_ejs handles JS challenges without --remote-components (probe row 7 confirmed). Phase 999.7 cookie invariant preserved.
 - [Phase 50-01]: StationListPanel.refresh_recent() public method placed parallel to refresh_model in the '# Public refresh API' block; delegates only to _populate_recent — does NOT call model.refresh or _sync_tree_expansion (preserves provider tree expand/collapse state, SC #3)
 - [Phase 50-01]: _on_station_activated calls station_panel.refresh_recent() via direct method call (D-04 — no Signal/connect, no QTimer.singleShot, no Qt.QueuedConnection); ordering update_last_played → refresh_recent is load-bearing per Pitfall #1 (DB write must precede UI re-query)
+- [Phase 52-01]: EQ-toggle smooth gain ramp uses GUI-thread QTimer (parented to self per Pitfall 2) with 8 ticks of 5ms (40ms total) and dB-linear lerp; final tick commits exact target with no lerp residual. Per-tick writes ONLY gain (D-04); freq/bandwidth/type written ONCE in `_start_eq_ramp` fresh-ramp branch (Pitfall 4: `bandwidth = freq_hz / max(q, 0.01)`). Reverse-from-current (D-05) re-captures live GstChildProxy band gains as new `start_gain` on rapid re-toggle, replaces target, resets tick_index, keeps timer running.
+- [Phase 52-01]: T-52-01 mitigation — `set_eq_profile` calls `self._eq_ramp_timer.stop()` + clears `_eq_ramp_state` as its FIRST two body statements, before any potential `_rebuild_eq_element` call. Avoids stale-GstChildProxy write to a replaced `self._eq` element. Lifecycle stops also added to `pause()` and `stop()` mirroring `_elapsed_timer.stop()` precedent.
+- [Phase 52-01]: `set_eq_enabled` body refactored: flips `_eq_enabled` immediately (D-06), early-returns if `_eq is None` (graceful-degrade preserved), then triggers `_start_eq_ramp()`. NO direct call to `_apply_eq_state` from `set_eq_enabled` anymore (call count drops from 4 to 3: still called from `set_eq_profile`, `set_eq_preamp`, `restore_eq_from_settings`). `_apply_eq_state` body is unchanged.
+- [Phase 52-01]: Test deviation (Rule 1) — existing `test_player_eq_apply_profile` and `test_player_eq_preamp_uniform_offset` extended to drive 8 ticks via `player._eq_ramp_timer.timeout.emit()` before asserting final gains. The ramp is now async; previously-synchronous gain assertions had to migrate to post-ramp-completion. Same manual-tick idiom as `test_elapsed_timer_emits_seconds_while_playing`. All 13 EQ tests pass (8 original + 5 new ramp tests).
 
 ### Roadmap Evolution
 
@@ -119,6 +123,7 @@ Key v2.0 decisions already settled:
 - Phase 62 added: Audio Buffer Underrun Resilience (BUG-09) — surfaced 2026-04-28; intermittent dropout reports without clear repro, instrumentation phase
 - Phase 63 added: Auto-Bump pyproject Version on Phase Completion (VER-01) — adopt `milestone.minor.phase` versioning (`2.1.50` for Phase 50 of v2.1); pyproject.toml version field auto-rewritten by phase.complete hook 2026-04-28
 - Versioning convention 2026-04-28: project version is `{milestone_major}.{milestone_minor}.{phase_number}`. pyproject.toml manually bumped to 2.1.50 at Phase 50 close (commit 87f6dab or similar). Phase 51+ bumps will be automated by VER-01 / Phase 63.
+- Phase 52-01 (BUG-03 — EQ Toggle Dropout Fix Wave 1) ramp infrastructure complete 2026-04-28 — Player.set_eq_enabled now drives a QTimer-based smooth gain ramp (40ms / 8 ticks of 5ms / dB-linear lerp); 5 new ramp tests + 2 existing tests extended. Plan 52-02 (Wave 1, parallel — disjoint files in test_now_playing_panel.py) executes in parallel via the same orchestrator. UAT pending.
 
 ### Pending Todos
 
@@ -141,9 +146,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | seed | 008-gbs-fm-integration | in scope — Phase 60 |
 | uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
 | Phase 50 P01 | 25min | 3 tasks | 4 files |
+| Phase 52 P01 | 10min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-04-28T03:25:31.521Z
-Stopped at: Phase 50-01 complete — BUG-01 closed; ready for /gsd-verify-work
+Last session: 2026-04-28T23:17:18.873Z
+Stopped at: Phase 52-01 complete — EQ ramp shipped; awaiting Plan 52-02 + UAT
 Resume file: None
