@@ -285,4 +285,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-27 — v2.1 Fixes and Tweaks milestone started (rolling polish, initial scope: 6 backlog bug stubs + Phase 44 Windows carry-forward + 2 dormant seeds + 1 deferred backlog phase)*
+*Last updated: 2026-04-28 — Phase 50 (BUG-01 Recently Played Live Update) complete. `StationListPanel.refresh_recent()` wired into `MainWindow._on_station_activated` after `update_last_played` — the recent list now reflects plays within the same session, provider tree expand/collapse state preserved by construction (refresh_recent only mutates `_recent_model`, never `model`/`_proxy`/`tree`).*
