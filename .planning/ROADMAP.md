@@ -142,7 +142,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after user reinstalled both yt-dlp and the GStreamer plugins; suspected fix is one of those two, not formally bisected)
 - [x] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing (completed 2026-04-28)
 - [x] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player (completed 2026-04-28)
-- [ ] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off
+- [x] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off (completed 2026-04-28; UAT recommended)
 - [ ] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu
 - [ ] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping
 - [ ] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections
@@ -345,7 +345,7 @@ Plans:
 | 49. YouTube Linux Playback Regression | 0/0 | ✓ Resolved (no code change) | 2026-04-27 |
 | 50. Recently Played Live Update | 1/1 | Complete    | 2026-04-28 |
 | 51. AudioAddict Cross-Network Siblings | 5/5 | Complete    | 2026-04-28 |
-| 52. EQ Toggle Dropout Fix | 0/? | Not started | - |
+| 52. EQ Toggle Dropout Fix | 2/2 | Complete    | 2026-04-28 |
 | 53. YouTube Cookies into Accounts Menu | 0/? | Not started | - |
 | 54. Station Logo Aspect Ratio Fix | 0/? | Not started | - |
 | 55. Edit Station Preserves Section State | 0/? | Not started | - |
@@ -376,4 +376,4 @@ Plans:
 - [ ] TBD (run /gsd-plan-phase 64 to break down)
 
 ---
-*Last updated: 2026-04-28 — Phase 51 complete (BUG-02 closed); Phase 64 added (AA siblings on Now Playing — Phase 51 follow-up); v2.1 progress 2/16*
+*Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT recommended); v2.1 progress 3/16*
