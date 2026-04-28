@@ -198,6 +198,11 @@ class EditStationDialog(QDialog):
         # (b) reject()/closeEvent() delete the placeholder station row,
         # (c) _on_save flips this False before accept() to prevent double-delete.
         self._is_new = is_new
+        # Phase 51-02 / D-12: dirty-state baseline (snapshot-and-compare). Captured
+        # at the end of _populate() and re-captured in __init__ after the is_new
+        # placeholder row is added so a fresh new-station dialog is clean.
+        # `None` means "no baseline yet" — _is_dirty() returns False defensively.
+        self._dirty_baseline: dict | None = None
 
         # Map tag name -> QPushButton chip
         self._tag_chips: dict[str, QPushButton] = {}
@@ -211,6 +216,11 @@ class EditStationDialog(QDialog):
         if self._is_new:
             # D-05: pre-add one blank stream row so user can type URL immediately.
             self._add_stream_row()
+            # Phase 51-02: re-capture baseline AFTER the placeholder row is
+            # added so _is_dirty() reflects "user has not modified the
+            # placeholder" rather than "the placeholder itself is a
+            # modification". _is_new lifecycle is otherwise unchanged (D-12).
+            self._capture_dirty_baseline()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -413,6 +423,75 @@ class EditStationDialog(QDialog):
 
         # Logo preview (Plan 40.1-04)
         self._refresh_logo_preview()
+
+        # Phase 51-02 / D-12: capture clean-state baseline AFTER all widgets are
+        # populated. _is_dirty() compares against this snapshot. The is_new
+        # branch in __init__ re-captures after _add_stream_row() so the
+        # placeholder row does not register as a user modification.
+        self._capture_dirty_baseline()
+
+    # ------------------------------------------------------------------
+    # Phase 51-02 / D-11 / D-12 — dirty-state predicate (snapshot-and-compare)
+    # ------------------------------------------------------------------
+
+    def _snapshot_form_state(self) -> dict:
+        """Phase 51 / D-12: build a frozen snapshot of all six dirty-tracked fields.
+
+        Used by _capture_dirty_baseline (called at end of _populate, and again
+        from __init__ after the is_new placeholder row) and _is_dirty (called
+        when navigating away). The snapshot is a dict that supports `==`
+        comparison; nested containers are immutable (frozenset, tuple) so
+        equality is deterministic regardless of insertion order.
+
+        Scope (D-12): name, URL, provider, tags, ICY, streams table.
+        Excludes: logo path (orthogonal — has its own refresh path),
+        _is_new lifecycle flag.
+
+        Stream cells are captured as raw text (`item.text() or ""`) — no int
+        coercion — so a press-and-erase on Bitrate does not flip dirty when
+        the saved-state interpretation would round to 0.
+        """
+        tag_state = frozenset(
+            (tag, chip.property("chipState") or "unselected")
+            for tag, chip in self._tag_chips.items()
+        )
+        streams_snapshot: list[tuple[str, str, str, str, str]] = []
+        table = self.streams_table
+        for row in range(table.rowCount()):
+            cells: list[str] = []
+            for col in (_COL_URL, _COL_QUALITY, _COL_CODEC, _COL_BITRATE, _COL_POSITION):
+                item = table.item(row, col)
+                cells.append(item.text() if item else "")
+            streams_snapshot.append(tuple(cells))
+        return {
+            "name": self.name_edit.text(),
+            "url": self.url_edit.text(),
+            "provider": self.provider_combo.currentText(),
+            "icy": self.icy_checkbox.isChecked(),
+            "tags": tag_state,
+            "streams": tuple(streams_snapshot),
+        }
+
+    def _capture_dirty_baseline(self) -> None:
+        """Phase 51 / D-12: freeze the current form state as the clean baseline.
+
+        Called once at the end of _populate, and a second time from __init__
+        when is_new=True (after the placeholder row is added). Subsequent
+        _is_dirty() calls compare the live form snapshot against this baseline.
+        """
+        self._dirty_baseline = self._snapshot_form_state()
+
+    def _is_dirty(self) -> bool:
+        """Phase 51 / D-11 / D-12: return True if any tracked field has changed.
+
+        Compares the live form snapshot against `self._dirty_baseline`.
+        Returns False defensively when the baseline has not been captured yet
+        (e.g. a caller invokes this before _populate has run) — no baseline
+        means no difference is detectable, so treat the dialog as clean.
+        """
+        if self._dirty_baseline is None:
+            return False
+        return self._snapshot_form_state() != self._dirty_baseline
 
     # ------------------------------------------------------------------
     # Chip helpers
