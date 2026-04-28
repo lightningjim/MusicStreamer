@@ -68,30 +68,30 @@ Explicitly excluded from v2.1. Carried forward from v2.0 OoS plus milestone-spec
 
 ## Traceability
 
-Which phases cover which requirements. Empty initially — populated by `gsd-roadmapper`.
+Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUG-07 | TBD (first phase) | Pending |
-| BUG-01 | TBD | Pending |
-| BUG-02 | TBD | Pending |
-| BUG-03 | TBD | Pending |
-| BUG-04 | TBD | Pending |
-| BUG-05 | TBD | Pending |
-| BUG-06 | TBD | Pending |
-| WIN-01 | TBD | Pending |
-| WIN-02 | TBD | Pending |
-| WIN-03 | TBD | Pending |
-| WIN-04 | TBD | Pending |
-| STR-15 | TBD | Pending |
-| ACCENT-02 | TBD | Pending |
-| GBS-01 | TBD | Pending |
+| BUG-07 | Phase 49 | Pending |
+| BUG-01 | Phase 50 | Pending |
+| BUG-02 | Phase 51 | Pending |
+| BUG-03 | Phase 52 | Pending |
+| BUG-04 | Phase 53 | Pending |
+| BUG-05 | Phase 54 | Pending |
+| BUG-06 | Phase 55 | Pending |
+| WIN-01 | Phase 56 | Pending |
+| WIN-02 | Phase 56 | Pending |
+| WIN-03 | Phase 57 | Pending |
+| WIN-04 | Phase 57 | Pending |
+| STR-15 | Phase 58 | Pending |
+| ACCENT-02 | Phase 59 | Pending |
+| GBS-01 | Phase 60 | Pending |
 
-**Coverage (initial):**
+**Coverage:**
 - v2.1 requirements: 14 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 14 ⚠️ — to be resolved by `gsd-roadmapper`
+- Mapped to phases: 14 ✓
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-04-27 — initial definition*
+*Last updated: 2026-04-27 — traceability populated by gsd-roadmapper (Phases 49–60)*

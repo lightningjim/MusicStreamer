@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: planning
-last_updated: "2026-04-27T21:49:38.094Z"
+status: active
+last_updated: "2026-04-27T00:00:00.000Z"
 last_activity: 2026-04-27
 progress:
-  total_phases: 0
+  total_phases: 12
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** v2.1 Fixes and Tweaks — defining requirements
+**Current focus:** v2.1 Fixes and Tweaks — roadmap created, awaiting Phase 49 plan
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 49 — YouTube Linux Playback Regression (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-27 — Milestone v2.1 started
+Status: Roadmap defined; ready to plan Phase 49
+Last activity: 2026-04-27 — v2.1 roadmap created (12 phases, 49–60)
 
 ## Performance Metrics
 
@@ -109,6 +109,7 @@ Key v2.0 decisions already settled:
 - Phase 48 added: Fix AudioAddict listen key not persisting to DB (surfaced by Phase 42 UAT test 7; skipped as out-of-scope) — 2026-04-17
 - Phase 49 added: Add ability to add PLS to Streams section of station and auto resolve the # of streams in as new entries — 2026-04-24
 - Phase 49 → Backlog 999.12 (deferred to next milestone so v2.0 can ship after Phase 44) — 2026-04-25
+- v2.1 roadmap created 2026-04-27: Phases 49–60 (12 phases), 14 requirements mapped. BUG-07 (Phase 49) is first. Backlog stubs 999.2/4/5/6/10/11/12 renumbered as core phases 50–58.
 
 ### Pending Todos
 
@@ -117,10 +118,9 @@ Key v2.0 decisions already settled:
 
 ### Blockers/Concerns
 
-- Phase 40 (OAuth): QWebEngineCookieStore.cookieAdded in subprocess context needs proof-of-concept before planning *(carried from v2.0 — not in v2.1 initial scope)*
-- **v2.1 scope:** DI.fm premium rejects HTTPS server-side — Phase 44 carry-forward needs an HTTP-fallback policy decision (DI.fm-specific vs. universal HTTPS)
-- **v2.1 scope:** register Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` so the SMTC overlay shows "MusicStreamer" instead of "Unknown app" (AUMID is correctly bound to the process; this is the shell display-name path)
-- **v2.1 scope:** audio pause/restart glitch + ignored volume setting on Windows (GStreamer, not SMTC); fix `test_thumbnail_from_in_memory_stream` (`MagicMock` not awaitable — needs `AsyncMock` for `store_async`)
+- Phase 49: YouTube Linux playback regression — root cause unknown; investigation-led phase
+- Phase 56: DI.fm HTTPS-fallback policy not yet decided (HTTP-for-DI.fm-only vs. universal)
+- Phase 60: GBS.FM sub-capability scope to be refined at /gsd-discuss-phase time
 
 ## Deferred Items
 
@@ -128,12 +128,12 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 | Category | Item | v2.1 disposition |
 |----------|------|------------------|
-| seed | 006-visual-color-picker | in scope — UI polish phase |
-| seed | 008-gbs-fm-integration | in scope — feature phase |
+| seed | 006-visual-color-picker | in scope — Phase 59 |
+| seed | 008-gbs-fm-integration | in scope — Phase 60 |
 | uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
 
 ## Session Continuity
 
-Last session: 2026-04-27 — v2.1 Fixes and Tweaks milestone started
-Stopped at: Defining requirements
+Last session: 2026-04-27 — v2.1 roadmap created (12 phases, 49–60)
+Stopped at: Roadmap defined — ready to plan Phase 49
 Resume file: None
