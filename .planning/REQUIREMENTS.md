@@ -15,7 +15,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 
 - [x] **BUG-07** *(was MUST-BE-FIRST-PHASE — resolved 2026-04-27 without code change)*: YouTube live stream playback works again on Linux — Phase 49. Resolved before code-level investigation began; user reinstalled both `yt-dlp` and the GStreamer plugins at the OS level — suspected fix is one of those two but not bisected (both reinstalled together). Root cause not formally documented. If regression returns, reopen as new phase 49.1 and bisect (revert yt-dlp first, then GStreamer plugins).
 - [x] **BUG-01**: Recently played list updates live as new stations are played — no manual refresh required *(stub: 999.2)*
-- [ ] **BUG-02**: Cross-network AudioAddict mirror/sibling streams surface as related streams when editing or playing a station *(stub: 999.4)*
+- [x] **BUG-02**: Cross-network AudioAddict mirror/sibling streams surface as related streams when editing or playing a station *(stub: 999.4)*
 - [ ] **BUG-03**: Toggling EQ on/off does not produce an audible audio dropout *(stub: 999.5)*
 - [ ] **BUG-04**: YouTube cookies entry is consolidated into the Accounts menu (single accounts surface for Twitch + YouTube) *(stub: 999.6)*
 - [ ] **BUG-05**: Rectangular brand logos display fully in the radio logo view (no square-only crop that cuts off content) *(stub: 999.10)*
@@ -82,7 +82,7 @@ Which phases cover which requirements.
 |-------------|-------|--------|
 | BUG-07 | Phase 49 | ✓ Complete (no code change) |
 | BUG-01 | Phase 50 | Complete |
-| BUG-02 | Phase 51 | Pending |
+| BUG-02 | Phase 51 | Complete |
 | BUG-03 | Phase 52 | Pending |
 | BUG-04 | Phase 53 | Pending |
 | BUG-05 | Phase 54 | Pending |
