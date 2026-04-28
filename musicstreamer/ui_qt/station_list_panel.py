@@ -318,6 +318,18 @@ class StationListPanel(QWidget):
         self._populate_recent()
         self._build_chip_rows()
 
+    def refresh_recent(self) -> None:
+        """Refresh ONLY the Recently Played QListView from the DB.
+
+        Call after Repo.update_last_played() — the DB write must precede this
+        call (Pitfall #1). This method intentionally does NOT call
+        self.model.refresh() or self._sync_tree_expansion(), so provider tree
+        expand/collapse state is preserved (SC #3, Pitfall #2). Per D-04, this
+        is invoked as a direct method call from MainWindow._on_station_activated;
+        no signal indirection is used.
+        """
+        self._populate_recent()
+
     def _sync_tree_expansion(self) -> None:
         # Expand groups when a filter is active so matches are visible;
         # collapse them otherwise so the full station list is scannable.

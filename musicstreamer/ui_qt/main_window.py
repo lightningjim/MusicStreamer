@@ -322,6 +322,7 @@ class MainWindow(QMainWindow):
         self.now_playing.bind_station(station)
         self._player.play(station)
         self._repo.update_last_played(station.id)
+        self.station_panel.refresh_recent()  # Phase 50 / BUG-01: live recent-list update (D-01, D-04)
         self.now_playing.on_playing_state_changed(True)
         self.show_toast("Connecting\u2026")  # UI-SPEC copywriting: U+2026
         # Seed the OS media session with station name before ICY title arrives (D-05)
