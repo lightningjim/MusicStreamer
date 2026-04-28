@@ -189,6 +189,10 @@ class EditStationDialog(QDialog):
 
     station_saved = Signal()
     station_deleted = Signal(int)
+    # Phase 51 / D-09: emitted when the user clicks a sibling link in the
+    # cross-network "Also on:" section. Payload is the sibling station id.
+    # MainWindow listens and re-opens EditStationDialog for the sibling.
+    navigate_to_sibling = Signal(int)
 
     def __init__(self, station: Station, player, repo,
                  parent=None, is_new: bool = False) -> None:
@@ -206,6 +210,10 @@ class EditStationDialog(QDialog):
         # placeholder row is added so a fresh new-station dialog is clean.
         # `None` means "no baseline yet" — _is_dirty() returns False defensively.
         self._dirty_baseline: dict | None = None
+        # Phase 51-04 / D-11: tracks whether the most recent _on_save call passed
+        # validation and persisted. Read by _on_sibling_link_activated to decide
+        # whether to navigate after a Save-and-continue confirm.
+        self._save_succeeded: bool = False
 
         # Map tag name -> QPushButton chip
         self._tag_chips: dict[str, QPushButton] = {}
@@ -398,7 +406,8 @@ class EditStationDialog(QDialog):
         self._sibling_label.setTextFormat(Qt.RichText)
         self._sibling_label.setOpenExternalLinks(False)
         self._sibling_label.setVisible(False)
-        # Phase 51-04 will add: self._sibling_label.linkActivated.connect(self._on_sibling_link_activated)
+        # Phase 51-04 / D-09: bound-method connection (QA-05 — no lambda).
+        self._sibling_label.linkActivated.connect(self._on_sibling_link_activated)
         outer.addWidget(self._sibling_label)
         outer.addWidget(self.button_box)
 
@@ -888,6 +897,9 @@ class EditStationDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _on_save(self) -> None:
+        # Phase 51-04 / D-11: reset for this attempt. _on_sibling_link_activated
+        # reads this AFTER calling _on_save() to detect validation failure.
+        self._save_succeeded = False
         station = self._station
         repo = self._repo
 
@@ -964,6 +976,8 @@ class EditStationDialog(QDialog):
         # SAVE-CLEANUP: flip _is_new False BEFORE accept() so a later
         # reject()/closeEvent() does not delete the just-saved station.
         self._is_new = False
+        # Phase 51-04 / D-11: validation + persistence succeeded.
+        self._save_succeeded = True
         self.accept()
 
     # ------------------------------------------------------------------
@@ -982,3 +996,56 @@ class EditStationDialog(QDialog):
             self._repo.delete_station(self._station.id)
             self.station_deleted.emit(self._station.id)
             self.accept()
+
+    # ------------------------------------------------------------------
+    # Phase 51-04 / D-09, D-10, D-11: cross-network sibling link click handler
+    # ------------------------------------------------------------------
+
+    def _on_sibling_link_activated(self, href: str) -> None:
+        """Handle a click on an 'Also on:' sibling link.
+
+        Clean dialog -> emit navigate_to_sibling(sibling_id) and accept().
+        Dirty dialog -> show Save | Discard | Cancel confirm:
+          - Save:    run _on_save; if it succeeds, emit + accept (via _on_save).
+                     If validation fails, _on_save's warning informs the user
+                     and we stay in the dialog (no signal).
+          - Discard: emit navigate_to_sibling, then reject() so the existing
+                     _is_new placeholder cleanup path runs for new-station
+                     dialogs.
+          - Cancel:  no signal, dialog stays open with edits intact.
+
+        D-10 invariant: this slot does NOT touch playback. No player calls,
+        no failover queue manipulation. Sibling navigation is dialog-level only.
+        """
+        prefix = "sibling://"
+        if not href.startswith(prefix):
+            return
+        try:
+            sibling_id = int(href[len(prefix):])
+        except ValueError:
+            return
+
+        if not self._is_dirty():
+            self.navigate_to_sibling.emit(sibling_id)
+            self.accept()
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Unsaved changes",
+            "You have unsaved changes. Save before navigating?",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer == QMessageBox.StandardButton.Save:
+            self._on_save()
+            if not self._save_succeeded:
+                return
+            self.navigate_to_sibling.emit(sibling_id)
+            return
+        elif answer == QMessageBox.StandardButton.Discard:
+            self.navigate_to_sibling.emit(sibling_id)
+            self.reject()
+            return
