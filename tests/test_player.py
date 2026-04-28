@@ -195,7 +195,12 @@ def test_player_eq_element_created(player):
 
 def test_player_eq_apply_profile(player):
     """D-02, D-05: profile apply writes freq/gain/bandwidth per band;
-    disable zeros every band gain (bypass semantics)."""
+    disable zeros every band gain (bypass semantics).
+
+    Phase 52: gain is now ramped over 8 ticks; freq/bandwidth/type are still
+    written synchronously in _start_eq_ramp's fresh-ramp branch. Drive the
+    ramp to completion before asserting final gain values.
+    """
     from musicstreamer.eq_profile import EqBand, EqProfile
     profile = EqProfile(preamp_db=0.0, bands=[
         EqBand("PK", 1000.0, -3.5, 1.0),
@@ -203,6 +208,9 @@ def test_player_eq_apply_profile(player):
     ])
     player.set_eq_profile(profile)
     player.set_eq_enabled(True)
+    # Phase 52: drive the gain ramp to completion (final tick commits exact target).
+    for _ in range(player._EQ_RAMP_TICKS):
+        player._eq_ramp_timer.timeout.emit()
 
     b0 = player._eq.get_child_by_index(0)
     b1 = player._eq.get_child_by_index(1)
@@ -213,8 +221,10 @@ def test_player_eq_apply_profile(player):
     assert b1.get_property("gain") == pytest.approx(2.0)
     assert b1.get_property("bandwidth") == pytest.approx(2000.0)  # 4000 / 2.0
 
-    # D-05: disable → every band gain zeroed (bypass)
+    # D-05: disable → every band gain zeroed (bypass) -- via ramp.
     player.set_eq_enabled(False)
+    for _ in range(player._EQ_RAMP_TICKS):
+        player._eq_ramp_timer.timeout.emit()
     n = player._eq.get_children_count()
     for i in range(n):
         assert player._eq.get_child_by_index(i).get_property("gain") == pytest.approx(0.0), (
@@ -243,7 +253,11 @@ def test_player_eq_rebuild_on_band_count_change(player):
 
 
 def test_player_eq_preamp_uniform_offset(player):
-    """D-17, D-18, Pitfall 5: preamp is ADDED to every band gain (not subtracted)."""
+    """D-17, D-18, Pitfall 5: preamp is ADDED to every band gain (not subtracted).
+
+    Phase 52: gain is now ramped on set_eq_enabled; drive the ramp to commit
+    the exact target before asserting Pitfall 5 ADD semantics.
+    """
     from musicstreamer.eq_profile import EqBand, EqProfile
     profile = EqProfile(preamp_db=0.0, bands=[
         EqBand("PK", 100.0, 4.0, 1.0),
@@ -252,6 +266,9 @@ def test_player_eq_preamp_uniform_offset(player):
     player.set_eq_profile(profile)
     player.set_eq_preamp(-6.0)
     player.set_eq_enabled(True)
+    # Phase 52: drive the gain ramp to completion (final tick commits exact target).
+    for _ in range(player._EQ_RAMP_TICKS):
+        player._eq_ramp_timer.timeout.emit()
 
     b0 = player._eq.get_child_by_index(0)
     b1 = player._eq.get_child_by_index(1)
