@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: active
-last_updated: "2026-04-27T00:00:00.000Z"
-last_activity: 2026-04-27
+status: planning
+stopped_at: Phase 50 context gathered
+last_updated: "2026-04-28T02:37:00.051Z"
+last_activity: 2026-04-27 — Phase 49 / BUG-07 resolved, no code change shipped
 progress:
   total_phases: 12
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 8
 ---
 
 # Project State
@@ -135,6 +135,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-04-27 — Phase 49 resolved without code change (env-level fix); 1/12 v2.1 phases complete
-Stopped at: Ready to plan Phase 50 (Recently Played Live Update — BUG-01)
-Resume file: None
+Last session: 2026-04-28T02:37:00.043Z
+Stopped at: Phase 50 context gathered
+Resume file: .planning/phases/50-recently-played-live-update/50-CONTEXT.md
