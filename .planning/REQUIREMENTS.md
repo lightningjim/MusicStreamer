@@ -82,7 +82,7 @@ Which phases cover which requirements.
 |-------------|-------|--------|
 | BUG-07 | Phase 49 | ✓ Complete (no code change) |
 | BUG-01 | Phase 50 | Complete |
-| BUG-02 | Phase 51 | In progress (1/5 plans) |
+| BUG-02 | Phase 51 | In progress (2/5 plans) |
 | BUG-03 | Phase 52 | Pending |
 | BUG-04 | Phase 53 | Pending |
 | BUG-05 | Phase 54 | Pending |
