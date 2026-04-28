@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 51 context gathered
-last_updated: "2026-04-28T15:20:19.161Z"
+status: verifying
+stopped_at: Phase 52 context gathered
+last_updated: "2026-04-28T22:32:30.149Z"
 last_activity: 2026-04-28
 progress:
-  total_phases: 15
-  completed_phases: 1
+  total_phases: 16
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State
@@ -150,6 +150,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-04-28T15:19:32.588Z
-Stopped at: Phase 51 context gathered
-Resume file: None
+Last session: 2026-04-28T22:32:30.138Z
+Stopped at: Phase 52 context gathered
+Resume file: .planning/phases/52-eq-toggle-dropout-fix/52-CONTEXT.md
