@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 51 context gathered
-last_updated: "2026-04-28T15:01:00.094Z"
+last_updated: "2026-04-28T15:20:19.161Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 15
   completed_phases: 1
   total_plans: 6
-  completed_plans: 2
-  percent: 33
+  completed_plans: 4
+  percent: 67
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 51 (AudioAddict Cross-Network Siblings) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -102,6 +102,7 @@ Key v2.0 decisions already settled:
 - [Phase 50-01]: _on_station_activated calls station_panel.refresh_recent() via direct method call (D-04 — no Signal/connect, no QTimer.singleShot, no Qt.QueuedConnection); ordering update_last_played → refresh_recent is load-bearing per Pitfall #1 (DB write must precede UI re-query)
 - [Phase ?]: Phase 51-01: Extended url_helpers.py rather than creating aa_siblings.py — all dependencies (NETWORKS, _is_aa_url, _aa_slug_from_url, _aa_channel_key_from_url) already in module
 - [Phase ?]: Phase 51-01: find_aa_siblings returns tuple[network_slug, station_id, station_name] over dict — cheaper unpacking by Plan 03 renderer; HTML escaping is renderer's responsibility
+- [Phase 51]: Phase 51-03: Qt.RichText QLabel with html.escape mitigation introduced as project-first T-39-01 deviation, locally bounded to one QLabel
 
 ### Roadmap Evolution
 
@@ -143,9 +144,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | seed | 008-gbs-fm-integration | in scope — Phase 60 |
 | uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
 | Phase 50 P01 | 25min | 3 tasks | 4 files |
+| Phase 51 P03 | 8min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-04-28T15:01:00.086Z
+Last session: 2026-04-28T15:19:32.588Z
 Stopped at: Phase 51 context gathered
 Resume file: None

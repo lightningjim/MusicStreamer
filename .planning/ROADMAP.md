@@ -187,11 +187,11 @@ Plans:
   2. User can navigate from one sibling to another (e.g. open the sibling's edit dialog or switch to playing it)
   3. Sibling detection does not require manual tagging — it is derived automatically from channel key at import time or on-demand lookup
   4. Cross-network failover is NOT introduced — playing DI.FM Ambient never auto-switches to ZenRadio Ambient
-**Plans:** 5 plans
+**Plans:** 3/5 plans executed
 Plans:
-- [ ] 51-01-PLAN.md — find_aa_siblings detection helper + unit tests (pure logic, no Qt)
-- [ ] 51-02-PLAN.md — EditStationDialog._is_dirty() snapshot-based predicate (D-12)
-- [ ] 51-03-PLAN.md — Sibling list QLabel section (RichText + html.escape, D-05/06/07/08)
+- [x] 51-01-PLAN.md — find_aa_siblings detection helper + unit tests (pure logic, no Qt)
+- [x] 51-02-PLAN.md — EditStationDialog._is_dirty() snapshot-based predicate (D-12)
+- [x] 51-03-PLAN.md — Sibling list QLabel section (RichText + html.escape, D-05/06/07/08)
 - [ ] 51-04-PLAN.md — navigate_to_sibling Signal + Save/Discard/Cancel dirty confirm + MainWindow wiring (D-09/10/11)
 - [ ] 51-05-PLAN.md — End-to-end integration test (SC #1, #2, #3, #4)
 **UI hint**: yes
@@ -337,7 +337,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 49. YouTube Linux Playback Regression | 0/0 | ✓ Resolved (no code change) | 2026-04-27 |
 | 50. Recently Played Live Update | 1/1 | Complete    | 2026-04-28 |
-| 51. AudioAddict Cross-Network Siblings | 1/5 | In progress | - |
+| 51. AudioAddict Cross-Network Siblings | 3/5 | In Progress|  |
 | 52. EQ Toggle Dropout Fix | 0/? | Not started | - |
 | 53. YouTube Cookies into Accounts Menu | 0/? | Not started | - |
 | 54. Station Logo Aspect Ratio Fix | 0/? | Not started | - |
