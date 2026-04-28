@@ -316,7 +316,7 @@ class Repo:
         )
         self.con.commit()
 
-    def list_recently_played(self, n: int = 3) -> List[Station]:
+    def list_recently_played(self, n: int = 5) -> List[Station]:
         rows = self.con.execute(
             """
             SELECT s.*, p.name AS provider_name

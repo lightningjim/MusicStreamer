@@ -368,7 +368,7 @@ class StationListPanel(QWidget):
 
     def _populate_recent(self) -> None:
         self._recent_model.clear()
-        stations = self._repo.list_recently_played(3)
+        stations = self._repo.list_recently_played(5)
         for station in stations:
             item = QStandardItem(station.name)
             item.setIcon(load_station_icon(station))
