@@ -117,6 +117,8 @@ Key v2.0 decisions already settled:
 - Phase 50 (BUG-01 — Recently Played Live Update) complete 2026-04-28 — `StationListPanel.refresh_recent()` wired into `MainWindow._on_station_activated` after `update_last_played`. SC #1/#2/#3 confirmed via live UAT.
 - Phase 61 added: Linux App Display Name in WM Dialogs (BUG-08) — surfaced during Phase 50 UAT 2026-04-28, parallel to WIN-02
 - Phase 62 added: Audio Buffer Underrun Resilience (BUG-09) — surfaced 2026-04-28; intermittent dropout reports without clear repro, instrumentation phase
+- Phase 63 added: Auto-Bump pyproject Version on Phase Completion (VER-01) — adopt `milestone.minor.phase` versioning (`2.1.50` for Phase 50 of v2.1); pyproject.toml version field auto-rewritten by phase.complete hook 2026-04-28
+- Versioning convention 2026-04-28: project version is `{milestone_major}.{milestone_minor}.{phase_number}`. pyproject.toml manually bumped to 2.1.50 at Phase 50 close (commit 87f6dab or similar). Phase 51+ bumps will be automated by VER-01 / Phase 63.
 
 ### Pending Todos
 

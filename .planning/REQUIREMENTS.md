@@ -40,6 +40,12 @@ Small new capabilities harvested from backlog + dormant seeds.
 - [ ] **ACCENT-02**: User can pick a custom accent color via a visual color picker (HSV/wheel surface), in addition to the existing 8 presets and hex entry *(harvest: SEED-006)*
 - [ ] **GBS-01**: User can browse, save, and play GBS.FM streams from inside MusicStreamer (no browser bounce) *(harvest: SEED-008 — exact sub-capabilities to be refined at /gsd-discuss-phase time; may decompose into GBS-01..0N during planning)*
 
+### Versioning Convention (VER)
+
+Project-level convention introduced 2026-04-28.
+
+- [ ] **VER-01**: Adopt `milestone_major.milestone_minor.phase` versioning (e.g. `2.1.50` for Phase 50 of v2.1). The `pyproject.toml` `version` field is rewritten automatically on phase completion via a GSD-workflow hook, gated by a per-project config flag, and the convention is documented in PROJECT.md *(applies to all future phase completions starting Phase 51+; Phase 50 was bumped manually as the first instance)*
+
 ## Future Requirements
 
 Acknowledged but not committed to v2.1 initial scope. Pull in opportunistically via `/gsd-add-phase` if Kyle wants to tackle them inside the milestone.
@@ -90,14 +96,15 @@ Which phases cover which requirements.
 | GBS-01 | Phase 60 | Pending |
 | BUG-08 | Phase 61 | Pending |
 | BUG-09 | Phase 62 | Pending |
+| VER-01 | Phase 63 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 16 total
-- Mapped to phases: 16 ✓
+- v2.1 requirements: 17 total
+- Mapped to phases: 17 ✓
 - Unmapped: 0 ✓
 - Complete: 2 (BUG-07 env-level; BUG-01 Phase 50)
-- Pending: 14
+- Pending: 15
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-04-28 — Phase 50 / BUG-01 complete (Recently Played live update). BUG-08 (Linux WM display name) and BUG-09 (audio buffer underrun resilience) added — surfaced during Phase 50 UAT and post-completion discussion.*
+*Last updated: 2026-04-28 — Phase 50 / BUG-01 complete (Recently Played live update). BUG-08 (Linux WM display name) + BUG-09 (audio buffer underrun resilience) + VER-01 (milestone.minor.phase versioning auto-bump) added post-Phase 50.*

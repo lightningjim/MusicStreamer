@@ -9,7 +9,7 @@
 - ✅ **v1.4 Media & Art Polish** — Phases 16–20 (shipped 2024-04-05)
 - ✅ **v1.5 Further Polish** — Phases 21–34 (shipped 2026-04-10)
 - ✅ **v2.0 OS-Agnostic Revamp** — Phases 35–48 (shipped 2026-04-25)
-- 📋 **v2.1 Fixes and Tweaks** — Phases 49–62+ (ACTIVE — rolling polish milestone)
+- 📋 **v2.1 Fixes and Tweaks** — Phases 49–63+ (ACTIVE — rolling polish milestone)
 
 ## Phases
 
@@ -313,6 +313,18 @@ Plans:
   4. The instrumentation does not regress existing buffer constants (Phase 16: 10s / 10MB) without an explicit decision logged in CONTEXT.md
 **Plans:** TBD
 
+### Phase 63: Auto-Bump pyproject Version on Phase Completion
+**Goal:** Adopt the `milestone.minor.phase` versioning scheme (e.g. `2.1.50` after Phase 50) and automate it. A hook in `phase.complete` (or an equivalent post-completion step in the GSD workflow) rewrites the `version` field in `pyproject.toml` to `{milestone_major}.{milestone_minor}.{phase_number}` whenever a phase finishes. The scheme is documented in PROJECT.md and gated by a config flag so it can be toggled per-project.
+**Depends on:** Nothing
+**Requirements:** VER-01
+**Success Criteria** (what must be TRUE):
+  1. Completing any v2.1 phase via the GSD workflow rewrites `pyproject.toml`'s `version` field to `2.1.{phase_number}` (e.g., closing Phase 51 produces `version = "2.1.51"`) without manual edits
+  2. The bump is committed as part of (or alongside) the existing phase-completion commit — no orphaned uncommitted state
+  3. A config flag (e.g., `workflow.auto_version_bump`, default `true`) lets the user opt out per-project; when disabled, no bump occurs
+  4. The convention is documented in PROJECT.md with the schema (`major.minor.phase`) and a worked example so future contributors / future Claude sessions know how to read the version
+  5. Rollback safety: if the phase-completion commit fails (e.g., pre-commit hook), the version bump is reverted from the working tree (no half-state)
+**Plans:** TBD
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -331,6 +343,7 @@ Plans:
 | 60. GBS.FM Integration | 0/? | Not started | - |
 | 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
+| 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
 
 ---
 *Last updated: 2026-04-27 — Phase 49 resolved without code change (suspected env-level fix: yt-dlp and/or GStreamer plugin reinstall); v2.1 progress 1/12*
