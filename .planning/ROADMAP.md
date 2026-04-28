@@ -141,7 +141,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 
 - [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after user reinstalled both yt-dlp and the GStreamer plugins; suspected fix is one of those two, not formally bisected)
 - [x] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing (completed 2026-04-28)
-- [ ] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player
+- [x] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player (completed 2026-04-28)
 - [ ] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off
 - [ ] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu
 - [ ] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping
@@ -352,4 +352,4 @@ Plans:
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
 
 ---
-*Last updated: 2026-04-28 — Phase 51 planned (5 plans across 4 waves); v2.1 progress 1/12*
+*Last updated: 2026-04-28 — Phase 51 complete (BUG-02 closed: AA cross-network siblings + dirty-state confirm + on-demand detection); v2.1 progress 2/12*
