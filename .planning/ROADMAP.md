@@ -174,7 +174,9 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
   1. When the user starts playing a station, it appears at the top of the Recently Played section within the same session — no restart required
   2. The previously-playing station moves down the list (or out of the top 3) correctly
   3. No full list rebuild occurs — provider group expand/collapse states are preserved during the update
-**Plans:** TBD
+**Plans:** 1 plan
+Plans:
+- [ ] 50-01-PLAN.md — Add refresh_recent() to StationListPanel and call it from _on_station_activated (TDD: RED tests → GREEN implementation → UAT)
 
 ### Phase 51: AudioAddict Cross-Network Siblings
 **Goal:** AudioAddict stations that share a channel key across networks (e.g. "Ambient" on DI.FM and ZenRadio) are surfaced as related siblings — visible in the editor and jumpable — without merging them or enabling cross-network failover.

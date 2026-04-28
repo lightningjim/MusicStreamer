@@ -2,8 +2,8 @@
 phase: 50
 slug: recently-played-live-update
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: false  # set true after Task 1 commits
 created: 2026-04-27
 ---
 
@@ -40,7 +40,9 @@ created: 2026-04-27
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD-by-planner | — | — | BUG-01 | — | N/A | unit/integration | TBD | ❌ W0 | ⬜ pending |
+| 50-01-T1 | 50-01 | 0 (RED) | BUG-01 | T-50-01..03 (accept) | refresh_recent contract + tree-untouched + slot-wired | unit + integration | `pytest tests/test_station_list_panel.py -k refresh_recent tests/test_main_window_integration.py -k refresh_recent_list -x` | ❌ Task 1 creates | ⬜ pending |
+| 50-01-T2 | 50-01 | 1 (GREEN) | BUG-01 | T-50-01..03 (accept) | refresh_recent delegates to _populate_recent; _on_station_activated calls it after update_last_played | unit + integration | `pytest tests/test_station_list_panel.py tests/test_main_window_integration.py -x` | ✅ after Task 1 | ⬜ pending |
+| 50-01-T3 | 50-01 | 2 (UAT) | BUG-01 | — | Full suite green + human visual UAT (SC #1, #2, #3, D-02 sanity) | full suite + manual | `pytest` then human "approved" | ✅ after Task 2 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -73,4 +75,4 @@ created: 2026-04-27
 - [ ] Feedback latency < 30s
 - [ ] `nyquist_compliant: true` set in frontmatter (set by planner once Per-Task Verification Map is filled)
 
-**Approval:** pending
+**Approval:** plan-mapped 2026-04-27 — execution pending
