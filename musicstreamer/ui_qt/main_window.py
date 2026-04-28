@@ -457,6 +457,8 @@ class MainWindow(QMainWindow):
         # D-07: intentionally NOT wired to the now-playing-sync slot — a brand-new
         # station is never the currently-playing one. No auto-play.
         dlg.station_deleted.connect(self._on_station_deleted)
+        # Phase 51 / D-09: a brand-new station can be an AA URL — same wiring as edit path.
+        dlg.navigate_to_sibling.connect(self._on_navigate_to_sibling)
         dlg.exec()
 
     def _on_edit_requested(self, station: Station) -> None:
@@ -469,6 +471,8 @@ class MainWindow(QMainWindow):
         dlg.station_saved.connect(self._refresh_station_list)
         dlg.station_saved.connect(lambda: self._sync_now_playing_station(fresh.id))
         dlg.station_deleted.connect(self._on_station_deleted)
+        # Phase 51 / D-09: re-open editor for sibling when user clicks "Also on:" link.
+        dlg.navigate_to_sibling.connect(self._on_navigate_to_sibling)
         dlg.exec()
 
     def _on_station_deleted(self, station_id: int) -> None:
@@ -478,6 +482,26 @@ class MainWindow(QMainWindow):
             self._media_keys.publish_metadata(None, "", None)
             self.now_playing._on_stop_clicked()
             self._media_keys.set_playback_state("stopped")
+
+    def _on_navigate_to_sibling(self, sibling_id: int) -> None:
+        """Phase 51 / D-09, D-10: re-open EditStationDialog for the sibling station.
+
+        Called when the user clicks an 'Also on:' link in the current edit
+        dialog. The originating dialog has already accepted/rejected itself
+        via _on_sibling_link_activated's clean / Save / Discard paths — by
+        the time this slot fires, that dialog is closing.
+
+        D-10 invariant: this slot does NOT touch playback. No player.failover,
+        no player.play, no multi-stream queue manipulation. The currently
+        playing station continues regardless of which dialog is open.
+
+        Implementation: delegate to _on_edit_requested so signal wiring lives
+        in one place (single source of truth for dialog setup).
+        """
+        sibling = self._repo.get_station(sibling_id)
+        if sibling is None:
+            return  # sibling deleted between render and click — silent no-op
+        self._on_edit_requested(sibling)
 
     # ----------------------------------------------------------------------
     # Phase 41: MediaKeysBackend bridge slots (QA-05: bound methods only)
