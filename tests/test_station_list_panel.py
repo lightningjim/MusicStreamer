@@ -495,3 +495,40 @@ def test_select_station_by_id_sets_current_index(qtbot):
     st = panel.model.station_for_index(source_idx)
     assert st is not None, "current index must map to a Station (not a provider row)"
     assert st.id == 2
+
+
+# ----------------------------------------------------------------------
+# Phase 50 / BUG-01: refresh_recent() public API
+# ----------------------------------------------------------------------
+
+def test_refresh_recent_updates_list(qtbot):
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # Simulate a different station becoming the most recently played.
+    # Pitfall #3: mutate repo._recent BEFORE calling refresh_recent —
+    # list_recently_played returns a snapshot of _recent at call time.
+    new_top = make_station(99, "New Top Station", "TestFM")
+    repo._recent = [new_top] + repo._recent
+
+    panel.refresh_recent()
+
+    assert panel.recent_view.model().rowCount() == 3
+    top_station = panel.recent_view.model().index(0, 0).data(Qt.UserRole)
+    assert isinstance(top_station, Station)
+    assert top_station.id == 99
+
+
+def test_refresh_recent_does_not_touch_tree(qtbot):
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # SC #3: refresh_recent must not rebuild the provider tree.
+    # If model.refresh() were called, rowCount would be re-derived from repo.list_stations().
+    row_count_before = panel.tree.model().rowCount()
+
+    panel.refresh_recent()
+
+    assert panel.tree.model().rowCount() == row_count_before

@@ -282,6 +282,38 @@ def test_station_activated_updates_last_played(qtbot, window, fake_repo):
     assert fake_repo._last_played_ids == [station.id]
 
 
+def test_station_activated_refreshes_recent_list(qtbot, fake_player):
+    """Phase 50 / BUG-01: emitting station_activated triggers a recent-list refresh.
+
+    Seeds FakeRepo._recent before MainWindow construction and asserts that the
+    panel's QListView reflects the seeded data after the signal fires. Proves
+    _on_station_activated calls refresh_recent (D-01, D-04).
+    """
+    station = _make_station()
+    # Start with empty _recent; require refresh_recent (driven by update_last_played → _recent prepend) to populate it.
+    fake_repo = FakeRepo(stations=[station], recent=[])
+
+    # Extend update_last_played to mutate _recent so list_recently_played reflects the click.
+    original_update = fake_repo.update_last_played
+    def update_and_record(station_id: int) -> None:
+        original_update(station_id)
+        fake_repo._recent = [station] + [s for s in fake_repo._recent if s.id != station_id]
+    fake_repo.update_last_played = update_and_record  # type: ignore[assignment]
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    # At construction time _recent is empty → row count is 0.
+    assert w.station_panel.recent_view.model().rowCount() == 0
+
+    w.station_panel.station_activated.emit(station)
+
+    # After activation: update_last_played mutated _recent, refresh_recent re-queried, rowCount > 0.
+    assert w.station_panel.recent_view.model().rowCount() == 1
+    top = w.station_panel.recent_view.model().index(0, 0).data(Qt.UserRole)
+    assert top is not None and top.id == station.id
+
+
 # ---------------------------------------------------------------------------
 # Toast wiring (UI-12)
 # ---------------------------------------------------------------------------
