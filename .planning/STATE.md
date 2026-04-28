@@ -114,6 +114,9 @@ Key v2.0 decisions already settled:
 - Phase 49 → Backlog 999.12 (deferred to next milestone so v2.0 can ship after Phase 44) — 2026-04-25
 - v2.1 roadmap created 2026-04-27: Phases 49–60 (12 phases), 14 requirements mapped. BUG-07 (Phase 49) is first. Backlog stubs 999.2/4/5/6/10/11/12 renumbered as core phases 50–58.
 - Phase 49 (BUG-07 — YouTube Linux Playback Regression) resolved without code change 2026-04-27 — playback resumed after user reinstalled both `yt-dlp` and the GStreamer plugins at the OS level. Suspected fix is one of those two but not bisected (both reinstalled together). Root cause not formally documented. Pattern matches v2.0 Phase 999.8 (REFUTED, resolved via separate commit). If regression returns, reopen as Phase 49.1 and bisect (revert yt-dlp first, then GStreamer plugins).
+- Phase 50 (BUG-01 — Recently Played Live Update) complete 2026-04-28 — `StationListPanel.refresh_recent()` wired into `MainWindow._on_station_activated` after `update_last_played`. SC #1/#2/#3 confirmed via live UAT.
+- Phase 61 added: Linux App Display Name in WM Dialogs (BUG-08) — surfaced during Phase 50 UAT 2026-04-28, parallel to WIN-02
+- Phase 62 added: Audio Buffer Underrun Resilience (BUG-09) — surfaced 2026-04-28; intermittent dropout reports without clear repro, instrumentation phase
 
 ### Pending Todos
 

@@ -20,6 +20,8 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 - [ ] **BUG-04**: YouTube cookies entry is consolidated into the Accounts menu (single accounts surface for Twitch + YouTube) *(stub: 999.6)*
 - [ ] **BUG-05**: Rectangular brand logos display fully in the radio logo view (no square-only crop that cuts off content) *(stub: 999.10)*
 - [ ] **BUG-06**: Saving an edit in `EditStationDialog` preserves the open/closed state of expandable sections (does not collapse all open sections on save) *(stub: 999.11)*
+- [ ] **BUG-08**: Linux force-quit and other WM-level dialogs display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer" — Linux parallel to WIN-02 *(surfaced during Phase 50 UAT 2026-04-28)*
+- [ ] **BUG-09**: Intermittent audio dropouts/stutters when the GStreamer buffer can't keep up are observable, attributable, and (once root-caused) mitigated. Repro is unclear at filing time — phase ships diagnostic instrumentation first, then a behavior fix once root cause is observable *(surfaced 2026-04-28)*
 
 ### Windows Polish (WIN)
 
@@ -86,14 +88,16 @@ Which phases cover which requirements.
 | STR-15 | Phase 58 | Pending |
 | ACCENT-02 | Phase 59 | Pending |
 | GBS-01 | Phase 60 | Pending |
+| BUG-08 | Phase 61 | Pending |
+| BUG-09 | Phase 62 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 14 total
-- Mapped to phases: 14 ✓
+- v2.1 requirements: 16 total
+- Mapped to phases: 16 ✓
 - Unmapped: 0 ✓
-- Complete: 1 (BUG-07 — env-level fix, no code change)
-- Pending: 13
+- Complete: 2 (BUG-07 env-level; BUG-01 Phase 50)
+- Pending: 14
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-04-27 — Phase 49 / BUG-07 resolved without code change (suspected env-level fix: yt-dlp and/or GStreamer plugin reinstall)*
+*Last updated: 2026-04-28 — Phase 50 / BUG-01 complete (Recently Played live update). BUG-08 (Linux WM display name) and BUG-09 (audio buffer underrun resilience) added — surfaced during Phase 50 UAT and post-completion discussion.*

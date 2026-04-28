@@ -9,7 +9,7 @@
 - ✅ **v1.4 Media & Art Polish** — Phases 16–20 (shipped 2024-04-05)
 - ✅ **v1.5 Further Polish** — Phases 21–34 (shipped 2026-04-10)
 - ✅ **v2.0 OS-Agnostic Revamp** — Phases 35–48 (shipped 2026-04-25)
-- 📋 **v2.1 Fixes and Tweaks** — Phases 49–60+ (ACTIVE — rolling polish milestone)
+- 📋 **v2.1 Fixes and Tweaks** — Phases 49–62+ (ACTIVE — rolling polish milestone)
 
 ## Phases
 
@@ -291,6 +291,28 @@ Plans:
   4. GBS.FM integration does not break existing import or discovery flows
 **Plans:** TBD
 
+### Phase 61: Linux App Display Name in WM Dialogs
+**Goal:** Force-quit and other WM-level dialogs (and Activities/Alt-Tab where the same string is read) display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer". Linux parallel to the Windows AUMID work in Phase 56 (WIN-02).
+**Depends on:** Nothing
+**Requirements:** BUG-08
+**Success Criteria** (what must be TRUE):
+  1. The Linux force-quit dialog shows "MusicStreamer" as the application name (not "org.example.MusicStreamer")
+  2. Activities/Alt-Tab and other system surfaces that read the application name show the friendly name consistently
+  3. The app ID used for D-Bus / MPRIS / desktop integration is unchanged (only the user-facing display name changes)
+  4. The fix works on Wayland and X11 (or notes which surface still has limitations and why)
+**Plans:** TBD
+
+### Phase 62: Audio Buffer Underrun Resilience
+**Goal:** Intermittent dropouts/stutters when the GStreamer buffer can't keep up are observable, mitigable, and (once root cause is known) fixed. Surface lives in `musicstreamer/player.py` and the buffer constants in `musicstreamer/constants.py`.
+**Depends on:** Nothing
+**Requirements:** BUG-09
+**Success Criteria** (what must be TRUE):
+  1. When a buffer underrun occurs (BUFFERING percent < 100 mid-playback, or a GStreamer underrun message), the event is logged with cause attribution (network stall, CPU stall, decoder stall) and timestamp — enough to diagnose intermittent reports
+  2. The user gets a non-spammy visible indicator when buffering recovery is in progress (toast or buffer-fill indicator update — exact UX decided at /gsd-discuss-phase time)
+  3. Once the root cause is identified from the instrumentation, the phase ships a behavior fix (e.g., adjusted buffer-duration/buffer-size, smarter underrun recovery, reconnect logic) that demonstrably reduces dropout count under repro conditions
+  4. The instrumentation does not regress existing buffer constants (Phase 16: 10s / 10MB) without an explicit decision logged in CONTEXT.md
+**Plans:** TBD
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
@@ -307,6 +329,8 @@ Plans:
 | 58. PLS Auto-Resolve in Station Editor | 0/? | Not started | - |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
 | 60. GBS.FM Integration | 0/? | Not started | - |
+| 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
+| 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
 
 ---
 *Last updated: 2026-04-27 — Phase 49 resolved without code change (suspected env-level fix: yt-dlp and/or GStreamer plugin reinstall); v2.1 progress 1/12*
