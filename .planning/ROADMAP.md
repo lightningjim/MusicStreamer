@@ -375,5 +375,15 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 64 to break down)
 
+### Phase 65: Show current version in app (unsure yet if either in the hamburger menu or the right end of the bar the hamburger is on
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 64
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 65 to break down)
+
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*
