@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from typing import Callable
 
 from PySide6.QtCore import QProcess, Qt
 from PySide6.QtGui import QFont
@@ -65,23 +66,47 @@ class AccountsDialog(QDialog):
     Phase 999.3 D-08..D-12: Category-aware failure UX + persistent log.
     """
 
-    def __init__(self, repo, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        repo,
+        toast_callback: Callable[[str], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._repo = repo  # Phase 48 D-04: required for AA view/clear
+        # Phase 53 D-06: forwarded toast surface for cookie-import success messages.
+        # Defaulted to no-op so existing positional AccountsDialog(fake_repo) sites
+        # (24 in tests/test_accounts_dialog.py) keep working without churn.
+        self._toast_callback = toast_callback or (lambda _msg: None)
         self.setWindowTitle("Accounts")
         self.setMinimumWidth(360)
 
         self._oauth_proc: QProcess | None = None
         self._oauth_logger: OAuthLogger | None = None  # Phase 999.3 D-11: lazy-init
 
-        # Twitch group box
+        # Shared font for all three group status labels.
+        status_font = QFont()
+        status_font.setPointSize(10)
+
+        # Phase 53: YouTube group box (D-01, D-09 — first / topmost group).
+        self._youtube_box = QGroupBox("YouTube", self)
+        youtube_layout = QVBoxLayout(self._youtube_box)
+
+        self._youtube_status_label = QLabel(self)
+        self._youtube_status_label.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04
+        self._youtube_status_label.setFont(status_font)
+        youtube_layout.addWidget(self._youtube_status_label)
+
+        self._youtube_action_btn = QPushButton(self)
+        self._youtube_action_btn.clicked.connect(self._on_youtube_action_clicked)  # QA-05
+        youtube_layout.addWidget(self._youtube_action_btn)
+
+        # Twitch group box (existing — unchanged shape; status_font now shared)
         twitch_box = QGroupBox("Twitch", self)
         twitch_layout = QVBoxLayout(twitch_box)
 
         self._status_label = QLabel(self)
         self._status_label.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04: no rich-text injection
-        status_font = QFont()
-        status_font.setPointSize(10)
         self._status_label.setFont(status_font)
         twitch_layout.addWidget(self._status_label)
 
@@ -89,7 +114,7 @@ class AccountsDialog(QDialog):
         self._action_btn.clicked.connect(self._on_action_clicked)
         twitch_layout.addWidget(self._action_btn)
 
-        # AudioAddict group box (Phase 48 D-05)
+        # AudioAddict group box (Phase 48 D-05 — unchanged)
         aa_box = QGroupBox("AudioAddict", self)
         aa_layout = QVBoxLayout(aa_box)
 
@@ -109,6 +134,7 @@ class AccountsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(8)
+        layout.addWidget(self._youtube_box)
         layout.addWidget(twitch_box)
         layout.addWidget(aa_box)
         layout.addWidget(btn_box)
@@ -122,11 +148,23 @@ class AccountsDialog(QDialog):
     def _is_connected(self) -> bool:
         return os.path.exists(paths.twitch_token_path())
 
+    def _is_youtube_connected(self) -> bool:
+        """Phase 53 D-02: True when paths.cookies_path() exists on disk."""
+        return os.path.exists(paths.cookies_path())
+
     def _is_aa_key_saved(self) -> bool:
         """Phase 48 D-07: True when ``audioaddict_listen_key`` is non-empty."""
         return bool(self._repo.get_setting("audioaddict_listen_key", ""))
 
     def _update_status(self) -> None:
+        # Phase 53 D-02 / D-07 / D-08: YouTube status (top of method to mirror D-09 order).
+        if self._is_youtube_connected():
+            self._youtube_status_label.setText("Connected")
+            self._youtube_action_btn.setText("Disconnect")
+        else:
+            self._youtube_status_label.setText("Not connected")
+            self._youtube_action_btn.setText("Import YouTube Cookies...")
+
         if self._oauth_proc is not None:
             self._status_label.setText("Connecting...")
             self._action_btn.setEnabled(False)
@@ -193,6 +231,43 @@ class AccountsDialog(QDialog):
         else:
             # D-02: launch OAuth subprocess
             self._launch_oauth_subprocess()
+
+    def _on_youtube_action_clicked(self) -> None:
+        """Phase 53 D-03 / D-05: Disconnect (delete cookies.txt) or Import (launch CookieImportDialog).
+
+        Connected state → confirm + os.remove with try/except FileNotFoundError
+        (Phase 999.7 auto-clear race tolerance — T-53-01).
+
+        Not connected state → launch CookieImportDialog as a child dialog with
+        the forwarded toast_callback; refresh status unconditionally after exec
+        returns (idempotent — D-discretion recommendation).
+
+        T-53-02: handler is strictly limited to paths.cookies_path() removal +
+        _update_status(); does NOT touch twitch_token_path or audioaddict_listen_key.
+        """
+        if self._is_youtube_connected():
+            answer = QMessageBox.question(
+                self,
+                "Disconnect YouTube?",
+                "This will delete your saved YouTube cookies. "
+                "You will need to re-import to play cookie-protected YouTube streams.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                try:
+                    os.remove(paths.cookies_path())
+                except FileNotFoundError:
+                    # Race with Phase 999.7 auto-clear — file already gone.
+                    pass
+                self._update_status()
+        else:
+            # In-slot import per Phase 53 D-12 (main_window.py drops the import).
+            from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+            dlg = CookieImportDialog(self._toast_callback, parent=self)
+            dlg.exec()
+            # D-discretion: call _update_status unconditionally — idempotent.
+            self._update_status()
 
     def _launch_oauth_subprocess(self) -> None:
         """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""

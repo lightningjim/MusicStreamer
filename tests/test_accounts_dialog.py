@@ -725,12 +725,13 @@ class TestAccountsDialogYouTube:
 
         monkeypatch.setattr(cid_mod, "CookieImportDialog", FakeCookieDlg)
         toasts: list[str] = []
+        toast_cb = toasts.append  # capture reference so 'is' comparison works
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
-        dlg = AccountsDialog(fake_repo, toast_callback=toasts.append)
+        dlg = AccountsDialog(fake_repo, toast_callback=toast_cb)
         qtbot.addWidget(dlg)
         dlg._on_youtube_action_clicked()
         assert FakeCookieDlg.exec_called
-        assert captured["toast_cb"] is toasts.append
+        assert captured["toast_cb"] is toast_cb
         assert captured["parent"] is dlg
 
     def test_post_import_refreshes_status(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
@@ -809,7 +810,15 @@ class TestAccountsDialogYouTube:
         assert dlg._youtube_status_label.text() == "Connected"
 
     def test_disconnect_file_already_gone(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
-        """Race: file deleted between status check and Disconnect click — no exception escapes."""
+        """Race: file deleted between _is_youtube_connected() and os.remove() — no exception escapes.
+
+        Simulates Phase 999.7 auto-clear race by keeping the file present so
+        _is_youtube_connected() returns True (entering the Disconnect branch),
+        then patching os.remove to delete the file AND raise FileNotFoundError
+        (simulating the file being auto-cleared a nanosecond before our os.remove).
+        After the try/except silences the error, _update_status() finds the file
+        gone and correctly sets status to "Not connected".
+        """
         cookies_path = paths.cookies_path()
         os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
         Path(cookies_path).write_text("# transient")
@@ -820,8 +829,14 @@ class TestAccountsDialogYouTube:
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         dlg = AccountsDialog(fake_repo)
         qtbot.addWidget(dlg)
-        # Simulate Phase 999.7 auto-clear racing between status check and click:
-        os.remove(cookies_path)
+        # Simulate the race: os.remove raises FileNotFoundError (auto-cleared between
+        # _is_youtube_connected() check and os.remove() call — T-53-01).
+        # Also delete the actual file so _update_status() sees "Not connected" correctly.
+        def raise_fnf(path):
+            if os.path.exists(path):
+                os.unlink(path)  # clean up via unlink (not os.remove, to avoid recursion)
+            raise FileNotFoundError("gone")
+        monkeypatch.setattr("musicstreamer.ui_qt.accounts_dialog.os.remove", raise_fnf)
         # Must not raise:
         dlg._on_youtube_action_clicked()
         assert dlg._youtube_status_label.text() == "Not connected"
