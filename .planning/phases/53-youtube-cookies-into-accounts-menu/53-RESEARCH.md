@@ -452,22 +452,25 @@ This phase is purely internal — no library upgrades, no API surface changes. P
 
 **This table is empty:** Every line/signature reference was cross-checked against `/home/kcreasey/OneDrive/Projects/MusicStreamer/musicstreamer/ui_qt/accounts_dialog.py`, `main_window.py`, `cookie_import_dialog.py`, `paths.py`, `constants.py`, `cookie_utils.py`, `tests/test_accounts_dialog.py`, and `tests/test_main_window_integration.py` on 2026-04-28.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `_update_status()` add the YouTube branch at the top (matching D-09 visual order) or at the bottom (after AA)?**
    - What we know: The method order doesn't affect behavior — all branches always run. CONTEXT.md doesn't lock ordering inside `_update_status`.
    - What's unclear: A reader might find one ordering more obvious than the other.
    - Recommendation: Insert YouTube at the top of `_update_status()` to match D-09 layout order. Trivial preference; planner can pick either.
+   - **RESOLVED:** branch inserted at the top of `_update_status()` per Plan 01 Task 2 Step G — mirrors D-09 visual order.
 
 2. **`os.remove(paths.cookies_path())` directly, or call `constants.clear_cookies()`?**
    - What we know: Both are valid. `constants.clear_cookies()` already exists (constants.py:36-42) with the same try/exists-guard structure. Twitch precedent uses `constants.clear_twitch_token()` from inside the slot (accounts_dialog.py:191).
    - What's unclear: D-04 says "limited to `cookies_path()` removal"; either implementation satisfies the constraint.
    - Recommendation: Match the Twitch precedent — call `constants.clear_cookies()` (which already wraps `os.remove` with `os.path.exists` check, achieving the same race-safety as `try/except FileNotFoundError`). Symmetry with Twitch's `constants.clear_twitch_token()` is a small but real readability win. **Either is fine; planner's call.**
+   - **RESOLVED:** `os.remove(paths.cookies_path())` with `try/except FileNotFoundError` per Plan 01 Task 2 Step H — explicit race tolerance for the Phase 999.7 auto-clear interaction (T-53-01) and exact match to D-03's locked wording.
 
 3. **Should there be a UAT-only manual test for visual crowding (SC-3)?**
    - What we know: SC-3 says "without visual crowding". This is subjective.
    - What's unclear: Is "without visual crowding" satisfied by the locked layout (3 vertically-stacked QGroupBox + Close button), or does it require subjective screenshot review?
    - Recommendation: Add a single manual UAT step to PLAN.md: "Open Accounts dialog. Confirm dialog fits cleanly with no scrollbar and no group title overlap. Take a screenshot for the phase completion record." That's sufficient.
+   - **RESOLVED:** Manual UAT checklist included in Plan 02 verification section step 5 (10-step end-to-end flow including a visual-crowding screenshot step).
 
 ## Sources
 
