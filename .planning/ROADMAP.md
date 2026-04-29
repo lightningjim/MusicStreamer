@@ -221,7 +221,10 @@ Plans:
   1. The hamburger menu no longer has a standalone "YouTube Cookies" entry
   2. YouTube cookie import (file picker, paste, Google login) is accessible from the Accounts menu
   3. Twitch OAuth and YouTube cookies coexist cleanly in the Accounts menu without visual crowding
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 53-01-PLAN.md — Extend AccountsDialog with YouTube QGroupBox (status label + state-toggling button + Disconnect confirm + post-import refresh + toast_callback kwarg + group reordering YouTube→Twitch→AudioAddict); add TestAccountsDialogYouTube class with 14 unit tests
+- [ ] 53-02-PLAN.md — Trim main_window.py (drop act_cookies + _open_cookie_dialog + CookieImportDialog import); _open_accounts_dialog forwards self.show_toast as toast_callback; update EXPECTED_ACTION_TEXTS (10→9) + add test_open_accounts_passes_toast
 **UI hint**: yes
 
 ### Phase 54: Station Logo Aspect Ratio Fix
@@ -346,7 +349,7 @@ Plans:
 | 50. Recently Played Live Update | 1/1 | Complete    | 2026-04-28 |
 | 51. AudioAddict Cross-Network Siblings | 5/5 | Complete    | 2026-04-28 |
 | 52. EQ Toggle Dropout Fix | 2/2 | Complete    | 2026-04-28 |
-| 53. YouTube Cookies into Accounts Menu | 0/? | Not started | - |
+| 53. YouTube Cookies into Accounts Menu | 0/2 | Planned     | - |
 | 54. Station Logo Aspect Ratio Fix | 0/? | Not started | - |
 | 55. Edit Station Preserves Section State | 0/? | Not started | - |
 | 56. Windows DI.fm + SMTC Start Menu | 0/? | Not started | - |
