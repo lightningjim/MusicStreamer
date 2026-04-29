@@ -397,8 +397,7 @@ EXPECTED_ACTION_TEXTS = [
     "Discover Stations",
     "Import Stations",
     "Accent Color",
-    "YouTube Cookies",
-    "Accounts",
+    "Accounts",            # Phase 53 D-13: YouTube Cookies entry removed; cookie management consolidated into Accounts dialog
     "Equalizer",           # Phase 47.2 D-07
     "Stats for Nerds",
     "Export Settings",
@@ -419,6 +418,39 @@ def test_hamburger_menu_separators(window):
     menu = window._menu
     separators = [a for a in menu.actions() if a.isSeparator()]
     assert len(separators) == 3
+
+
+def test_open_accounts_passes_toast(qtbot, window, monkeypatch):
+    """Phase 53 D-14: triggering Accounts passes self.show_toast as toast_callback kwarg."""
+    captured: dict = {}
+
+    class FakeAccountsDialog:
+        def __init__(self, repo, toast_callback=None, parent=None):
+            captured["repo"] = repo
+            captured["toast_callback"] = toast_callback
+            captured["parent"] = parent
+
+        def exec(self):
+            captured["exec_called"] = True
+            return 0
+
+    # Patch the symbol bound in main_window's namespace (main_window does
+    # `from musicstreamer.ui_qt.accounts_dialog import AccountsDialog` at
+    # module top, so this is the canonical patch target — patching
+    # accounts_dialog.AccountsDialog would NOT intercept the bound name).
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.main_window.AccountsDialog",
+        FakeAccountsDialog,
+    )
+
+    menu = window._menu
+    actions = {a.text(): a for a in menu.actions() if not a.isSeparator()}
+    actions["Accounts"].trigger()
+
+    assert captured.get("exec_called") is True
+    assert captured["toast_callback"] == window.show_toast
+    assert captured["parent"] is window
+    assert captured["repo"] is window._repo
 
 
 def test_sync_actions_enabled(window):
