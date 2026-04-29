@@ -18,7 +18,7 @@ verifier: inline goal-backward checks (verifier subagent skipped to conserve usa
 - SC #2 (toggle-on no dropout) — same ramp, both directions symmetric
 - SC #3 (exactly one fire per click) — wiring already clean (`clicked.connect`, no `toggled`); locked by defensive call-count test
 
-11/11 Phase 52 surface tests pass. UAT remains for end-user perceptual confirmation that no audible click occurs in real playback (recommended manual test: toggle 10× rapidly during DI.fm Ambient playback, listen for clicks).
+11/11 Phase 52 surface tests pass. **UAT passed 2026-04-28** — Kyle confirmed zero audible click during real playback. The smooth-ramp fix is perceptually transparent.
 
 ## Success criteria — goal-backward checks
 
@@ -86,15 +86,9 @@ Result: 11 passed, 47 deselected, 1 warning in 0.36s
 |-------------|--------|
 | BUG-03 | Complete — `.planning/REQUIREMENTS.md:20` is `[x]`; traceability table reads `BUG-03 \| Phase 52 \| Complete` |
 
-## UAT recommendation
+## UAT result
 
-Phase 52 ships the code-complete fix. Recommended manual UAT before declaring the dropout fully resolved:
-
-1. Start playing a DI.fm AA station (or any active stream)
-2. Click the EQ toggle 10× rapidly
-3. Listen for any audible click/pop/dropout
-4. Expected: smooth EQ fade-in/fade-out with no audible artifacts
-5. If a click is still heard, the symptom characterization in D-01 may need revisiting (possibly a different root cause than IIR coefficient discontinuity).
+**UAT passed 2026-04-28.** Kyle clicked the EQ toggle during real playback and reported no audible click. The IIR-coefficient-discontinuity diagnosis was correct, and the QTimer-driven smooth gain ramp eliminates the artifact. SC #1 and SC #2 are confirmed in real-world conditions, not just by code structure.
 
 ## Notes
 
@@ -104,4 +98,4 @@ Phase 52 ships the code-complete fix. Recommended manual UAT before declaring th
 
 ## Conclusion
 
-**Phase 52 ships BUG-03 code-complete.** The EQ toggle now smoothly fades band gains over 40ms via a QTimer-driven ramp, eliminating the IIR-filter coefficient-discontinuity transient that produced the audible click. SC #3 is locked by a defensive call-count test (wiring was already clean). Real-world UAT recommended to confirm zero perceptible artifacts in playback.
+**Phase 52 ships BUG-03 fully resolved.** The EQ toggle now smoothly fades band gains over 40ms via a QTimer-driven ramp, eliminating the IIR-filter coefficient-discontinuity transient that produced the audible click. SC #3 is locked by a defensive call-count test (wiring was already clean). UAT confirmed 2026-04-28 — no audible artifact in real playback.

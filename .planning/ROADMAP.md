@@ -142,7 +142,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 49: YouTube Linux Playback Regression** — RESOLVED 2026-04-27 (no code change — playback resumed after user reinstalled both yt-dlp and the GStreamer plugins; suspected fix is one of those two, not formally bisected)
 - [x] **Phase 50: Recently Played Live Update** — Fix Recently Played section so it refreshes when a station starts playing (completed 2026-04-28)
 - [x] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player (completed 2026-04-28)
-- [x] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off (completed 2026-04-28; UAT recommended)
+- [x] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off (completed 2026-04-28; UAT passed — no audible click)
 - [ ] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu
 - [ ] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping
 - [ ] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections
@@ -376,4 +376,4 @@ Plans:
 - [ ] TBD (run /gsd-plan-phase 64 to break down)
 
 ---
-*Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT recommended); v2.1 progress 3/16*
+*Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*

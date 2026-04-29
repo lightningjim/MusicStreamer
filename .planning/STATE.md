@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 52 (EQ Toggle Dropout Fix) — COMPLETE ✓
 Plan: 2 of 2
-Status: Verified — BUG-03 closed (UAT recommended for perceptual confirmation)
+Status: Verified + UAT passed — BUG-03 closed (no audible click)
 Last activity: 2026-04-28
 
 ## Performance Metrics
