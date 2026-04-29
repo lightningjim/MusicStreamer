@@ -22,6 +22,12 @@ amended Phase 999.9):
   `uv run yt-dlp` works at the shell). No external player process is
   launched this phase (see 35-SPIKE-MPV.md "Superseded" section and Plan
   35-06 for the rationale that replaces the original KEEP branch).
+- yt-dlp 2026.03.17+: when YouTube account cookies are detected the
+  authenticated code path requires the EJS remote component to solve the
+  n-challenge. opts must include remote_components={"ejs:github"} so
+  yt-dlp downloads the solver script on first use; without it, all formats
+  are filtered out and extract_info raises "No video formats found!" even
+  though the unauthenticated (no-cookie) path works fine.
 """
 from __future__ import annotations
 
@@ -544,6 +550,13 @@ class Player(QObject):
                 # found!" even though `uv run yt-dlp <url>` works at the shell. Node is the
                 # runtime declared by RUNTIME-01; path=None lets yt-dlp resolve it via PATH.
                 "js_runtimes": {"node": {"path": None}},
+                # BUG-YT-COOKIES: yt-dlp 2026.03.17+ requires the EJS remote component
+                # when YouTube account cookies are detected (authenticated code path).
+                # Without remote_components, the n-challenge solving is skipped and ALL
+                # formats are filtered out — "No video formats found!" — even though
+                # the unauthenticated (no-cookie) path still resolves fine.
+                # Enabling ejs:github lets yt-dlp download the solver script on first use.
+                "remote_components": {"ejs:github"},
             }
 
             # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE

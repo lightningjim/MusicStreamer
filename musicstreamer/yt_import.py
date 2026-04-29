@@ -64,6 +64,10 @@ def scan_playlist(
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
+        # BUG-YT-COOKIES: yt-dlp 2026.03.17+ requires the EJS remote component
+        # when YouTube account cookies are detected (authenticated code path).
+        # Same fix as player.py::_youtube_resolve_worker.
+        "remote_components": {"ejs:github"},
     }
 
     # Phase 999.7 Pitfall 1: yt_dlp.YoutubeDL MUST nest INSIDE temp_cookies_copy
