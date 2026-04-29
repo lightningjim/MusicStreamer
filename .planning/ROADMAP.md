@@ -388,5 +388,15 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 65 to break down)
 
+### Phase 66: Color Themes — preset and custom color schemes (Vaporwave pastel, Overrun neon+black)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 65
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 66 to break down)
+
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*

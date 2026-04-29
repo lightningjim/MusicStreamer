@@ -125,6 +125,7 @@ Key v2.0 decisions already settled:
 - Phase 51 (BUG-02 — AudioAddict Cross-Network Siblings) complete 2026-04-28 — `find_aa_siblings` helper + sibling label in EditStationDialog with hyperlink-style links + `navigate_to_sibling = Signal(int)` + Save/Discard/Cancel dirty confirm. On-demand detection, no DB schema change. SC #4 (no failover regression) verified via grep gates + e2e `fake_player.play_calls == []` assertion.
 - Phase 64 added: AudioAddict Siblings on Now Playing (BUG-02 follow-up) — surface AA siblings in the Now Playing panel as one-click jumps that switch active playback (unlike Phase 51's edit-dialog flow which only navigates the editor). Reuses `find_aa_siblings` helper from Phase 51. 2026-04-28
 - Phase 65 added: Show current version in app (location TBD — hamburger menu vs. right end of bar containing hamburger) 2026-04-28
+- Phase 66 added: Color Themes — preset and custom color schemes, with Vaporwave (pastel) and Overrun (neon+black) as the driving presets 2026-04-29
 
 ### Pending Todos
 
