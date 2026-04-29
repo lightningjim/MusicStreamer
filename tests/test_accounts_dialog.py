@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QLabel, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QGroupBox, QLabel, QMessageBox
 
 from musicstreamer import paths
 
@@ -660,3 +660,209 @@ class TestAccountsDialogAudioAddict:
 
         assert fake_repo.get_setting("audioaddict_listen_key", "") == "test-key-abc"
         assert dlg._aa_status_label.text() == "Saved"
+
+
+class TestAccountsDialogYouTube:
+    """Phase 53: YouTube cookie group — status, button toggle, disconnect, post-import refresh."""
+
+    def test_youtube_group_present(self, tmp_data_dir, qtbot, fake_repo):
+        """AccountsDialog has a YouTube QGroupBox with status label + action button."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        group_titles = [box.title() for box in dlg.findChildren(QGroupBox)]
+        assert "YouTube" in group_titles
+
+    def test_status_not_connected(self, tmp_data_dir, qtbot, fake_repo):
+        """When cookies.txt does not exist: status label 'Not connected'."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        assert dlg._youtube_status_label.text() == "Not connected"
+
+    def test_status_connected(self, tmp_data_dir, qtbot, fake_repo):
+        """When cookies.txt exists: status label 'Connected'."""
+        cookies_path = paths.cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        Path(cookies_path).write_text("# dummy cookies")
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        assert dlg._youtube_status_label.text() == "Connected"
+
+    def test_button_label_not_connected(self, tmp_data_dir, qtbot, fake_repo):
+        """When not connected: action button label is 'Import YouTube Cookies...'."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        assert dlg._youtube_action_btn.text() == "Import YouTube Cookies..."
+
+    def test_button_label_connected(self, tmp_data_dir, qtbot, fake_repo):
+        """When connected: action button label is 'Disconnect'."""
+        cookies_path = paths.cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        Path(cookies_path).write_text("# dummy cookies")
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        assert dlg._youtube_action_btn.text() == "Disconnect"
+
+    def test_import_launches_cookie_dialog(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """Clicking Import... constructs CookieImportDialog with forwarded toast_callback."""
+        from musicstreamer.ui_qt import cookie_import_dialog as cid_mod
+        captured: dict = {}
+
+        class FakeCookieDlg:
+            exec_called = False
+
+            def __init__(self, toast_cb, parent=None):
+                captured["toast_cb"] = toast_cb
+                captured["parent"] = parent
+
+            def exec(self):
+                FakeCookieDlg.exec_called = True
+                return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(cid_mod, "CookieImportDialog", FakeCookieDlg)
+        toasts: list[str] = []
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo, toast_callback=toasts.append)
+        qtbot.addWidget(dlg)
+        dlg._on_youtube_action_clicked()
+        assert FakeCookieDlg.exec_called
+        assert captured["toast_cb"] is toasts.append
+        assert captured["parent"] is dlg
+
+    def test_post_import_refreshes_status(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """After FakeCookieDlg.exec() writes a cookies file, status flips to 'Connected'."""
+        from musicstreamer.ui_qt import cookie_import_dialog as cid_mod
+        cookies_path = paths.cookies_path()
+
+        class FakeCookieDlg:
+            def __init__(self, toast_cb, parent=None):
+                pass
+
+            def exec(self):
+                os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+                Path(cookies_path).write_text("# imported")
+                return QDialog.DialogCode.Accepted
+
+        monkeypatch.setattr(cid_mod, "CookieImportDialog", FakeCookieDlg)
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._on_youtube_action_clicked()
+        assert dlg._youtube_status_label.text() == "Connected"
+        assert dlg._youtube_action_btn.text() == "Disconnect"
+
+    def test_post_cancel_status_unchanged(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """After FakeCookieDlg.exec() returns Rejected (no file), status stays 'Not connected'."""
+        from musicstreamer.ui_qt import cookie_import_dialog as cid_mod
+
+        class FakeCookieDlg:
+            def __init__(self, toast_cb, parent=None):
+                pass
+
+            def exec(self):
+                # No file written — simulates cancel
+                return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(cid_mod, "CookieImportDialog", FakeCookieDlg)
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._on_youtube_action_clicked()
+        # _update_status() was called unconditionally — idempotent, status unchanged
+        assert dlg._youtube_status_label.text() == "Not connected"
+        assert dlg._youtube_action_btn.text() == "Import YouTube Cookies..."
+
+    def test_disconnect_removes_cookies(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """Disconnect → Yes → os.remove(cookies_path) + status refresh to 'Not connected'."""
+        cookies_path = paths.cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        Path(cookies_path).write_text("# dummy")
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            lambda *_args, **_kw: QMessageBox.StandardButton.Yes,
+        )
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._on_youtube_action_clicked()
+        assert not os.path.exists(cookies_path)
+        assert dlg._youtube_status_label.text() == "Not connected"
+
+    def test_disconnect_cancel_keeps_cookies(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """Disconnect → No → cookies file untouched, status stays 'Connected'."""
+        cookies_path = paths.cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        Path(cookies_path).write_text("# dummy")
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            lambda *_args, **_kw: QMessageBox.StandardButton.No,
+        )
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._on_youtube_action_clicked()
+        assert os.path.exists(cookies_path)
+        assert dlg._youtube_status_label.text() == "Connected"
+
+    def test_disconnect_file_already_gone(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """Race: file deleted between status check and Disconnect click — no exception escapes."""
+        cookies_path = paths.cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        Path(cookies_path).write_text("# transient")
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            lambda *_a, **_kw: QMessageBox.StandardButton.Yes,
+        )
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        # Simulate Phase 999.7 auto-clear racing between status check and click:
+        os.remove(cookies_path)
+        # Must not raise:
+        dlg._on_youtube_action_clicked()
+        assert dlg._youtube_status_label.text() == "Not connected"
+
+    def test_disconnect_isolates_youtube(self, tmp_data_dir, qtbot, fake_repo, monkeypatch):
+        """D-04: YouTube Disconnect does not touch Twitch token or AA listen key."""
+        cookies_path = paths.cookies_path()
+        os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+        Path(cookies_path).write_text("# yt cookies")
+        twitch_token = paths.twitch_token_path()
+        os.makedirs(os.path.dirname(twitch_token), exist_ok=True)
+        Path(twitch_token).write_text("twitch-token-value")
+        fake_repo.set_setting("audioaddict_listen_key", "dummykey")
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            lambda *_a, **_kw: QMessageBox.StandardButton.Yes,
+        )
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._on_youtube_action_clicked()
+        assert not os.path.exists(cookies_path)
+        assert os.path.exists(twitch_token)  # D-04: untouched
+        assert fake_repo.get_setting("audioaddict_listen_key", "") == "dummykey"  # D-04: untouched
+
+    def test_group_order(self, tmp_data_dir, qtbot, fake_repo):
+        """D-09: Group order in layout is YouTube → Twitch → AudioAddict."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        layout = dlg.layout()
+        groupboxes = []
+        for i in range(layout.count()):
+            w = layout.itemAt(i).widget()
+            if isinstance(w, QGroupBox):
+                groupboxes.append(w.title())
+        assert groupboxes == ["YouTube", "Twitch", "AudioAddict"]
+
+    def test_status_label_plain_text(self, tmp_data_dir, qtbot, fake_repo):
+        """T-40-04: YouTube status label uses Qt.TextFormat.PlainText."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        assert dlg._youtube_status_label.textFormat() == Qt.TextFormat.PlainText
