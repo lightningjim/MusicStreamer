@@ -52,7 +52,6 @@ from musicstreamer.models import Station
 _log = logging.getLogger(__name__)
 from musicstreamer.ui_qt.accent_color_dialog import AccentColorDialog
 from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
-from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
 from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
 from musicstreamer.ui_qt.discovery_dialog import DiscoveryDialog
 from musicstreamer.ui_qt.import_dialog import ImportDialog
@@ -144,9 +143,6 @@ class MainWindow(QMainWindow):
         # Group 2: Settings dialogs (D-16, D-17, D-18)
         act_accent = self._menu.addAction("Accent Color")
         act_accent.triggered.connect(self._open_accent_dialog)
-
-        act_cookies = self._menu.addAction("YouTube Cookies")
-        act_cookies.triggered.connect(self._open_cookie_dialog)
 
         act_accounts = self._menu.addAction("Accounts")
         act_accounts.triggered.connect(self._open_accounts_dialog)
@@ -662,18 +658,15 @@ class MainWindow(QMainWindow):
         dlg = AccentColorDialog(self._repo, parent=self)
         dlg.exec()
 
-    def _open_cookie_dialog(self) -> None:
-        """D-17: Open CookieImportDialog from hamburger menu."""
-        dlg = CookieImportDialog(self.show_toast, parent=self)
-        dlg.exec()
-
     def _open_accounts_dialog(self) -> None:
         """D-18: Open AccountsDialog from hamburger menu.
 
         Phase 48 D-04: pass ``self._repo`` so the AA group can read/clear
         the ``audioaddict_listen_key`` setting.
+        Phase 53 D-14: pass ``self.show_toast`` so the YouTube cookie import
+        flow can surface its success toast through the same overlay.
         """
-        dlg = AccountsDialog(self._repo, parent=self)
+        dlg = AccountsDialog(self._repo, toast_callback=self.show_toast, parent=self)
         dlg.exec()
 
     def _open_equalizer_dialog(self) -> None:
