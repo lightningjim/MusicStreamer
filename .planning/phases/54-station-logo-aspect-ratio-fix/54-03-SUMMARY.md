@@ -3,7 +3,7 @@
 **Date:** 2026-04-30
 **Trigger:** Plan 02 SUMMARY recorded `PATH B-1 ESCALATE`
 **Patch scope:** musicstreamer/ui_qt/_art_paths.py — ~10 lines + 2 imports
-**BUG-05 status:** STILL OPEN — escalate
+**BUG-05 status:** BUG-05 STILL OPEN — escalate
 
 ## Patch Summary
 
