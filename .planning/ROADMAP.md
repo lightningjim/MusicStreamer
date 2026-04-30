@@ -144,7 +144,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player (completed 2026-04-28)
 - [x] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off (completed 2026-04-28; UAT passed — no audible click)
 - [x] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu (completed 2026-04-29)
-- [ ] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping
+- [x] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping (completed 2026-04-30)
 - [ ] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections
 - [ ] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID
 - [ ] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test
@@ -236,11 +236,11 @@ Plans:
   2. A landscape-oriented logo displays fully (letterboxed) in the logo viewport
   3. A portrait-oriented logo displays fully (pillarboxed) in the logo viewport
   4. The logo viewport size/position in the layout does not shift between stations
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 54-01-PLAN.md — Path A regression-lock: extend _write_logo with width/height kwargs + add portrait + landscape aspect-preservation tests in tests/test_art_paths.py (locks current correct behavior; no production change)
-- [ ] 54-02-PLAN.md — UAT decision gate: user inspects landscape (id=2) + square baseline (id=10) + synthetic portrait against the running app; signs off PATH A SHIP (Plan 03 SKIPPED) or PATH B-1 ESCALATE (Plan 03 unblocked)
-- [ ] 54-03-PLAN.md — CONDITIONAL Path B-1 ~10-line canvas-paint patch in musicstreamer/ui_qt/_art_paths.py (transparent square QPixmap canvas + QPainter.drawPixmap centering); only executes if Plan 02 records PATH B-1 ESCALATE; UAT re-run confirms BUG-05 closure
+- [x] 54-02-PLAN.md — UAT decision gate: user inspects landscape (id=2) + square baseline (id=10) + synthetic portrait against the running app; signs off PATH A SHIP (Plan 03 SKIPPED) or PATH B-1 ESCALATE (Plan 03 unblocked)
+- [x] 54-03-PLAN.md — CONDITIONAL Path B-1 ~10-line canvas-paint patch in musicstreamer/ui_qt/_art_paths.py (transparent square QPixmap canvas + QPainter.drawPixmap centering); only executes if Plan 02 records PATH B-1 ESCALATE; UAT re-run confirms BUG-05 closure
 **UI hint**: yes
 
 ### Phase 55: Edit Station Preserves Section State
@@ -354,7 +354,7 @@ Plans:
 | 51. AudioAddict Cross-Network Siblings | 5/5 | Complete    | 2026-04-28 |
 | 52. EQ Toggle Dropout Fix | 2/2 | Complete    | 2026-04-28 |
 | 53. YouTube Cookies into Accounts Menu | 2/2 | Complete   | 2026-04-29 |
-| 54. Station Logo Aspect Ratio Fix | 1/3 | In Progress|  |
+| 54. Station Logo Aspect Ratio Fix | 3/3 | Complete   | 2026-04-30 |
 | 55. Edit Station Preserves Section State | 0/? | Not started | - |
 | 56. Windows DI.fm + SMTC Start Menu | 0/? | Not started | - |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
