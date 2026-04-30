@@ -236,7 +236,11 @@ Plans:
   2. A landscape-oriented logo displays fully (letterboxed) in the logo viewport
   3. A portrait-oriented logo displays fully (pillarboxed) in the logo viewport
   4. The logo viewport size/position in the layout does not shift between stations
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 54-01-PLAN.md — Path A regression-lock: extend _write_logo with width/height kwargs + add portrait + landscape aspect-preservation tests in tests/test_art_paths.py (locks current correct behavior; no production change)
+- [ ] 54-02-PLAN.md — UAT decision gate: user inspects landscape (id=2) + square baseline (id=10) + synthetic portrait against the running app; signs off PATH A SHIP (Plan 03 SKIPPED) or PATH B-1 ESCALATE (Plan 03 unblocked)
+- [ ] 54-03-PLAN.md — CONDITIONAL Path B-1 ~10-line canvas-paint patch in musicstreamer/ui_qt/_art_paths.py (transparent square QPixmap canvas + QPainter.drawPixmap centering); only executes if Plan 02 records PATH B-1 ESCALATE; UAT re-run confirms BUG-05 closure
 **UI hint**: yes
 
 ### Phase 55: Edit Station Preserves Section State
