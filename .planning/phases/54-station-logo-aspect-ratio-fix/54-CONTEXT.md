@@ -15,17 +15,14 @@ Fix the **provider-tree station list rows (32px icon column)** so portrait/non-s
 
 ### Surface scope
 - **D-01:** Only the **provider-tree rows** in `station_list_panel.py` / `station_tree_model.py` are in scope. Recently Played items, the now-playing 180×180 logo, the cover-art 160×160 fallback, and the EditStationDialog 64×64 preview are NOT touched in this phase. Researcher should still confirm Recently Played reproduces or not, but the user reports "provider tree only".
-- **D-02:** Symptom is **portrait logos** (taller than wide) losing their **top+bottom**. Landscape logo behavior in the same surface is unconfirmed — researcher must audit both axes; if landscape is also broken, the fix should address both. If only portrait, target portrait only.
 - **D-03:** Target render for a 1:2 portrait logo in the 32px row cell = **16w × 32h pillarboxed, centered**. Row icon-column footprint stays a fixed **32×32** per row so station names remain vertically aligned (SC #4).
 
 ### Bar treatment
 - **D-04:** Pillarbox bars are **transparent** — the row's normal/hover/selection background paints behind them. No solid color, no theme-bg explicit fill, no image-derived edge color, no rounded-rect frame.
 - **D-05:** Logo fills the cell **edge-to-edge** on its longer axis (no inset, no rounded corners, no border). Phase 11 panel rounding does NOT apply at row-icon scale.
-- **D-06:** No special hover/selection treatment — logo paints over the row's selection-accent background as today.
 
 ### YouTube special-casing
 - **D-07:** **Keep the loader uniform.** No YouTube branch, no wider cell for 16:9 thumbs, no square-crop fallback. `load_station_icon` already treats every station identically with `Qt.KeepAspectRatio` — that contract is preserved. YouTube thumbs at 16:9 will render naturally as 32w × 18h letterboxed in the row, just as portrait logos pillarbox to 16w × 32h.
-- **D-08:** Phase 18's ContentFit.CONTAIN special-case was for the GTK-era now-playing 180×180 slot only. It's not relevant to row-icon rendering and is not being reintroduced.
 
 ### Approach + tests
 - **D-09:** **Smallest-diff fix** preferred over a custom QStyledItemDelegate. Researcher diagnoses why the cached aspect-preserving pixmap appears cropped at row-render time despite `_art_paths.py:78` already calling `pix.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)`. Likely candidates: QIcon's internal pixmap-scaling behavior when the view requests a square pixmap from a non-square source, or the tree's iconSize hint mismatch. Custom delegate is acceptable only if a single-call-site fix can't restore aspect-correct rendering.
@@ -34,7 +31,14 @@ Fix the **provider-tree station list rows (32px icon column)** so portrait/non-s
 
 ### Repro
 - **D-12:** Affected stations are **AudioAddict channels** + **manually-added stations** (file-picker uploads can be any aspect). YouTube live thumbs are 16:9 landscape — listed as not-the-portrait-case, but researcher should still verify their row rendering during the audit.
-- **D-13:** **Researcher digs the SQLite DB** (`musicstreamer.sqlite3`) for non-square station_art assets to find a concrete portrait repro for UAT. User did not pin a specific station name.
+
+### Claude's Discretion
+*Decisions captured during discuss-phase that turned out to be informational rather than implementation contracts. Not tracked by the decision-coverage gate; here for audit-trail completeness.*
+
+- **D-02:** Symptom is portrait logos losing top+bottom. *Research-time observation — operationalized via Plan 02 UAT, not a code-level constraint. RESEARCH.md §1 disproved the symptom on Linux/Qt 6.11.0; user's UAT confirms or escalates.*
+- **D-06:** No special hover/selection treatment — logo paints over the row's selection-accent background as today. *"Do nothing" decision — implicit in preserving the existing render path.*
+- **D-08:** Phase 18's ContentFit.CONTAIN special-case was for the GTK-era now-playing 180×180 slot only. *Historical context — no code change implied.*
+- **D-13:** Researcher digs the SQLite DB for portrait repros. *Research-process directive — RESEARCH.md §5 completed this; live DB has 0 portrait stations.*
 
 </decisions>
 
