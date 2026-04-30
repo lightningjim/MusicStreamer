@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap, QPixmapCache
 
 from musicstreamer import paths
@@ -175,3 +175,40 @@ def test_cache_hit_on_second_call(tmp_data_dir, qtbot):
     os.remove(abs_path)
     icon2 = load_station_icon(station)
     assert not icon2.isNull(), "Second call must hit QPixmapCache (file was deleted)"
+
+
+def test_load_station_icon_preserves_portrait_aspect(tmp_data_dir, qtbot):
+    """A 50w x 100h portrait source pixmap loads as 16w x 32h inside the QIcon
+    (aspect ratio preserved, no center crop). Regression lock for BUG-05 / SC #3.
+
+    Phase 54 (D-10): synthetic-pixmap unit test on load_station_icon. Locks
+    the existing pillarbox-correct behavior — would fail under a hypothetical
+    future change that reintroduced crop-to-square scaling.
+    """
+    rel = "assets/5/portrait.png"
+    _write_logo(os.path.join(tmp_data_dir, rel), width=50, height=100)
+
+    station = _make_station(rel)
+    icon = load_station_icon(station)
+
+    pix = icon.pixmap(QSize(32, 32))
+    assert pix.width() == 16, f"expected pillarboxed 16w, got {pix.width()}w"
+    assert pix.height() == 32, f"expected full-height 32h, got {pix.height()}h"
+
+
+def test_load_station_icon_preserves_landscape_aspect(tmp_data_dir, qtbot):
+    """A 100w x 50h landscape source pixmap loads as 32w x 16h inside the QIcon
+    (aspect ratio preserved, no center crop). Covers BUG-05 / SC #2.
+
+    Phase 54: parallel coverage to the portrait test — confirms the same
+    Qt.KeepAspectRatio code path works symmetrically on the landscape axis.
+    """
+    rel = "assets/6/landscape.png"
+    _write_logo(os.path.join(tmp_data_dir, rel), width=100, height=50)
+
+    station = _make_station(rel)
+    icon = load_station_icon(station)
+
+    pix = icon.pixmap(QSize(32, 32))
+    assert pix.width() == 32, f"expected full-width 32w, got {pix.width()}w"
+    assert pix.height() == 16, f"expected letterboxed 16h, got {pix.height()}h"
