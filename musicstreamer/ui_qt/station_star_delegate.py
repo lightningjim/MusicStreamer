@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.models import Station
+from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
 
 _STAR_SIZE = 20
 _STAR_MARGIN = 4
@@ -44,8 +45,18 @@ class StationStarDelegate(QStyledItemDelegate):
     # ----------------------------------------------------------------------
 
     def paint(self, painter, option, index) -> None:
-        super().paint(painter, option, index)
+        # Phase 54-04 (Path B-2 / D-09 escalation): force a square 32x32
+        # decoration rect for station rows so non-square pixmaps (portrait
+        # 16x32, landscape 32x16) are not vertically squeezed when the
+        # platform-default row geometry on Linux X11/Wayland gives Qt a row
+        # shorter than 32px. The mutation MUST happen BEFORE super().paint()
+        # so Qt's CE_ItemViewItem path reads the overridden values.
         station = index.data(Qt.UserRole)
+        if isinstance(station, Station):
+            self.initStyleOption(option, index)
+            option.decorationSize = QSize(STATION_ICON_SIZE, STATION_ICON_SIZE)
+            option.decorationAlignment = Qt.AlignVCenter | Qt.AlignLeft
+        super().paint(painter, option, index)
         if not isinstance(station, Station):
             return  # provider row — no star
 
@@ -63,9 +74,17 @@ class StationStarDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index) -> QSize:
         base = super().sizeHint(option, index)
         station = index.data(Qt.UserRole)
+        # Phase 54 Plan 04 (BLOCKER #1 fix): floor row height at
+        # STATION_ICON_SIZE for ALL rows (not just station rows) because
+        # tree.setUniformRowHeights(True) computes the view's row height from
+        # the FIRST row (a provider row in this tree), so a station-only floor
+        # is silently bypassed. Flooring providers too keeps station names
+        # vertically aligned and gives Qt's super().paint a square 32x32
+        # decoration rect on Linux X11/Wayland (closes VERIFICATION.md Gap 1).
+        h = max(base.height(), STATION_ICON_SIZE)
         if isinstance(station, Station):
-            return QSize(base.width() + _STAR_SIZE + _STAR_MARGIN, base.height())
-        return base
+            return QSize(base.width() + _STAR_SIZE + _STAR_MARGIN, h)
+        return QSize(base.width(), h)
 
     # ----------------------------------------------------------------------
     # editorEvent — handle star click
