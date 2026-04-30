@@ -144,7 +144,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 51: AudioAddict Cross-Network Siblings** — Surface mirror/sibling streams across AA networks in editor and player (completed 2026-04-28)
 - [x] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off (completed 2026-04-28; UAT passed — no audible click)
 - [x] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu (completed 2026-04-29)
-- [x] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping (gaps_found 2026-04-30 — Path B-1 ships landscape fix; Plan 04 scoped for Path B-2 delegate gap-closure on portrait Linux X11/Wayland crop) (completed 2026-04-30)
+- [x] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping (completed 2026-04-30 — Path B-1 canvas patch fixed landscape, Path B-2 delegate decoration-rect override fixed portrait on Linux X11/Wayland)
 - [ ] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections
 - [ ] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID
 - [ ] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test
