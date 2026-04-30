@@ -70,7 +70,17 @@ def tmp_data_dir(tmp_path, monkeypatch):
 
 
 def _non_transparent_bbox(pix: QPixmap) -> tuple[int, int, int, int]:
-    """Return (min_x, min_y, max_x, max_y) of the non-transparent region."""
+    """Return (min_x, min_y, max_x, max_y) of the non-transparent region.
+
+    Cost: O(width * height) Python-to-C++ pixelColor() roundtrips. WR-05 /
+    Phase 54 review: guard against null pixmaps (which would silently return
+    bogus sentinels) and against accidentally being called on large pixmaps
+    where this scan becomes prohibitively expensive.
+    """
+    assert not pix.isNull(), "_non_transparent_bbox requires a non-null pixmap"
+    assert pix.width() <= 64 and pix.height() <= 64, (
+        "_non_transparent_bbox is O(n^2); not for large pixmaps"
+    )
     img = pix.toImage()
     min_x, min_y, max_x, max_y = img.width(), img.height(), -1, -1
     for y in range(img.height()):
