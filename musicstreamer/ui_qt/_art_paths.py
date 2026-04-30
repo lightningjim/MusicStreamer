@@ -84,6 +84,12 @@ def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
         # non-square decoration pixmap is centered inside a 32x32 cell.
         # Phase 54 / D-04 (transparent bars) / D-05 (edge-to-edge longer axis).
         pix = QPixmap(size, size)
+        # Carry the source pixmap's devicePixelRatio onto the canvas so QIcon
+        # does not nearest-neighbor up-scale our output on HiDPI displays
+        # (Wayland fractional, macOS Retina, Windows 1.5x/2x). Without this
+        # the new transparent canvas defaults to DPR=1.0 and Qt blurs the
+        # logo on >1.0 DPR rows. CR-01 / Phase 54 review.
+        pix.setDevicePixelRatio(scaled.devicePixelRatio())
         pix.fill(Qt.transparent)
         painter = QPainter(pix)
         x = (size - scaled.width()) // 2
