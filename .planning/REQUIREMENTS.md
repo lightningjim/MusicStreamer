@@ -18,7 +18,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 - [x] **BUG-02**: Cross-network AudioAddict mirror/sibling streams surface as related streams when editing or playing a station *(stub: 999.4)*
 - [x] **BUG-03**: Toggling EQ on/off does not produce an audible audio dropout *(stub: 999.5)*
 - [x] **BUG-04**: YouTube cookies entry is consolidated into the Accounts menu (single accounts surface for Twitch + YouTube) *(stub: 999.6)*
-- [x] **BUG-05**: Rectangular brand logos display fully in the radio logo view (no square-only crop that cuts off content) *(stub: 999.10)*
+- [ ] **BUG-05**: Rectangular brand logos display fully in the radio logo view (no square-only crop that cuts off content) *(stub: 999.10)* — Phase 54 partially closed: landscape fixed (Path B-1, commit `b1a9088`); portrait still cropped on Linux X11/Wayland (decoration-rect geometry, not the icon); awaiting Path B-2 delegate-level gap-closure
 - [ ] **BUG-06**: Saving an edit in `EditStationDialog` preserves the open/closed state of expandable sections (does not collapse all open sections on save) *(stub: 999.11)*
 - [ ] **BUG-08**: Linux force-quit and other WM-level dialogs display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer" — Linux parallel to WIN-02 *(surfaced during Phase 50 UAT 2026-04-28)*
 - [ ] **BUG-09**: Intermittent audio dropouts/stutters when the GStreamer buffer can't keep up are observable, attributable, and (once root-caused) mitigated. Repro is unclear at filing time — phase ships diagnostic instrumentation first, then a behavior fix once root cause is observable *(surfaced 2026-04-28)*
@@ -85,7 +85,7 @@ Which phases cover which requirements.
 | BUG-02 | Phase 51 | Complete |
 | BUG-03 | Phase 52 | Complete |
 | BUG-04 | Phase 53 | Complete |
-| BUG-05 | Phase 54 | Complete |
+| BUG-05 | Phase 54 | Partial — landscape fixed; portrait awaiting Path B-2 gap-closure |
 | BUG-06 | Phase 55 | Pending |
 | WIN-01 | Phase 56 | Pending |
 | WIN-02 | Phase 56 | Pending |
