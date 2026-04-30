@@ -35,10 +35,21 @@ def _make_station(art_path):
     )
 
 
-def _write_logo(path: str, size: int = 64) -> None:
-    """Write a real PNG file to ``path`` so QPixmap(path) returns a non-null pixmap."""
+def _write_logo(
+    path: str,
+    size: int = 64,
+    width: int | None = None,
+    height: int | None = None,
+) -> None:
+    """Write a real PNG file to ``path`` so QPixmap(path) returns a non-null pixmap.
+
+    When ``width``/``height`` are provided, they override ``size`` and produce
+    a non-square fixture (e.g. width=50, height=100 for a 1:2 portrait).
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    pix = QPixmap(size, size)
+    w = width if width is not None else size
+    h = height if height is not None else size
+    pix = QPixmap(w, h)
     pix.fill(Qt.red)
     assert pix.save(path, "PNG"), f"failed to write fixture logo at {path}"
 
