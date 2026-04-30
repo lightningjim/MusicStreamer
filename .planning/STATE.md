@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 54 context gathered
-last_updated: "2026-04-30T00:18:38.611Z"
-last_activity: 2026-04-30 -- Phase 54 planning complete
+last_updated: "2026-04-30T00:56:41.499Z"
+last_activity: 2026-04-30
 progress:
   total_phases: 18
   completed_phases: 4
   total_plans: 13
-  completed_plans: 10
-  percent: 77
+  completed_plans: 11
+  percent: 85
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 53 — youtube-cookies-into-accounts-menu
+**Current focus:** Phase 54 — Station Logo Aspect Ratio Fix
 
 ## Current Position
 
-Phase: 53 (youtube-cookies-into-accounts-menu) — EXECUTING
-Plan: 2 of 2
+Phase: 54 (Station Logo Aspect Ratio Fix) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-04-30 -- Phase 54 planning complete
+Last activity: 2026-04-30
 
 ## Performance Metrics
 
@@ -103,6 +103,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: Phase 51-01: Extended url_helpers.py rather than creating aa_siblings.py — all dependencies (NETWORKS, _is_aa_url, _aa_slug_from_url, _aa_channel_key_from_url) already in module
 - [Phase ?]: Phase 51-01: find_aa_siblings returns tuple[network_slug, station_id, station_name] over dict — cheaper unpacking by Plan 03 renderer; HTML escaping is renderer's responsibility
 - [Phase 51]: Phase 51-03: Qt.RichText QLabel with html.escape mitigation introduced as project-first T-39-01 deviation, locally bounded to one QLabel
+- [Phase ?]: Phase 54-01: regression-lock shipped (Path A) — zero production code change per D-09; D-11 cache key invariant preserved
 
 ### Roadmap Evolution
 
@@ -149,9 +150,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
 | Phase 50 P01 | 25min | 3 tasks | 4 files |
 | Phase 51 P03 | 8min | 2 tasks | 2 files |
+| Phase 54 P01 | 4 min | 3 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-04-29T21:54:36.083Z
+Last session: 2026-04-30T00:56:24.604Z
 Stopped at: Phase 54 context gathered
-Resume file: .planning/phases/54-station-logo-aspect-ratio-fix/54-CONTEXT.md
+Resume file: None

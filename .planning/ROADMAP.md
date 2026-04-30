@@ -236,9 +236,9 @@ Plans:
   2. A landscape-oriented logo displays fully (letterboxed) in the logo viewport
   3. A portrait-oriented logo displays fully (pillarboxed) in the logo viewport
   4. The logo viewport size/position in the layout does not shift between stations
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
-- [ ] 54-01-PLAN.md — Path A regression-lock: extend _write_logo with width/height kwargs + add portrait + landscape aspect-preservation tests in tests/test_art_paths.py (locks current correct behavior; no production change)
+- [x] 54-01-PLAN.md — Path A regression-lock: extend _write_logo with width/height kwargs + add portrait + landscape aspect-preservation tests in tests/test_art_paths.py (locks current correct behavior; no production change)
 - [ ] 54-02-PLAN.md — UAT decision gate: user inspects landscape (id=2) + square baseline (id=10) + synthetic portrait against the running app; signs off PATH A SHIP (Plan 03 SKIPPED) or PATH B-1 ESCALATE (Plan 03 unblocked)
 - [ ] 54-03-PLAN.md — CONDITIONAL Path B-1 ~10-line canvas-paint patch in musicstreamer/ui_qt/_art_paths.py (transparent square QPixmap canvas + QPainter.drawPixmap centering); only executes if Plan 02 records PATH B-1 ESCALATE; UAT re-run confirms BUG-05 closure
 **UI hint**: yes
@@ -354,7 +354,7 @@ Plans:
 | 51. AudioAddict Cross-Network Siblings | 5/5 | Complete    | 2026-04-28 |
 | 52. EQ Toggle Dropout Fix | 2/2 | Complete    | 2026-04-28 |
 | 53. YouTube Cookies into Accounts Menu | 2/2 | Complete   | 2026-04-29 |
-| 54. Station Logo Aspect Ratio Fix | 0/? | Not started | - |
+| 54. Station Logo Aspect Ratio Fix | 1/3 | In Progress|  |
 | 55. Edit Station Preserves Section State | 0/? | Not started | - |
 | 56. Windows DI.fm + SMTC Start Menu | 0/? | Not started | - |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
