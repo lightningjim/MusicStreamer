@@ -1,10 +1,11 @@
 ---
-status: gaps_found
+status: pass
 phase: 54-station-logo-aspect-ratio-fix
 must_haves_total: 4
-must_haves_verified: 3
-must_haves_failed: 1
+must_haves_verified: 4
+must_haves_failed: 0
 generated: 2026-04-30
+updated: 2026-04-30
 ---
 
 # Phase 54 Verification — Station Logo Aspect Ratio Fix
@@ -13,9 +14,9 @@ generated: 2026-04-30
 
 Station logos in the radio logo view display fully regardless of their natural aspect ratio — square logos are not cropped, and rectangular logos are letterboxed/pillarboxed rather than cut off.
 
-## Verdict: gaps_found
+## Verdict: pass
 
-The phase shipped a Path B-1 canvas-paint patch in `_art_paths.py` that successfully fixes landscape rendering and is correctly verified by the regression-lock tests. However, on the user's Linux X11/Wayland desktop session, portrait-oriented sources (taller-than-wide) still render with the top and bottom of the painted region clipped. The QIcon contract is correct (proven by tests); the cropping originates in the row's decoration-rect geometry, downstream of `load_station_icon`. Path B-2 (delegate-controlled decoration rect) is now indicated.
+Phase 54 closed in two stages. Plan 03's Path B-1 canvas-paint patch in `_art_paths.py` (commit `b1a9088`) shipped a square 32×32 transparent QPixmap canvas through `load_station_icon`, fixing landscape rendering and locking the QIcon contract behind 9 regression-lock tests. UAT then revealed a second-order failure: on Linux X11/Wayland, the row's default decoration rect was wider than tall, so Qt squeezed the square pixmap into a landscape-shaped slot and clipped the top + bottom of the painted portrait region. Plan 04's Path B-2 delegate patch (commit `af63397`) overrides `StationStarDelegate.paint()` to force `option.decorationSize = QSize(32, 32)` and `option.decorationAlignment = Qt.AlignVCenter | Qt.AlignLeft` before delegating to `super().paint()`, and floors `sizeHint().height()` at 32 for both station and provider rows so `setUniformRowHeights(True)` propagates the right height view-wide. UAT re-run confirmed portrait, landscape, and square sources all render correctly; favorite-toggle star unaffected. BUG-05 closed.
 
 ## Must-Have Coverage
 
@@ -23,14 +24,19 @@ The phase shipped a Path B-1 canvas-paint patch in `_art_paths.py` that successf
 |---|-----------|----------|--------|
 | 1 | Square logos display edge-to-edge with no cropping | UAT step #4 (20th Century, id=10) — visually unchanged pre/post patch | ✅ Verified |
 | 2 | Landscape logos display 32×16 letterboxed and centered vertically in 32×32 row icon cells | UAT step #1 (Living Coffee + TOKYO Cafe in Cafe BGM panel) — `uat-landscape-after.png` shows uniform 32×32 cells with 32×16 thumbnails letterboxed | ✅ Verified |
-| 3 | Icon column is uniform 32×32 across all stations regardless of source aspect | UAT step #5 — landscape & square sources now uniform; portrait sources still distort | ⚠ Partially — fails on portrait sources |
-| 4 | Portrait logos display 16×32 pillarboxed and centered horizontally in 32×32 row icon cells | UAT step #3 (synthetic 50×100 red `/tmp/portrait.png` installed via EditStationDialog) — user reports "still cropped, top and bottom halves cut off, acting like landscape for everything" after full reboot + `run_local.sh` relaunch (cache definitively flushed) | ❌ FAILED |
+| 3 | Icon column is uniform 32×32 across all stations regardless of source aspect | Plan 04 UAT — landscape, square, AND portrait sources now uniform on Linux X11/Wayland; user signed off `approved` | ✅ Verified |
+| 4 | Portrait logos display 16×32 pillarboxed and centered horizontally in 32×32 row icon cells | Plan 04 UAT step #1 (synthetic 50×100 red `/tmp/portrait.png` installed via EditStationDialog) — pillarboxed correctly after Path B-2 delegate patch (commit `af63397`); user signed off `approved` | ✅ Verified |
 
-**Score:** 3/4 must-haves verified.
+**Score:** 4/4 must-haves verified.
 
 ## Gaps
 
-### Gap 1 — Portrait sources still vertically cropped on Linux X11/Wayland
+### Gap 1 (CLOSED — Plan 04, Path B-2) — Portrait sources still vertically cropped on Linux X11/Wayland
+
+**Resolution:** Plan 04's delegate patch (commit `af63397`) closes this gap by forcing a square 32×32 decoration rect via `option.decorationSize` mutation and `sizeHint().height()` floor on both row branches. UAT re-run confirmed portrait sources now render 16w × 32h pillarboxed with no top/bottom clipping. See `54-04-SUMMARY.md`.
+
+**Original diagnosis (preserved for audit trail):**
+
 
 **Symptom:** After applying the Path B-1 canvas-paint patch (commit `b1a9088`), a portrait-oriented source (50×100 red synthetic via `/tmp/portrait.png`) still renders with the top and bottom of the painted region clipped on the user's live Qt session. The visual outcome looks like the row's icon cell is shorter than it is wide ("acting like landscape for everything").
 
