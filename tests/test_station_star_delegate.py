@@ -18,7 +18,7 @@ import os
 import pytest
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QPainter, QPixmap, QPixmapCache
-from PySide6.QtWidgets import QStyleOptionViewItem
+from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
 from musicstreamer import paths
 from musicstreamer.models import Station
@@ -216,9 +216,11 @@ def test_sizehint_floors_height_at_32_for_provider_rows(tmp_data_dir, qtbot):
     )
 
     # Assertion 2 — width does NOT include star reservation (D-01 invariant).
-    # Compare against a fresh super-class instance so we measure the un-overridden
-    # super().sizeHint() width for the same option/index.
-    super_hint = StationStarDelegate.__bases__[0]().sizeHint(option, provider_idx)
+    # WR-06 / Phase 54 review: call QStyledItemDelegate.sizeHint as an
+    # unbound method on `delegate` rather than instantiating a fresh
+    # __bases__[0]() — which both leaks an unparented QObject and couples
+    # this test to the inheritance order of StationStarDelegate.
+    super_hint = QStyledItemDelegate.sizeHint(delegate, option, provider_idx)
     assert hint.width() == super_hint.width(), (
         f"provider row width must NOT include star reservation, got "
         f"{hint.width()} vs base {super_hint.width()}"
