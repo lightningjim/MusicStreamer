@@ -106,12 +106,20 @@ def test_relative_station_art_path_resolves_via_abs_art_path(tmp_data_dir, qtbot
 
     assert isinstance(icon, QIcon)
     assert not icon.isNull(), "Icon must be non-null when a valid logo file exists"
-    # If the real logo loaded, the pixmap must NOT be the fallback.
-    fallback_pix = QPixmap(FALLBACK_ICON)
+    # WR-04 / Phase 54 review: assert the fixture's red pixel is present at
+    # the canvas center rather than comparing full-image equality against the
+    # fallback. The Plan-04 transparent-canvas patch makes the previous
+    # equality check tautological (loaded canvas has transparent margins;
+    # fallback.scaled does not), so it would always inequal regardless of
+    # whether the real logo loaded.
     loaded_pix = icon.pixmap(32, 32)
-    assert loaded_pix.toImage() != fallback_pix.scaled(
-        32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation
-    ).toImage(), "Expected real logo, got fallback"
+    img = loaded_pix.toImage()
+    center = img.pixelColor(img.width() // 2, img.height() // 2)
+    assert center.red() > 200 and center.green() < 50 and center.blue() < 50, (
+        f"expected red fixture logo at center, got "
+        f"rgb=({center.red()},{center.green()},{center.blue()}) "
+        f"alpha={center.alpha()} — likely the fallback or wrong pixel"
+    )
 
 
 def test_missing_file_falls_back_without_raising(tmp_data_dir, qtbot):
@@ -139,11 +147,15 @@ def test_absolute_path_passes_through_unchanged(tmp_path, qtbot):
     icon = load_station_icon(station)
 
     assert not icon.isNull()
-    fallback_pix = QPixmap(FALLBACK_ICON).scaled(
-        32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation
-    )
+    # WR-04 / Phase 54 review: see relative-path test above for rationale.
     loaded_pix = icon.pixmap(32, 32)
-    assert loaded_pix.toImage() != fallback_pix.toImage(), "Expected absolute-path logo, got fallback"
+    img = loaded_pix.toImage()
+    center = img.pixelColor(img.width() // 2, img.height() // 2)
+    assert center.red() > 200 and center.green() < 50 and center.blue() < 50, (
+        f"expected red fixture logo at center, got "
+        f"rgb=({center.red()},{center.green()},{center.blue()}) "
+        f"alpha={center.alpha()} — likely the fallback or wrong pixel"
+    )
 
 
 def test_default_size_is_32px(tmp_data_dir, qtbot):
