@@ -69,6 +69,24 @@ def tmp_data_dir(tmp_path, monkeypatch):
     return str(tmp_path)
 
 
+def _non_transparent_bbox(pix: QPixmap) -> tuple[int, int, int, int]:
+    """Return (min_x, min_y, max_x, max_y) of the non-transparent region."""
+    img = pix.toImage()
+    min_x, min_y, max_x, max_y = img.width(), img.height(), -1, -1
+    for y in range(img.height()):
+        for x in range(img.width()):
+            if img.pixelColor(x, y).alpha() > 0:
+                if x < min_x:
+                    min_x = x
+                if y < min_y:
+                    min_y = y
+                if x > max_x:
+                    max_x = x
+                if y > max_y:
+                    max_y = y
+    return min_x, min_y, max_x, max_y
+
+
 # ----------------------------------------------------------------------
 # Tests
 # ----------------------------------------------------------------------
@@ -192,8 +210,14 @@ def test_load_station_icon_preserves_portrait_aspect(tmp_data_dir, qtbot):
     icon = load_station_icon(station)
 
     pix = icon.pixmap(QSize(32, 32))
-    assert pix.width() == 16, f"expected pillarboxed 16w, got {pix.width()}w"
-    assert pix.height() == 32, f"expected full-height 32h, got {pix.height()}h"
+    min_x, min_y, max_x, max_y = _non_transparent_bbox(pix)
+    region_w = max_x - min_x + 1
+    region_h = max_y - min_y + 1
+    assert region_w == 16, f"expected painted region 16w, got {region_w}w"
+    assert region_h == 32, f"expected painted region 32h, got {region_h}h"
+    # Pillarbox bars are transparent on left + right.
+    assert min_x == 8 and max_x == 23, f"expected centered x=8..23, got x={min_x}..{max_x}"
+    assert min_y == 0 and max_y == 31, f"expected full-height y=0..31, got y={min_y}..{max_y}"
 
 
 def test_load_station_icon_preserves_landscape_aspect(tmp_data_dir, qtbot):
@@ -210,5 +234,11 @@ def test_load_station_icon_preserves_landscape_aspect(tmp_data_dir, qtbot):
     icon = load_station_icon(station)
 
     pix = icon.pixmap(QSize(32, 32))
-    assert pix.width() == 32, f"expected full-width 32w, got {pix.width()}w"
-    assert pix.height() == 16, f"expected letterboxed 16h, got {pix.height()}h"
+    min_x, min_y, max_x, max_y = _non_transparent_bbox(pix)
+    region_w = max_x - min_x + 1
+    region_h = max_y - min_y + 1
+    assert region_w == 32, f"expected painted region 32w, got {region_w}w"
+    assert region_h == 16, f"expected painted region 16h, got {region_h}h"
+    # Letterbox bars are transparent above + below.
+    assert min_x == 0 and max_x == 31, f"expected full-width x=0..31, got x={min_x}..{max_x}"
+    assert min_y == 8 and max_y == 23, f"expected centered y=8..23, got y={min_y}..{max_y}"

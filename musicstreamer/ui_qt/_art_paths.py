@@ -20,8 +20,8 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap, QPixmapCache
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QIcon, QPainter, QPixmap, QPixmapCache
 
 from musicstreamer import paths
 from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
@@ -72,9 +72,23 @@ def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
 
     pix = QPixmap()
     if not QPixmapCache.find(key, pix):
-        pix = QPixmap(load_path)
-        if pix.isNull():
-            pix = QPixmap(FALLBACK_ICON)
-        pix = pix.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        src = QPixmap(load_path)
+        if src.isNull():
+            src = QPixmap(FALLBACK_ICON)
+        scaled = src.scaled(
+            size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        # Paint onto a transparent square canvas so QIcon stores a perfectly
+        # square pixmap with the logo centered and pillarbox/letterbox
+        # transparent. Eliminates any platform-style ambiguity about how a
+        # non-square decoration pixmap is centered inside a 32x32 cell.
+        # Phase 54 / D-04 (transparent bars) / D-05 (edge-to-edge longer axis).
+        pix = QPixmap(size, size)
+        pix.fill(Qt.transparent)
+        painter = QPainter(pix)
+        x = (size - scaled.width()) // 2
+        y = (size - scaled.height()) // 2
+        painter.drawPixmap(QPoint(x, y), scaled)
+        painter.end()
         QPixmapCache.insert(key, pix)
     return QIcon(pix)
