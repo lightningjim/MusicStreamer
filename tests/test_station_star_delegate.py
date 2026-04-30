@@ -259,33 +259,11 @@ def test_uniform_row_height_applies_floor_with_provider_first_row(tmp_data_dir, 
     )
 
 
-def test_paint_provider_row_does_not_force_decoration_size(tmp_data_dir, qtbot):
-    """delegate.paint on a provider row must NOT mutate option.decorationSize.
-
-    Provider rows have no station icon — forcing a 32x32 decoration rect on
-    them would cause Qt to ask for a non-existent decoration. Provider rows
-    must take the super-class default decoration path.
-    """
-    model, delegate = _build_model_and_delegate(tmp_data_dir, qtbot)
-    provider_idx = _provider_index(model)
-    option = QStyleOptionViewItem()
-    delegate.initStyleOption(option, provider_idx)
-    # Capture decorationSize as initStyleOption set it (likely default, e.g. 0x0
-    # since provider rows have no DecorationRole data).
-    pre_paint_dec_size = QSize(option.decorationSize)
-
-    canvas = QPixmap(200, 64)
-    canvas.fill(Qt.white)
-    painter = QPainter(canvas)
-    try:
-        delegate.paint(painter, option, provider_idx)
-    finally:
-        painter.end()
-
-    # Provider-row paint must not have force-set decorationSize to 32x32.
-    # If pre_paint_dec_size was already 32x32 by some accident, accept that.
-    # Otherwise the post-paint value must equal the pre-paint value.
-    assert option.decorationSize == pre_paint_dec_size, (
-        f"provider-row paint must not mutate decorationSize; expected "
-        f"{pre_paint_dec_size}, got {option.decorationSize}"
-    )
+# WR-07 / Phase 54 review: removed test_paint_provider_row_does_not_force_decoration_size.
+# It was tautological: super().paint() internally re-runs initStyleOption,
+# which re-derives decorationSize from the model — so a snapshot taken before
+# super().paint() always equaled the post-paint value regardless of whether
+# the delegate touched it. The structural `if isinstance(station, Station)`
+# guard in StationStarDelegate.paint enforces the negative case at the source
+# level, and test_paint_forces_square_decoration_rect covers the positive
+# (station-row) case.
