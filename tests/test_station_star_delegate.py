@@ -23,7 +23,10 @@ from PySide6.QtWidgets import QStyleOptionViewItem
 from musicstreamer import paths
 from musicstreamer.models import Station
 from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
-from musicstreamer.ui_qt.station_star_delegate import StationStarDelegate
+from musicstreamer.ui_qt.station_star_delegate import (
+    StationStarDelegate,
+    _PROVIDER_TREE_MIN_ROW_HEIGHT,
+)
 from musicstreamer.ui_qt.station_tree_model import StationTreeModel
 # Side-effect import: registers :/icons/ resource prefix so QPixmap can
 # resolve FALLBACK_ICON in tests.
@@ -205,9 +208,11 @@ def test_sizehint_floors_height_at_32_for_provider_rows(tmp_data_dir, qtbot):
 
     hint = delegate.sizeHint(option, provider_idx)
 
-    # Assertion 1 — height floored at 32 (BLOCKER #1 fix).
-    assert hint.height() >= STATION_ICON_SIZE, (
-        f"provider row sizeHint must floor at {STATION_ICON_SIZE}, got {hint.height()}"
+    # Assertion 1 — height floored at the provider-tree row-height knob
+    # (decoupled from STATION_ICON_SIZE; see WR-02 / Phase 54 review).
+    assert hint.height() >= _PROVIDER_TREE_MIN_ROW_HEIGHT, (
+        f"provider row sizeHint must floor at {_PROVIDER_TREE_MIN_ROW_HEIGHT}, "
+        f"got {hint.height()}"
     )
 
     # Assertion 2 — width does NOT include star reservation (D-01 invariant).

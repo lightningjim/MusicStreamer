@@ -22,6 +22,14 @@ from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
 
 _STAR_SIZE = 20
 _STAR_MARGIN = 4
+# Floor for provider-row sizeHint height. Decoupled from STATION_ICON_SIZE on
+# purpose: tree.setUniformRowHeights(True) probes the FIRST row (a provider)
+# for the per-row height, so a station-only floor is silently bypassed and
+# provider rows must report >= STATION_ICON_SIZE for stations to render
+# square. Kept as a separate knob so a future increase to STATION_ICON_SIZE
+# (e.g. for HiDPI) does not silently inflate provider-tree row height.
+# WR-02 / Phase 54 review.
+_PROVIDER_TREE_MIN_ROW_HEIGHT = 32
 
 
 def _star_rect(row_rect: QRect) -> QRect:
@@ -77,16 +85,17 @@ class StationStarDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index) -> QSize:
         base = super().sizeHint(option, index)
         station = index.data(Qt.UserRole)
-        # Phase 54 Plan 04 (BLOCKER #1 fix): floor row height at
-        # STATION_ICON_SIZE for ALL rows (not just station rows) because
-        # tree.setUniformRowHeights(True) computes the view's row height from
-        # the FIRST row (a provider row in this tree), so a station-only floor
-        # is silently bypassed. Flooring providers too keeps station names
-        # vertically aligned and gives Qt's super().paint a square 32x32
-        # decoration rect on Linux X11/Wayland (closes VERIFICATION.md Gap 1).
-        h = max(base.height(), STATION_ICON_SIZE)
+        # Phase 54 Plan 04 (BLOCKER #1 fix): floor row height for ALL rows
+        # because tree.setUniformRowHeights(True) computes the view's row
+        # height from the FIRST row (a provider row in this tree), so a
+        # station-only floor is silently bypassed. Station rows floor at
+        # STATION_ICON_SIZE; provider rows floor at the decoupled
+        # _PROVIDER_TREE_MIN_ROW_HEIGHT (see constant docstring above).
+        # WR-02 / Phase 54 review.
         if isinstance(station, Station):
+            h = max(base.height(), STATION_ICON_SIZE)
             return QSize(base.width() + _STAR_SIZE + _STAR_MARGIN, h)
+        h = max(base.height(), _PROVIDER_TREE_MIN_ROW_HEIGHT)
         return QSize(base.width(), h)
 
     # ----------------------------------------------------------------------
