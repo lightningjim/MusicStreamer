@@ -54,8 +54,13 @@ def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
            FALLBACK_ICON.
 
     Cache key is ``f"station-logo:{abs_path or FALLBACK_ICON}"`` keyed on the
-    resolved absolute path so the same logo referenced as relative vs. absolute
-    hits the same cache entry (D-03).
+    resolved-then-joined absolute path string. Note: paths are joined via
+    ``os.path.join`` but NOT canonicalized (no ``os.path.normpath`` /
+    ``os.path.realpath``), so callers passing a non-canonical relative form
+    (e.g. ``./assets/1/logo.png`` vs ``assets/1/logo.png``) may not hit a
+    previously-cached entry for the equivalent canonical path. Once a given
+    string is used, subsequent calls with the same string hit the same cache
+    entry (D-03). WR-03 / Phase 54 review.
 
     Parameters
     ----------
