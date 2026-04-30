@@ -49,11 +49,14 @@ class StationStarDelegate(QStyledItemDelegate):
         # decoration rect for station rows so non-square pixmaps (portrait
         # 16x32, landscape 32x16) are not vertically squeezed when the
         # platform-default row geometry on Linux X11/Wayland gives Qt a row
-        # shorter than 32px. The mutation MUST happen BEFORE super().paint()
-        # so Qt's CE_ItemViewItem path reads the overridden values.
+        # shorter than 32px. Qt has already populated `option` (including
+        # selected/hover/focus state) before paint() is invoked, so we mutate
+        # `option` in place — calling self.initStyleOption() here would
+        # overwrite that view-supplied state. The mutations MUST happen
+        # before super().paint() so Qt's CE_ItemViewItem path reads them.
+        # WR-01 / Phase 54 review.
         station = index.data(Qt.UserRole)
         if isinstance(station, Station):
-            self.initStyleOption(option, index)
             option.decorationSize = QSize(STATION_ICON_SIZE, STATION_ICON_SIZE)
             option.decorationAlignment = Qt.AlignVCenter | Qt.AlignLeft
         super().paint(painter, option, index)
