@@ -46,6 +46,7 @@ from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.models import Station
+from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -114,6 +115,13 @@ class NowPlayingPanel(QWidget):
     # Emitted when the user stops playback via the in-panel Stop button (not via OS media key).
     stopped_by_user = Signal()
 
+    # Phase 64 / D-02: emitted when user clicks an 'Also on:' sibling link.
+    # Payload is the resolved sibling Station; MainWindow connects to
+    # _on_sibling_activated which delegates to _on_station_activated to switch
+    # active playback. Mirrors edit_requested in payload shape (Station via
+    # Signal(object)).
+    sibling_activated = Signal(object)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -159,6 +167,26 @@ class NowPlayingPanel(QWidget):
         self.name_provider_label.setFont(np_font)
         self.name_provider_label.setTextFormat(Qt.PlainText)
         center.addWidget(self.name_provider_label)
+
+        # Phase 64 / D-01, D-05, D-05a: cross-network "Also on:" sibling line.
+        # Mirrors EditStationDialog._sibling_label config at edit_station_dialog.py:405-411.
+        # First QLabel in NowPlayingPanel to use Qt.RichText (deviation from
+        # T-39-01 PlainText convention) -- required for inline <a href> links.
+        # Mitigation: html.escape on every Station.name interpolation inside
+        # render_sibling_html (Plan 01, url_helpers.py). Network display names
+        # come from the NETWORKS compile-time constant; the href payload is
+        # integer-only ("sibling://{id}") so it cannot carry injectable content.
+        # Hidden until populated (D-05) -- QVBoxLayout reclaims zero vertical
+        # space for hidden children.
+        # UI-SPEC font lock: NO setFont call (inherits Qt platform default,
+        # parity with Phase 51 dialog version).
+        self._sibling_label = QLabel("", self)
+        self._sibling_label.setTextFormat(Qt.RichText)
+        self._sibling_label.setOpenExternalLinks(False)
+        self._sibling_label.setVisible(False)
+        # QA-05: bound-method connection (no self-capturing lambda).
+        self._sibling_label.linkActivated.connect(self._on_sibling_link_activated)
+        center.addWidget(self._sibling_label)
 
         # ICY title (UI-SPEC Heading role 13pt DemiBold)
         self.icy_label = QLabel("No station playing", self)
@@ -342,6 +370,10 @@ class NowPlayingPanel(QWidget):
         self._show_station_logo()
         self._show_station_logo_in_cover_slot()
         self._populate_stream_picker(station)
+        # Phase 64 / D-04: re-derive 'Also on:' line for the newly bound station.
+        # This is the ONLY call site for _refresh_siblings -- D-04 invariant
+        # (locked by test_refresh_siblings_runs_once_per_bind_station_call).
+        self._refresh_siblings()
 
     # ----------------------------------------------------------------------
     # Player signal slots (wired by MainWindow in 37-04)
@@ -606,6 +638,81 @@ class NowPlayingPanel(QWidget):
     def _show_station_logo_in_cover_slot(self) -> None:
         path = self._station.station_art_path if self._station else None
         self.cover_label.setPixmap(_load_scaled_pixmap(path, QSize(160, 160)))
+
+    # ----------------------------------------------------------------------
+    # Phase 64 / D-01..D-08 -- cross-network sibling list (BUG-02 follow-up)
+    # ----------------------------------------------------------------------
+
+    def _refresh_siblings(self) -> None:
+        """Phase 64 / D-04, D-05: refresh the 'Also on:' label for the bound station.
+
+        Reads self._station.streams[0].url, scans repo.list_stations() for AA
+        siblings on different networks, then either populates _sibling_label
+        with HTML or hides it entirely (zero vertical space when no siblings).
+
+        Hidden-when-empty (D-05) covers four cases:
+          1. self._station is None (panel never bound).
+          2. self._station.streams is empty (defensive -- find_aa_siblings
+             returns [] for empty current_first_url anyway).
+          3. Bound station is non-AA -> find_aa_siblings returns [].
+          4. AA station with a key but no other AA stations on other networks
+             share the key -> returns [].
+        """
+        if self._station is None or not self._station.streams:
+            self._sibling_label.setVisible(False)
+            self._sibling_label.setText("")
+            return
+        current_url = self._station.streams[0].url
+        all_stations = self._repo.list_stations()
+        siblings = find_aa_siblings(
+            stations=all_stations,
+            current_station_id=self._station.id,
+            current_first_url=current_url,
+        )
+        if not siblings:
+            self._sibling_label.setVisible(False)
+            self._sibling_label.setText("")
+            return
+        self._sibling_label.setText(
+            render_sibling_html(siblings, self._station.name)
+        )
+        self._sibling_label.setVisible(True)
+
+    def _on_sibling_link_activated(self, href: str) -> None:
+        """Phase 64 / D-02, D-08: parse the sibling href, look up the Station,
+        emit sibling_activated.
+
+        Mirrors EditStationDialog._on_sibling_link_activated (lines 1004-1051) but
+        has no dirty-state confirm path -- the panel has no editable form. The
+        surface contract is 'user clicked a sibling -> switch playback to it',
+        not 'user clicked a sibling -> navigate to its editor'.
+
+        Dual-shape repo.get_station handling (RESEARCH Pitfall #2):
+          - Production Repo.get_station raises ValueError on miss (repo.py:271).
+          - Some test doubles (MainWindow.FakeRepo) return None.
+        Wrap in try/except Exception + check `is None` to be safe in both
+        shapes. Qt slots-never-raise: bail silently on any failure path.
+        """
+        prefix = "sibling://"
+        if not href.startswith(prefix):
+            return
+        try:
+            sibling_id = int(href[len(prefix):])
+        except ValueError:
+            return
+        # D-08 defense-in-depth: silent no-op if no station bound, or if the
+        # sibling id matches the bound station (find_aa_siblings excludes self
+        # at url_helpers.py:122, but rendering staleness could theoretically
+        # allow a stale link).
+        if self._station is None or self._station.id == sibling_id:
+            return
+        try:
+            sibling = self._repo.get_station(sibling_id)
+        except Exception:
+            return
+        if sibling is None:
+            return
+        self.sibling_activated.emit(sibling)
 
     # ----------------------------------------------------------------------
     # Phase 47.1: Stats-for-nerds widget construction (D-07/D-08/D-09/D-10)

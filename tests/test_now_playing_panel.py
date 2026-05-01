@@ -764,3 +764,173 @@ def test_eq_toggle_fires_exactly_once_per_click(qtbot):
     assert player.calls.count(("enabled", False)) == 1, (
         "exactly one False call across the two clicks"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 64 / D-01..D-08, SC #1..SC #5: cross-network sibling line on the panel
+# ---------------------------------------------------------------------------
+
+
+def test_sibling_label_visible_for_aa_station_with_siblings(qtbot):
+    """Phase 64 / SC #1: bound AA station with cross-network sibling ->
+    _sibling_label visible with 'Also on:' + a network <a> link."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    zr = _make_aa_station(2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc",
+                          provider="ZenRadio")
+    repo = FakeRepo({"volume": "80"}, stations=[di, zr])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    # isHidden() reflects setVisible() state directly without windowing-system
+    # parent-shown dependency (per test_edit_station_dialog.py:846-849 rationale).
+    assert panel._sibling_label.isHidden() is False
+    text = panel._sibling_label.text()
+    assert "Also on:" in text
+    assert 'href="sibling://2"' in text
+    assert "ZenRadio" in text
+
+
+def test_sibling_label_hidden_for_non_aa_station(qtbot):
+    """Phase 64 / SC #3 / D-05 case 3: non-AA URL -> _sibling_label hidden."""
+    yt = _make_aa_station(1, "Whatever", "https://www.youtube.com/watch?v=xyz",
+                          provider="YouTube")
+    repo = FakeRepo({"volume": "80"}, stations=[yt])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(yt)
+    assert panel._sibling_label.isHidden() is True
+
+
+def test_sibling_label_hidden_when_no_siblings(qtbot):
+    """Phase 64 / SC #3 / D-05 case 4: AA station with no other AA stations on
+    other networks sharing the channel key -> hidden."""
+    di = _make_aa_station(1, "UniqueName", "http://prem1.di.fm:80/uniquechannel_hi?listen_key=abc")
+    repo = FakeRepo({"volume": "80"}, stations=[di])  # only the bound station
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    assert panel._sibling_label.isHidden() is True
+
+
+def test_sibling_label_hidden_when_no_station_bound(qtbot):
+    """Phase 64 / SC #3 / D-05 case 1: panel constructed but bind_station never
+    called -> _sibling_label hidden (default state)."""
+    repo = FakeRepo({"volume": "80"})
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    # Default state: no bind_station call.
+    assert panel._sibling_label.isHidden() is True
+
+
+def test_sibling_label_excludes_self(qtbot):
+    """Phase 64 / SC #5 / D-07: even if the bound station's id appears as a
+    candidate, find_aa_siblings excludes it. With only the bound station in
+    the repo (no other AA stations), label hidden."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    repo = FakeRepo({"volume": "80"}, stations=[di])  # only itself
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    # Self-exclusion at url_helpers.py:122 -> empty siblings -> hidden.
+    assert panel._sibling_label.isHidden() is True
+    # Belt-and-braces: even if shown, the self-id MUST NOT appear in any href.
+    assert 'href="sibling://1"' not in panel._sibling_label.text()
+
+
+def test_sibling_link_emits_sibling_activated_with_station_payload(qtbot):
+    """Phase 64 / SC #2 / D-02: clicking a sibling link emits
+    sibling_activated(Station) with the resolved sibling Station -- payload is
+    Station, not int id."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    zr = _make_aa_station(2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc",
+                          provider="ZenRadio")
+    repo = FakeRepo({"volume": "80"}, stations=[di, zr])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    with qtbot.waitSignal(panel.sibling_activated, timeout=1000) as blocker:
+        panel._on_sibling_link_activated("sibling://2")
+    assert blocker.args == [zr]
+
+
+def test_sibling_link_handler_no_op_when_id_matches_bound_station(qtbot):
+    """Phase 64 / D-08: defense-in-depth -- sibling://{self.id} must be a no-op
+    even though find_aa_siblings should never produce such a link."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    repo = FakeRepo({"volume": "80"}, stations=[di])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    emitted: list = []
+    panel.sibling_activated.connect(lambda s: emitted.append(s))
+    panel._on_sibling_link_activated("sibling://1")  # bound station's own id
+    assert emitted == []
+
+
+def test_sibling_link_handler_no_op_when_repo_get_station_raises(qtbot):
+    """Phase 64 / RESEARCH Pitfall #2: production Repo.get_station raises
+    ValueError on miss; the panel handler MUST wrap in try/except Exception
+    and bail silently. FakeRepo.get_station also raises ValueError per Task 1."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    repo = FakeRepo({"volume": "80"}, stations=[di])  # id 999 NOT in repo
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    emitted: list = []
+    panel.sibling_activated.connect(lambda s: emitted.append(s))
+    panel._on_sibling_link_activated("sibling://999")
+    assert emitted == []  # silent no-op despite ValueError raised by FakeRepo
+
+
+def test_sibling_link_handler_no_op_on_malformed_href(qtbot):
+    """Phase 64 / D-08: malformed href (wrong prefix, non-int payload, empty)
+    must be a silent no-op."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    repo = FakeRepo({"volume": "80"}, stations=[di])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    emitted: list = []
+    panel.sibling_activated.connect(lambda s: emitted.append(s))
+    for bad_href in ("garbage", "sibling://abc", "sibling://", "https://example.com", ""):
+        panel._on_sibling_link_activated(bad_href)
+    assert emitted == []
+
+
+def test_refresh_siblings_runs_once_per_bind_station_call(qtbot):
+    """Phase 64 / D-04 invariant (negative spy): _refresh_siblings runs
+    EXACTLY once per bind_station call -- proves no other call site (e.g., no
+    library-mutation signal subscription wired)."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    repo = FakeRepo({"volume": "80"}, stations=[di])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    call_count = {"n": 0}
+    original = panel._refresh_siblings
+
+    def spy():
+        call_count["n"] += 1
+        original()
+
+    panel._refresh_siblings = spy  # type: ignore[method-assign]
+    panel.bind_station(di)
+    assert call_count["n"] == 1
+
+
+def test_panel_does_not_reimplement_aa_detection():
+    """Phase 64 / SC #4: the panel module imports ONLY find_aa_siblings and
+    render_sibling_html from url_helpers; does NOT import _is_aa_url,
+    _aa_slug_from_url, _aa_channel_key_from_url, or NETWORKS. Single source
+    of AA detection -- no parallel detection logic."""
+    import musicstreamer.ui_qt.now_playing_panel as panel_mod
+    src = open(panel_mod.__file__, encoding="utf-8").read()
+    assert "from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html" in src
+    # Negative spy: forbidden symbols MUST NOT be imported in the panel module.
+    forbidden = [
+        "from musicstreamer.url_helpers import _is_aa_url",
+        "from musicstreamer.url_helpers import _aa_slug_from_url",
+        "from musicstreamer.url_helpers import _aa_channel_key_from_url",
+        "from musicstreamer.aa_import import NETWORKS",
+    ]
+    for line in forbidden:
+        assert line not in src, f"SC #4 violation: panel imports {line!r}"
