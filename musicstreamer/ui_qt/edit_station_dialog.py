@@ -65,6 +65,7 @@ class _LogoFetchWorker(QThread):
 
     def __init__(self, url: str, token: int, parent=None):
         super().__init__(parent)
+        self.setObjectName("logo-fetch-worker")
         self._url = url
         self._token = token
 
@@ -826,6 +827,15 @@ class EditStationDialog(QDialog):
         except Exception:
             pass
         worker.wait(2000)
+
+    def accept(self) -> None:
+        # BUG-FIX: accept() is the Save path. closeEvent() and reject() already
+        # call _shutdown_logo_fetch_worker(), but accept() did not — so clicking
+        # Save while a fetch was in-flight destroyed the dialog's child QThread
+        # before it finished, triggering the hard-crash:
+        #   QThread: Destroyed while thread '' is still running
+        self._shutdown_logo_fetch_worker()
+        super().accept()
 
     def closeEvent(self, event):  # noqa: N802 (Qt override)
         # D-04b: in is_new mode, delete the placeholder row before teardown so
