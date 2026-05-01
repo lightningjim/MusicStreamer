@@ -250,6 +250,8 @@ class MainWindow(QMainWindow):
 
         # Plan 39: edit button → dialog launch
         self.now_playing.edit_requested.connect(self._on_edit_requested)
+        # Phase 64 / D-02a: 'Also on:' sibling click → switch playback (bound-method per QA-05).
+        self.now_playing.sibling_activated.connect(self._on_sibling_activated)
         # Right-click edit from station list
         self.station_panel.edit_requested.connect(self._on_edit_requested)
         # Phase 999.1 D-02: "+" button in panel header shares MainWindow slot
@@ -324,6 +326,19 @@ class MainWindow(QMainWindow):
         # Seed the OS media session with station name before ICY title arrives (D-05)
         self._media_keys.publish_metadata(station, "", self.now_playing.current_cover_pixmap())
         self._media_keys.set_playback_state("playing")
+
+    def _on_sibling_activated(self, station: Station) -> None:
+        """Phase 64 / D-02: user clicked an 'Also on:' link in NowPlayingPanel.
+
+        Delegate to _on_station_activated so the canonical 'user picked a
+        station' side-effect block (bind_station, player.play,
+        update_last_played, refresh_recent, toast, media-keys publish + state)
+        fires identically regardless of activation source (station list vs
+        sibling click). Unlike Phase 51's _on_navigate_to_sibling (lines
+        482-500) \u2014 which re-opens EditStationDialog and avoids touching
+        playback \u2014 this slot DOES change playback (ROADMAP SC #2).
+        """
+        self._on_station_activated(station)
 
     def _on_failover(self, next_stream) -> None:
         """Called by Player.failover(StationStream | None)."""
