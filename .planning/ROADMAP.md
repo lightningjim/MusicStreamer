@@ -289,7 +289,12 @@ Plans:
   2. Each stream entry in the PLS appears as a separate row in the Streams table after resolution
   3. Bitrate and codec are populated where the PLS or a stream probe can determine them; otherwise default to 0/unknown
   4. The user can review, reorder, or remove the resolved entries before saving
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 58-01-PLAN.md — Create musicstreamer/playlist_parser.py + tests/test_playlist_parser.py (pure module, PLS/M3U/M3U8/XSPF + bitrate/codec extractors; D-09..D-19)
+- [ ] 58-02-PLAN.md — Refactor aa_import._resolve_pls to thin wrapper around parse_playlist (D-10) + delegation tests
+- [ ] 58-03-PLAN.md — Wire EditStationDialog: _PlaylistFetchWorker + Add from PLS… button + 3 slots + _shutdown_pls_fetch_worker (3 sites) + 12+ pytest-qt tests (D-01..D-08, D-17)
 **UI hint**: yes
 
 ### Phase 59: Visual Accent Color Picker
