@@ -589,6 +589,65 @@ def test_resolve_pls_single_entry():
     assert result == ["http://only.di.fm:8000/listen"]
 
 
+def test_resolve_pls_delegates_to_playlist_parser():
+    """Phase 58 / D-10: _resolve_pls delegates to playlist_parser.parse_playlist."""
+    pls_url = "http://host/playlist.pls"
+    pls_content = b"[playlist]\nFile1=http://s1.example/stream\nTitle1=Stream 128k MP3\n"
+    mock_entries = [
+        {"url": "http://s1.example/stream", "title": "Stream 128k MP3",
+         "bitrate_kbps": 128, "codec": "MP3"},
+    ]
+
+    with patch(
+        "musicstreamer.aa_import.urllib.request.urlopen",
+        side_effect=lambda url, timeout=None: _urlopen_factory(pls_content),
+    ), patch(
+        "musicstreamer.playlist_parser.parse_playlist",
+        return_value=mock_entries,
+    ) as mock_pp:
+        result = _resolve_pls(pls_url)
+
+    assert result == ["http://s1.example/stream"]
+    mock_pp.assert_called_once()
+    # Body is the decoded string, content_type pulled from resp headers,
+    # url_hint is the original pls_url.
+    call_args = mock_pp.call_args
+    assert isinstance(call_args.args[0], str)
+    assert "File1=" in call_args.args[0]
+    assert "url_hint" in call_args.kwargs
+    assert call_args.kwargs["url_hint"] == pls_url
+    assert "content_type" in call_args.kwargs
+
+
+def test_resolve_pls_falls_back_when_parse_playlist_returns_empty():
+    """Phase 58 / D-10: empty parse -> [pls_url] fallback preserved."""
+    pls_url = "http://host/empty.pls"
+
+    with patch(
+        "musicstreamer.aa_import.urllib.request.urlopen",
+        side_effect=lambda url, timeout=None: _urlopen_factory(b"[playlist]\n"),
+    ), patch(
+        "musicstreamer.playlist_parser.parse_playlist",
+        return_value=[],
+    ):
+        result = _resolve_pls(pls_url)
+
+    assert result == [pls_url]
+
+
+def test_resolve_pls_falls_back_on_urlopen_exception():
+    """Phase 58 / D-10: urlopen failure -> [pls_url] fallback preserved."""
+    pls_url = "http://host/unreachable.pls"
+
+    with patch(
+        "musicstreamer.aa_import.urllib.request.urlopen",
+        side_effect=urllib.error.URLError("Connection refused"),
+    ):
+        result = _resolve_pls(pls_url)
+
+    assert result == [pls_url]
+
+
 def test_fetch_channels_multi_preserves_primary_and_fallback():
     """Each tier's PLS has 2 server entries -> each tier produces 2 stream
     dicts in fetch_channels_multi output (6 streams total for hi/med/low).
