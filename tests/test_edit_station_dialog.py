@@ -1103,3 +1103,295 @@ def test_link_activated_ignores_malformed_href(aa_dialog):
     aa_dialog._on_sibling_link_activated("sibling://notanint")
     aa_dialog._on_sibling_link_activated("")
     assert emitted == []
+
+
+# ----------------------------------------------------------------------
+# Phase 58 / STR-15: PLS Auto-Resolve flow
+# ----------------------------------------------------------------------
+
+
+def test_add_pls_button_exists(dialog):
+    """D-01: add_pls_btn exists with correct label (U+2026) and tooltip."""
+    assert hasattr(dialog, "add_pls_btn")
+    assert dialog.add_pls_btn.text() == "Add from PLS…"
+    tooltip = dialog.add_pls_btn.toolTip()
+    assert "PLS" in tooltip
+    assert "M3U" in tooltip
+    assert "M3U8" in tooltip
+    assert "XSPF" in tooltip
+
+
+def test_add_pls_worker_starts_on_valid_url(qtbot, monkeypatch, dialog):
+    """D-02/D-04: a valid URL kicks off _PlaylistFetchWorker and disables the button."""
+    from unittest.mock import MagicMock
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    fake_worker_instance = MagicMock()
+    fake_worker_instance.isRunning.return_value = False
+    fake_worker_cls = MagicMock(return_value=fake_worker_instance)
+    monkeypatch.setattr(esd_mod, "_PlaylistFetchWorker", fake_worker_cls)
+    monkeypatch.setattr(
+        esd_mod.QInputDialog,
+        "getText",
+        staticmethod(lambda *a, **kw: ("http://host/playlist.pls", True)),
+    )
+
+    dialog._on_add_pls()
+
+    fake_worker_cls.assert_called_once()
+    # First positional arg is the URL (stripped)
+    assert fake_worker_cls.call_args.args[0] == "http://host/playlist.pls"
+    fake_worker_instance.start.assert_called_once()
+    assert dialog.add_pls_btn.isEnabled() is False
+
+
+def test_add_pls_cancel_is_noop(qtbot, monkeypatch, dialog):
+    """D-02: Cancel in QInputDialog is a complete no-op — worker not started, button stays enabled."""
+    from unittest.mock import MagicMock
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    fake_worker_cls = MagicMock()
+    monkeypatch.setattr(esd_mod, "_PlaylistFetchWorker", fake_worker_cls)
+    monkeypatch.setattr(
+        esd_mod.QInputDialog,
+        "getText",
+        staticmethod(lambda *a, **kw: ("", False)),
+    )
+
+    dialog._on_add_pls()
+
+    fake_worker_cls.assert_not_called()
+    assert dialog.add_pls_btn.isEnabled() is True
+
+
+def test_add_pls_empty_url_is_noop(qtbot, monkeypatch, dialog):
+    """D-02: whitespace-only URL with ok=True is treated as empty — no-op."""
+    from unittest.mock import MagicMock
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    fake_worker_cls = MagicMock()
+    monkeypatch.setattr(esd_mod, "_PlaylistFetchWorker", fake_worker_cls)
+    monkeypatch.setattr(
+        esd_mod.QInputDialog,
+        "getText",
+        staticmethod(lambda *a, **kw: ("   ", True)),
+    )
+
+    dialog._on_add_pls()
+
+    fake_worker_cls.assert_not_called()
+    assert dialog.add_pls_btn.isEnabled() is True
+
+
+def test_on_pls_fetched_restores_cursor_first_unconditionally(qtbot, monkeypatch, dialog):
+    """D-03/D-10: cursor restore + button re-enable happen BEFORE stale-token check."""
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    restore_count = []
+    monkeypatch.setattr(
+        esd_mod.QApplication,
+        "restoreOverrideCursor",
+        staticmethod(lambda: restore_count.append(True)),
+    )
+    # Stale token — emission's token (1) does not match dialog's current (5)
+    dialog._pls_fetch_token = 5
+
+    dialog._on_pls_fetched([], "", token=1)
+
+    # Cursor restored even though emission is stale (D-03/D-10)
+    assert len(restore_count) == 1
+    assert dialog.add_pls_btn.isEnabled() is True
+
+
+def test_on_pls_fetched_failure_shows_warning_and_leaves_table_unchanged(
+    qtbot, monkeypatch, dialog
+):
+    """D-05: HTTP error shows QMessageBox.warning and leaves the streams table unchanged."""
+    from PySide6.QtWidgets import QMessageBox
+
+    warning_calls: list = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(lambda *a, **kw: warning_calls.append((a, kw)) or QMessageBox.Ok),
+    )
+
+    dialog._add_stream_row("http://existing.example", "Q", "MP3", 128, 1)
+    rows_before = dialog.streams_table.rowCount()
+
+    dialog._pls_fetch_token = 1
+    dialog._on_pls_fetched([], "HTTP 404: Not Found", token=1)
+
+    assert len(warning_calls) == 1
+    warning_args = warning_calls[0][0]
+    assert any("HTTP 404" in str(arg) for arg in warning_args)
+    assert dialog.streams_table.rowCount() == rows_before  # table unchanged
+
+
+def test_on_pls_fetched_empty_table_silent_append(qtbot, monkeypatch, dialog):
+    """D-06 Branch C: success on empty table → silent append without any QMessageBox."""
+    from unittest.mock import MagicMock
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    # Ensure table is empty (default dialog has 1 pre-existing stream row from repo fixture)
+    dialog.streams_table.setRowCount(0)
+    assert dialog.streams_table.rowCount() == 0
+
+    # QMessageBox should NOT be invoked at all
+    mock_qmb = MagicMock()
+    monkeypatch.setattr(esd_mod, "QMessageBox", mock_qmb)
+
+    dialog._pls_fetch_token = 1
+    dialog._on_pls_fetched(
+        [{"url": "http://x", "title": "T", "bitrate_kbps": 128, "codec": "MP3"}],
+        "",
+        token=1,
+    )
+
+    assert dialog.streams_table.rowCount() == 1
+    mock_qmb.assert_not_called()
+
+
+def test_on_pls_fetched_replace_clears_existing_rows(qtbot, dialog):
+    """D-06/D-07: _apply_pls_entries with mode='replace' clears the table then inserts new rows."""
+    dialog._add_stream_row("http://old1", "Q1", "MP3", 128, 1)
+    dialog._add_stream_row("http://old2", "Q2", "AAC", 192, 2)
+    assert dialog.streams_table.rowCount() >= 2  # at least 2 user-added rows
+
+    dialog._apply_pls_entries(
+        [{"url": "http://new", "title": "N", "bitrate_kbps": 192, "codec": "AAC"}],
+        mode="replace",
+    )
+
+    assert dialog.streams_table.rowCount() == 1
+    assert dialog.streams_table.item(0, 0).text() == "http://new"
+
+
+def test_on_pls_fetched_append_preserves_existing_rows(qtbot, dialog):
+    """D-06/D-08: append mode continues position numbering from max(existing) + 1."""
+    # Clear default rows and add exactly 2 rows with positions 1, 2
+    dialog.streams_table.setRowCount(0)
+    dialog._add_stream_row("http://old1", "Q1", "MP3", 128, 1)
+    dialog._add_stream_row("http://old2", "Q2", "AAC", 192, 2)
+    assert dialog.streams_table.rowCount() == 2
+
+    entries = [
+        {"url": "http://new1", "title": "", "bitrate_kbps": 0, "codec": ""},
+        {"url": "http://new2", "title": "", "bitrate_kbps": 0, "codec": ""},
+    ]
+    dialog._apply_pls_entries(entries, mode="append")
+
+    assert dialog.streams_table.rowCount() == 4
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_POSITION
+    assert dialog.streams_table.item(2, _COL_POSITION).text() == "3"
+    assert dialog.streams_table.item(3, _COL_POSITION).text() == "4"
+
+
+def test_apply_pls_entries_columns_mapped_correctly(qtbot, dialog):
+    """D-11/D-14/D-15/D-16: resolved entry dict keys map to the correct table columns."""
+    from musicstreamer.ui_qt.edit_station_dialog import (
+        _COL_URL, _COL_QUALITY, _COL_CODEC, _COL_BITRATE, _COL_POSITION,
+    )
+    dialog.streams_table.setRowCount(0)
+    dialog._apply_pls_entries(
+        [
+            {"url": "http://s.aac", "title": "AAC 128k", "bitrate_kbps": 128, "codec": "AAC"},
+            {"url": "http://s.no-meta", "title": "", "bitrate_kbps": 0, "codec": ""},
+        ],
+        mode="append",
+    )
+
+    assert dialog.streams_table.rowCount() == 2
+
+    # Row 0: fully-populated entry
+    assert dialog.streams_table.item(0, _COL_URL).text() == "http://s.aac"
+    assert dialog.streams_table.item(0, _COL_QUALITY).text() == "AAC 128k"
+    assert dialog.streams_table.item(0, _COL_CODEC).text() == "AAC"
+    assert dialog.streams_table.item(0, _COL_BITRATE).text() == "128"
+    assert dialog.streams_table.item(0, _COL_POSITION).text() == "1"
+
+    # Row 1: empty-meta entry — codec and bitrate render as blank (D-15/D-16)
+    assert dialog.streams_table.item(1, _COL_URL).text() == "http://s.no-meta"
+    assert dialog.streams_table.item(1, _COL_QUALITY).text() == ""
+    assert dialog.streams_table.item(1, _COL_CODEC).text() == ""
+    assert dialog.streams_table.item(1, _COL_BITRATE).text() == ""
+    assert dialog.streams_table.item(1, _COL_POSITION).text() == "2"
+
+
+def test_apply_pls_entries_trips_dirty_state(qtbot, dialog):
+    """D-Discretion / Phase 51-02: inserting resolved rows trips _is_dirty()."""
+    dialog._capture_dirty_baseline()
+    assert dialog._is_dirty() is False
+
+    dialog._apply_pls_entries(
+        [{"url": "http://x", "title": "", "bitrate_kbps": 0, "codec": ""}],
+        mode="append",
+    )
+
+    assert dialog._is_dirty() is True
+
+
+def test_shutdown_pls_fetch_worker_called_from_accept_close_reject():
+    """_shutdown_pls_fetch_worker must appear in accept, closeEvent, and reject (bb1c518 fix)."""
+    import inspect
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+
+    for method_name in ("accept", "closeEvent", "reject"):
+        method = getattr(EditStationDialog, method_name)
+        src = inspect.getsource(method)
+        assert "_shutdown_pls_fetch_worker" in src, (
+            f"{method_name}() does not call _shutdown_pls_fetch_worker — "
+            f"missing teardown will cause QThread destroy crash (commit bb1c518)"
+        )
+
+
+def test_pls_fetch_token_monotonically_increments(qtbot, monkeypatch, dialog):
+    """D-04: _pls_fetch_token increments with each _on_add_pls call."""
+    from unittest.mock import MagicMock
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    assert dialog._pls_fetch_token == 0
+
+    fake_worker_instance = MagicMock()
+    fake_worker_instance.isRunning.return_value = False
+    fake_worker_cls = MagicMock(return_value=fake_worker_instance)
+    monkeypatch.setattr(esd_mod, "_PlaylistFetchWorker", fake_worker_cls)
+    monkeypatch.setattr(
+        esd_mod.QInputDialog,
+        "getText",
+        staticmethod(lambda *a, **kw: ("http://host/a.pls", True)),
+    )
+
+    # Re-enable the button between calls to simulate two independent invocations
+    dialog._on_add_pls()
+    assert dialog._pls_fetch_token == 1
+
+    dialog.add_pls_btn.setEnabled(True)
+    dialog._on_add_pls()
+    assert dialog._pls_fetch_token == 2
+
+
+def test_on_pls_fetched_stale_token_does_not_modify_table(qtbot, monkeypatch, dialog):
+    """Stale emission (token != _pls_fetch_token) must not modify the streams table."""
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    # Silence cursor restore to avoid Qt state side effects
+    monkeypatch.setattr(
+        esd_mod.QApplication,
+        "restoreOverrideCursor",
+        staticmethod(lambda: None),
+    )
+
+    dialog.streams_table.setRowCount(0)
+    dialog._add_stream_row("http://existing", "Q", "MP3", 128, 1)
+    assert dialog.streams_table.rowCount() == 1
+
+    dialog._pls_fetch_token = 5
+    # Emit with stale token=1 (not 5)
+    dialog._on_pls_fetched(
+        [{"url": "http://stale", "title": "", "bitrate_kbps": 0, "codec": ""}],
+        "",
+        token=1,
+    )
+
+    assert dialog.streams_table.rowCount() == 1  # unchanged
