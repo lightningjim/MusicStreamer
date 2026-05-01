@@ -16,11 +16,17 @@ def _mock_channel_json(name: str, key: str) -> bytes:
     return json.dumps([{"name": name, "key": key}]).encode()
 
 
-def _urlopen_factory(data: bytes):
+def _urlopen_factory(data: bytes, content_type: str = "audio/x-scpls"):
     cm = MagicMock()
     cm.__enter__ = MagicMock(return_value=cm)
     cm.__exit__ = MagicMock(return_value=False)
     cm.read = MagicMock(return_value=data)
+    # Provide a real headers.get so _resolve_pls can extract Content-Type
+    # without receiving a MagicMock string that breaks parse_playlist dispatch.
+    # Default "audio/x-scpls" matches what AA servers return for PLS responses.
+    headers_mock = MagicMock()
+    headers_mock.get = MagicMock(return_value=content_type)
+    cm.headers = headers_mock
     return cm
 
 

@@ -26,22 +26,23 @@ def _resolve_pls(pls_url: str) -> list[str]:
     AA PLS files contain 2 server entries per tier (File1=primary, File2=fallback);
     both are needed for intra-tier failover redundancy (gap-06 fix for UAT gap 2).
 
+    Phase 58 / D-10: thin wrapper around playlist_parser.parse_playlist.
+    Preserves list[str] contract and [pls_url] fallback for callers at
+    aa_import.py:135 and aa_import.py:177. File-order invariant (gap-06)
+    is preserved by parse_playlist's numeric sorted(url_dict) traversal.
+
     Falls back to [pls_url] if resolution fails — keeps callers that take
     [0] working against the legacy fallback-on-error behavior.
     """
     try:
         with urllib.request.urlopen(pls_url, timeout=10) as resp:
-            body = resp.read().decode()
-        entries = []  # list of (int_index, url) for file-order preservation
-        for line in body.splitlines():
-            m = re.match(r"^File(\d+)=(.+)$", line.strip())
-            if m:
-                entries.append((int(m.group(1)), m.group(2).strip()))
-        if not entries:
-            return [pls_url]
-        entries.sort(key=lambda t: t[0])
-        return [url for _, url in entries]
-    except Exception:
+            content_type = resp.headers.get("Content-Type", "")
+            body = resp.read().decode("utf-8", errors="replace")
+        from musicstreamer.playlist_parser import parse_playlist
+        entries = parse_playlist(body, content_type=content_type, url_hint=pls_url)
+        if entries:
+            return [e["url"] for e in entries]
+    except Exception:  # noqa: BLE001
         pass
     return [pls_url]
 
