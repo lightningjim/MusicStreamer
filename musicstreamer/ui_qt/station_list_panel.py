@@ -312,9 +312,17 @@ class StationListPanel(QWidget):
     # ----------------------------------------------------------------------
 
     def refresh_model(self) -> None:
-        """Reload station tree and recently played after external changes (edit/delete/import)."""
+        """Reload station tree and recently played after external changes (edit/delete/import).
+
+        Preserves user-set per-provider expand/collapse state across model.refresh()
+        (BUG-06 / Phase 55, per CONTEXT D-01..D-04). New provider groups created by
+        the refresh default to expanded (CONTEXT D-06). Filter-change paths still
+        drive expansion via _sync_tree_expansion (CONTEXT D-05) — that wiring is
+        deliberately decoupled here.
+        """
+        expanded_pre, all_pre = self._capture_expanded_provider_names()
         self.model.refresh(self._repo.list_stations())
-        self._sync_tree_expansion()
+        self._restore_expanded_provider_names(expanded_pre, all_pre)
         self._populate_recent()
         self._build_chip_rows()
 
@@ -323,7 +331,7 @@ class StationListPanel(QWidget):
 
         Call after Repo.update_last_played() — the DB write must precede this
         call (Pitfall #1). This method intentionally does NOT call
-        self.model.refresh() or self._sync_tree_expansion(), so provider tree
+        self.model.refresh or self._sync_tree_expansion, so provider tree
         expand/collapse state is preserved (SC #3, Pitfall #2). Per D-04, this
         is invoked as a direct method call from MainWindow._on_station_activated;
         no signal indirection is used.
@@ -337,6 +345,66 @@ class StationListPanel(QWidget):
             self.tree.expandAll()
         else:
             self.tree.collapseAll()
+
+    def _capture_expanded_provider_names(self) -> tuple[set[str], set[str]]:
+        """Capture the user's per-provider expansion state BEFORE model.refresh().
+
+        Returns a tuple ``(expanded_names, all_names)``:
+        - ``expanded_names`` — provider names whose proxy index is currently expanded
+          in the view (set membership semantics, no order required).
+        - ``all_names`` — every provider name present in the source model right now,
+          used by ``_restore_expanded_provider_names`` to detect brand-new groups
+          via set difference (D-06).
+
+        Walks the SOURCE model (full data shape, not filter-occluded) per RESEARCH
+        Pitfall #3. View expansion is read via the proxy index because expansion
+        lives on the view; an invalid proxy index (filtered-out provider group)
+        is silently skipped — the user could not have manipulated its expansion
+        during this session.
+        """
+        expanded: set[str] = set()
+        all_names: set[str] = set()
+        for prov_row in range(self.model.rowCount()):
+            name = self.model.provider_name_at(prov_row)
+            if name is None:
+                continue
+            all_names.add(name)
+            source_idx = self.model.index(prov_row, 0)
+            proxy_idx = self._proxy.mapFromSource(source_idx)
+            if not proxy_idx.isValid():
+                continue
+            if self.tree.isExpanded(proxy_idx):
+                expanded.add(name)
+        return expanded, all_names
+
+    def _restore_expanded_provider_names(
+        self, expanded_pre: set[str], all_pre: set[str]
+    ) -> None:
+        """Restore per-provider expansion AFTER model.refresh().
+
+        For each provider in the post-refresh source model:
+          - if its name was in ``expanded_pre`` (user had it open) -> expand
+          - elif its name was NOT in ``all_pre`` (brand-new group, D-06)  -> expand
+          - else leave collapsed (Qt's default state after endResetModel)
+
+        Walks the SOURCE model (Pitfall #3) and guards proxy.mapFromSource(...)
+        with .isValid() (Pitfall #2 — filtered-out provider rows return an
+        invalid QModelIndex). Names whose post-refresh proxy index is invalid
+        are silently skipped: the view cannot show them as expanded anyway.
+        """
+        for prov_row in range(self.model.rowCount()):
+            name = self.model.provider_name_at(prov_row)
+            if name is None:
+                continue
+            was_expanded = name in expanded_pre
+            is_brand_new = name not in all_pre
+            if not (was_expanded or is_brand_new):
+                continue
+            source_idx = self.model.index(prov_row, 0)
+            proxy_idx = self._proxy.mapFromSource(source_idx)
+            if not proxy_idx.isValid():
+                continue
+            self.tree.expand(proxy_idx)
 
     def select_station(self, station_id: int) -> None:
         """Programmatically select a station in the tree by id (D-07).

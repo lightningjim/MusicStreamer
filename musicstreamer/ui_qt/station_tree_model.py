@@ -30,6 +30,7 @@ class _TreeNode:
     parent: Optional["_TreeNode"] = None
     children: list["_TreeNode"] = field(default_factory=list)
     station: Optional[Station] = None
+    provider_name: Optional[str] = None  # raw, never gets the " (N)" label suffix (Phase 55 / BUG-06)
 
 
 class StationTreeModel(QAbstractItemModel):
@@ -58,6 +59,18 @@ class StationTreeModel(QAbstractItemModel):
             return None
         return node.station if node.kind == "station" else None
 
+    def provider_name_at(self, row: int) -> Optional[str]:
+        """Return the raw provider name at the given top-level row, or None.
+
+        Bypasses the " (N)" label suffix added in _populate; the raw name is
+        the round-tripable key for capture/restore in StationListPanel
+        (Phase 55 / BUG-06).
+        """
+        if row < 0 or row >= len(self._root.children):
+            return None
+        node = self._root.children[row]
+        return node.provider_name if node.kind == "provider" else None
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
@@ -68,7 +81,12 @@ class StationTreeModel(QAbstractItemModel):
             pname = st.provider_name or "Ungrouped"
             grp = groups.get(pname)
             if grp is None:
-                grp = _TreeNode(kind="provider", label=pname, parent=self._root)
+                grp = _TreeNode(
+                    kind="provider",
+                    label=pname,
+                    parent=self._root,
+                    provider_name=pname,  # Phase 55 / BUG-06: round-tripable key for capture/restore
+                )
                 self._root.children.append(grp)
                 groups[pname] = grp
             grp.children.append(
