@@ -7,6 +7,7 @@ pure string and regex manipulation over URL literals.
 """
 from __future__ import annotations
 
+import html
 import urllib.parse
 
 from musicstreamer.aa_import import NETWORKS
@@ -144,3 +145,35 @@ def find_aa_siblings(
 
     siblings.sort(key=lambda t: t[0])
     return [(slug, sid, sname) for _, slug, sid, sname in siblings]
+
+
+def render_sibling_html(
+    siblings: list[tuple[str, int, str]],
+    current_name: str,
+) -> str:
+    """Phase 51 / D-07, D-08 (promoted in Phase 64 / D-03 from
+    EditStationDialog._render_sibling_html). Render the 'Also on: ...' HTML
+    for an AA cross-network sibling label.
+
+    siblings: from find_aa_siblings — already sorted in NETWORKS order.
+    current_name: the bound station's display name. Drives D-08 link-text
+                  format: same name -> network-only; different -> "Network — Name".
+    Returns: 'Also on: <a href="sibling://{id}">{label}</a> • <a ...>...'
+
+    Security: every interpolated station_name passes through
+    html.escape(name, quote=True) (T-39-01 deviation mitigation). Network
+    display names come from the NETWORKS compile-time constant and need no
+    escape. The href payload is integer-only ('sibling://{id}') so it cannot
+    carry injectable content.
+    """
+    name_for_slug = {n["slug"]: n["name"] for n in NETWORKS}
+    parts: list[str] = []
+    for slug, station_id, station_name in siblings:
+        network_display = name_for_slug.get(slug, slug)
+        if station_name == current_name:
+            link_text = network_display
+        else:
+            safe_name = html.escape(station_name, quote=True)
+            link_text = f"{network_display} — {safe_name}"  # U+2014 EM DASH
+        parts.append(f'<a href="sibling://{station_id}">{link_text}</a>')
+    return "Also on: " + " • ".join(parts)  # U+2022 BULLET

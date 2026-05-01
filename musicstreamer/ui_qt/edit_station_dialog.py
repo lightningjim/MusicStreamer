@@ -16,7 +16,6 @@ player._current_station_name == station.name (T-39-03).
 """
 from __future__ import annotations
 
-import html
 import os
 import tempfile
 from typing import Optional
@@ -45,12 +44,11 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer import assets
-from musicstreamer.aa_import import NETWORKS
 from musicstreamer.models import Station
 from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
 from musicstreamer.ui_qt.flow_layout import FlowLayout
-from musicstreamer.url_helpers import find_aa_siblings
+from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
 
 
 class _LogoFetchWorker(QThread):
@@ -398,10 +396,12 @@ class EditStationDialog(QDialog):
         # First QLabel in the project to use Qt.RichText (deviation from
         # T-39-01) — required for inline <a href> links. Mitigation:
         # html.escape on every Station.name interpolation inside
-        # _render_sibling_html. Network display names come from the
-        # NETWORKS compile-time constant and need no escaping; the href
-        # payload is integer-only ("sibling://{id}") so it cannot carry
-        # injectable content. Hidden until populated with siblings (D-06).
+        # musicstreamer.url_helpers.render_sibling_html (promoted in
+        # Phase 64 / D-03 from a private dialog method to a free function).
+        # Network display names come from the NETWORKS compile-time
+        # constant and need no escaping; the href payload is integer-only
+        # ("sibling://{id}") so it cannot carry injectable content. Hidden
+        # until populated with siblings (D-06).
         self._sibling_label = QLabel("", self)
         self._sibling_label.setTextFormat(Qt.RichText)
         self._sibling_label.setOpenExternalLinks(False)
@@ -528,51 +528,6 @@ class EditStationDialog(QDialog):
     # Phase 51-03 / D-04..D-08 — cross-network sibling list (BUG-02)
     # ------------------------------------------------------------------
 
-    def _render_sibling_html(
-        self,
-        siblings: list[tuple[str, int, str]],
-        current_name: str,
-    ) -> str:
-        """Phase 51 / D-07, D-08: render the 'Also on: ...' HTML for the sibling label.
-
-        Args:
-            siblings: list of (network_slug, station_id, station_name) tuples
-                     from find_aa_siblings — already sorted in NETWORKS order.
-            current_name: the current station's display name. Used to decide
-                          link-text format (D-08): when sibling.name == current_name,
-                          link text is the network display name; otherwise
-                          "Network — SiblingName" with U+2014 EM DASH.
-
-        Returns:
-            'Also on: <a href="sibling://{id}">{label}</a> • <a href="sibling://{id}">{label}</a>'
-
-        Security: every Station.name interpolated into the HTML is passed
-        through html.escape(name, quote=True) (T-39-01 deviation mitigation).
-        Network display names come from the NETWORKS compile-time constant
-        and need no escape. The href payload is integer-only
-        ('sibling://{id}') so it cannot carry injectable content.
-        """
-        # NETWORKS slug -> display-name lookup. Falls back to the slug itself
-        # if a slug is not found (defensive — should not happen for AA
-        # stations passing find_aa_siblings).
-        name_for_slug = {n["slug"]: n["name"] for n in NETWORKS}
-
-        parts: list[str] = []
-        for slug, station_id, station_name in siblings:
-            network_display = name_for_slug.get(slug, slug)
-            # D-08: link text format depends on whether names match.
-            # html.escape on every interpolated station_name; network
-            # display names are compile-time constants — no escape needed.
-            if station_name == current_name:
-                link_text = network_display
-            else:
-                safe_name = html.escape(station_name, quote=True)
-                link_text = f"{network_display} — {safe_name}"  # U+2014 EM DASH
-            parts.append(f'<a href="sibling://{station_id}">{link_text}</a>')
-
-        # U+2022 BULLET surrounded by single spaces, exactly as D-07 specifies.
-        return "Also on: " + " • ".join(parts)
-
     def _refresh_siblings(self) -> None:
         """Phase 51 / D-04, D-06: refresh the 'Also on:' label for the current station.
 
@@ -605,7 +560,7 @@ class EditStationDialog(QDialog):
             self._sibling_label.setText("")  # clear stale content if any
             return
         self._sibling_label.setText(
-            self._render_sibling_html(siblings, self._station.name)
+            render_sibling_html(siblings, self._station.name)
         )
         self._sibling_label.setVisible(True)
 

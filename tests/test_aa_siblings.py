@@ -6,7 +6,7 @@ find_aa_siblings(stations, current_station_id, current_first_url)
 -> list[tuple[network_slug, station_id, station_name]].
 """
 from musicstreamer.models import Station, StationStream
-from musicstreamer.url_helpers import find_aa_siblings
+from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
 
 
 def _mk(id_, name, url):
@@ -127,3 +127,57 @@ def test_excludes_candidate_with_empty_streams_list():
     )
     siblings = find_aa_siblings([di, empty], current_station_id=1, current_first_url=di.streams[0].url)
     assert siblings == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 64 / D-03: render_sibling_html (promoted from EditStationDialog)
+# ---------------------------------------------------------------------------
+
+
+def test_render_sibling_html_basic_link():
+    """Phase 64 / D-03 / Phase 51 D-07, D-08: single same-name sibling renders
+    'Also on: <a href="sibling://{id}">{network_display}</a>' (network-only)."""
+    siblings = [("zenradio", 2, "Ambient")]
+    out = render_sibling_html(siblings, current_name="Ambient")
+    assert out == 'Also on: <a href="sibling://2">ZenRadio</a>'
+
+
+def test_render_sibling_html_uses_em_dash_when_names_differ():
+    """Phase 64 / D-03 / Phase 51 D-08: name mismatch -> 'Network — Name'
+    with literal U+2014 EM DASH between network and name."""
+    siblings = [("zenradio", 2, "Ambient (Sleep)")]
+    out = render_sibling_html(siblings, current_name="Ambient")
+    assert "ZenRadio — Ambient (Sleep)" in out
+    assert "—" in out  # U+2014 EM DASH literal in the output
+    assert 'href="sibling://2"' in out
+
+
+def test_render_sibling_html_html_escapes_station_name():
+    """Phase 64 / D-03 / T-39-01 deviation mitigation preserved: malicious
+    sibling name with HTML metachars must be escaped — raw '<script>'
+    must NOT appear in the output."""
+    siblings = [("zenradio", 2, "<script>alert(1)</script>")]
+    out = render_sibling_html(siblings, current_name="Ambient")
+    assert "<script>" not in out
+    assert "&lt;script&gt;" in out
+    assert "alert(1)" in out  # the text content survives escaping
+
+
+def test_render_sibling_html_uses_bullet_separator_for_multiple():
+    """Phase 64 / D-03 / Phase 51 D-07: multiple siblings joined with ' • '
+    (literal U+2022 BULLET surrounded by single spaces)."""
+    siblings = [("jazzradio", 2, "Ambient"), ("zenradio", 3, "Ambient")]
+    out = render_sibling_html(siblings, current_name="Ambient")
+    assert " • " in out  # U+2022 BULLET surrounded by spaces
+    assert out.count("<a ") == 2
+    assert 'href="sibling://2"' in out
+    assert 'href="sibling://3"' in out
+
+
+def test_render_sibling_html_unknown_slug_falls_back_to_slug_literal():
+    """Phase 64 / D-03 defensive: a slug not in NETWORKS renders as the slug
+    string itself (dict.get fallback). Should not crash; should not raise."""
+    siblings = [("not_a_real_slug", 9, "Ambient")]
+    out = render_sibling_html(siblings, current_name="Ambient")
+    assert "not_a_real_slug" in out
+    assert 'href="sibling://9"' in out
