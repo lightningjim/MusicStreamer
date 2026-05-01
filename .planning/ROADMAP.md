@@ -368,7 +368,7 @@ Plans:
 | 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
-| 64. AudioAddict Siblings on Now Playing | 3/3 | Complete   | 2026-05-01 |
+| 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
 
 ### Phase 64: AudioAddict Siblings on Now Playing
 **Goal:** When an AudioAddict station is currently playing, the Now Playing panel surfaces same-channel-key siblings on other AA networks as one-click jumps — playing DI.fm "Ambient" shows a "Also on: ZenRadio • JazzRadio" affordance that, when clicked, switches playback to the chosen sibling. Continuation of Phase 51, which scoped sibling visibility to EditStationDialog only.
@@ -417,6 +417,16 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 67 to break down)
+
+### Phase 68: Add feature for detecting Live performance streams (DI.fm and similar)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 67
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 68 to break down)
 
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*
