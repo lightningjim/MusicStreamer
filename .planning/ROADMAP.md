@@ -368,7 +368,7 @@ Plans:
 | 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
-| 64. AudioAddict Siblings on Now Playing | 0/? | Not started | - |
+| 64. AudioAddict Siblings on Now Playing | 2/3 | In Progress|  |
 
 ### Phase 64: AudioAddict Siblings on Now Playing
 **Goal:** When an AudioAddict station is currently playing, the Now Playing panel surfaces same-channel-key siblings on other AA networks as one-click jumps — playing DI.fm "Ambient" shows a "Also on: ZenRadio • JazzRadio" affordance that, when clicked, switches playback to the chosen sibling. Continuation of Phase 51, which scoped sibling visibility to EditStationDialog only.
@@ -380,12 +380,12 @@ Plans:
   3. The line is hidden entirely when the playing station is non-AA, when there are no siblings, or when no station is playing
   4. Sibling detection reuses Phase 51's `find_aa_siblings` helper — no parallel detection logic, no new schema, no manual tagging
   5. The currently-playing station's own row is not listed as a sibling of itself
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 **UI hint**: yes
 
 Plans:
-- [ ] 64-01-PLAN.md — Promote _render_sibling_html to free function in url_helpers.py + delete dialog renderer + render_sibling_html unit tests (Wave 1)
-- [ ] 64-02-PLAN.md — Extend FakeRepo (list_stations + get_station) + add sibling_activated Signal + _sibling_label + _refresh_siblings + _on_sibling_link_activated to NowPlayingPanel + 11 panel-level tests (Wave 1)
+- [x] 64-01-PLAN.md — Promote _render_sibling_html to free function in url_helpers.py + delete dialog renderer + render_sibling_html unit tests (Wave 1)
+- [x] 64-02-PLAN.md — Extend FakeRepo (list_stations + get_station) + add sibling_activated Signal + _sibling_label + _refresh_siblings + _on_sibling_link_activated to NowPlayingPanel + 11 panel-level tests (Wave 1)
 - [ ] 64-03-PLAN.md — Connect sibling_activated to MainWindow._on_sibling_activated delegator + end-to-end click→play integration test (Wave 2, depends on 02)
 
 ### Phase 65: Show current version in app (unsure yet if either in the hamburger menu or the right end of the bar the hamburger is on
