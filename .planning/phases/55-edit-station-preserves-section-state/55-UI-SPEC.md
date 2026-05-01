@@ -1,10 +1,11 @@
 ---
 phase: 55
 slug: edit-station-preserves-section-state
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-01
+reviewed_at: 2026-05-01
 ---
 
 # Phase 55 — UI Design Contract
