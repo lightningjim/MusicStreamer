@@ -145,7 +145,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 52: EQ Toggle Dropout Fix** — Eliminate the audio dropout when toggling EQ on/off (completed 2026-04-28; UAT passed — no audible click)
 - [x] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu (completed 2026-04-29)
 - [x] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping (completed 2026-04-30 — Path B-1 canvas patch fixed landscape, Path B-2 delegate decoration-rect override fixed portrait on Linux X11/Wayland)
-- [ ] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections
+- [x] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections (completed 2026-05-01)
 - [ ] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID
 - [ ] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test
 - [ ] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows
@@ -252,10 +252,10 @@ Plans:
   1. Sections the user had expanded before clicking Save remain expanded after the save completes
   2. Sections the user had collapsed before clicking Save remain collapsed after the save completes
   3. The fix does not affect the initial open state when the dialog is freshly launched
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 Plans:
-- [ ] 55-01-PLAN.md — provider_name accessor on StationTreeModel + capture/restore wrapping in StationListPanel.refresh_model (drops _sync_tree_expansion call from refresh path; D-03/D-06 wired)
-- [ ] 55-02-PLAN.md — 8 pytest-qt tests under Phase 55 / BUG-06 banner (SC #1, SC #2, D-04, D-06, D-07, filtered-out guard, D-03 spy-lock, D-05 spy-lock)
+- [x] 55-01-PLAN.md — provider_name accessor on StationTreeModel + capture/restore wrapping in StationListPanel.refresh_model (drops _sync_tree_expansion call from refresh path; D-03/D-06 wired)
+- [x] 55-02-PLAN.md — 8 pytest-qt tests under Phase 55 / BUG-06 banner (SC #1, SC #2, D-04, D-06, D-07, filtered-out guard, D-03 spy-lock, D-05 spy-lock)
 **UI hint**: yes
 
 ### Phase 56: Windows DI.fm + SMTC Start Menu
@@ -359,7 +359,7 @@ Plans:
 | 52. EQ Toggle Dropout Fix | 2/2 | Complete    | 2026-04-28 |
 | 53. YouTube Cookies into Accounts Menu | 2/2 | Complete   | 2026-04-29 |
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
-| 55. Edit Station Preserves Section State | 0/? | Not started | - |
+| 55. Edit Station Preserves Section State | 2/2 | Complete   | 2026-05-01 |
 | 56. Windows DI.fm + SMTC Start Menu | 0/? | Not started | - |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
 | 58. PLS Auto-Resolve in Station Editor | 0/? | Not started | - |
