@@ -63,9 +63,14 @@ class FakePlayer(QObject):
 
 
 class FakeRepo:
-    def __init__(self, settings: Optional[dict] = None) -> None:
+    def __init__(self, settings: Optional[dict] = None,
+                 stations: Optional[list] = None) -> None:
         self._settings = dict(settings or {})
         self._favorites: list = []
+        # Phase 64 Wave 0 (RESEARCH Pitfall #1): library backing for the
+        # new sibling-list path. Default empty list keeps every existing
+        # test (which passes only `settings`) working unchanged.
+        self._stations: list = list(stations or [])
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         return self._settings.get(key, default)
@@ -91,6 +96,21 @@ class FakeRepo:
     def list_streams(self, station_id: int) -> list:
         return []
 
+    # Phase 64 Wave 0 (RESEARCH Pitfall #1): list_stations and get_station
+    # are required by the new NowPlayingPanel._refresh_siblings + click
+    # handler paths. get_station raises ValueError on miss to match
+    # production Repo.get_station semantics (repo.py:271 raises
+    # ValueError "Station not found") -- the panel handler MUST wrap this
+    # call in try/except Exception per RESEARCH Pitfall #2.
+    def list_stations(self) -> list:
+        return list(self._stations)
+
+    def get_station(self, station_id: int):
+        for s in self._stations:
+            if s.id == station_id:
+                return s
+        raise ValueError("Station not found")
+
 
 def _station(name: str = "Drone Zone", provider: Optional[str] = "SomaFM",
              art: Optional[str] = None) -> Station:
@@ -106,6 +126,35 @@ def _station(name: str = "Drone Zone", provider: Optional[str] = "SomaFM",
         streams=[StationStream(id=1, station_id=1, url="http://x/s", label="hi",
                                quality="hi", position=1, stream_type="shoutcast",
                                codec="MP3")],
+    )
+
+
+def _make_aa_station(station_id: int, name: str, url: str,
+                     provider: str = "DI.fm") -> Station:
+    """Phase 64 Wave 0: factory mirroring tests/test_edit_station_dialog.py:783-806.
+
+    Used by the sibling-label tests below to construct AA-flavored stations
+    whose first stream URL drives find_aa_siblings. Distinct from `_station`
+    above: this factory takes an explicit URL so each test can construct
+    DI.fm / ZenRadio / JazzRadio URLs deterministically.
+    """
+    return Station(
+        id=station_id,
+        name=name,
+        provider_id=1,
+        provider_name=provider,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=station_id * 10,
+                station_id=station_id,
+                url=url,
+                position=1,
+            )
+        ],
     )
 
 
