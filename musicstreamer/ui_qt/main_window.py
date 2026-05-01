@@ -508,8 +508,17 @@ class MainWindow(QMainWindow):
 
         Implementation: delegate to _on_edit_requested so signal wiring lives
         in one place (single source of truth for dialog setup).
+
+        Dual-shape repo.get_station handling (Phase 64 REVIEW WR-02):
+          - Production Repo.get_station raises ValueError on miss (repo.py:271).
+          - Some test doubles return None.
+        Wrap in try/except Exception + None-check to be safe in both shapes.
+        Qt slots-never-raise: bail silently on any failure path.
         """
-        sibling = self._repo.get_station(sibling_id)
+        try:
+            sibling = self._repo.get_station(sibling_id)
+        except Exception:
+            return  # sibling deleted between render and click — silent no-op
         if sibling is None:
             return  # sibling deleted between render and click — silent no-op
         self._on_edit_requested(sibling)

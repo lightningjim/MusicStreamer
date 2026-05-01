@@ -663,7 +663,16 @@ class NowPlayingPanel(QWidget):
             self._sibling_label.setText("")
             return
         current_url = self._station.streams[0].url
-        all_stations = self._repo.list_stations()
+        # Defense-in-depth (REVIEW WR-01): repo.list_stations() can in principle
+        # raise on transient DB failures; this method runs from bind_station()
+        # which is on the Qt slot path. Slots-never-raise -- on failure, hide
+        # the label and bail silently.
+        try:
+            all_stations = self._repo.list_stations()
+        except Exception:
+            self._sibling_label.setVisible(False)
+            self._sibling_label.setText("")
+            return
         siblings = find_aa_siblings(
             stations=all_stations,
             current_station_id=self._station.id,
