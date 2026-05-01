@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -120,6 +121,64 @@ class _LogoFetchWorker(QThread):
             self.finished.emit("", token, "")
         except Exception:
             self.finished.emit("", token, "")
+
+
+class _PlaylistFetchWorker(QThread):
+    """Background playlist fetcher (Phase 58 / D-04).
+
+    Mirrors _LogoFetchWorker shape. Fetches a playlist URL, decodes the
+    body, dispatches to playlist_parser.parse_playlist, and emits the
+    resolved entries (or an error message) back to the main thread.
+
+    finished payload: (entries: list[dict], error_message: str, token: int)
+      - entries: parsed list[dict] on success, [] on failure
+      - error_message: "" on success, short user-readable reason on failure
+      - token: monotonic stale-discard token (mirrors _logo_fetch_token)
+    """
+
+    finished = Signal(list, str, int)  # entries, error_message, token
+
+    def __init__(self, url: str, token: int, parent=None):
+        super().__init__(parent)
+        self.setObjectName("pls-fetch-worker")
+        self._url = url
+        self._token = token
+
+    def run(self) -> None:
+        token = self._token
+        try:
+            import socket  # noqa: F401  -- referenced in except clause
+            import urllib.error
+            import urllib.request
+
+            from musicstreamer.playlist_parser import parse_playlist
+
+            with urllib.request.urlopen(self._url, timeout=10) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                raw = resp.read()
+            # parse_playlist accepts bytes — XSPF needs raw bytes for
+            # ElementTree's encoding handling, so we pass bytes through
+            # unconditionally and let parse_playlist do its own decode for
+            # PLS / M3U / M3U8 (D-17 / Phase 58 / Plan 01 contract).
+            entries = parse_playlist(
+                raw,
+                content_type=content_type,
+                url_hint=self._url,
+            )
+            if not entries:
+                self.finished.emit([], "No entries found.", token)
+                return
+            self.finished.emit(entries, "", token)
+        except urllib.error.HTTPError as exc:
+            self.finished.emit([], f"HTTP {exc.code}: {exc.reason}", token)
+        except urllib.error.URLError as exc:
+            self.finished.emit([], f"Could not connect: {exc.reason}", token)
+        except (TimeoutError, socket.timeout) as exc:
+            self.finished.emit([], "Timed out after 10 seconds.", token)
+        except UnicodeDecodeError as exc:
+            self.finished.emit([], f"Encoding error: {exc}", token)
+        except Exception as exc:  # noqa: BLE001
+            self.finished.emit([], str(exc) or "Unexpected error fetching playlist.", token)
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +306,10 @@ class EditStationDialog(QDialog):
         # Monotonic token so stale worker emissions can be discarded / cleaned up
         # (mirrors NowPlayingPanel._cover_fetch_token). See WR-01/WR-02/IN-01.
         self._logo_fetch_token: int = 0
+        # Phase 58 / D-04: PLS fetch worker + monotonic stale-discard token
+        # (mirrors _logo_fetch_worker pattern above).
+        self._pls_fetch_worker: Optional[_PlaylistFetchWorker] = None
+        self._pls_fetch_token: int = 0
         logo_row = QHBoxLayout()
         logo_row.setContentsMargins(0, 0, 0, 0)
         logo_row.setSpacing(8)
@@ -366,8 +429,16 @@ class EditStationDialog(QDialog):
         self.remove_stream_btn = QPushButton("Remove")
         self.move_up_btn = QPushButton("Move Up")
         self.move_down_btn = QPushButton("Move Down")
+        # Phase 58 / D-01: 5th button — accepts a playlist URL (PLS / M3U /
+        # M3U8 / XSPF) and inserts one stream-table row per entry.
+        self.add_pls_btn = QPushButton("Add from PLS…")
+        self.add_pls_btn.setToolTip(
+            "Paste a playlist URL (PLS / M3U / M3U8 / XSPF) and "
+            "import each stream entry as a row."
+        )
         for btn in (self.add_stream_btn, self.remove_stream_btn,
-                    self.move_up_btn, self.move_down_btn):
+                    self.move_up_btn, self.move_down_btn,
+                    self.add_pls_btn):
             btn_row.addWidget(btn)
         btn_row.addStretch()
         streams_vbox.addLayout(btn_row)
@@ -377,6 +448,7 @@ class EditStationDialog(QDialog):
         self.remove_stream_btn.clicked.connect(self._on_remove_stream)
         self.move_up_btn.clicked.connect(self._on_move_up)
         self.move_down_btn.clicked.connect(self._on_move_down)
+        self.add_pls_btn.clicked.connect(self._on_add_pls)
 
         # Button box — Save (AcceptRole), Discard (RejectRole), Delete (DestructiveRole)
         self.button_box = QDialogButtonBox()
@@ -658,6 +730,140 @@ class EditStationDialog(QDialog):
             table.setItem(r2, col, item1)
 
     # ------------------------------------------------------------------
+    # Phase 58 / STR-15: PLS auto-resolve slot methods (D-02..D-08)
+    # ------------------------------------------------------------------
+
+    def _on_add_pls(self) -> None:
+        """Phase 58 / D-02: open QInputDialog for playlist URL, kick off worker.
+
+        Cancel / empty input → no-op. Otherwise increment _pls_fetch_token,
+        disable the button, apply wait cursor, and start _PlaylistFetchWorker.
+        """
+        url, ok = QInputDialog.getText(
+            self,
+            "Add from PLS",
+            "Playlist URL:",
+            QLineEdit.Normal,
+            "",
+        )
+        if not ok or not url.strip():
+            return
+
+        # D-04: monotonic stale-discard token (mirrors _logo_fetch_token)
+        self._pls_fetch_token += 1
+        token = self._pls_fetch_token
+
+        self.add_pls_btn.setEnabled(False)
+        # D-03: wait cursor during fetch. Restored exactly once at the top of
+        # _on_pls_fetched (covers success, failure, and stale-token branches).
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+
+        self._pls_fetch_worker = _PlaylistFetchWorker(url.strip(), token, self)
+        self._pls_fetch_worker.finished.connect(self._on_pls_fetched)
+        self._pls_fetch_worker.start()
+
+    def _on_pls_fetched(
+        self,
+        entries: list,
+        error_message: str,
+        token: int,
+    ) -> None:
+        """Phase 58 / D-03..D-06: handle worker emission.
+
+        FIRST action: restore cursor + re-enable button UNCONDITIONALLY,
+        BEFORE stale-token check, BEFORE error check (D-03/D-10 invariant —
+        every setOverrideCursor must have exactly one matching restore).
+        """
+        QApplication.restoreOverrideCursor()
+        self.add_pls_btn.setEnabled(True)
+
+        # Stale emission: a newer fetch was started (or token mismatch).
+        if token != self._pls_fetch_token:
+            return
+
+        # Branch A/B: failure or empty entries → warn, leave table unchanged.
+        if error_message or not entries:
+            QMessageBox.warning(
+                self,
+                "PLS resolution failed",
+                f"Could not resolve playlist:\n{error_message or 'No entries found.'}",
+            )
+            return
+
+        # Branch C: empty existing table → silent append (D-06).
+        if self.streams_table.rowCount() == 0:
+            self._apply_pls_entries(entries, mode="append")
+            return
+
+        # Branch D: existing rows present → 3-button confirm (D-06).
+        n = self.streams_table.rowCount()
+        m = len(entries)
+        stream_word = "stream" if n == 1 else "streams"
+        entry_word_singular = "entry"
+        entry_word_plural = "entries"
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Import Playlist Streams")
+        msg_box.setText(
+            f"This station has {n} existing {stream_word}.\n\n"
+            f"Replace them with the {m} resolved "
+            f"{entry_word_singular if m == 1 else entry_word_plural}, "
+            f"or append the new "
+            f"{entry_word_singular if m == 1 else entry_word_plural} "
+            f"after the existing ones?"
+        )
+        replace_btn = msg_box.addButton("Replace", QMessageBox.DestructiveRole)
+        append_btn = msg_box.addButton("Append", QMessageBox.AcceptRole)
+        cancel_btn = msg_box.addButton("Cancel", QMessageBox.RejectRole)
+        msg_box.setDefaultButton(append_btn)  # D-06: Enter accepts non-destructive Append
+        msg_box.exec()
+
+        clicked = msg_box.clickedButton()
+        if clicked is replace_btn:
+            self._apply_pls_entries(entries, mode="replace")
+        elif clicked is append_btn:
+            self._apply_pls_entries(entries, mode="append")
+        # else: Cancel — no-op
+
+    def _apply_pls_entries(self, entries: list, mode: str) -> None:
+        """Phase 58 / D-07/D-08: insert resolved rows into the streams table.
+
+        mode == "replace": clear the table (UI-only — _on_save reconcile
+            prunes orphaned stream_ids via reorder_streams), then append.
+        mode == "append": continue position numbering from max(existing) + 1.
+
+        Calls _add_stream_row(stream_id=None) per entry — persistence is
+        handled by the existing _on_save reconcile pass.
+        """
+        if mode == "replace":
+            # D-07: UI-only clear; no repo.delete_stream call. _on_save
+            # reconcile prunes any rows whose stream_id no longer appears
+            # in ordered_ids.
+            self.streams_table.setRowCount(0)
+
+        # D-08: continue position from max(existing) + 1
+        max_pos = 0
+        for row in range(self.streams_table.rowCount()):
+            item = self.streams_table.item(row, _COL_POSITION)
+            if item is None:
+                continue
+            try:
+                max_pos = max(max_pos, int(item.text()))
+            except (TypeError, ValueError):
+                pass
+        start_position = max_pos + 1
+
+        for i, entry in enumerate(entries):
+            self._add_stream_row(
+                url=entry.get("url", ""),
+                quality=entry.get("title", ""),  # D-14: title → Quality column
+                codec=entry.get("codec", ""),
+                bitrate_kbps=int(entry.get("bitrate_kbps", 0) or 0),
+                position=start_position + i,
+                stream_id=None,  # new row; persisted on Save
+            )
+
+    # ------------------------------------------------------------------
     # URL auto-fetch debounce (D-07)
     # ------------------------------------------------------------------
 
@@ -828,6 +1034,24 @@ class EditStationDialog(QDialog):
             pass
         worker.wait(2000)
 
+    def _shutdown_pls_fetch_worker(self) -> None:
+        """Bound-wait for the PLS fetch worker so QThread destroy-while-running
+        crash is prevented (mirrors _shutdown_logo_fetch_worker, see
+        commit bb1c518's QThread destroy fix).
+
+        Called from accept(), closeEvent(), AND reject() — all three teardown
+        paths must shut down the worker, otherwise PySide6 raises:
+          QThread: Destroyed while thread '' is still running
+        """
+        worker = self._pls_fetch_worker
+        if worker is None or not worker.isRunning():
+            return
+        try:
+            worker.finished.disconnect()
+        except Exception:  # noqa: BLE001
+            pass
+        worker.wait(2000)
+
     def accept(self) -> None:
         # BUG-FIX: accept() is the Save path. closeEvent() and reject() already
         # call _shutdown_logo_fetch_worker(), but accept() did not — so clicking
@@ -835,6 +1059,7 @@ class EditStationDialog(QDialog):
         # before it finished, triggering the hard-crash:
         #   QThread: Destroyed while thread '' is still running
         self._shutdown_logo_fetch_worker()
+        self._shutdown_pls_fetch_worker()  # Phase 58
         super().accept()
 
     def closeEvent(self, event):  # noqa: N802 (Qt override)
@@ -847,6 +1072,7 @@ class EditStationDialog(QDialog):
             self._repo.delete_station(self._station.id)
             self._is_new = False
         self._shutdown_logo_fetch_worker()
+        self._shutdown_pls_fetch_worker()  # Phase 58
         super().closeEvent(event)
 
     def reject(self) -> None:
@@ -855,6 +1081,7 @@ class EditStationDialog(QDialog):
             self._repo.delete_station(self._station.id)
             self._is_new = False
         self._shutdown_logo_fetch_worker()
+        self._shutdown_pls_fetch_worker()  # Phase 58
         super().reject()
 
     # ------------------------------------------------------------------
