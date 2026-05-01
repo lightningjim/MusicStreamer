@@ -128,3 +128,54 @@ def test_decoration_fallback_when_art_path_none(qtbot):
     icon = model.data(station_idx, Qt.DecorationRole)
     assert isinstance(icon, QIcon)
     assert icon.isNull() is False
+
+
+# ----------------------------------------------------------------------
+# Phase 55 / BUG-06: provider_name_at — raw provider name accessor
+# (suffix-free; round-tripable key for capture/restore in StationListPanel)
+# ----------------------------------------------------------------------
+
+
+def test_provider_name_at_returns_raw_name_without_count_suffix(qtbot):
+    # Display label is mutated to "SomaFM (2)" in _populate; provider_name_at
+    # must return the raw "SomaFM" so capture/restore can match across refresh.
+    stations = [
+        make_station(1, "Groove Salad", "SomaFM"),
+        make_station(2, "Drone Zone", "SomaFM"),
+    ]
+    model = StationTreeModel(stations)
+
+    # Sanity-check: the DisplayRole still has the count suffix (untouched).
+    top = model.index(0, 0)
+    assert model.data(top, Qt.DisplayRole) == "SomaFM (2)"
+
+    # And the raw provider name is "SomaFM" exactly — no whitespace, no parens.
+    assert model.provider_name_at(0) == "SomaFM"
+
+
+def test_provider_name_at_returns_none_for_out_of_range_row(qtbot):
+    stations = [make_station(1, "Groove Salad", "SomaFM")]
+    model = StationTreeModel(stations)
+    assert model.provider_name_at(99) is None
+    assert model.provider_name_at(-1) is None
+
+
+def test_provider_name_at_preserves_parens_in_raw_provider_name(qtbot):
+    # Regression case: a provider whose name itself contains " (Hi-Res)"
+    # must round-trip unmodified through provider_name_at.
+    stations = [make_station(1, "Foo", "SomeNet (Hi-Res)")]
+    model = StationTreeModel(stations)
+    # DisplayRole gets " (1)" appended on top of the existing parens — that's fine.
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == "SomeNet (Hi-Res) (1)"
+    # Raw name: no count suffix, parens-in-name preserved.
+    assert model.provider_name_at(0) == "SomeNet (Hi-Res)"
+
+
+def test_provider_name_at_after_refresh_reflects_new_data(qtbot):
+    # provider_name_at must read from the post-refresh state (beginResetModel/
+    # endResetModel rebuilt _root.children).
+    model = StationTreeModel([make_station(1, "Groove Salad", "SomaFM")])
+    assert model.provider_name_at(0) == "SomaFM"
+
+    model.refresh([make_station(2, "Chillout", "DI.fm")])
+    assert model.provider_name_at(0) == "DI.fm"
