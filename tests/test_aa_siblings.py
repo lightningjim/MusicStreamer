@@ -112,6 +112,54 @@ def test_link_text_payload_is_station_name():
     assert siblings == [("zenradio", 2, "Zen Ambient Vibes")]
 
 
+# --- Cross-network identity: same channel concept, different per-network API keys ---
+
+def test_finds_sibling_via_cross_network_identity_spacedreams():
+    """DI.fm 'Space Dreams' has API key 'spacemusic'; ZenRadio 'Space Dreams' has key
+    'spacedreams'. _AA_CROSS_NETWORK_KEYS normalizes both to 'spacedreams' so
+    find_aa_siblings still pairs them as cross-network siblings.
+    """
+    di = _mk(1, "Space Dreams", "http://prem1.di.fm:80/spacemusic_hi?listen_key=abc")
+    zr = _mk(2, "Space Dreams", "http://prem4.zenradio.com:80/zrspacedreams?listen_key=abc")
+    siblings = find_aa_siblings([di, zr], current_station_id=1, current_first_url=di.streams[0].url)
+    assert siblings == [("zenradio", 2, "Space Dreams")]
+
+
+def test_finds_sibling_via_cross_network_identity_alternativerock():
+    """RadioTunes 'Alternative Rock' API key 'altrock' vs RockRadio 'alternativerock'."""
+    rt = _mk(1, "Alternative Rock", "http://prem1.radiotunes.com:80/altrock_hi?listen_key=abc")
+    rr = _mk(2, "Alternative Rock", "http://prem1.rockradio.com:80/alternativerock_hi?listen_key=abc")
+    siblings = find_aa_siblings([rt, rr], current_station_id=1, current_first_url=rt.streams[0].url)
+    assert siblings == [("rockradio", 2, "Alternative Rock")]
+
+
+def test_finds_sibling_via_cross_network_identity_baroque():
+    """ClassicalRadio 'Baroque Period' key 'baroqueperiod' vs RadioTunes 'baroque'."""
+    cr = _mk(1, "Baroque Period", "http://prem1.classicalradio.com:80/baroqueperiod_hi?listen_key=abc")
+    rt = _mk(2, "Baroque Period", "http://prem1.radiotunes.com:80/baroque_hi?listen_key=abc")
+    siblings = find_aa_siblings([cr, rt], current_station_id=1, current_first_url=cr.streams[0].url)
+    assert siblings == [("radiotunes", 2, "Baroque Period")]
+
+
+def test_finds_sibling_via_cross_network_identity_romantic():
+    """ClassicalRadio 'Romantic Period' key 'romanticperiod' vs RadioTunes 'romantic'."""
+    cr = _mk(1, "Romantic Period", "http://prem1.classicalradio.com:80/romanticperiod_hi?listen_key=abc")
+    rt = _mk(2, "Romantic Period", "http://prem1.radiotunes.com:80/romantic_hi?listen_key=abc")
+    siblings = find_aa_siblings([cr, rt], current_station_id=1, current_first_url=cr.streams[0].url)
+    assert siblings == [("radiotunes", 2, "Romantic Period")]
+
+
+def test_finds_sibling_via_radiotunes_rt_prefix_stripping():
+    """RadioTunes URLs may carry an 'rt' prefix (e.g. /rtambient). Sibling
+    detection must work whether the candidate or the current station is the
+    rt-prefixed one. Here current is RT, candidate is DI.
+    """
+    rt = _mk(1, "Ambient", "http://prem1.radiotunes.com:80/rtambient_hi?listen_key=abc")
+    di = _mk(2, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    siblings = find_aa_siblings([rt, di], current_station_id=1, current_first_url=rt.streams[0].url)
+    assert siblings == [("di", 2, "Ambient")]
+
+
 def test_excludes_candidate_with_empty_streams_list():
     """Candidate Station with streams=[] is filtered, no IndexError."""
     di = _mk(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")

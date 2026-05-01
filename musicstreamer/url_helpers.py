@@ -26,10 +26,12 @@ _AA_STREAM_DOMAINS = {
 
 # Per-network URL key prefix that differs from the slug.
 # DI.fm stream URLs use a 'di_' path prefix (e.g. /di_house, /di_trance_hi).
+# RadioTunes uses 'rt' (e.g. /rtambient, /rtchillout).
 # ZenRadio uses 'zr' (e.g. /zrambient).
-# Both must be stripped to recover the bare channel key that matches the AA API.
+# All must be stripped to recover the bare channel key that matches the AA API.
 _NETWORK_URL_PREFIXES = {
     "di": "di_",
+    "radiotunes": "rt",
     "zenradio": "zr",
 }
 
@@ -48,6 +50,30 @@ _AA_CHANNEL_KEY_ALIASES: dict[str, str] = {
     "oldschoolelectronica": "classictechno",  # Oldschool Techno & Trance (public): URL uses oldschoolelectronica
     "classicelectronica": "classictechno",    # Oldschool Techno & Trance (premium): URL uses classicelectronica
 }
+
+# Cross-network sibling identity: per-network API keys that represent the SAME
+# channel concept on different networks despite the keys themselves differing.
+# Used ONLY by find_aa_siblings to decide whether two stations on different
+# networks are siblings — does NOT affect per-network image-map lookups (each
+# network's image fetch keeps using its own API key).
+# Keyed by (network_slug, per_network_api_key) -> canonical sibling identity.
+# Verified against the AA channels API and the user station DB 2026-05-01.
+_AA_CROSS_NETWORK_KEYS: dict[tuple[str, str], str] = {
+    ("di", "spacemusic"): "spacedreams",         # DI.fm "Space Dreams" key=spacemusic; ZR/canonical=spacedreams
+    ("radiotunes", "altrock"): "alternativerock",  # RadioTunes key=altrock; RockRadio/canonical=alternativerock
+    ("classicalradio", "baroqueperiod"): "baroque",  # ClassicalRadio key=baroqueperiod; RT/canonical=baroque
+    ("classicalradio", "romanticperiod"): "romantic",  # ClassicalRadio key=romanticperiod; RT/canonical=romantic
+}
+
+
+def _aa_sibling_identity(slug: str, key: str) -> str:
+    """Canonical cross-network sibling identity for (network_slug, api_key).
+
+    Defaults to the input key when no cross-network alias is registered.
+    Used by find_aa_siblings to compare stations across networks that share
+    the same channel concept but have different per-network API keys.
+    """
+    return _AA_CROSS_NETWORK_KEYS.get((slug, key), key)
 
 
 def _is_aa_url(url: str) -> bool:
@@ -137,6 +163,9 @@ def find_aa_siblings(
     current_key = _aa_channel_key_from_url(current_first_url, slug=current_slug)
     if not current_key:
         return []
+    # Cross-network identity: e.g. DI.fm "spacemusic" and ZenRadio "spacedreams"
+    # both normalize to "spacedreams" so they match as siblings.
+    current_identity = _aa_sibling_identity(current_slug, current_key)
 
     # Sort-order index: NETWORKS declaration order is the canonical order.
     slug_order = {n["slug"]: i for i, n in enumerate(NETWORKS)}
@@ -163,7 +192,7 @@ def find_aa_siblings(
         cand_key = _aa_channel_key_from_url(cand_url, slug=cand_slug)
         if not cand_key:
             continue
-        if cand_key != current_key:
+        if _aa_sibling_identity(cand_slug, cand_key) != current_identity:
             continue
         siblings.append((slug_order.get(cand_slug, 999), cand_slug, st.id, st.name))
 

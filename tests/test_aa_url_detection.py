@@ -98,6 +98,23 @@ def test_channel_key_alias_classicelectronica_to_classictechno():
         "http://prem1.di.fm:80/classicelectronica_hi?2d5bb0c3661c1d9ac8", "di"
     ) == "classictechno"
 
+# --- RadioTunes 'rt' prefix stripping (parallel to DI 'di_' and ZenRadio 'zr') ---
+
+def test_channel_key_strips_rt_prefix():
+    # RadioTunes stream URLs use an 'rt' path prefix on a subset of channels:
+    # /rtambient, /rtchillout, /rtlounge etc. Must be stripped to match API key.
+    assert _aa_channel_key_from_url("http://prem1.radiotunes.com:80/rtambient", "radiotunes") == "ambient"
+
+def test_channel_key_strips_rt_prefix_with_quality():
+    assert _aa_channel_key_from_url(
+        "http://prem1.radiotunes.com:80/rtchillout_hi?2d5bb0c3661c1d9ac8", "radiotunes"
+    ) == "chillout"
+
+def test_channel_key_radiotunes_no_prefix_unchanged():
+    # Most RT channels don't carry the rt prefix in their URL — the strip must
+    # only fire when the path actually starts with 'rt'.
+    assert _aa_channel_key_from_url("http://prem1.radiotunes.com:80/baroque_hi", "radiotunes") == "baroque"
+
 # test_fetch_aa_logo_success / _failure removed in Phase 36 plan 02.
 # fetch_aa_logo() used GLib.idle_add and is deleted with musicstreamer/ui/edit_dialog.py
 # in plan 36-03. A Qt-signal-based replacement will be added in Phase 39 when
