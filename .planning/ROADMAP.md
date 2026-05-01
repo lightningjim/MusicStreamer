@@ -148,7 +148,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections (completed 2026-05-01)
 - [ ] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID
 - [ ] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test
-- [ ] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows
+- [x] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows (completed 2026-05-01)
 - [ ] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry
 - [ ] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer
 - [ ] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer"
@@ -289,12 +289,12 @@ Plans:
   2. Each stream entry in the PLS appears as a separate row in the Streams table after resolution
   3. Bitrate and codec are populated where the PLS or a stream probe can determine them; otherwise default to 0/unknown
   4. The user can review, reorder, or remove the resolved entries before saving
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 58-01-PLAN.md — Create musicstreamer/playlist_parser.py + tests/test_playlist_parser.py (pure module, PLS/M3U/M3U8/XSPF + bitrate/codec extractors; D-09..D-19)
-- [ ] 58-02-PLAN.md — Refactor aa_import._resolve_pls to thin wrapper around parse_playlist (D-10) + delegation tests
-- [ ] 58-03-PLAN.md — Wire EditStationDialog: _PlaylistFetchWorker + Add from PLS… button + 3 slots + _shutdown_pls_fetch_worker (3 sites) + 12+ pytest-qt tests (D-01..D-08, D-17)
+- [x] 58-01-PLAN.md — Create musicstreamer/playlist_parser.py + tests/test_playlist_parser.py (pure module, PLS/M3U/M3U8/XSPF + bitrate/codec extractors; D-09..D-19)
+- [x] 58-02-PLAN.md — Refactor aa_import._resolve_pls to thin wrapper around parse_playlist (D-10) + delegation tests
+- [x] 58-03-PLAN.md — Wire EditStationDialog: _PlaylistFetchWorker + Add from PLS… button + 3 slots + _shutdown_pls_fetch_worker (3 sites) + 12+ pytest-qt tests (D-01..D-08, D-17)
 **UI hint**: yes
 
 ### Phase 59: Visual Accent Color Picker
@@ -367,7 +367,7 @@ Plans:
 | 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
 | 56. Windows DI.fm + SMTC Start Menu | 0/? | Not started | - |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
-| 58. PLS Auto-Resolve in Station Editor | 0/? | Not started | - |
+| 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
 | 60. GBS.FM Integration | 0/? | Not started | - |
 | 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
