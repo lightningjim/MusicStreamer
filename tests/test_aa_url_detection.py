@@ -86,8 +86,17 @@ def test_channel_key_alias_clubsounds_to_club():
     assert _aa_channel_key_from_url("http://pub5.di.fm:80/di_clubsounds", "di") == "club"
 
 def test_channel_key_alias_oldschoolelectronica_to_classictechno():
-    # Classic Techno: DI.fm stream URL uses path /di_oldschoolelectronica, API key is 'classictechno'.
+    # Oldschool Techno & Trance (public PLS): URL uses /di_oldschoolelectronica, API key is 'classictechno'.
     assert _aa_channel_key_from_url("http://pub5.di.fm:80/di_oldschoolelectronica", "di") == "classictechno"
+
+def test_channel_key_alias_classicelectronica_to_classictechno():
+    # Oldschool Techno & Trance (premium): premium URL uses /classicelectronica
+    # (NO di_ prefix, with auth token query). API key is 'classictechno'.
+    # The public-PLS slug ('oldschoolelectronica') and premium slug ('classicelectronica')
+    # are DIFFERENT legacy URL forms for the same channel — both must alias.
+    assert _aa_channel_key_from_url(
+        "http://prem1.di.fm:80/classicelectronica_hi?2d5bb0c3661c1d9ac8", "di"
+    ) == "classictechno"
 
 # test_fetch_aa_logo_success / _failure removed in Phase 36 plan 02.
 # fetch_aa_logo() used GLib.idle_add and is deleted with musicstreamer/ui/edit_dialog.py

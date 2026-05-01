@@ -36,13 +36,17 @@ _NETWORK_URL_PREFIXES = {
 # Channel key aliases: some DI.fm channels have a URL path segment that no longer
 # matches the current API key (renamed channels, or legacy alternate URL slugs).
 # Applied after prefix stripping, so keys here are already prefix-stripped values.
-# Verified against the AA channels API and public PLS responses 2026-05-01.
+# Note: public-PLS stream URLs and premium stream URLs sometimes carry DIFFERENT
+# legacy slugs for the same channel (e.g. classictechno is `oldschoolelectronica`
+# on public infra and `classicelectronica` on premium). Both must be aliased.
+# Verified against the AA channels API and the user station DB 2026-05-01.
 _AA_CHANNEL_KEY_ALIASES: dict[str, str] = {
     # URL path segment (after stripping di_) -> current API channel key
     "electrohouse": "electro",       # Electro House: URL uses electrohouse, API key is electro
     "mainstage": "edmfestival",      # EDM Festival: URL uses mainstage (legacy), API key is edmfestival
     "clubsounds": "club",            # Club Sounds: URL uses clubsounds, API key is club
-    "oldschoolelectronica": "classictechno",  # Classic Techno: URL uses oldschoolelectronica
+    "oldschoolelectronica": "classictechno",  # Oldschool Techno & Trance (public): URL uses oldschoolelectronica
+    "classicelectronica": "classictechno",    # Oldschool Techno & Trance (premium): URL uses classicelectronica
 }
 
 
