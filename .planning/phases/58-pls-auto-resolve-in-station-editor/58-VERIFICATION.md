@@ -116,7 +116,16 @@ No automated gaps identified. All four success criteria are met, all required ar
 
 The three human verification items are routine UAT for interactive UI behavior (live network fetch, button keyboard defaults, save/discard end-to-end). They do not indicate implementation gaps — they are confirmations of the final user-visible flow that cannot be automated without a running display server and real network access.
 
+### Human UAT Sign-Off
+
+- [x] **UAT-1: Live PLS URL fetch + row population** — confirmed by user 2026-05-01
+- [x] **UAT-2: Replace/Append/Cancel dialog + Enter-activates-Append** — confirmed by user 2026-05-01
+- [x] **UAT-3: Dirty state + Discard rollback** — confirmed by user 2026-05-01
+
+All three human verification items signed off. Phase 58 fully complete.
+
 ---
 
 _Verified: 2026-05-01T00:00:00Z_
 _Verifier: Claude (gsd-verifier)_
+_UAT signed off: 2026-05-01 by Kyle Creasey_
