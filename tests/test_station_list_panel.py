@@ -532,3 +532,143 @@ def test_refresh_recent_does_not_touch_tree(qtbot):
     panel.refresh_recent()
 
     assert panel.tree.model().rowCount() == row_count_before
+
+
+# ----------------------------------------------------------------------
+# Phase 55 / BUG-06: refresh_model preserves per-provider expansion state
+# (capture/restore around model.refresh; _sync_tree_expansion no longer
+# called from refresh_model body)
+# ----------------------------------------------------------------------
+
+
+def test_capture_and_restore_helpers_exist(qtbot):
+    """Both private helpers must be present on StationListPanel (Plan 55-01)."""
+    panel = StationListPanel(_sample_repo())
+    qtbot.addWidget(panel)
+    assert hasattr(panel, "_capture_expanded_provider_names")
+    assert hasattr(panel, "_restore_expanded_provider_names")
+
+
+def test_refresh_model_preserves_user_expanded_provider(qtbot):
+    """SC #1 — a group the user expanded before save stays expanded after refresh_model."""
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # Locate the SomaFM provider via the source model (raw name, no " (N)" suffix).
+    somafm_row = None
+    for row in range(panel.model.rowCount()):
+        if panel.model.provider_name_at(row) == "SomaFM":
+            somafm_row = row
+            break
+    assert somafm_row is not None, "SomaFM should exist in the sample repo"
+
+    source_idx = panel.model.index(somafm_row, 0)
+    proxy_idx = panel._proxy.mapFromSource(source_idx)
+    assert proxy_idx.isValid()
+
+    # User expands the SomaFM group.
+    panel.tree.expand(proxy_idx)
+    assert panel.tree.isExpanded(proxy_idx) is True
+
+    # Simulate the edit-save round-trip: refresh_model() reloads from the repo.
+    panel.refresh_model()
+
+    # Re-locate SomaFM after refresh and confirm it is STILL expanded.
+    somafm_row_post = None
+    for row in range(panel.model.rowCount()):
+        if panel.model.provider_name_at(row) == "SomaFM":
+            somafm_row_post = row
+            break
+    assert somafm_row_post is not None
+    proxy_idx_post = panel._proxy.mapFromSource(panel.model.index(somafm_row_post, 0))
+    assert proxy_idx_post.isValid()
+    assert panel.tree.isExpanded(proxy_idx_post) is True
+
+
+def test_refresh_model_preserves_user_collapsed_provider(qtbot):
+    """SC #2 — groups the user has collapsed stay collapsed after refresh_model.
+
+    Today (pre-fix) refresh_model calls _sync_tree_expansion which calls
+    collapseAll when no filter is active — that's accidentally compatible with
+    'collapsed stays collapsed'. The real proof is that the post-fix path no
+    longer relies on _sync_tree_expansion, but the user-visible behavior is
+    identical for this case. Asserted to lock the contract.
+    """
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # All groups start collapsed. Refresh; all stay collapsed.
+    panel.refresh_model()
+
+    for row in range(panel.model.rowCount()):
+        proxy_idx = panel._proxy.mapFromSource(panel.model.index(row, 0))
+        if proxy_idx.isValid():
+            assert panel.tree.isExpanded(proxy_idx) is False
+
+
+def test_refresh_model_expands_brand_new_provider_group(qtbot):
+    """D-06 — a provider group not present pre-refresh defaults to expanded."""
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # Pre-state: groups exist for SomaFM and DI.fm; nothing is expanded.
+    pre_provider_names = {
+        panel.model.provider_name_at(row)
+        for row in range(panel.model.rowCount())
+    }
+    assert "JazzFM" not in pre_provider_names
+
+    # Simulate edit-save introducing a brand-new provider.
+    repo._stations.append(make_station(42, "Smooth Operator", "JazzFM"))
+    panel.refresh_model()
+
+    # Find JazzFM in the post-refresh model and verify it is expanded.
+    jazz_row = None
+    for row in range(panel.model.rowCount()):
+        if panel.model.provider_name_at(row) == "JazzFM":
+            jazz_row = row
+            break
+    assert jazz_row is not None, "JazzFM should now appear in the model"
+    proxy_idx = panel._proxy.mapFromSource(panel.model.index(jazz_row, 0))
+    assert proxy_idx.isValid()
+    assert panel.tree.isExpanded(proxy_idx) is True
+
+
+def test_refresh_model_body_does_not_call_sync_tree_expansion(qtbot):
+    """D-03 — refresh_model body must not invoke _sync_tree_expansion.
+
+    Strategy: refresh_model() with no active filter MUST NOT collapse a
+    group the user expanded. Pre-fix _sync_tree_expansion would call
+    collapseAll() under that condition, causing the SomaFM group to
+    collapse. This test fails on the pre-fix code path and passes on the
+    capture/restore path.
+    """
+    repo = _sample_repo()
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+
+    # No active filter (default). Expand SomaFM.
+    assert panel._proxy.has_active_filter() is False
+    somafm_row = next(
+        row for row in range(panel.model.rowCount())
+        if panel.model.provider_name_at(row) == "SomaFM"
+    )
+    proxy_idx = panel._proxy.mapFromSource(panel.model.index(somafm_row, 0))
+    panel.tree.expand(proxy_idx)
+    assert panel.tree.isExpanded(proxy_idx) is True
+
+    # Refresh; state must survive.
+    panel.refresh_model()
+
+    somafm_row_post = next(
+        row for row in range(panel.model.rowCount())
+        if panel.model.provider_name_at(row) == "SomaFM"
+    )
+    proxy_idx_post = panel._proxy.mapFromSource(panel.model.index(somafm_row_post, 0))
+    assert panel.tree.isExpanded(proxy_idx_post) is True, (
+        "refresh_model must preserve expanded SomaFM; was _sync_tree_expansion "
+        "still called from refresh_model body?"
+    )
