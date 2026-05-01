@@ -127,6 +127,7 @@ Key v2.0 decisions already settled:
 - Phase 64 added: AudioAddict Siblings on Now Playing (BUG-02 follow-up) — surface AA siblings in the Now Playing panel as one-click jumps that switch active playback (unlike Phase 51's edit-dialog flow which only navigates the editor). Reuses `find_aa_siblings` helper from Phase 51. 2026-04-28
 - Phase 65 added: Show current version in app (location TBD — hamburger menu vs. right end of bar containing hamburger) 2026-04-28
 - Phase 66 added: Color Themes — preset and custom color schemes, with Vaporwave (pastel) and Overrun (neon+black) as the driving presets 2026-04-29
+- Phase 67 added: Show similar stations below now playing for switching - From same Provider and Same Tag, random 5 from each with refresh, hideable and not shown by default 2026-05-01
 
 ### Pending Todos
 

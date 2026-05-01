@@ -1,10 +1,11 @@
 ---
 phase: 64
 slug: audioaddict-siblings-on-now-playing
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-01
+reviewed_at: 2026-05-01
 ---
 
 # Phase 64 — UI Design Contract
