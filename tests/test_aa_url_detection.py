@@ -49,6 +49,46 @@ def test_channel_key_extraction_no_path():
 def test_channel_key_extraction_empty():
     assert _aa_channel_key_from_url("") is None
 
+# --- DI.fm di_ prefix stripping (bug fix: di_ prefix was not stripped) ---
+
+def test_channel_key_strips_di_prefix():
+    # DI.fm stream URLs use a 'di_' path prefix — must be stripped to match API key.
+    # e.g. http://pub8.di.fm:80/di_chillout -> 'chillout'
+    assert _aa_channel_key_from_url("http://pub8.di.fm:80/di_chillout", "di") == "chillout"
+
+def test_channel_key_strips_di_prefix_with_quality():
+    # Premium DI.fm stream URLs: di_ prefix AND _hi suffix must both be stripped.
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/di_ambient_hi", "di") == "ambient"
+
+def test_channel_key_strips_di_prefix_trance():
+    assert _aa_channel_key_from_url("http://pub4.di.fm:80/di_trance", "di") == "trance"
+
+# --- DI.fm channel key aliases (renamed channels whose URL path != API key) ---
+
+def test_channel_key_alias_electrohouse_to_electro():
+    # Electro House: DI.fm stream URL uses path /di_electrohouse (legacy),
+    # but the AA channels API key is 'electro'. Alias must resolve correctly.
+    assert _aa_channel_key_from_url("http://pub8.di.fm:80/di_electrohouse", "di") == "electro"
+
+def test_channel_key_alias_electrohouse_premium():
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/di_electrohouse_hi", "di") == "electro"
+
+def test_channel_key_alias_mainstage_to_edmfestival():
+    # EDM Festival: DI.fm stream URL uses path /di_mainstage (legacy),
+    # but the AA channels API key is 'edmfestival'.
+    assert _aa_channel_key_from_url("http://pub7.di.fm:80/di_mainstage", "di") == "edmfestival"
+
+def test_channel_key_alias_mainstage_premium():
+    assert _aa_channel_key_from_url("http://prem2.di.fm:80/di_mainstage_hi", "di") == "edmfestival"
+
+def test_channel_key_alias_clubsounds_to_club():
+    # Club: DI.fm stream URL uses path /di_clubsounds, API key is 'club'.
+    assert _aa_channel_key_from_url("http://pub5.di.fm:80/di_clubsounds", "di") == "club"
+
+def test_channel_key_alias_oldschoolelectronica_to_classictechno():
+    # Classic Techno: DI.fm stream URL uses path /di_oldschoolelectronica, API key is 'classictechno'.
+    assert _aa_channel_key_from_url("http://pub5.di.fm:80/di_oldschoolelectronica", "di") == "classictechno"
+
 # test_fetch_aa_logo_success / _failure removed in Phase 36 plan 02.
 # fetch_aa_logo() used GLib.idle_add and is deleted with musicstreamer/ui/edit_dialog.py
 # in plan 36-03. A Qt-signal-based replacement will be added in Phase 39 when

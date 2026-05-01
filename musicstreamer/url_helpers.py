@@ -24,9 +24,25 @@ _AA_STREAM_DOMAINS = {
     "rockradio.com", "classicalradio.com", "zenradio.com",
 }
 
-# Per-network URL key prefix that differs from the slug (e.g. ZenRadio uses "zr")
+# Per-network URL key prefix that differs from the slug.
+# DI.fm stream URLs use a 'di_' path prefix (e.g. /di_house, /di_trance_hi).
+# ZenRadio uses 'zr' (e.g. /zrambient).
+# Both must be stripped to recover the bare channel key that matches the AA API.
 _NETWORK_URL_PREFIXES = {
+    "di": "di_",
     "zenradio": "zr",
+}
+
+# Channel key aliases: some DI.fm channels have a URL path segment that no longer
+# matches the current API key (renamed channels, or legacy alternate URL slugs).
+# Applied after prefix stripping, so keys here are already prefix-stripped values.
+# Verified against the AA channels API and public PLS responses 2026-05-01.
+_AA_CHANNEL_KEY_ALIASES: dict[str, str] = {
+    # URL path segment (after stripping di_) -> current API channel key
+    "electrohouse": "electro",       # Electro House: URL uses electrohouse, API key is electro
+    "mainstage": "edmfestival",      # EDM Festival: URL uses mainstage (legacy), API key is edmfestival
+    "clubsounds": "club",            # Club Sounds: URL uses clubsounds, API key is club
+    "oldschoolelectronica": "classictechno",  # Classic Techno: URL uses oldschoolelectronica
 }
 
 
@@ -40,10 +56,12 @@ def _aa_channel_key_from_url(url: str, slug: str | None = None) -> str | None:
     """Extract channel key from an AudioAddict stream URL path segment.
 
     Stream URLs may include a quality-tier suffix (_hi/_med/_low) and some
-    networks use a short URL prefix (ZenRadio: 'zr'). Both are stripped so
-    the returned key matches the AA channels API image map.
+    networks use a path prefix (DI.fm: 'di_', ZenRadio: 'zr'). Both are
+    stripped so the returned key matches the AA channels API image map.
+    Renamed/aliased channels are resolved via _AA_CHANNEL_KEY_ALIASES.
 
-    e.g. 'prem2.di.fm:80/ambient_hi'   -> 'ambient'
+    e.g. 'prem2.di.fm:80/di_ambient_hi' -> 'ambient'
+         'prem2.di.fm:80/di_electrohouse_hi' -> 'electro'
          'prem1.zenradio.com/zrambient' -> 'ambient'
     Returns None if the URL has no non-empty path segment.
     """
@@ -60,11 +78,13 @@ def _aa_channel_key_from_url(url: str, slug: str | None = None) -> str | None:
             if key.endswith(suffix):
                 key = key[: -len(suffix)]
                 break
-        # Strip per-network URL prefix (e.g. 'zr' for zenradio)
+        # Strip per-network URL prefix (e.g. 'di_' for DI.fm, 'zr' for zenradio)
         if slug:
             prefix = _NETWORK_URL_PREFIXES.get(slug, "")
             if prefix and key.startswith(prefix):
                 key = key[len(prefix):]
+        # Resolve channel key aliases (renamed/legacy URL slugs -> current API key)
+        key = _AA_CHANNEL_KEY_ALIASES.get(key, key)
         return key or None
     except Exception:
         return None
