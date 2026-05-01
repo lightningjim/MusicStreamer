@@ -1,8 +1,9 @@
 ---
 phase: 64-audioaddict-siblings-on-now-playing
 verified: 2026-05-01T00:00:00Z
-status: human_needed
-score: 22/22 must-haves verified
+status: passed
+score: 22/22 automated must-haves + 2/2 human UAT items verified
+human_uat_completed: 2026-05-01 (see 64-HUMAN-UAT.md — both items passed)
 overrides_applied: 0
 human_verification:
   - test: "End-to-end UX feel of click-switches-playback"
