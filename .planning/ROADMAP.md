@@ -252,7 +252,10 @@ Plans:
   1. Sections the user had expanded before clicking Save remain expanded after the save completes
   2. Sections the user had collapsed before clicking Save remain collapsed after the save completes
   3. The fix does not affect the initial open state when the dialog is freshly launched
-**Plans:** TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 55-01-PLAN.md — provider_name accessor on StationTreeModel + capture/restore wrapping in StationListPanel.refresh_model (drops _sync_tree_expansion call from refresh path; D-03/D-06 wired)
+- [ ] 55-02-PLAN.md — 8 pytest-qt tests under Phase 55 / BUG-06 banner (SC #1, SC #2, D-04, D-06, D-07, filtered-out guard, D-03 spy-lock, D-05 spy-lock)
 **UI hint**: yes
 
 ### Phase 56: Windows DI.fm + SMTC Start Menu
