@@ -998,3 +998,82 @@ def test_phase_51_sibling_navigation_end_to_end(
     station_field_names = {f.name for f in dc_fields(Station)}
     assert "aa_channel_key" not in station_field_names, \
         "SC #3 violation: Station gained aa_channel_key field — D-01 says no schema change"
+
+
+# ---------------------------------------------------------------------------
+# Phase 64 / SC #2 / D-02: sibling click switches active playback via the
+# canonical _on_station_activated chain (delegating slot)
+# ---------------------------------------------------------------------------
+
+
+def test_sibling_click_switches_playback_via_main_window(qtbot, monkeypatch):
+    """Phase 64 / SC #2: clicking an 'Also on:' link in NowPlayingPanel
+    triggers Player.play(sibling) and Repo.update_last_played(sibling.id).
+
+    Inverts the Phase 51 SC #4 assertion at lines 920-993 of this file:
+    Phase 51's navigate-to-sibling test asserts fake_player.play_calls == []
+    (dialog flow does NOT touch playback). Phase 64's panel flow DOES change
+    playback — that is the entire point of the phase per ROADMAP SC #2.
+    """
+    # Two AA stations with the same channel key on different networks.
+    di_station = Station(
+        id=1,
+        name="Ambient",
+        provider_id=1,
+        provider_name="DI.fm",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=10,
+                station_id=1,
+                url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+                position=1,
+            )
+        ],
+    )
+    zen_station = Station(
+        id=2,
+        name="Ambient",
+        provider_id=2,
+        provider_name="ZenRadio",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=20,
+                station_id=2,
+                url="http://prem1.zenradio.com/zrambient?listen_key=abc",
+                position=1,
+            )
+        ],
+    )
+
+    fake_player = FakePlayer()
+    fake_repo = FakeRepo(stations=[di_station, zen_station])
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    # Bind to DI.fm first (simulates the user activating it from the list).
+    w._on_station_activated(di_station)
+    # Reset spies to isolate the sibling click's effects.
+    fake_player.play_calls.clear()
+    fake_repo._last_played_ids = []
+
+    # Drive the panel-side click handler directly. The Plan 02 panel test
+    # already asserts that this emits sibling_activated(zen_station). This
+    # integration test asserts the MainWindow handler picks up the signal
+    # and runs the canonical activation chain.
+    w.now_playing._on_sibling_link_activated("sibling://2")
+
+    # Phase 64 / SC #2: playback DID switch. (Inverts Phase 51 SC #4.)
+    assert fake_player.play_calls == [zen_station]
+    # update_last_played was called with the sibling id.
+    assert fake_repo._last_played_ids == [2]
+    # Bound station is now the sibling (delegates through bind_station).
+    assert w.now_playing._station is zen_station
