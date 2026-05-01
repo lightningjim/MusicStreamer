@@ -359,7 +359,7 @@ Plans:
 | 52. EQ Toggle Dropout Fix | 2/2 | Complete    | 2026-04-28 |
 | 53. YouTube Cookies into Accounts Menu | 2/2 | Complete   | 2026-04-29 |
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
-| 55. Edit Station Preserves Section State | 2/2 | Complete   | 2026-05-01 |
+| 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
 | 56. Windows DI.fm + SMTC Start Menu | 0/? | Not started | - |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
 | 58. PLS Auto-Resolve in Station Editor | 0/? | Not started | - |

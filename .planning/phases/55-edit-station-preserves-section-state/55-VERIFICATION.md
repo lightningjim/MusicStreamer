@@ -1,8 +1,9 @@
 ---
 phase: 55-edit-station-preserves-section-state
 verified: 2026-05-01T00:00:00Z
-status: human_needed
-score: 11/11 must-haves verified (automated)
+status: passed
+score: 11/11 automated must-haves + 3/3 human UAT items verified
+human_uat_completed: 2026-05-01 (see 55-HUMAN-UAT.md — all 3 items passed)
 overrides_applied: 0
 human_verification:
   - test: "Edit a station while several provider groups are expanded — confirm visually that the same groups are still expanded after Save with no flicker"
