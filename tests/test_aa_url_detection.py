@@ -1,4 +1,4 @@
-from musicstreamer.url_helpers import _is_aa_url, _aa_channel_key_from_url
+from musicstreamer.url_helpers import _is_aa_url, _aa_channel_key_from_url, aa_normalize_stream_url
 
 
 def test_is_aa_url_di():
@@ -119,3 +119,68 @@ def test_channel_key_radiotunes_no_prefix_unchanged():
 # fetch_aa_logo() used GLib.idle_add and is deleted with musicstreamer/ui/edit_dialog.py
 # in plan 36-03. A Qt-signal-based replacement will be added in Phase 39 when
 # EditStationDialog is rebuilt in PySide6.
+
+
+# --- DI.fm HTTPS->HTTP normalization (Phase 56 / WIN-01) ---
+
+
+def test_aa_normalize_difm_https_to_http():
+    """WIN-01 / D-04: DI.fm https URL is rewritten to http."""
+    assert (
+        aa_normalize_stream_url("https://prem1.di.fm/lounge?listen_key=abc")
+        == "http://prem1.di.fm/lounge?listen_key=abc"
+    )
+
+
+def test_aa_normalize_difm_http_passthrough():
+    """D-06 idempotency: already-http DI.fm URL passes through unchanged."""
+    assert (
+        aa_normalize_stream_url("http://prem2.di.fm/di_house?listen_key=xyz")
+        == "http://prem2.di.fm/di_house?listen_key=xyz"
+    )
+
+
+def test_aa_normalize_non_difm_aa_passthrough_radiotunes():
+    """D-02 / D-06: non-DI.fm AA URL (RadioTunes slug != 'di') passes through."""
+    assert (
+        aa_normalize_stream_url("https://prem1.radiotunes.com/ambient?listen_key=k")
+        == "https://prem1.radiotunes.com/ambient?listen_key=k"
+    )
+
+
+def test_aa_normalize_non_difm_aa_passthrough_jazzradio():
+    """D-02 / D-06: JazzRadio slug != 'di' so URL passes through."""
+    assert (
+        aa_normalize_stream_url("https://prem1.jazzradio.com/smoothjazz?listen_key=k")
+        == "https://prem1.jazzradio.com/smoothjazz?listen_key=k"
+    )
+
+
+def test_aa_normalize_non_aa_passthrough_somafm():
+    """D-06: non-AA URL (SomaFM) passes through unchanged."""
+    assert (
+        aa_normalize_stream_url("https://ice4.somafm.com/dronezone-256-mp3")
+        == "https://ice4.somafm.com/dronezone-256-mp3"
+    )
+
+
+def test_aa_normalize_non_aa_passthrough_youtube():
+    """D-06: YouTube URL passes through unchanged."""
+    assert (
+        aa_normalize_stream_url("https://www.youtube.com/watch?v=abc")
+        == "https://www.youtube.com/watch?v=abc"
+    )
+
+
+def test_aa_normalize_empty_passthrough():
+    """D-06: empty string passes through unchanged (no raise)."""
+    assert aa_normalize_stream_url("") == ""
+
+
+def test_aa_normalize_idempotent():
+    """D-06: f(f(x)) == f(x) for DI.fm URLs (idempotency proof)."""
+    url = "https://prem1.di.fm/lounge?listen_key=abc"
+    once = aa_normalize_stream_url(url)
+    twice = aa_normalize_stream_url(once)
+    assert once == "http://prem1.di.fm/lounge?listen_key=abc"
+    assert twice == once
