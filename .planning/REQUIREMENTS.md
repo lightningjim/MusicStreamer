@@ -27,7 +27,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 
 Phase 44 carry-forward — items deferred from the v2.0 ship line.
 
-- [ ] **WIN-01**: DI.fm premium streams play on Windows via a chosen HTTPS-fallback policy (HTTP-for-DI.fm-only or accept server-side HTTPS-unavailable with explicit user feedback)
+- [x] **WIN-01**: DI.fm premium streams play on Windows via a chosen HTTPS-fallback policy (HTTP-for-DI.fm-only or accept server-side HTTPS-unavailable with explicit user feedback)
 - [ ] **WIN-02**: SMTC overlay shows "MusicStreamer" instead of "Unknown app" via a registered Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` (matches the in-process AUMID set during startup)
 - [ ] **WIN-03**: Audio pause/resume on Windows produces no audible glitch; the volume slider takes effect on Windows playback (parity with Linux)
 - [ ] **WIN-04**: `test_thumbnail_from_in_memory_stream` passes on Windows (`MagicMock` replaced with `AsyncMock` for the `store_async` await)
@@ -87,7 +87,7 @@ Which phases cover which requirements.
 | BUG-04 | Phase 53 | Complete |
 | BUG-05 | Phase 54 | Complete — landscape fixed (Path B-1, `b1a9088`) + portrait fixed (Path B-2, `af63397`) |
 | BUG-06 | Phase 55 | Complete |
-| WIN-01 | Phase 56 | Pending |
+| WIN-01 | Phase 56 | Complete |
 | WIN-02 | Phase 56 | Pending |
 | WIN-03 | Phase 57 | Pending |
 | WIN-04 | Phase 57 | Pending |

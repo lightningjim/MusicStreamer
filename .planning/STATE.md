@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 56 context gathered
-last_updated: "2026-05-02T18:01:30.622Z"
-last_activity: 2026-05-02 -- Phase 56 planning complete
+last_updated: "2026-05-02T18:09:46.104Z"
+last_activity: 2026-05-02
 progress:
   total_phases: 20
   completed_phases: 8
   total_plans: 27
-  completed_plans: 22
-  percent: 81
+  completed_plans: 23
+  percent: 85
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 58 (PLS Auto-Resolve in Station Editor) — EXECUTING
-Plan: 1 of 3
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-05-02 -- Phase 56 planning complete
+Last activity: 2026-05-02
 
 ## Performance Metrics
 
@@ -104,6 +104,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: Phase 51-01: find_aa_siblings returns tuple[network_slug, station_id, station_name] over dict — cheaper unpacking by Plan 03 renderer; HTML escaping is renderer's responsibility
 - [Phase 51]: Phase 51-03: Qt.RichText QLabel with html.escape mitigation introduced as project-first T-39-01 deviation, locally bounded to one QLabel
 - [Phase ?]: Phase 54-01: regression-lock shipped (Path A) — zero production code change per D-09; D-11 cache key invariant preserved
+- [Phase ?]: Phase 56-01: aa_normalize_stream_url helper added composing _aa_slug_from_url predicate (D-02). 8 tests cover rewrite + idempotency + passthrough.
 
 ### Roadmap Evolution
 
@@ -153,9 +154,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 50 P01 | 25min | 3 tasks | 4 files |
 | Phase 51 P03 | 8min | 2 tasks | 2 files |
 | Phase 54 P01 | 4 min | 3 tasks | 1 files |
+| Phase 56 P01 | 7min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-05-02T04:40:48.822Z
+Last session: 2026-05-02T18:09:31.329Z
 Stopped at: Phase 56 context gathered
-Resume file: .planning/phases/56-windows-di-fm-smtc-start-menu/56-CONTEXT.md
+Resume file: None

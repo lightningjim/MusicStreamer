@@ -267,10 +267,10 @@ Plans:
   2. The Windows Start Menu shortcut for MusicStreamer carries `System.AppUserModel.ID=org.lightningjim.MusicStreamer`
   3. The SMTC media overlay (Win+K or taskbar) shows "MusicStreamer" as the app name, not "Unknown app", when media is playing
   4. The AUMID on the shortcut matches the in-process AUMID set during startup
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
-- [ ] 56-01-PLAN.md — aa_normalize_stream_url helper + 8 unit tests in tests/test_aa_url_detection.py (WIN-01, Wave 1, autonomous)
+- [x] 56-01-PLAN.md — aa_normalize_stream_url helper + 8 unit tests in tests/test_aa_url_detection.py (WIN-01, Wave 1, autonomous)
 - [ ] 56-02-PLAN.md — Wire helper into player.py::_set_uri + 3 player-level integration tests (WIN-01, Wave 2, depends on 56-01)
 - [ ] 56-03-PLAN.md — Win11 VM diagnostic for SMTC (D-08 steps 1-4 with Get-StartApps correction) + D-09 root-cause classification (WIN-02, Wave 1, manual)
 - [ ] 56-04-PLAN.md — Conditional WIN-02 fix per D-10 + AUMID drift-guard pytest + README launch-discipline note (WIN-02, Wave 2, depends on 56-03)
@@ -372,7 +372,7 @@ Plans:
 | 53. YouTube Cookies into Accounts Menu | 2/2 | Complete   | 2026-04-29 |
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
 | 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
-| 56. Windows DI.fm + SMTC Start Menu | 0/5 | Not started | - |
+| 56. Windows DI.fm + SMTC Start Menu | 1/5 | In Progress|  |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
