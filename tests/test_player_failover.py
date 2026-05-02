@@ -439,3 +439,44 @@ def test_recovery_guard_resets_between_distinct_url_failures(qtbot):
         qtbot.wait(20)
 
     assert p._current_stream.id == 3
+
+
+# ---------------------------------------------------------------------------
+# Phase 56 / WIN-01: _set_uri normalizes DI.fm HTTPS -> HTTP (D-01)
+# ---------------------------------------------------------------------------
+# NOTE: these tests deliberately do NOT patch.object(p, "_set_uri").
+# All other tests in this file mock _set_uri to avoid real GStreamer state
+# changes -- but that mock would intercept BEFORE the new normalization line
+# runs, and a buggy helper would pass vacuously. These tests exercise the
+# real _set_uri body and assert on the underlying _pipeline.set_property
+# MagicMock (which make_player already replaces _pipeline with on line 26).
+
+
+def test_set_uri_normalizes_difm_https_to_http(qtbot):
+    """WIN-01 / D-01: _set_uri rewrites DI.fm https:// to http:// before
+    handing the URL to playbin3."""
+    p = make_player(qtbot)
+    p._set_uri("https://prem1.di.fm/lounge?listen_key=abc")
+    p._pipeline.set_property.assert_any_call(
+        "uri", "http://prem1.di.fm/lounge?listen_key=abc"
+    )
+
+
+def test_set_uri_passes_through_non_difm(qtbot):
+    """D-06 idempotency at player layer: non-DI.fm URLs reach playbin3
+    unchanged (no scheme rewrite)."""
+    p = make_player(qtbot)
+    p._set_uri("https://ice4.somafm.com/dronezone-256-mp3")
+    p._pipeline.set_property.assert_any_call(
+        "uri", "https://ice4.somafm.com/dronezone-256-mp3"
+    )
+
+
+def test_set_uri_passes_through_youtube_hls(qtbot):
+    """T-56-01 mitigation: YouTube-resolved HLS manifests must NEVER be
+    downgraded to http -- broadening the predicate would strip TLS from
+    arbitrary streams (active-MITM exposure). Locks the predicate scope."""
+    p = make_player(qtbot)
+    url = "https://manifest.googlevideo.com/api/manifest/hls_playlist/abc/playlist.m3u8"
+    p._set_uri(url)
+    p._pipeline.set_property.assert_any_call("uri", url)
