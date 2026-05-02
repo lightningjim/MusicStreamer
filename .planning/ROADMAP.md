@@ -146,7 +146,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 53: YouTube Cookies into Accounts Menu** — Consolidate YouTube cookies entry into the Accounts menu (completed 2026-04-29)
 - [x] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping (completed 2026-04-30 — Path B-1 canvas patch fixed landscape, Path B-2 delegate decoration-rect override fixed portrait on Linux X11/Wayland)
 - [x] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections (completed 2026-05-01)
-- [ ] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID
+- [x] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID (completed 2026-05-02)
 - [ ] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test
 - [x] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows (completed 2026-05-01)
 - [ ] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry
@@ -267,14 +267,14 @@ Plans:
   2. The Windows Start Menu shortcut for MusicStreamer carries `System.AppUserModel.ID=org.lightningjim.MusicStreamer`
   3. The SMTC media overlay (Win+K or taskbar) shows "MusicStreamer" as the app name, not "Unknown app", when media is playing
   4. The AUMID on the shortcut matches the in-process AUMID set during startup
-**Plans:** 2/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 56-01-PLAN.md — aa_normalize_stream_url helper + 8 unit tests in tests/test_aa_url_detection.py (WIN-01, Wave 1, autonomous)
 - [x] 56-02-PLAN.md — Wire helper into player.py::_set_uri + 3 player-level integration tests (WIN-01, Wave 2, depends on 56-01)
-- [ ] 56-03-PLAN.md — Win11 VM diagnostic for SMTC (D-08 steps 1-4 with Get-StartApps correction) + D-09 root-cause classification (WIN-02, Wave 1, manual)
-- [ ] 56-04-PLAN.md — Conditional WIN-02 fix per D-10 + AUMID drift-guard pytest + README launch-discipline note (WIN-02, Wave 2, depends on 56-03)
-- [ ] 56-05-PLAN.md — Win11 VM UAT: WIN-01a fresh AA import + WIN-01b settings-import ZIP roundtrip + WIN-02 SMTC overlay (Wave 3, depends on all)
+- [x] 56-03-PLAN.md — Win11 VM diagnostic for SMTC (D-08 steps 1-4 with Get-StartApps correction) + D-09 root-cause classification (WIN-02, Wave 1, manual)
+- [x] 56-04-PLAN.md — Conditional WIN-02 fix per D-10 + AUMID drift-guard pytest + README launch-discipline note (WIN-02, Wave 2, depends on 56-03)
+- [x] 56-05-PLAN.md — Win11 VM UAT: WIN-01a fresh AA import + WIN-01b settings-import ZIP roundtrip + WIN-02 SMTC overlay (Wave 3, depends on all)
 
 ### Phase 57: Windows Audio Glitch + Test Fix
 **Goal:** Pausing and resuming playback on Windows produces no audible glitch, the volume slider takes effect on Windows (parity with Linux), and the SMTC thumbnail test passes with AsyncMock.
@@ -372,7 +372,7 @@ Plans:
 | 53. YouTube Cookies into Accounts Menu | 2/2 | Complete   | 2026-04-29 |
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
 | 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
-| 56. Windows DI.fm + SMTC Start Menu | 2/5 | In Progress|  |
+| 56. Windows DI.fm + SMTC Start Menu | 5/5 | Complete   | 2026-05-02 |
 | 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
@@ -439,6 +439,26 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 68 to break down)
+
+### Phase 69: Debug why AAC streams aren't playing in Windows (possibly missing codec)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 68
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 69 to break down)
+
+### Phase 70: Hi-res indicator for streams (mirror moOde audio criteria)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 69
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 70 to break down)
 
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*

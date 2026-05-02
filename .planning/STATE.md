@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: verifying
 stopped_at: Phase 56-02 complete — DI.fm wire-in shipped
-last_updated: "2026-05-02T18:17:18.641Z"
+last_updated: "2026-05-02T20:15:30.790Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 20
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 27
-  completed_plans: 24
-  percent: 89
+  completed_plans: 27
+  percent: 100
 ---
 
 # Project State
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 58 (PLS Auto-Resolve in Station Editor) — EXECUTING
-Plan: 2 of 3
-Status: Ready to execute
+Plan: 3 of 3
+Status: Phase complete — ready for verification
 Last activity: 2026-05-02
 
 ## Performance Metrics
@@ -131,6 +131,8 @@ Key v2.0 decisions already settled:
 - Phase 66 added: Color Themes — preset and custom color schemes, with Vaporwave (pastel) and Overrun (neon+black) as the driving presets 2026-04-29
 - Phase 67 added: Show similar stations below now playing for switching - From same Provider and Same Tag, random 5 from each with refresh, hideable and not shown by default 2026-05-01
 - Phase 68 added: Add feature for detecting Live performance streams (DI.fm and similar) — currently observed on DI.fm; confirm scope during /gsd-discuss-phase 2026-05-01
+- Phase 69 added: Debug why AAC streams aren't playing in Windows (possibly missing codec) — surfaced during Phase 56 UAT (Finding F2 in 56-05-UAT-LOG.md); suspected missing/misbundled GStreamer AAC decoder (faad / avdec_aac via gst-libav) 2026-05-02
+- Phase 70 added: Hi-res indicator for streams (mirror moOde audio criteria) — promoted from a previously-empty `69-hi-res-...` skeleton folder that pre-existed in `.planning/phases/`; renumbered to 70 to make room for AAC debug at 69; orphan empty folder removed 2026-05-02
 
 ### Pending Todos
 
