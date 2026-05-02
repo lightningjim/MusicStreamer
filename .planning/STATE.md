@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 56 context gathered
-last_updated: "2026-05-02T18:09:46.104Z"
+stopped_at: Phase 56-02 complete — DI.fm wire-in shipped
+last_updated: "2026-05-02T18:17:18.641Z"
 last_activity: 2026-05-02
 progress:
   total_phases: 20
   completed_phases: 8
   total_plans: 27
-  completed_plans: 23
-  percent: 85
+  completed_plans: 24
+  percent: 89
 ---
 
 # Project State
@@ -105,6 +105,7 @@ Key v2.0 decisions already settled:
 - [Phase 51]: Phase 51-03: Qt.RichText QLabel with html.escape mitigation introduced as project-first T-39-01 deviation, locally bounded to one QLabel
 - [Phase ?]: Phase 54-01: regression-lock shipped (Path A) — zero production code change per D-09; D-11 cache key invariant preserved
 - [Phase ?]: Phase 56-01: aa_normalize_stream_url helper added composing _aa_slug_from_url predicate (D-02). 8 tests cover rewrite + idempotency + passthrough.
+- [Phase 56-02]: Wired aa_normalize_stream_url into Player._set_uri at the URI funnel (D-01) — single insertion point covers all 4 callers (play, _on_youtube_resolved, _on_twitch_resolved, _try_next_stream). Pitfall #1 mitigated via _pipeline.set_property assert_any_call (NOT patch.object(_set_uri)). 3 player-level integration tests + T-56-01 YouTube HLS passthrough lock.
 
 ### Roadmap Evolution
 
@@ -155,9 +156,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 51 P03 | 8min | 2 tasks | 2 files |
 | Phase 54 P01 | 4 min | 3 tasks | 1 files |
 | Phase 56 P01 | 7min | 2 tasks | 2 files |
+| Phase 56 P02 | 3min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-05-02T18:09:31.329Z
-Stopped at: Phase 56 context gathered
+Last session: 2026-05-02T18:17:18.632Z
+Stopped at: Phase 56-02 complete — DI.fm wire-in shipped
 Resume file: None
