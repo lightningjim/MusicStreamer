@@ -45,6 +45,7 @@ from musicstreamer.eq_profile import EqBand, EqProfile, parse_autoeq
 from musicstreamer.gst_bus_bridge import GstBusLoopThread
 from musicstreamer.models import Station, StationStream
 from musicstreamer.stream_ordering import order_streams
+from musicstreamer.url_helpers import aa_normalize_stream_url
 
 
 # Module-level bus bridge -- one per process. Started lazily on first Player().
@@ -482,6 +483,7 @@ class Player(QObject):
             self._failover_timer.start(BUFFER_DURATION_S * 1000)
 
     def _set_uri(self, uri: str) -> None:
+        uri = aa_normalize_stream_url(uri)  # WIN-01 / D-01: DI.fm HTTPS->HTTP at URI funnel
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         self._pipeline.set_property("uri", uri)
