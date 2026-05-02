@@ -285,7 +285,14 @@ Plans:
   2. Moving the volume slider on Windows changes the playback volume immediately (matches Linux behavior)
   3. `test_thumbnail_from_in_memory_stream` passes — `store_async` is awaited correctly via `AsyncMock`, no `MagicMock not awaitable` error
   4. Full test suite passes with no new failures on the fix branch
-**Plans:** TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 57-01-PLAN.md — WIN-04 AsyncMock fix in tests/test_media_keys_smtc.py (Wave 1, autonomous, test-only)
+- [ ] 57-02-PLAN.md — Win11 VM diagnostic: capture three D-04 readbacks (sink identity + playbin3.volume persistence + slider mid-stream effect) + record D-06 fix-shape decision in 57-DIAGNOSTIC-LOG.md (WIN-03, Wave 1, manual VM)
+- [ ] 57-03-PLAN.md — WIN-03 volume fix per chosen Option (A: re-apply at end of _set_uri; B: explicit volume GstElement chained with EQ in Gst.Bin) + Linux CI regression guard test (Wave 2, depends on 57-02)
+- [ ] 57-04-PLAN.md — WIN-03 audible-glitch QTimer smoothing wrapper composed with Plan 57-03's volume target + structural guard tests (Wave 3, depends on 57-02 + 57-03)
+- [ ] 57-05-PLAN.md — Win11 VM UAT for WIN-03 SC #1/#2 + Linux CI for WIN-04 SC #3/#4; record attestations in 57-05-UAT-LOG.md (Wave 4, depends on 57-01 + 57-03 + 57-04)
 
 ### Phase 58: PLS Auto-Resolve in Station Editor
 **Goal:** A user can paste a PLS playlist URL into the Streams section of a station and have it automatically expand into individual stream entries — one row per PLS entry, with bitrate/codec resolved where possible.
@@ -373,7 +380,7 @@ Plans:
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
 | 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
 | 56. Windows DI.fm + SMTC Start Menu | 5/5 | Complete   | 2026-05-02 |
-| 57. Windows Audio Glitch + Test Fix | 0/? | Not started | - |
+| 57. Windows Audio Glitch + Test Fix | 0/5 | Planned     | - |
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
 | 60. GBS.FM Integration | 0/? | Not started | - |
