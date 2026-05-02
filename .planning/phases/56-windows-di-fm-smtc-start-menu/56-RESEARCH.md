@@ -633,7 +633,7 @@ CLAUDE.md is minimal — only routes spike-findings work to `Skill("spike-findin
 | A4 | Windows shell SMTC overlay name resolves from the matching shortcut's `Name` property (not from `RelaunchDisplayNameResource` or any other property) | WIN-02 mechanism | Empirically confirmed: `MusicStreamer.iss:68` uses `Name: "{userprograms}\MusicStreamer"` — the `MusicStreamer` segment IS the display name source. If WIN-02 UAT reveals SMTC reads a different string (e.g., "MusicStreamer.exe"), Microsoft's resolution path needs deeper investigation — but this is a low-probability edge case [CITED: learn.microsoft.com/en-us/windows/win32/shell/appids "Other window and shortcut properties... display name and icon used for it in the taskbar"]. |
 | A5 | Phase 43 finding (DI.fm rejects HTTPS) is still current as of 2026-05-02 | WIN-01 entire half | If DI.fm fixed their HTTPS server in the interim, the rewrite is a no-op (still safe — HTTP still works) but the workaround is unnecessary. **Mitigation:** unchanged stored DB rows mean a future revert is a one-line helper deletion. No data impact. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the AUMID-drift pytest guard ship?**
    - What we know: CONTEXT.md flags it as Claude's discretion. Risk is real (two unlinked literals); fix cost is ~10 lines of regex + assert.
