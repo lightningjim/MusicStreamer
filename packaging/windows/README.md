@@ -89,6 +89,34 @@ detects the absence of Node at startup and surfaces a non-blocking
 warning + persistent hamburger-menu indicator. There is no
 mid-session re-detection — restart the app after installing Node.
 
+## Launching MusicStreamer (SMTC overlay binding)
+
+**Always launch MusicStreamer via the Start Menu shortcut** (Start → type
+"MusicStreamer" → Enter), NOT via `python -m musicstreamer` from a terminal.
+
+Why: the Start Menu shortcut carries the `AppUserModelID` property
+(`org.lightningjim.MusicStreamer`) that Windows uses to bind the SMTC media
+overlay (Win+K) to the app's display name. Launching via `python -m
+musicstreamer` bypasses this binding — Windows shows "Unknown app" in SMTC
+instead of "MusicStreamer". This is documented Microsoft behaviour for
+desktop apps without an MSIX manifest.
+
+During installation, leave the "Run MusicStreamer" checkbox **unchecked**
+at the end of the installer wizard. The installer's Run flag launches the
+app via the installer process tree, which also bypasses the AUMID binding.
+After install, launch normally via the Start Menu shortcut and SMTC will
+read "MusicStreamer".
+
+The AUMID literal must stay in lockstep across `musicstreamer/__main__.py`
+(`_set_windows_aumid` default arg) and `packaging/windows/MusicStreamer.iss`
+(`AppUserModelID:` clause). Drift between the two silently breaks SMTC
+binding with no build error. `tests/test_aumid_string_parity.py` enforces
+this on every Linux-CI run — do not delete it.
+
+*(Phase 56 / WIN-02 — see `.planning/phases/56-windows-di-fm-smtc-start-menu/`
+for the full diagnostic procedure if the SMTC overlay still shows
+"Unknown app" after installation.)*
+
 ## Known limitations
 
 - **DI.fm HTTPS rejected server-side (D-15):** AudioAddict / DI.fm
