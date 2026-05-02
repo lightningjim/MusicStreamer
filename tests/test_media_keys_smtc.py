@@ -10,7 +10,7 @@ import tomllib
 import types
 import unittest.mock as mock  # noqa: F401
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -93,6 +93,10 @@ def _build_winrt_stubs():
     storage_streams = types.ModuleType("winrt.windows.storage.streams")
     storage_streams.InMemoryRandomAccessStream = MagicMock(name="InMemoryRandomAccessStream")
     storage_streams.DataWriter = MagicMock(name="DataWriter")
+    # Phase 57 / WIN-04 D-08: instances of DataWriter must carry an awaitable
+    # `store_async` attribute. Production `_await_store` (smtc.py:52) awaits it.
+    # Scoped per D-09 to ONLY this attribute -- no broader winrt-async audit.
+    storage_streams.DataWriter.return_value.store_async = AsyncMock(name="store_async")
     storage_streams.RandomAccessStreamReference = MagicMock(name="RandomAccessStreamReference")
 
     foundation = types.ModuleType("winrt.windows.foundation")
