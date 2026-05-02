@@ -8,9 +8,12 @@ pure string and regex manipulation over URL literals.
 from __future__ import annotations
 
 import html
+import logging
 import urllib.parse
 
 from musicstreamer.aa_import import NETWORKS
+
+_log = logging.getLogger(__name__)
 
 
 def _is_youtube_url(url: str) -> bool:
@@ -132,6 +135,34 @@ def _aa_slug_from_url(url: str) -> str | None:
         if domain_base in url_lower:
             return net["slug"]
     return None
+
+
+def aa_normalize_stream_url(url: str) -> str:
+    """Phase 56 / WIN-01 / D-04: rewrite DI.fm 'https://' URLs to 'http://'.
+
+    DI.fm rejects HTTPS server-side (Phase 43 finding: TLS handshake
+    succeeds, then souphttpsrc returns 'streaming stopped, reason error
+    (-5)'). Workaround applied at the Player URI boundary so every
+    set_uri call goes through normalization regardless of source.
+
+    Idempotent (D-06):
+    - Empty/None-ish input -> returns input unchanged
+    - Non-https:// input -> returns input unchanged (already http://, file://, etc.)
+    - Non-DI.fm input -> returns input unchanged
+    - DI.fm https:// -> returns http:// equivalent
+
+    Cross-platform (D-03): unconditional rewrite, no platform guard --
+    DI.fm rejects HTTPS for everyone, not just Windows.
+    """
+    if not url:
+        return url
+    if not url.startswith("https://"):
+        return url
+    if _aa_slug_from_url(url) != "di":
+        return url
+    rewritten = "http://" + url[len("https://"):]
+    _log.debug("aa_normalize_stream_url: DI.fm https->http: %s -> %s", url, rewritten)
+    return rewritten
 
 
 def find_aa_siblings(
