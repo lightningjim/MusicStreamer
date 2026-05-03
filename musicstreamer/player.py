@@ -93,6 +93,12 @@ class Player(QObject):
     # and the callback never runs. Queued signal marshals _try_next_stream
     # onto the main thread -- same pattern as _cancel_timers_requested.
     _try_next_stream_requested = Signal()        # worker → main: advance failover queue
+    # Phase 57 / WIN-03 D-12: bus-loop -> main: re-apply self._volume after every
+    # transition to PLAYING (catches NULL->PLAYING from pause/resume / failover /
+    # station switch AND playbin3-internal PAUSED->PLAYING auto-rebuffer recovery
+    # which bypasses _set_uri entirely). D-13: single mechanism Option A —
+    # property write target is self._pipeline only.
+    _playbin_playing_state_reached = Signal()    # bus-loop -> main: re-apply volume on PLAYING
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -134,6 +140,7 @@ class Player(QObject):
         bus.connect("message::error", self._on_gst_error)  # async handler
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
         bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
+        bus.connect("message::state-changed", self._on_gst_state_changed)  # Phase 57 / WIN-03 D-12
         # NOTE: no sync-message handler is registered -- it would stall the
         # GStreamer streaming thread (Pitfall 5). Both handlers above run on
         # the GstBusLoopThread daemon and may only emit Qt signals.
@@ -184,6 +191,10 @@ class Player(QObject):
         # 999.8 WR-03: queue worker-thread → main failover advance.
         self._try_next_stream_requested.connect(
             self._try_next_stream, Qt.ConnectionType.QueuedConnection
+        )
+        # Phase 57 / WIN-03 D-12: queue bus-loop -> main re-apply on PLAYING.
+        self._playbin_playing_state_reached.connect(
+            self._on_playbin_state_changed, Qt.ConnectionType.QueuedConnection
         )
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
@@ -424,6 +435,45 @@ class Player(QObject):
             return
         self._last_buffer_percent = percent
         self.buffer_percent.emit(percent)  # auto-queued cross-thread to main
+
+    def _on_gst_state_changed(self, bus, msg) -> None:
+        """Bus-loop-thread handler (Phase 57 / WIN-03 D-12).
+
+        Filters to top-level playbin3 transitions to PLAYING, then marshals
+        the volume re-apply onto the main thread via queued Signal. Pitfall 2
+        (qt-glib-bus-threading.md Rule 2): bus-loop thread has no Qt event
+        loop, so all property writes MUST happen on the main thread.
+
+        Catches BOTH:
+          - NULL->PLAYING (pause/resume, station switch, failover via
+            _try_next_stream, YouTube/Twitch resolves via _on_youtube_resolved
+            / _on_twitch_resolved -> _set_uri).
+          - PAUSED->PLAYING (playbin3-internal auto-rebuffer recovery, which
+            bypasses _set_uri entirely).
+        """
+        # Filter: child elements (decodebin3, urisourcebin, audio sink, etc.)
+        # also emit state-changed on the same bus. We only care about the
+        # top-level playbin3 element transition (D-12).
+        if msg.src is not self._pipeline:
+            return
+        _old, new, _pending = msg.parse_state_changed()
+        if new != Gst.State.PLAYING:
+            return
+        # Marshal onto main thread via queued Signal — same pattern as
+        # _cancel_timers_requested / _error_recovery_requested above.
+        self._playbin_playing_state_reached.emit()
+
+    def _on_playbin_state_changed(self) -> None:
+        """Main-thread slot (Phase 57 / WIN-03 D-12 + D-13).
+
+        Re-applies the user's last-set volume to playbin3.volume on every
+        transition to PLAYING. D-13 single mechanism (Option A): property
+        write target is self._pipeline only. self._volume
+        is the cached slider position — survives pipeline rebuilds because
+        it lives on the Player, not on playbin3 (which resets the property
+        on every NULL->PLAYING / PAUSED->PLAYING — diagnostic Step 2).
+        """
+        self._pipeline.set_property("volume", self._volume)
 
     # ------------------------------------------------------------------ #
     # Timer helpers -- main-thread only
