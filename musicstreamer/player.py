@@ -504,8 +504,14 @@ class Player(QObject):
     # ------------------------------------------------------------------ #
 
     def _cancel_timers(self) -> None:
-        """Cancel pending failover timeout."""
+        """Cancel pending failover timeout and any in-flight pause-volume ramp."""
         self._failover_timer.stop()
+        # Phase 57 / WIN-03 CR-01: also cancel an in-flight pause-volume ramp
+        # so a station switch / failover within the ramp's ~40ms window doesn't
+        # let the ramp's final tick fire set_state(NULL) on a pipeline the
+        # caller has just transitioned back to PLAYING.
+        self._pause_volume_ramp_timer.stop()
+        self._pause_volume_ramp_state = None
 
     def _on_timeout(self) -> None:
         """Failover timeout: no audio arrived within BUFFER_DURATION_S seconds."""

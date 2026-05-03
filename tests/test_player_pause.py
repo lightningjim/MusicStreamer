@@ -142,3 +142,24 @@ def test_pause_does_not_modify_self_volume(qtbot):
     # test_pause_sets_pipeline_null contract.
     from musicstreamer.player import Gst
     p._pipeline.set_state.assert_called_with(Gst.State.NULL)
+
+
+def test_cancel_timers_cancels_in_flight_pause_volume_ramp(qtbot):
+    """WIN-03 CR-01: _cancel_timers() must abort an in-flight pause-volume
+    ramp so any caller that wants to bring the pipeline back to PLAYING
+    (play(), play_stream(), _try_next_stream() via failover/recovery) does
+    not race the ramp's final tick — that final tick fires set_state(NULL),
+    which would silently kill the just-restarted stream. Locks the contract
+    that all play-path entry points share a single ramp-cancel surface
+    via _cancel_timers()."""
+    p = make_player(qtbot)
+    p._pipeline.get_property.return_value = 0.5
+    # Arm the ramp via pause().
+    p.pause()
+    assert p._pause_volume_ramp_timer.isActive()
+    assert p._pause_volume_ramp_state is not None
+    # Now simulate any caller that hits _cancel_timers() (play / station
+    # switch / failover recovery) before the ramp finishes its final tick.
+    p._cancel_timers()
+    assert not p._pause_volume_ramp_timer.isActive()
+    assert p._pause_volume_ramp_state is None
