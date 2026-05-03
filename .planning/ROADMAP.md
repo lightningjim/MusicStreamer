@@ -147,7 +147,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 54: Station Logo Aspect Ratio Fix** — Fix rectangular logo viewport so logos display without cropping (completed 2026-04-30 — Path B-1 canvas patch fixed landscape, Path B-2 delegate decoration-rect override fixed portrait on Linux X11/Wayland)
 - [x] **Phase 55: Edit Station Preserves Section State** — Saving an edit no longer collapses expanded sections (completed 2026-05-01)
 - [x] **Phase 56: Windows DI.fm + SMTC Start Menu** — DI.fm HTTPS-fallback policy + SMTC Start Menu shortcut with AUMID (completed 2026-05-02)
-- [ ] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test
+- [x] **Phase 57: Windows Audio Glitch + Test Fix** — Fix pause/resume audio glitch and volume on Windows; fix AsyncMock test (completed 2026-05-03)
 - [x] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows (completed 2026-05-01)
 - [ ] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry
 - [ ] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer
@@ -285,14 +285,14 @@ Plans:
   2. Moving the volume slider on Windows changes the playback volume immediately (matches Linux behavior)
   3. `test_thumbnail_from_in_memory_stream` passes — `store_async` is awaited correctly via `AsyncMock`, no `MagicMock not awaitable` error
   4. Full test suite passes with no new failures on the fix branch
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 57-01-PLAN.md — WIN-04 AsyncMock fix in tests/test_media_keys_smtc.py (Wave 1, autonomous, test-only)
 - [x] 57-02-PLAN.md — Win11 VM diagnostic: capture three D-04 readbacks (sink identity + playbin3.volume persistence + slider mid-stream effect) + record D-06 fix-shape decision in 57-DIAGNOSTIC-LOG.md (WIN-03, Wave 1, manual VM)
 - [x] 57-03-PLAN.md — WIN-03 volume fix per D-13 = Option A: bus-message STATE_CHANGED handler on playbin3 re-applying self._volume on every transition to PLAYING (catches NULL→PLAYING + GStreamer-internal PAUSED→PLAYING auto-rebuffer recovery; D-12 hook site supersedes tail-of-_set_uri) + cross-platform Linux CI regression guard tests (Wave 2, depends on 57-02; rescoped 2026-05-03 post-diagnostic per D-11..D-15)
 - [x] 57-04-PLAN.md — WIN-03 audible-glitch fix: Phase 52-style QTimer 8-tick fade-down on playbin3.volume wrapped around pause()→NULL transition (D-15 ramp template; composes with 57-03's bus-message re-apply via disjoint write windows: ramp PRE-NULL, re-apply POST-PLAYING) + structural guard tests in tests/test_player_pause.py (Wave 3, depends on 57-02 + 57-03)
-- [ ] 57-05-PLAN.md — Phase 57 UAT: Win11 VM perceptual attestations for WIN-03 SC #1 (no audible pop on pause/resume) + SC #2 (slider takes effect + survives pause/resume) + Linux CI re-attestations for WIN-04 SC #3 (referencing 57-01-SUMMARY.md commit c1c783c) + SC #4 (no new failures vs. 10 pre-existing); records all 4 ROADMAP SCs in 57-05-UAT-LOG.md (Wave 4, depends on 57-01 + 57-03 + 57-04)
+- [x] 57-05-PLAN.md — Phase 57 UAT: Win11 VM perceptual attestations for WIN-03 SC #1 (no audible pop on pause/resume) + SC #2 (slider takes effect + survives pause/resume) + Linux CI re-attestations for WIN-04 SC #3 (referencing 57-01-SUMMARY.md commit c1c783c) + SC #4 (no new failures vs. 10 pre-existing); records all 4 ROADMAP SCs in 57-05-UAT-LOG.md (Wave 4, depends on 57-01 + 57-03 + 57-04)
 
 ### Phase 58: PLS Auto-Resolve in Station Editor
 **Goal:** A user can paste a PLS playlist URL into the Streams section of a station and have it automatically expand into individual stream entries — one row per PLS entry, with bitrate/codec resolved where possible.
@@ -380,7 +380,7 @@ Plans:
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
 | 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
 | 56. Windows DI.fm + SMTC Start Menu | 5/5 | Complete   | 2026-05-02 |
-| 57. Windows Audio Glitch + Test Fix | 4/5 | In Progress|  |
+| 57. Windows Audio Glitch + Test Fix | 5/5 | Complete   | 2026-05-03 |
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
 | 60. GBS.FM Integration | 0/? | Not started | - |
