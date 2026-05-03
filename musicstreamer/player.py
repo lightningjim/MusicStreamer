@@ -169,6 +169,16 @@ class Player(QObject):
         self._eq_ramp_timer.timeout.connect(self._on_eq_ramp_tick)
         self._eq_ramp_state: dict | None = None
 
+        # Phase 57 / WIN-03 D-15: pause-volume ramp timer. Mirrors the EQ ramp
+        # construction directly above (Pitfall 2 — main-thread, parented to self).
+        # Composes with Plan 57-03's bus-message re-apply: this ramp runs PRE-NULL,
+        # the re-apply runs POST-PLAYING; disjoint write windows on the same
+        # playbin3.volume property surface.
+        self._pause_volume_ramp_timer = QTimer(self)
+        self._pause_volume_ramp_timer.setInterval(self._PAUSE_VOLUME_RAMP_INTERVAL_MS)
+        self._pause_volume_ramp_timer.timeout.connect(self._on_pause_volume_ramp_tick)
+        self._pause_volume_ramp_state: dict | None = None
+
         # Internal: twitch_resolved / youtube_resolved / youtube_resolution_failed
         # are emitted from worker threads; queued connections marshal the slot
         # calls to this (main) thread.
@@ -308,7 +318,17 @@ class Player(QObject):
         self._try_next_stream()
 
     def pause(self) -> None:
-        """Stop audio output without clearing station context (D-04)."""
+        """Stop audio output without clearing station context (D-04).
+
+        Phase 57 / WIN-03 D-15: fades playbin3.volume to 0 across an 8-tick
+        ramp BEFORE set_state(NULL) — masks the audible pop on Windows
+        wasapi2sink (cross-platform; Linux pulsesink benefits the same way).
+        The final ramp tick is what actually calls set_state(NULL) +
+        get_state(CLOCK_TIME_NONE). Plan 57-03's bus-message handler
+        re-applies self._volume on the post-resume PLAYING transition, so
+        the user perceives: smooth fade-out, brief silence (rebuild gap),
+        instant restore at slider position.
+        """
         self._cancel_timers()
         self._elapsed_timer.stop()
         # Phase 52: cancel any in-flight EQ ramp; the pipeline going NULL
@@ -318,8 +338,9 @@ class Player(QObject):
         self._eq_ramp_state = None
         self._streams_queue = []
         self._recovery_in_flight = False
-        self._pipeline.set_state(Gst.State.NULL)
-        self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        # Phase 57 / WIN-03 D-15: arm the volume fade-down ramp; the final
+        # tick performs set_state(NULL) + get_state(CLOCK_TIME_NONE).
+        self._start_pause_volume_ramp()
 
     def stop(self) -> None:
         self._cancel_timers()
@@ -327,6 +348,9 @@ class Player(QObject):
         # Phase 52: same rationale as pause() above.
         self._eq_ramp_timer.stop()
         self._eq_ramp_state = None
+        # Phase 57 / WIN-03 D-15: cancel any in-flight pause-volume ramp.
+        self._pause_volume_ramp_timer.stop()
+        self._pause_volume_ramp_state = None
         self._elapsed_seconds = 0
         self._streams_queue = []
         self._recovery_in_flight = False
@@ -734,6 +758,15 @@ class Player(QObject):
     _EQ_RAMP_TICKS = 8
     _EQ_RAMP_INTERVAL_MS = 5  # _EQ_RAMP_MS // _EQ_RAMP_TICKS
 
+    # Phase 57 / WIN-03 D-15: pause-volume ramp constants. QTimer-driven fade-down
+    # of playbin3.volume from self._volume -> 0 across the NULL transition window.
+    # 40ms total / 8 ticks of 5ms — same cadence as the EQ ramp; verified to be
+    # below wasapi2sink's audible threshold and above Qt's main-thread tick
+    # granularity. Final tick writes 0 to playbin3.volume AND calls set_state(NULL).
+    _PAUSE_VOLUME_RAMP_MS = 40
+    _PAUSE_VOLUME_RAMP_TICKS = 8
+    _PAUSE_VOLUME_RAMP_INTERVAL_MS = 5  # _PAUSE_VOLUME_RAMP_MS // _PAUSE_VOLUME_RAMP_TICKS
+
     def _apply_eq_state(self) -> None:
         """Write band properties for the current (profile, enabled, preamp) state.
 
@@ -861,6 +894,66 @@ class Player(QObject):
             t_i = target[i] if i < len(target) else 0.0
             g = s_i + (t_i - s_i) * t
             self._eq.get_child_by_index(i).set_property("gain", g)
+
+    # ------------------------------------------------------------------ #
+    # Phase 57 / WIN-03 D-15: pause-volume fade-down ramp
+    # ------------------------------------------------------------------ #
+
+    def _start_pause_volume_ramp(self) -> None:
+        """Begin the pause-volume fade-down (D-15).
+
+        Captures the current playbin3.volume as the ramp start (D-05
+        reverse-from-current — if a ramp is already in flight, the read
+        picks up the current ramped value, not self._volume). Target is
+        always 0. Seeds ramp_state and starts the timer. The final tick
+        (in _on_pause_volume_ramp_tick) is what calls set_state(NULL).
+
+        If the ramp is already in flight, calling this restarts from the
+        CURRENT live volume — mirrors Phase 52 D-05 (reverse / re-bracket
+        mid-ramp without re-attacking from self._volume).
+        """
+        # Read the LIVE volume — if a previous ramp is in flight this
+        # returns the partially-faded value, not self._volume.
+        try:
+            start = float(self._pipeline.get_property("volume"))
+        except (TypeError, AttributeError):
+            # Defensive: torn-down or mock pipeline returning non-float.
+            start = float(self._volume)
+        self._pause_volume_ramp_state = {
+            "start_volume": start,
+            "target_volume": 0.0,
+            "tick_index": 0,
+        }
+        if not self._pause_volume_ramp_timer.isActive():
+            self._pause_volume_ramp_timer.start()
+
+    def _on_pause_volume_ramp_tick(self) -> None:
+        """Per-tick volume interpolation; final tick commits volume=0
+        AND performs set_state(NULL) + get_state(CLOCK_TIME_NONE) (D-15).
+
+        Mirrors _on_eq_ramp_tick — k/_PAUSE_VOLUME_RAMP_TICKS
+        interpolation factor, final-tick exact-target commit, state-cleanup.
+        """
+        state = self._pause_volume_ramp_state
+        if state is None:
+            self._pause_volume_ramp_timer.stop()
+            return
+        state["tick_index"] += 1
+        k = state["tick_index"]
+        target = state["target_volume"]
+        start = state["start_volume"]
+        if k >= self._PAUSE_VOLUME_RAMP_TICKS:
+            # Final tick: commit exact 0 to playbin3.volume, then perform
+            # the actual NULL teardown that pause() used to do inline.
+            self._pipeline.set_property("volume", target)
+            self._pause_volume_ramp_timer.stop()
+            self._pause_volume_ramp_state = None
+            self._pipeline.set_state(Gst.State.NULL)
+            self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+            return
+        t = float(k) / float(self._PAUSE_VOLUME_RAMP_TICKS)
+        v = start + (target - start) * t
+        self._pipeline.set_property("volume", v)
 
     def _rebuild_eq_element(self, num_bands: int) -> None:
         """D-04 + Pitfall 1: num-bands realloc unreliable; rebuild the whole element.
