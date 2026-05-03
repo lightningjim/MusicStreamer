@@ -1,7 +1,8 @@
 # Phase 57: Windows Audio Glitch + Test Fix - Context
 
 **Gathered:** 2026-05-02
-**Status:** Ready for planning
+**Updated:** 2026-05-03 — post-diagnostic rescope (D-11..D-15 added; Phase Boundary "Volume half" reframed cross-platform; affected In Scope / Out of Scope bullets updated). See `57-DIAGNOSTIC-LOG.md` §"In-session scope expansion (2026-05-03)" for the source-of-truth narrative.
+**Status:** Ready for planning (rescoped — Plans 57-03/04/05 to be regenerated; 57-01/02 already complete and preserved)
 
 <domain>
 ## Phase Boundary
@@ -9,16 +10,16 @@
 Two narrowly-scoped Windows-side fixes carried forward from Phase 44, parallel in shape to Phase 56:
 
 1. **WIN-03 — Audio pause/resume glitch + ignored volume slider on Windows.**
-   - **Glitch half:** Pressing Pause and then Resume on a playing stream on Windows currently produces an audible pop, gap, or restart artifact. Linux is clean. Phase produces parity (no audible artifact on Windows).
-   - **Volume half:** Moving the volume slider on Windows does not change playback volume immediately. Linux behavior is correct. Phase produces parity (slider moves → audible level changes immediately).
+   - **Glitch half (Windows-only):** Pressing Pause and then Resume on a playing stream on Windows currently produces an audible pop, gap, or restart artifact. Linux is clean. Phase produces parity (no audible artifact on Windows).
+   - **Volume half (cross-platform — see D-11):** `playbin3.volume` resets on every PLAYING transition (NULL→PLAYING from pause/resume + failover, **and** the GStreamer-internal PAUSED→PLAYING auto-rebuffer recovery), silently dropping the slider's last value at the audio path. Windows hits it more often (buffer pressure); Linux exhibits on flaky-network buffer drops. The user-visible symptom is "slider doesn't take effect" on Windows and "audio jumps to 100% after a buffer drop" on both platforms. Phase ships a single bus-message `STATE_CHANGED` hook on `playbin3` that re-applies `self._volume` on every transition to PLAYING (D-12 hook site; D-13 resolves D-06 = Option A; D-14 expands the Linux regression-guard scope).
 
 2. **WIN-04 — `test_thumbnail_from_in_memory_stream` is awaitable.** The test currently fails because `_build_winrt_stubs()` in `tests/test_media_keys_smtc.py` makes `DataWriter().store_async` a plain `MagicMock`, which is not awaitable. `_build_thumbnail_ref` runs `asyncio.run(_await_store(writer))` → `await writer.store_async()` → `TypeError: object MagicMock can't be used in 'await' expression`. Replace with `AsyncMock` so the test passes on Linux CI.
 
 **In scope:**
-- A Win11 VM diagnostic session to read back actual audio sink behavior + volume property persistence across `NULL → PLAYING` transitions, per D-04 / D-05 below.
-- Code change to fix the volume-slider-doesn't-take-effect symptom on Windows. Specific shape (re-apply property after NULL transition vs explicit `volume` element in `playbin3.audio-filter`) decided post-diagnostic, per D-06.
-- Code change to fix the audible glitch on pause/resume — most likely a thin smoothing layer around the `Gst.State.NULL → PLAYING` rebuild (e.g., short fade/mute on the audio sink across the rebuild). Specific shape is Claude's discretion, decided after the diagnostic clarifies which sink ships on Win11 GStreamer 1.28.x and how it handles abrupt teardown.
-- A pytest regression guard on Linux CI for the volume-property-persistence half (D-07): assert that the player's volume value reaches `playbin3` (or the chosen volume element) after a `_set_uri` rebuild, not just on the initial `set_volume` call. Audible-glitch half stays VM-UAT-only (perceptual, not unit-testable).
+- ✓ A Win11 VM diagnostic session to read back actual audio sink behavior + volume property persistence across `NULL → PLAYING` transitions, per D-04 / D-05. **COMPLETE 2026-05-03 — see `57-DIAGNOSTIC-LOG.md`. Sink confirmed `wasapi2sink`; `playbin3.volume` resets `0.5 → 1.0` on rebuild; D-13 resolves D-06 = Option A.**
+- Code change for the cross-platform post-rebuild volume reset: bus-message `STATE_CHANGED` handler on `playbin3` (D-12 hook site) that re-applies `self._volume` to `playbin3.volume` on every transition to PLAYING. D-06 = Option A (D-13). Lives in shared `player.py`; ships cross-platform by design.
+- Code change to fix the audible glitch on pause/resume on Windows — Phase 52 EQ ramp template (`musicstreamer/player.py:160-163, 683-685, 746-786`) wrapped around `playbin3.volume` (D-15). Single property surface (sink confirmed `wasapi2sink` honors `playbin3.volume` natively).
+- A pytest regression guard on Linux CI for the volume-property-persistence half (D-07 + D-14): assert that `playbin3.volume == self._volume` after **every** transition to PLAYING (state-changed bus message), not just `_set_uri` — covers NULL→PLAYING, PAUSED→PLAYING, and any future PLAYING-arrival path. Audible-glitch half stays VM-UAT-only (perceptual, not unit-testable).
 - Replace `MagicMock` with `AsyncMock` for `DataWriter().store_async` in `tests/test_media_keys_smtc.py::_build_winrt_stubs` so `test_thumbnail_from_in_memory_stream` passes (D-08).
 - Win11 VM UAT covering both halves of WIN-03 (no audible artifact on pause/resume; slider takes effect immediately).
 - Linux full test-suite green check post-WIN-04 patch.
@@ -28,8 +29,8 @@ Two narrowly-scoped Windows-side fixes carried forward from Phase 44, parallel i
 - Buffer-underrun resilience for intermittent dropouts — Phase 62 (separate roadmap entry).
 - AAC playback debug on Windows — Phase 69.
 - Hi-res indicator — Phase 70.
-- Cross-platform changes to the Linux audio path. WIN-03 fix must NOT regress Linux pause/resume or volume slider, but does not refactor it.
-- Switching audio sinks on Windows. Phase 43 + 1.28.x landed `wasapi2sink` (or whatever GStreamer 1.28's selected default is on the conda-forge build); diagnostic confirms which, the fix accommodates it.
+- Linux audio-path **refactoring**. The volume-reset fix (D-12 bus-message hook) DOES land cross-platform (D-11 scope), but is **additive** — a new `STATE_CHANGED` handler in shared `player.py`, not edits to existing Linux pause/resume / slider code paths. The Linux regression guard (D-14) verifies "no regression of pause/resume or steady-state slider behavior".
+- Switching audio sinks on Windows. Diagnostic confirmed the conda-forge GStreamer 1.28.x sink is `wasapi2sink` (Step 1 readback) and that it honors `playbin3.volume` natively, so the fix writes to `playbin3.volume`; no sink change.
 - Refactoring `pause()` to use `Gst.State.PAUSED` or `Gst.State.READY`. Live network streams cannot be true-paused (server keeps pushing data; buffer overflows). NULL-on-pause stays. The glitch fix is "make NULL→PLAYING not pop", not "stop using NULL".
 - Audit / hardening of every winrt async-method mock in `_build_winrt_stubs`. WIN-04 fix is targeted at the one failing test (D-09 — minimal patch).
 
@@ -76,9 +77,23 @@ Two narrowly-scoped Windows-side fixes carried forward from Phase 44, parallel i
 - **D-09: Minimal patch — only `store_async`.** Do NOT audit or harden the rest of `_build_winrt_stubs` for hypothetical future async winrt methods. There is exactly one currently-awaited winrt method in `smtc.py` (`writer.store_async()` in `_await_store`); other winrt calls in `_build_thumbnail_ref` and `publish_metadata` are synchronous. Future async methods get AsyncMock as they're added; no anticipatory work this phase.
 - **D-10: Production code unchanged.** WIN-04 is a test-only fix. `musicstreamer/media_keys/smtc.py` is not edited. The production `_await_store` + `asyncio.run(_await_store(writer))` path is correct (Phase 43.1 UAT validated it on real winrt).
 
+### Post-diagnostic resolution (added 2026-05-03 — supersedes pre-diagnostic decisions where noted)
+
+> **Source of truth:** `57-DIAGNOSTIC-LOG.md` (D-04 readbacks + §"In-session scope expansion (2026-05-03)"). The pre-diagnostic decisions D-01..D-10 above are preserved as audit trail; the items below resolve their open variables.
+
+- **D-11: Bug scope is cross-platform — supersedes D-01's "Windows-only" framing.** The volume-reset surface manifests on the GStreamer-internal PAUSED→PLAYING auto-rebuffer recovery path on **both** Windows and Linux; D-01 audited application code correctness only, not per-state-transition runtime behavior. Windows hits the surface more frequently (heavier buffer pressure). Linux exhibits on flaky-network buffer drops. **Implication for plans:** drop "Windows-only" framing for the volume half across PLAN frontmatter, must_haves, and tags.
+
+- **D-12: Hook site is bus-message `STATE_CHANGED` on the `playbin3` element — supersedes D-06 Option A's "tail of `_set_uri`" hook site.** The original Option A would have missed the GStreamer-internal PAUSED→PLAYING rebuffer path (it bypasses `_set_uri` entirely — `playbin3` auto-pauses when buffer drops below threshold and auto-resumes when refilled, without revisiting application code). The chosen hook joins the existing `message::error` / `message::tag` / `message::buffering` family at `player.py:134-136` and re-applies `self._volume` to `playbin3.volume` on every transition to PLAYING (catches NULL→PLAYING, PAUSED→PLAYING, and any future PLAYING-arrival path). **Implication for plans:** Plan 57-03 wires the new bus-message handler; do NOT add a tail-of-`_set_uri` re-apply (would double-write).
+
+- **D-13: D-06 selected = Option A — single mechanism, re-apply property.** Diagnostic Step 2 readback `0.5 → 1.0` after NULL→PLAYING with audible half→full corroboration is decisive; Step 3 (slider always responsive mid-stream) confirms `wasapi2sink` honors the property in steady state — only the rebuild path drops it. **Option B (explicit `volume` GstElement in `playbin3.audio-filter`) and hybrid are ruled out.** **Implication for plans:** ship `self._pipeline.set_property("volume", self._volume)` in the bus-message handler; do NOT introduce a `volume` GstElement; do NOT establish `self._volume_element` invariant (it was Option B / hybrid scaffolding from the pre-diagnostic 57-03-PLAN.md and is no longer needed).
+
+- **D-14: Linux regression-guard scope expands — supersedes D-07's "after `_set_uri`" assertion.** Test asserts `playbin3.volume == self._volume` after **every** transition to PLAYING (state-changed bus message), not just `_set_uri`. Mirror of D-12 hook site. Same shape as the original D-07 guard, broader assertion. **Implication for plans:** Plan 57-03's Linux pytest drives the bus-message dispatch (or directly invokes the handler) and asserts the re-apply for both NULL→PLAYING and PAUSED→PLAYING transitions.
+
+- **D-15: Glitch-fix smoothing target = `playbin3.volume`, ramp template = Phase 52 EQ ramp — resolves the "Pause/resume glitch fix mechanism" Claude's Discretion item.** Sink confirmed `wasapi2sink` (Step 1) honors `playbin3.volume` natively — single property surface. Phase 52 EQ ramp template at `musicstreamer/player.py:160-163, 683-685, 746-786` (QTimer-driven 8-tick fade: current → 0 → state-bracket → 0 → current) wraps `playbin3.volume` writes. **Composes with D-12 without double-writing:** both target `playbin3.volume`; the smoothing wrapper writes ramped values during the transition window, the bus-message handler writes `self._volume` once on PLAYING arrival. Plan 57-04 picks the exact ramp shape (cycle count, tick interval) that matches Win11 sink latency.
+
 ### Claude's Discretion
 
-- **Pause/resume glitch fix mechanism.** User skipped this gray area in the discuss-phase selection. Planner chooses the smoothing approach (sink-volume mute window, `playbin3.volume`-side fade, or `volume`-element ramp) based on D-04 step 1 sink identity and the WIN-03 volume fix shape (A or B).
+- ~~**Pause/resume glitch fix mechanism.** User skipped this gray area in the discuss-phase selection. Planner chooses the smoothing approach (sink-volume mute window, `playbin3.volume`-side fade, or `volume`-element ramp) based on D-04 step 1 sink identity and the WIN-03 volume fix shape (A or B).~~ **Resolved by D-15** — sink = `wasapi2sink`, smoothing target = `playbin3.volume`, ramp = Phase 52 EQ ramp template. Plan 57-04 picks the exact ramp shape (cycle count, tick interval) that matches Win11 sink latency; that's the only sub-decision left.
 - **Glitch fix verification.** Linux pytest of "no extra audible-glitch state" doesn't really exist — perceptual checks live on the VM. Planner may add a structural guard (e.g., a test that asserts the smoothing wrapper is invoked on `_set_uri`) but this is a nice-to-have, not a blocker.
 - **Exact name + location of the diagnostic log.** `57-DIAGNOSTIC-LOG.md` next to `57-CONTEXT.md` is the proposed location, mirroring `56-03-DIAGNOSTIC-LOG.md`. Planner can adjust if a per-plan location fits better.
 - **AsyncMock import location.** Top-of-file `from unittest.mock import AsyncMock` vs. inline import in `_build_winrt_stubs`. Either works; planner picks per existing conventions in `tests/test_media_keys_smtc.py`.
@@ -98,7 +113,13 @@ None — STATE.md `Pending Todos` lists three notes (`2026-03-21-sdr-live-radio-
 - `.planning/REQUIREMENTS.md` — WIN-03, WIN-04 (both pending, both this phase).
 - `.planning/ROADMAP.md` — Phase 57 entry: 4 success criteria (no audible glitch on pause/resume on Windows; volume slider takes effect on Windows; `test_thumbnail_from_in_memory_stream` passes; full test suite passes).
 - `.planning/PROJECT.md` — v2.1 milestone shape; "Phase 44 carry-forward (Windows polish)" bullet list explicitly names both bugs.
-- `.planning/STATE.md` — current position (Phase 58 executing); Phase 57 not yet started.
+- `.planning/STATE.md` — current position (Phase 57 executing — Wave 1 complete: 57-01 done + 57-02 diagnostic done; 57-03/04/05 pending replan).
+
+### Phase 57 — In-phase artifacts (rescope source of truth)
+- `.planning/phases/57-windows-audio-glitch-test-fix/57-DIAGNOSTIC-LOG.md` — D-04 readbacks + D-06 decision (Option A) + glitch hypothesis + §"In-session scope expansion (2026-05-03)". Authoritative for D-11/D-12/D-13/D-14/D-15.
+- `.planning/phases/57-windows-audio-glitch-test-fix/57-01-SUMMARY.md` — WIN-04 AsyncMock fix shipped (test passes on Linux CI). WIN-04 is **complete**; do not re-plan.
+- `.planning/phases/57-windows-audio-glitch-test-fix/57-02-SUMMARY.md` — Diagnostic complete; concretely names sink (`wasapi2sink`), hook site (bus-message `STATE_CHANGED`), and scope (cross-platform). Names the affected files for downstream plans.
+- `.planning/phases/57-windows-audio-glitch-test-fix/57-PATTERNS.md` — File-level analog map (still accurate; bus-message hook reuses existing handler-family idiom at `player.py:134-136`).
 
 ### Phase 56 — Sibling Windows phase (just shipped, locks invariants this phase MUST preserve)
 - `.planning/phases/56-windows-di-fm-smtc-start-menu/56-CONTEXT.md` — D-04 (DI.fm rewrite at `_set_uri` top); D-11 (Win11 VM UAT pattern); D-08 (diagnostic checklist pattern).
