@@ -380,7 +380,7 @@ Plans:
 | 54. Station Logo Aspect Ratio Fix | 4/4 | Complete   | 2026-04-30 |
 | 55. Edit Station Preserves Section State | 2/2 | Complete    | 2026-05-01 |
 | 56. Windows DI.fm + SMTC Start Menu | 5/5 | Complete   | 2026-05-02 |
-| 57. Windows Audio Glitch + Test Fix | 5/5 | Complete   | 2026-05-03 |
+| 57. Windows Audio Glitch + Test Fix | 5/5 | Complete    | 2026-05-03 |
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 0/? | Not started | - |
 | 60. GBS.FM Integration | 0/? | Not started | - |

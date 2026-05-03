@@ -29,8 +29,8 @@ Phase 44 carry-forward — items deferred from the v2.0 ship line.
 
 - [x] **WIN-01**: DI.fm premium streams play on Windows via a chosen HTTPS-fallback policy (HTTP-for-DI.fm-only or accept server-side HTTPS-unavailable with explicit user feedback)
 - [ ] **WIN-02**: SMTC overlay shows "MusicStreamer" instead of "Unknown app" via a registered Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` (matches the in-process AUMID set during startup)
-- [ ] **WIN-03**: Audio pause/resume on Windows produces no audible glitch; the volume slider takes effect on Windows playback (parity with Linux)
-- [ ] **WIN-04**: `test_thumbnail_from_in_memory_stream` passes on Windows (`MagicMock` replaced with `AsyncMock` for the `store_async` await)
+- [x] **WIN-03**: Audio pause/resume on Windows produces no audible glitch; the volume slider takes effect on Windows playback (parity with Linux)
+- [x] **WIN-04**: `test_thumbnail_from_in_memory_stream` passes on Windows (`MagicMock` replaced with `AsyncMock` for the `store_async` await)
 
 ### Features (FEAT)
 
@@ -89,8 +89,8 @@ Which phases cover which requirements.
 | BUG-06 | Phase 55 | Complete |
 | WIN-01 | Phase 56 | Complete |
 | WIN-02 | Phase 56 | Pending |
-| WIN-03 | Phase 57 | Pending |
-| WIN-04 | Phase 57 | Pending |
+| WIN-03 | Phase 57 | Complete |
+| WIN-04 | Phase 57 | Complete |
 | STR-15 | Phase 58 | Pending |
 | ACCENT-02 | Phase 59 | Pending |
 | GBS-01 | Phase 60 | Pending |
