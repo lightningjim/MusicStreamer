@@ -480,3 +480,82 @@ def test_set_uri_passes_through_youtube_hls(qtbot):
     url = "https://manifest.googlevideo.com/api/manifest/hls_playlist/abc/playlist.m3u8"
     p._set_uri(url)
     p._pipeline.set_property.assert_any_call("uri", url)
+
+
+# ---------------------------------------------------------------------------
+# Phase 57 / WIN-03 D-12 + D-14: bus-message STATE_CHANGED re-applies volume
+# on every transition to PLAYING (NULL->PLAYING and playbin3-internal
+# PAUSED->PLAYING auto-rebuffer recovery). Cross-platform regression guard
+# — Linux CI catches the future "contributor adds a new set_state(NULL) site
+# and forgets to re-apply volume" or "child-element state-change leaks into
+# the re-apply path" without needing a Win11 CI runner.
+# ---------------------------------------------------------------------------
+
+
+def test_volume_reapplied_on_null_to_playing(qtbot):
+    """WIN-03 D-12 + D-14: After playbin3 transitions NULL->PLAYING (via
+    _set_uri / pause-resume / failover / station switch / YouTube|Twitch
+    resolve), the main-thread slot _on_playbin_state_changed re-applies
+    the user's stored volume to playbin3.volume. Catches the diagnostic
+    Step 2 bug: playbin3.volume resets 0.5 -> 1.0 across NULL->PLAYING
+    without this hook."""
+    p = make_player(qtbot)
+    p.set_volume(0.5)
+    # set_volume's own write is one set_property call; the WIN-03 guarantee
+    # is that ANOTHER write of the same value happens after the bus-message
+    # arrives on the main thread.
+    p._pipeline.set_property.reset_mock()
+    # Simulate the queued Signal landing on the main thread post-transition.
+    p._on_playbin_state_changed()
+    p._pipeline.set_property.assert_any_call("volume", 0.5)
+
+
+def test_volume_reapplied_on_paused_to_playing(qtbot):
+    """WIN-03 D-12 + D-14: Same re-apply happens on the GStreamer-internal
+    PAUSED->PLAYING auto-rebuffer recovery path that bypasses _set_uri.
+    Catches the in-session disclosure surface (57-DIAGNOSTIC-LOG.md
+    'In-session scope expansion'): playbin3 auto-pauses when buffer drops
+    below threshold and auto-resumes when refilled, without revisiting
+    application code. The bus-message hook still fires; the main-thread
+    slot writes regardless of the prior state."""
+    p = make_player(qtbot)
+    p.set_volume(0.7)
+    p._pipeline.set_property.reset_mock()
+    # PAUSED->PLAYING and NULL->PLAYING share the same main-thread slot;
+    # the bus-loop filter only cares about new == PLAYING.
+    p._on_playbin_state_changed()
+    p._pipeline.set_property.assert_any_call("volume", 0.7)
+
+
+def test_bus_state_changed_handler_filters_non_playing_transitions(qtbot):
+    """WIN-03 D-12 invariant: _on_gst_state_changed early-returns when
+    new_state != PLAYING. PLAYING->PAUSED, PAUSED->READY, READY->NULL etc.
+    must NOT fire the re-apply Signal."""
+    from musicstreamer.player import Gst
+    p = make_player(qtbot)
+    msg = MagicMock()
+    msg.src = p._pipeline  # top-level — the OTHER filter passes
+    msg.parse_state_changed.return_value = (
+        Gst.State.PLAYING, Gst.State.PAUSED, Gst.State.VOID_PENDING
+    )
+    with patch.object(p, "_playbin_playing_state_reached") as sig:
+        p._on_gst_state_changed(bus=MagicMock(), msg=msg)
+        sig.emit.assert_not_called()
+
+
+def test_bus_state_changed_handler_filters_child_element_messages(qtbot):
+    """WIN-03 D-12 invariant: _on_gst_state_changed early-returns when
+    msg.src is not the top-level playbin3 pipeline. Child elements
+    (decodebin3, urisourcebin, audio sink, etc.) emit their own
+    state-changed messages on the same bus and MUST be ignored — only
+    the top-level transition matters for re-apply."""
+    from musicstreamer.player import Gst
+    p = make_player(qtbot)
+    msg = MagicMock()
+    msg.src = MagicMock(name="some-child-element")  # NOT p._pipeline
+    msg.parse_state_changed.return_value = (
+        Gst.State.PAUSED, Gst.State.PLAYING, Gst.State.VOID_PENDING
+    )
+    with patch.object(p, "_playbin_playing_state_reached") as sig:
+        p._on_gst_state_changed(bus=MagicMock(), msg=msg)
+        sig.emit.assert_not_called()
