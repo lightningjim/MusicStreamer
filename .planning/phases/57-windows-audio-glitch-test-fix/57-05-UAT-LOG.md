@@ -108,11 +108,29 @@ This test appeared in the full-suite run (`11 failed`) but was NOT in the 57-01-
 
 ## SC #1: WIN-03 pause/resume audible glitch (Win11 VM)
 
-**Status:** PENDING — awaiting Task 2 (Win11 VM perceptual verification)
+**Status:** PASS
 
 **Requirement:** WIN-03 — pressing Pause then Resume on a playing SomaFM stream produces no audible pop, gap, or restart artifact. Plan 57-04's QTimer-driven 8-tick volume ramp (40ms fade-down to 0 before NULL teardown) and Plan 57-03's bus-message re-apply on PLAYING-arrival together address this surface.
 
-*This section will be completed by the continuation agent after the human completes Task 2 on the Win11 VM.*
+**VM environment:**
+- Win11 22H2+ (NT 10.0.26200 — Win11 25H2; same VM as 57-02 diagnostic)
+- conda env `spike` activated; conda-forge GStreamer 1.28.x bundle (sink resolves to `wasapi2sink` per 57-02 Step 1 readback)
+- Build / install: build executed on the VM directly (Linux build host has no PowerShell; build host = test host workflow, same as 57-02 diagnostic). Fresh installer launched, post-install "Run" checkbox left unchecked, app launched via Start Menu shortcut. `Get-StartApps` confirms AppID `org.lightningjim.MusicStreamer`.
+- Test stream: SomaFM Drone Zone (`http://ice1.somafm.com/dronezone-128-mp3`)
+- UAT date: 2026-05-03
+
+**Tests:**
+
+| # | Scenario | Result |
+|---|----------|--------|
+| 1 | Single pause/resume cycle | PASS — smooth fade-out, no audible pop on resume |
+| 2 | Rapid pause/resume (within ~500ms) | PASS — clean rapid cycle, no pop / freeze / stuck-at-volume |
+| 3 | Pause/resume across stream switch | PASS — clean transition to new station, no glitch |
+| neg | Steady-state volume stability (no slider movement) | PASS — stable audible volume during playback |
+
+**User attestation:** All three pause/resume tests + the negative steady-state check passed perceptually on the Win11 VM. The Plan 57-04 QTimer ramp (fade-down to 0 across the pre-NULL window) audibly masks the previously-observed pop on Windows. Plan 57-03's bus-message handler restores `self._volume` cleanly on PLAYING-arrival post-resume — no audible jitter during steady-state.
+
+**Implication:** ROADMAP SC #1 verdict: **PASS**. The audible-glitch half of WIN-03 is closed. Plan 57-04's ramp shape is sufficient for `wasapi2sink` latency on Win11 25H2.
 
 ---
 
