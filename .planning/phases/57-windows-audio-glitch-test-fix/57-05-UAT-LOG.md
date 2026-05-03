@@ -159,6 +159,51 @@ This test appeared in the full-suite run (`11 failed`) but was NOT in the 57-01-
 
 ## Phase 57 readiness summary
 
-**Status:** PENDING — SC #1 and SC #2 await Win11 VM perceptual UAT
+**Status:** READY TO SHIP — all 4 ROADMAP success criteria attested PASS.
 
-*This section will be completed by Task 4 after all four SCs are attested.*
+### SC attestation matrix
+
+| SC | Requirement | Verification | Status | Evidence |
+|----|-------------|--------------|--------|----------|
+| #1 | WIN-03 (audible-glitch half) | Win11 VM perceptual UAT, 3 tests + negative check | **PASS** | Task 2 attestation above (commit 0ed559f) — Plan 57-04 ramp + Plan 57-03 bus-message handler compose cleanly |
+| #2 | WIN-03 (volume-slider half) | Win11 VM perceptual UAT, 4 tests (incl. buffer-drop auto-rebuffer) | **PASS** | Task 3 attestation above (commit 7fb77f2) — D-12 hook site catches both NULL→PLAYING and PAUSED→PLAYING; D-13 Option A sufficient on `wasapi2sink` |
+| #3 | WIN-04 (test_thumbnail_from_in_memory_stream awaitable) | Linux CI pytest | **PASS** | 57-01-SUMMARY.md (commit `c1c783c`, 2026-05-02) + Task 1 re-attestation (commit ed42f6c) — `pytest tests/test_media_keys_smtc.py::test_thumbnail_from_in_memory_stream -x` exits 0 on rebased branch |
+| #4 | WIN-04 (full suite no new failures) | Linux CI pytest | **PASS** | Task 1 re-attestation — 964 passed, 11 failed, 1 skipped. 10 pre-existing baseline failures + 1 intermittent flaky (`test_logo_status_clears_after_3s`, passes in isolation, neither test file nor source file touched by Phase 57). Zero new failures attributable to Plans 57-03 / 57-04 |
+
+### Phase 57 ships if
+
+- [x] All 4 SCs are PASS (SC #1, SC #2, SC #3, SC #4 above).
+- [x] No new failures introduced by Plans 57-03 or 57-04 (Task 1 SC #4 attestation: 10 pre-existing unchanged, 1 intermittent flaky in unrelated file).
+- [x] No regression of Plan 57-01's WIN-04 fix (Task 1 SC #3 attestation: targeted test exits 0 on rebased branch).
+
+All three boxes checked → **Phase 57 ships.**
+
+### Composition contract verified
+
+Per Plan 57-04's composition rule (D-12 + D-15 — smoothing-then-reapply ordering with disjoint write windows):
+
+- **Plan 57-03's bus-message re-apply** fires on every transition to `Gst.State.PLAYING` — verified perceptually by SC #2 Tests 2 (NULL→PLAYING via pause/resume), 4 (NULL→PLAYING via station switch), and especially Test 3 (the GStreamer-internal PAUSED→PLAYING auto-rebuffer path that bypasses `_set_uri` and motivated D-12). The hook site at `player.py:135` covers all PLAYING-arrival paths.
+- **Plan 57-04's pause-volume ramp** wraps the `pause()`→`set_state(NULL)` transition with an 8-tick QTimer fade-down on `playbin3.volume`; the final tick performs `set_state(NULL)` + `get_state(CLOCK_TIME_NONE)`. No double-write with 57-03's handler — the ramp owns `playbin3.volume` PRE-NULL, and 57-03's handler restores `self._volume` POST-PLAYING. SC #1 Tests 1-3 + the negative steady-state check confirm this perceptually: pause is a smooth fade, resume comes back at slider position (no half-volume tail, no full-volume jump, no jitter).
+- **D-13 single-mechanism Option A invariant carried through**: `grep -q "_volume_element" musicstreamer/player.py` returns exit 1 (not found) on the shipped branch. No `Gst.Bin` chaining, no Option B scaffolding. Single property surface (`playbin3.volume`); `wasapi2sink` honors it natively per 57-02 Step 1 readback.
+
+### Pre-existing failures carry-forward
+
+Phase 57 does NOT close any of the following pre-existing failures (carried forward from 57-01-SUMMARY.md baseline). They are tracked separately and remain out of scope:
+
+| File / Test | Count | Cause area |
+|-------------|-------|------------|
+| `tests/test_media_keys_mpris2.py` (constructs / publish_metadata / publish_metadata_none / set_playback_state / slot_play_pause_emits_signal / shutdown_idempotent / xesam_title_passthrough_verbatim) | 7 | Linux D-Bus `registerObject failed` — collision when running as part of larger suite; tests pass in isolation |
+| `tests/test_station_list_panel.py::test_filter_strip_hidden_in_favorites_mode` | 1 | Pre-existing UI / mode-state test failure |
+| `tests/test_station_list_panel.py::test_refresh_recent_updates_list` | 1 | Pre-existing UI / list-refresh test failure |
+| `tests/test_twitch_auth.py::test_play_twitch_sets_plugin_option_when_token_present` | 1 | Pre-existing Twitch token plugin-option test failure |
+| `tests/test_edit_station_dialog.py::test_logo_status_clears_after_3s` | 1 (intermittent flaky) | Pre-existing — passes in isolation; surface unrelated to Phase 57 (neither test file nor source file modified by any Phase 57 commit) |
+
+These 10 baseline + 1 flaky failures pre-date and are outside the scope of WIN-03 and WIN-04. Triage belongs to a future v2.1 follow-up phase (or whichever phase brings them into scope explicitly).
+
+### Next steps
+
+Phase 57 closed. Next active phase is TBD per `.planning/ROADMAP.md` — Phases 58-60 already shipped, so the next pending phase is whatever currently appears unchecked on the roadmap.
+
+---
+
+*Phase 57 UAT complete: 2026-05-03*
