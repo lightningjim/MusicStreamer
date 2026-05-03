@@ -290,9 +290,9 @@ Plans:
 Plans:
 - [x] 57-01-PLAN.md — WIN-04 AsyncMock fix in tests/test_media_keys_smtc.py (Wave 1, autonomous, test-only)
 - [x] 57-02-PLAN.md — Win11 VM diagnostic: capture three D-04 readbacks (sink identity + playbin3.volume persistence + slider mid-stream effect) + record D-06 fix-shape decision in 57-DIAGNOSTIC-LOG.md (WIN-03, Wave 1, manual VM)
-- [ ] 57-03-PLAN.md — WIN-03 volume fix per chosen Option (A: re-apply at end of _set_uri; B: explicit volume GstElement chained with EQ in Gst.Bin) + Linux CI regression guard test (Wave 2, depends on 57-02)
-- [ ] 57-04-PLAN.md — WIN-03 audible-glitch QTimer smoothing wrapper composed with Plan 57-03's volume target + structural guard tests (Wave 3, depends on 57-02 + 57-03)
-- [ ] 57-05-PLAN.md — Win11 VM UAT for WIN-03 SC #1/#2 + Linux CI for WIN-04 SC #3/#4; record attestations in 57-05-UAT-LOG.md (Wave 4, depends on 57-01 + 57-03 + 57-04)
+- [ ] 57-03-PLAN.md — WIN-03 volume fix per D-13 = Option A: bus-message STATE_CHANGED handler on playbin3 re-applying self._volume on every transition to PLAYING (catches NULL→PLAYING + GStreamer-internal PAUSED→PLAYING auto-rebuffer recovery; D-12 hook site supersedes tail-of-_set_uri) + cross-platform Linux CI regression guard tests (Wave 2, depends on 57-02; rescoped 2026-05-03 post-diagnostic per D-11..D-15)
+- [ ] 57-04-PLAN.md — WIN-03 audible-glitch fix: Phase 52-style QTimer 8-tick fade-down on playbin3.volume wrapped around pause()→NULL transition (D-15 ramp template; composes with 57-03's bus-message re-apply via disjoint write windows: ramp PRE-NULL, re-apply POST-PLAYING) + structural guard tests in tests/test_player_pause.py (Wave 3, depends on 57-02 + 57-03)
+- [ ] 57-05-PLAN.md — Phase 57 UAT: Win11 VM perceptual attestations for WIN-03 SC #1 (no audible pop on pause/resume) + SC #2 (slider takes effect + survives pause/resume) + Linux CI re-attestations for WIN-04 SC #3 (referencing 57-01-SUMMARY.md commit c1c783c) + SC #4 (no new failures vs. 10 pre-existing); records all 4 ROADMAP SCs in 57-05-UAT-LOG.md (Wave 4, depends on 57-01 + 57-03 + 57-04)
 
 ### Phase 58: PLS Auto-Resolve in Station Editor
 **Goal:** A user can paste a PLS playlist URL into the Streams section of a station and have it automatically expand into individual stream entries — one row per PLS entry, with bitrate/codec resolved where possible.
