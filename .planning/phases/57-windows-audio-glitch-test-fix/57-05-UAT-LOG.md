@@ -136,11 +136,24 @@ This test appeared in the full-suite run (`11 failed`) but was NOT in the 57-01-
 
 ## SC #2: WIN-03 volume slider takes effect (Win11 VM)
 
-**Status:** PENDING — awaiting Task 3 (Win11 VM perceptual verification)
+**Status:** PASS
 
 **Requirement:** WIN-03 — moving the volume slider mid-stream changes the audible playback volume immediately AND the slider's value is preserved across pause/resume (matches Linux behavior). Plan 57-03's bus-message STATE_CHANGED handler re-applying `self._volume` on every PLAYING transition closes the `0.5 → 1.0` property-reset surface confirmed in 57-DIAGNOSTIC-LOG.md Step 2.
 
-*This section will be completed by the continuation agent after the human completes Task 3 on the Win11 VM.*
+**VM environment:** Same as SC #1 above (Win11 25H2 + conda-forge GStreamer 1.28.x + `wasapi2sink` + SomaFM Drone Zone).
+
+**Tests:**
+
+| # | Scenario | Result |
+|---|----------|--------|
+| 1 | Mid-stream slider sweep (100→50→0→50) | PASS — each slider move produces immediate audible level change |
+| 2 | Slider survives pause/resume (50%→pause→resume) | PASS — audible at 50% on resume (NOT 100% — pre-fix bug closed) |
+| 3 | Slider survives buffer-drop auto-rebuffer (30% + network disable) | PASS — audible at 30% on auto-resume (NOT 100% — D-12 bus-message handler covers GStreamer-internal PAUSED→PLAYING path) |
+| 4 | Slider survives station switch (75% → click different station) | PASS — audible at 75% on new station (NOT 100%) |
+
+**User attestation:** All four slider tests passed perceptually on the Win11 VM, including the buffer-drop auto-rebuffer test (Test 3) — the in-session disclosure surface from 57-02 diagnostic that motivated the D-12 hook-site upgrade from `_set_uri` tail to bus-message `STATE_CHANGED`. The bus-message handler correctly fires for both application-driven NULL→PLAYING transitions (Tests 2 + 4) and GStreamer-internal PAUSED→PLAYING auto-recovery (Test 3).
+
+**Implication:** ROADMAP SC #2 verdict: **PASS**. The volume-slider half of WIN-03 is closed. D-13 single-mechanism Option A (re-apply property in bus-message handler) is sufficient on `wasapi2sink`. D-11 cross-platform scope confirmed: Test 3's buffer-drop path is the same surface the user reported on Linux, now mitigated by the same hook.
 
 ---
 
