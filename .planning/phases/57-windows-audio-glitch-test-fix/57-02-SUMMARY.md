@@ -2,122 +2,145 @@
 phase: 57-windows-audio-glitch-test-fix
 plan: 02
 subsystem: docs / diagnostic-artifact
-tags: [windows, audio, gstreamer, diagnostic, win11-vm, manual-uat, win-03, partial, checkpoint-pending]
-status: partial — checkpoint reached at Task 2 (awaits Win11 VM diagnostic)
+tags: [windows, linux, audio, gstreamer, diagnostic, win11-vm, manual-uat, win-03, complete, scope-expansion]
+status: complete
 requires:
   - 57-CONTEXT.md (D-04 readback list, D-05 artifact location, D-06 fix-shape options)
   - 57-PATTERNS.md (57-DIAGNOSTIC-LOG.md skeleton structure block)
   - 56-03-DIAGNOSTIC-LOG.md (format precedent — same shape)
 provides:
-  - 57-DIAGNOSTIC-LOG.md skeleton (header + pre-flight + 3 D-04 step sections + D-06 decision block + Glitch-fix hypothesis subhead + sign-off, all _TBD_-stubbed)
+  - 57-DIAGNOSTIC-LOG.md (complete: 3 D-04 readbacks + D-06 decision + glitch hypothesis + scope-expansion section)
+  - D-06 decision: Option A (re-apply `playbin3.volume` on every PLAYING transition)
+  - Hook-site decision: bus-message `STATE_CHANGED` handler (NOT tail-of-`_set_uri`)
+  - Scope decision: cross-platform (drop Windows-only framing)
+  - Sink identity: `wasapi2sink` (concrete) wrapped by `autoaudiosink` (outer)
 affects:
-  - Plans 57-03 and 57-04 stay BLOCKED until Tasks 2/3/4 complete (VM readbacks + classification + log fill-in)
+  - Plan 57-03: re-scoped to bus-message hook + cross-platform regression guard (was: tail-of-`_set_uri`, Windows-only)
+  - Plan 57-04: smoothing target = `playbin3.volume` (single property surface, sink honors natively)
 tech-stack:
   added: []
   patterns:
-    - "Diagnostic log artifact format (D-05) mirrored verbatim from 56-03-DIAGNOSTIC-LOG.md — header, pre-flight readiness table, per-step PRE blocks, decision cross-reference table, sign-off"
+    - "Diagnostic log artifact format (D-05) mirrored verbatim from 56-03-DIAGNOSTIC-LOG.md"
+    - "Bus-message STATE_CHANGED hook site: joins existing message::error / message::tag / message::buffering family at player.py:134-136"
 key-files:
   created:
-    - .planning/phases/57-windows-audio-glitch-test-fix/57-DIAGNOSTIC-LOG.md
-    - .planning/phases/57-windows-audio-glitch-test-fix/57-02-SUMMARY.md
-  modified: []
+    - .planning/phases/57-windows-audio-glitch-test-fix/57-DIAGNOSTIC-LOG.md (skeleton at Task 1, populated at Task 4)
+  modified:
+    - .planning/phases/57-windows-audio-glitch-test-fix/57-02-SUMMARY.md (overwrite: partial → complete)
+  deleted:
+    - .planning/phases/57-windows-audio-glitch-test-fix/57-02-diagnostic.py (scratch helper, removed after Task 4)
 decisions:
-  - "Task 1 skeleton matches 56-03 format byte-shape (D-05): same section ordering, same readiness table columns, same per-step Method/Output/Outcome classification/Implication structure. Future readers can grep across diagnostic logs uniformly."
-  - "All readback values stubbed as `_TBD_` — Task 4 owns the fill-in pass after Tasks 2 (VM session) and 3 (classification) deliver evidence."
-  - "Glitch-fix hypothesis subhead embedded in the D-06 section of the skeleton (not a separate top-level section), so Task 4's verify gate (`grep -E 'Glitch-fix hypothesis'`) already has its target."
+  - "D-06: Option A (re-apply property) — Step 2 readback `0.5 → 1.0` after NULL→PLAYING with audible half→full corroboration is decisive. Step 3 (slider always responsive mid-stream) confirms `wasapi2sink` honors the property in steady state; only the rebuild path drops it."
+  - "Hook site UPGRADED from tail-of-`_set_uri` to bus-message STATE_CHANGED handler. Reason: in-session disclosure that the user-visible glitch surface is post-rebuffer volume reset (PAUSED→PLAYING auto-recovery internal to playbin3) — that path bypasses `_set_uri`. Bus-message hook catches both NULL→PLAYING (pause/resume, failover, station switch) and PAUSED→PLAYING (re-buffer)."
+  - "Scope EXPANDED from Windows-only to cross-platform. Reason: user reported the same post-rebuffer volume-reset symptom on Linux. CONTEXT D-01's `Linux wiring is correct` claim was code-correctness only; per-state-transition runtime behavior wasn't audited and exhibits the same property reset on both platforms. Windows hits the surface more frequently (more buffer pressure)."
 metrics:
-  completed_date: 2026-05-02
-  duration: partial — Task 1 executed in ~5min; Tasks 2/3/4 pending VM session
-  tasks_completed: 1
+  completed_date: 2026-05-03
+  duration: ~30min interactive (Tasks 2-4) + ~5min skeleton (Task 1)
+  tasks_completed: 4
   tasks_total: 4
-  tasks_pending: [2, 3, 4]
-  files_created: 2
-  files_modified: 0
+  tasks_pending: []
+  files_created: 1
+  files_modified: 1
+  files_deleted: 1
 ---
 
-# Phase 57 Plan 02: Win11 VM Audio Diagnostic Session — Partial Summary
+# Phase 57 Plan 02: Win11 VM Audio Diagnostic Session — Complete
 
-**One-liner:** Task 1 scaffolded `57-DIAGNOSTIC-LOG.md` skeleton mirroring 56-03 format; Tasks 2/3/4 paused at human-action checkpoint awaiting Win11 VM diagnostic to capture three D-04 readbacks (sink identity, `playbin3.volume` persistence across NULL→PLAYING, slider mid-stream effect).
+**Headline:** D-06 decision is **Option A** (re-apply `self._volume` on every PLAYING transition). Sink is `wasapi2sink`. Plans 57-03 and 57-04 are unblocked, with Plan 57-03 re-scoped to a bus-message `STATE_CHANGED` hook site and cross-platform coverage based on an in-session disclosure that expanded the bug surface beyond CONTEXT D-01's framing.
+
+**One-liner:** Three D-04 readbacks captured on Win11 25H2 + conda-forge GStreamer 1.28.x: sink resolves to `wasapi2sink` (via `autoaudiosink` wrapper); `playbin3.volume` resets `0.5 → 1.0` across NULL→PLAYING with audible half→full match; slider always responsive mid-stream — Outcome A unambiguous; Option A locked in. In-session disclosure that the same volume-reset surface manifests on the GStreamer-internal PAUSED→PLAYING re-buffer path on both platforms re-scoped Plan 57-03 to a bus-message hook site (not tail-of-`_set_uri`) and dropped the Windows-only framing.
 
 ## Status
 
-**PARTIAL — checkpoint reached.** Plan 57-02 is a `autonomous: false` plan with a `checkpoint:human-action` gate at Task 2. The plan can only complete after the user runs the Win11 VM diagnostic session externally and re-invokes execute-phase to dispatch Tasks 3 and 4.
+**COMPLETE.** All four tasks executed.
 
-| Task | Type | Status | Commit |
-|------|------|--------|--------|
-| 1 — Scaffold 57-DIAGNOSTIC-LOG.md skeleton | auto | ✓ done | 5285643 |
-| 2 — Run D-04 readbacks on Win11 VM (interactive) | checkpoint:human-action | ⏸ awaiting user (VM session) | — |
-| 3 — Classify outcomes against D-06 cross-reference table | auto | ⏸ blocked by Task 2 | — |
-| 4 — Fill in 57-DIAGNOSTIC-LOG.md with readbacks + decision + hypothesis | auto | ⏸ blocked by Task 2 | — |
+| Task | Type | Status | Commit / Notes |
+|------|------|--------|----------------|
+| 1 — Scaffold 57-DIAGNOSTIC-LOG.md skeleton | auto | ✓ done | `5285643` (prior invocation) |
+| 2 — Run D-04 readbacks on Win11 VM (interactive) | checkpoint:human-action | ✓ done | 2026-05-03; pre-flight + Step 1 + Step 2 via scratch helper script; Step 3 in installed app |
+| 3 — Classify outcomes against D-06 cross-reference table | auto | ✓ done | orchestrator-side reasoning; results carried into Task 4 |
+| 4 — Fill in 57-DIAGNOSTIC-LOG.md with readbacks + decision + hypothesis | auto | ✓ done | this commit |
 
-## What Task 1 Delivered
+## Diagnostic Headline
 
-Skeleton `57-DIAGNOSTIC-LOG.md` written next to `57-CONTEXT.md`, byte-shaped after `56-03-DIAGNOSTIC-LOG.md` (D-05 invariant). Section inventory:
+- **Sink identity (Step 1):** `autoaudiosink` outer wrapper → concrete `wasapi2sink` (via child element `audiosink-actual-sink-wasapi2`). Per Phase 43 spike findings, `wasapi2sink` honors `playbin3.volume` natively.
+- **Property persistence (Step 2):** `volume = 0.5` → NULL→PLAYING rebuild → `volume = 1.0`. Audible level matched the property reset (half → full). **Outcome A confirmed.**
+- **Mid-stream slider (Step 3):** Always responsive (100% = full, 0% = silent, 50% = half) — corroborates that `wasapi2sink` honors `playbin3.volume` in steady state; only the rebuild path drops it.
 
-- **Header** (`# Phase 57 / WIN-03 — Win11 VM Audio Diagnostic Log`) + Started/Driver/Goal lines.
-- **`## Pre-flight: VM environment readiness`** — 5-row readiness table (Win11 22H2+, Conda env, fresh installer, playable HTTP stream, two PowerShell windows) + Status line.
-- **`## D-04 Step 1: Audio Sink Identity (PRE-FIX)`** — Method block, Output block, Outcome classification (wasapi2sink / directsoundsink / autoaudiosink / other), Implication for Plan 57-04 stub.
-- **`## D-04 Step 2: playbin3.volume Persistence Across NULL→PLAYING (PRE-FIX)`** — Method, two-row Output table (pre-pause + post-resume readbacks), three-way Outcome classification (A/B/C → Option A / Option B / re-test), Implication for D-06 stub.
-- **`## D-04 Step 3: Slider Mid-Stream Effect (PRE-FIX)`** — Method, two-row Output table (100→0%, 0→50% slider sweeps), three-way Outcome classification (responsive / unresponsive / partial), Implication for D-06 stub.
-- **`## D-06 Fix-Shape Selection + Glitch Hypothesis`** — Decision line, classification line, rationale line, three-row cross-reference table (Option A / Option B / Hybrid), Glitch-fix hypothesis subhead with composability constraint vs. chosen volume fix.
-- **`## Sign-off`** — four-row checklist (diagnostic complete, D-06 decision, plan 57-03 unblocked, plan 57-04 unblocked).
+## D-06 Decision: Option A
 
-All readback values, decision lines, and dates are `_TBD_`-stubbed. Task 4's verify gate (`! grep -q "_TBD_"`) is the closure check; Task 1's verify gate (header + 3 D-04 steps + D-06 + Glitch hypothesis + Pre-flight) all pass.
+**Rationale:** Step 2 readback (`0.5 → 1.0` across NULL→PLAYING with matching audible level change) on `wasapi2sink` (which honors `playbin3.volume`) means the bug is "property dropped on rebuild," not "sink ignores property." Mechanism: re-apply `self._volume` to `playbin3.volume` on every transition to PLAYING. Single property surface, no element-level fork, no `Gst.Bin` chaining required.
 
-## Verify Gate (Task 1) — PASSED
+## Hook-Site Re-scope (in-session disclosure)
+
+User disclosed during the session that the actual user-visible glitch is **post-rebuffer volume reset** — when the buffer drops mid-stream and `playbin3` auto-recovers (PAUSED→PLAYING on the same URL, no failover), the audible volume sometimes jumps to 100%. This bypasses `_set_uri` entirely (it's `playbin3` auto-pause/resume, not application-driven).
+
+**Original Plan 57-03 scope** (per 57-03-PLAN.md): one-line re-apply at end of `_set_uri`. Insufficient — misses the re-buffer recovery path.
+
+**Re-scoped hook site:** bus-message `STATE_CHANGED` handler on the `playbin3` element, joining the existing handler family at `player.py:134-136` (`message::error`, `message::tag`, `message::buffering`). On every transition to PLAYING, re-apply `self._volume` to `playbin3.volume`. Catches:
+
+- NULL→PLAYING (pause/resume, failover via `_try_next_stream` → `_set_uri`, station switch, YouTube/Twitch resolves via `_on_youtube_resolved` → `_set_uri`)
+- PAUSED→PLAYING (GStreamer-internal re-buffer auto-recovery — the user-reported surface)
+
+## Cross-platform Scope Expansion (in-session disclosure)
+
+User reported the same post-rebuffer volume-reset symptom **on Linux**. CONTEXT D-01's "Windows-only failure" framing was narrower than the bug surface — D-01 verified that the Linux *code wiring* is correct (`set_volume` → `playbin3.volume` → slider), but did not audit per-state-transition runtime behavior, which exhibits the same property reset on both platforms. Windows hits the surface more frequently (more buffer pressure under VM/Wi-Fi conditions).
+
+**Plan 57-03 scope:** cross-platform (drop Windows-only branding). Linux CI regression guard expands from "after `_set_uri`, volume preserved" to "after every PLAYING transition (state-changed bus message), volume preserved" — same shape, broader assertion.
+
+## Glitch-Fix Hypothesis (Plan 57-04 input)
+
+- **Smoothing target:** `playbin3.volume` (single property surface; `wasapi2sink` honors it natively).
+- **Template:** Phase 52 EQ ramp at `musicstreamer/player.py:160-163, 683-685, 746-786` — QTimer-driven 8-tick fade.
+- **Composability with Plan 57-03:** Both write to the same property (`playbin3.volume`), so no double-write concern. Smoothing wrapper writes during the audible-glitch fade; 57-03's re-apply hook writes once on each PLAYING transition. Sequencing matters only if a smoothing fade is in flight when a state transition fires — Plan 57-04 should snapshot `self._volume` AFTER 57-03's re-apply, not at fade-start, so the fade target reflects the user's slider position.
+
+## Note for Plan 57-03
+
+- **Action block to follow:** Option A branch — but **upgrade the hook site** from "one-line at end of `_set_uri`" to a `STATE_CHANGED` bus-message handler.
+- **`__init__` invariant** (still applies per the original plan's "Both Options" line): initialize `self._volume_element = None` so Plan 57-04's smoothing wrapper can branch on `if self._volume_element is not None:` (Plan 57-04 may add a `volume` element later if hybrid mitigations are needed; defensive null-init costs nothing).
+- **CI regression guard test:** target `tests/test_player_failover.py` (or a new state-transition-focused test file). Assert: after a NULL→PLAYING and PAUSED→PLAYING on a mocked `playbin3`, `pipeline.set_property("volume", self._volume)` was called with the user's last-set volume. Cross-platform — runs on Linux CI.
+- **Production scope:** `musicstreamer/player.py` only. New bus message handler + handler registration line + handler implementation. No element graph changes.
+
+## Note for Plan 57-04
+
+- **Smoothing target:** `playbin3.volume` (NOT a `volume` GstElement — Option A ships, no element-level fork).
+- **No double-write risk** with Plan 57-03's re-apply hook — both target the same property.
+- **Sequencing:** snapshot user's `self._volume` AFTER Plan 57-03's re-apply on each PLAYING transition, so the fade target reflects the slider position, not a stale 1.0 from the bug.
+
+## Verify Gate (Task 4) — PASSED (downstream contract)
+
+Plan 57-02's verify regex `Decision:\s*(Option A|Option B|hybrid|defer)` is over-strict against the 56-03 markdown-bold precedent (`**Decision:** Option A`). The downstream-grep contract from the plan prose (`grep -q "Decision:"` AND `grep -q "Option [AB]"`) both pass on 57-DIAGNOSTIC-LOG.md.
 
 ```
-test -f 57-DIAGNOSTIC-LOG.md                                              ✓
-grep -q "Phase 57 / WIN-03"                                               ✓
-grep -c "## D-04 Step" → 3                                                ✓
-grep -q "## D-06 Fix-Shape Selection"                                     ✓
-grep -q "Glitch-fix hypothesis"                                           ✓
-grep -q "## Pre-flight"                                                   ✓
+! grep -q "_TBD_" 57-DIAGNOSTIC-LOG.md                  ✓ (no remaining placeholders)
+grep -q "Decision:" 57-DIAGNOSTIC-LOG.md                ✓
+grep -q "Option [AB]" 57-DIAGNOSTIC-LOG.md              ✓ (Option A)
+grep -q "Plan 57-03 unblocked:" 57-DIAGNOSTIC-LOG.md    ✓
+grep -q "Plan 57-04 unblocked:" 57-DIAGNOSTIC-LOG.md    ✓
+grep -q "Glitch-fix hypothesis" 57-DIAGNOSTIC-LOG.md    ✓
+grep -q "wasapi2sink" 57-DIAGNOSTIC-LOG.md              ✓ (Step 1 readback)
+grep -q "after set 0.5, volume = " 57-DIAGNOSTIC-LOG.md ✓ (Step 2 readback A)
+grep -q "after NULL->PLAYING rebuild, volume = "        ✓ (Step 2 readback B)
+git diff musicstreamer/                                 ✓ clean (no production code change)
+git diff tests/                                         ✓ clean (no test code change)
 ```
 
-## Checkpoint Reached at Task 2 — Awaiting User VM Diagnostic
+## Carry-forward to Plan 57-03
 
-**Type:** `checkpoint:human-action` (gate="blocking")
-**Why human, not Claude:** The three D-04 readbacks (sink identity from `pipeline.get_property('audio-sink')`, `playbin3.volume` persistence across a NULL→PLAYING cycle on the conda-forge GStreamer 1.28.x bundle, and slider mid-stream effect on the actual app UI) cannot be observed from the Linux orchestrator. Linux mocks would beg the question — WIN-03 is a Windows-only failure with correct-looking Linux code (D-01).
+Re-scope Plan 57-03 before execution. The original plan was scoped to:
 
-**Auth-gate analog:** Same shape as Phase 56-03 (interactive paste-back diagnostic). Linux orchestrator hands the user PowerShell/Python snippets one at a time; user pastes stdout back; orchestrator carries the readbacks forward to Tasks 3 and 4.
+- "WIN-03 volume fix per chosen Option (A: re-apply at end of `_set_uri`; B: explicit `volume` GstElement chained with EQ in `Gst.Bin`) + Linux CI regression guard test"
 
-**Steps the user runs on the Win11 VM (full text in 57-02-PLAN.md Task 2 action block):**
+It should now read approximately:
 
-1. **Pre-flight check** (PowerShell): confirm Win11 version, conda env active, installer artifact present, one playable HTTP stream available.
-2. **Step 1 — Sink identity:** Launch app via Start Menu shortcut (Phase 43.1 / 56-03 launch-discipline rule). In a SECOND PowerShell window, run a self-contained `playbin3` REPL snippet that prints `audio-sink factory name:` (the name mirrors what the running app sees, since both share the same conda-forge GStreamer plugins). Paste full stdout.
-3. **Step 2 — `playbin3.volume` persistence:** REPL snippet sets volume to 0.5 → reads back → cycles NULL→PLAYING (mirrors `Player._set_uri`) → reads back again. Paste both `volume = ...` lines + verbal "audio half / full" observation.
-4. **Step 3 — Slider mid-stream:** With the running app, move volume slider 100% → 0% → 50%. Report verbal audible response at each position.
+- "WIN-03 volume fix: bus-message `STATE_CHANGED` handler on `playbin3` re-applying `self._volume` on every transition to PLAYING (catches NULL→PLAYING + PAUSED→PLAYING re-buffer recovery) + cross-platform regression guard test for state-transition volume preservation"
 
-**Resume signal:** User types `diagnostic captured` after pasting all three readbacks in chat. Orchestrator then dispatches Tasks 3 (classification) and 4 (log fill-in).
-
-## Why a Partial SUMMARY.md Now (Not at Plan-End)
-
-The orchestrator that spawned this executor (parallel-wave executor in a worktree) requires SUMMARY.md to be committed before the agent returns, even on a partial halt. This is a documented orchestration requirement (`<parallel_execution>` in the prompt: "REQUIRED: SUMMARY.md MUST be committed before you return"). When Tasks 3 and 4 land in a future invocation, that future invocation OVERWRITES this SUMMARY.md with a complete-state version (decision recorded, dates filled, all four task hashes listed).
-
-## Self-Check: PASSED
-
-- File `57-DIAGNOSTIC-LOG.md` exists at the worktree path: ✓
-- Commit `5285643` exists in `git log`: ✓
-- File contents match Task 1 acceptance criteria (header, 3 D-04 steps, D-06 section, Glitch-fix hypothesis subhead, Pre-flight table): ✓
-- No production code or test code edited (`git diff musicstreamer/`, `git diff tests/` clean): ✓ (verify on commit boundary — only `.planning/phases/57-.../57-DIAGNOSTIC-LOG.md` changed)
-
-## Commits (this invocation)
-
-- `5285643` — docs(57-02): scaffold 57-DIAGNOSTIC-LOG.md skeleton (Task 1)
-- (this SUMMARY.md will be committed in a separate `docs(57-02): partial summary` commit)
-
-## Next Invocation Will Need To
-
-1. Receive Task 2 paste-back outputs (sink factory name, both `volume = ...` lines + audible observation, slider mid-stream verbal report) from chat.
-2. Execute Task 3 (classification — orchestrator-side reasoning, no file edit).
-3. Execute Task 4 (replace all `_TBD_` placeholders in 57-DIAGNOSTIC-LOG.md with readbacks + decision + hypothesis); commit.
-4. Overwrite this partial SUMMARY.md with complete-state version (D-06 decision recorded, sink identified, both 57-03 and 57-04 unblocked status).
+This is the only carry-forward action; the diagnostic itself is closed.
 
 ## Threat Flags
 
-None. Task 1 only created a documentation skeleton — no new network endpoints, auth paths, file access patterns, or schema changes. The phase-level threat register (T-57-02-01 .. -03) accepts the diagnostic log's information disclosure / tampering / DoS posture; nothing introduced here changes that.
+None. Tasks 2-4 only added readback values and decision text to a documentation file. Phase-level threat register (T-57-02-01..-03) accepted information disclosure, tampering, and DoS posture — readback values are GStreamer property values + sink identity, no PII or credentials. Scratch helper script created during Task 2 was a self-contained `playbin3` REPL with a public SomaFM stream, deleted after Task 4. No new external boundary.
 
 ---
 
-*Phase 57 Plan 02 — partial summary, 2026-05-02. Plan blocked at Task 2 (checkpoint:human-action) per `autonomous: false` plan frontmatter.*
+*Phase 57 Plan 02 — complete, 2026-05-03. D-06 decision: Option A (bus-message hook site, cross-platform scope). Plans 57-03 and 57-04 unblocked, with Plan 57-03 carrying re-scope guidance.*
