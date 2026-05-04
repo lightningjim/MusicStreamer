@@ -1,175 +1,115 @@
-"""Phase 40-01: AccentColorDialog — accent color picker with 8 presets + hex entry.
+"""Phase 59: AccentColorDialog — wrapper around QColorDialog (HSV wheel + eyedropper).
 
-UI-11 feature: live preview via QPalette modification, SQLite persistence.
+Replaces the Phase 19/40 swatch-grid + hex-edit dialog with a wrapper QDialog
+hosting an embedded QColorDialog (NoButtons | DontUseNativeDialog). The 8 preset
+hex values from ACCENT_PRESETS are seeded into QColorDialog's Custom Colors row
+(slots 0..7) on every dialog open.
 
-Constructor: AccentColorDialog(repo, parent=None)
+Public surface preserved (D-08):
+    AccentColorDialog(repo, parent=None).exec()
 
 Security: hex input validated by _is_valid_hex before QSS injection (T-40-02).
 """
 from __future__ import annotations
 
-import functools
-
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
+    QColorDialog,
     QDialog,
     QDialogButtonBox,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
     QVBoxLayout,
 )
 
+from musicstreamer import paths
 from musicstreamer.accent_utils import (
     _is_valid_hex,
     apply_accent_palette,
     build_accent_qss,
     reset_accent_palette,
 )
-from musicstreamer.constants import ACCENT_PRESETS
-from musicstreamer import paths
-from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
+from musicstreamer.constants import ACCENT_COLOR_DEFAULT, ACCENT_PRESETS
 
 
 class AccentColorDialog(QDialog):
-    """Modal dialog for selecting an accent color.
+    """Modal dialog wrapping QColorDialog for accent color selection.
 
-    Shows 8 preset swatches in a 4x2 grid plus a hex entry for custom colors.
-    Live preview is applied immediately; Apply saves to repo, Reset clears,
-    Cancel restores the original palette.
+    Embeds a QColorDialog (NoButtons | DontUseNativeDialog) inside a wrapper
+    QDialog with an Apply | Reset | Cancel button row. ACCENT_PRESETS are
+    seeded into Custom Colors slots 0..7 on every open (D-03 idempotent reseed).
+    Public API preserved from Phase 19/40 (D-08): AccentColorDialog(repo, parent=None).
     """
 
     def __init__(self, repo, parent=None):
         super().__init__(parent)
         self._repo = repo
         app = QApplication.instance()
+        # Phase 19/40 snapshot invariant — preserve verbatim.
         self._original_palette = app.palette()
         self._original_qss = app.styleSheet()
-        self._selected_idx: int | None = None
         self._current_hex: str = ""
 
         self.setWindowTitle("Accent Color")
-        self.setMinimumWidth(360)
         self.setModal(True)
+        # NOTE: do NOT set a minimum width — Pitfall 7. Inner QColorDialog's
+        # sizeHint() == QSize(522, 387) dominates; the legacy 360px hint is dead.
 
-        self._build_ui()
-        self._load_saved_accent()
-
-    # ------------------------------------------------------------------
-    # UI construction
-    # ------------------------------------------------------------------
-
-    def _build_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(16, 16, 16, 16)
-        root.setSpacing(16)
-
-        # Section label
-        section_label = QLabel("Accent Color")
-        section_label.setTextFormat(Qt.PlainText)
-        font = QFont()
-        font.setPointSize(10)
-        font.setWeight(QFont.DemiBold)
-        section_label.setFont(font)
-        root.addWidget(section_label)
-
-        # Swatch grid
-        grid_widget_layout = QGridLayout()
-        grid_widget_layout.setSpacing(8)
-        self._swatches: list[QPushButton] = []
+        # D-03 + Pitfall 1: seed ACCENT_PRESETS into Custom Colors slots
+        # BEFORE inner dialog construction. setCustomColor is a STATIC method;
+        # idempotent reseed each __init__.
         for idx, hex_val in enumerate(ACCENT_PRESETS):
-            btn = QPushButton()
-            btn.setFixedSize(32, 32)
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet(
-                f"background-color: {hex_val}; border-radius: 4px;"
-                f" border: 2px solid transparent;"
-            )
-            btn.clicked.connect(functools.partial(self._on_swatch_clicked, idx))
-            self._swatches.append(btn)
-            row, col = divmod(idx, 4)
-            grid_widget_layout.addWidget(btn, row, col)
-        root.addLayout(grid_widget_layout)
+            QColorDialog.setCustomColor(idx, QColor(hex_val))
 
-        # Hex entry row
-        hex_row = QHBoxLayout()
-        hex_label = QLabel("Hex:")
-        hex_label.setTextFormat(Qt.PlainText)
-        self._hex_edit = QLineEdit()
-        self._hex_edit.setMaxLength(7)
-        self._hex_edit.setPlaceholderText("#rrggbb")
-        self._hex_edit.textChanged.connect(self._on_hex_changed)
-        hex_row.addWidget(hex_label)
-        hex_row.addWidget(self._hex_edit)
-        root.addLayout(hex_row)
+        # Build the inner QColorDialog as an embedded widget.
+        self._inner = QColorDialog(self)
+        self._inner.setOption(QColorDialog.ColorDialogOption.NoButtons, True)
+        self._inner.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+        self._inner.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, False)
 
-        # Button box: Apply, Reset, Cancel
+        # D-17 + Pitfall 3 color-flash guard: validate saved hex before
+        # setCurrentColor; QColor("invalid") silently becomes #000000 and
+        # would flash the entire app accent black for one tick.
+        saved = self._repo.get_setting("accent_color", "")
+        initial = saved if _is_valid_hex(saved) else ACCENT_COLOR_DEFAULT
+        # Pitfall 6: post-init invariant `_current_hex == initial` (T-59-H).
+        # Set manually because setCurrentColor before connect means the
+        # initial emission does not reach our slot.
+        self._current_hex = initial
+        self._inner.setCurrentColor(QColor(initial))
+
+        # D-11: bound-method connect (QA-05 — no self-capturing lambdas).
+        self._inner.currentColorChanged.connect(self._on_color_changed)
+
+        # UI-SPEC: 8/8/8/8 contentsMargins + 8 spacing (sm token; Pitfall 7).
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(8)
+        root.addWidget(self._inner)
+
+        # D-09: Apply | Reset | Cancel; Apply default (Enter → Apply).
         btn_box = QDialogButtonBox()
         self._apply_btn = btn_box.addButton("Apply", QDialogButtonBox.AcceptRole)
         self._reset_btn = btn_box.addButton("Reset", QDialogButtonBox.ResetRole)
         self._cancel_btn = btn_box.addButton("Cancel", QDialogButtonBox.RejectRole)
+        self._apply_btn.setDefault(True)
         self._apply_btn.clicked.connect(self._on_apply)
         self._reset_btn.clicked.connect(self._on_reset)
         self._cancel_btn.clicked.connect(self.reject)
         root.addWidget(btn_box)
 
     # ------------------------------------------------------------------
-    # Initialisation
+    # Slots
     # ------------------------------------------------------------------
 
-    def _load_saved_accent(self) -> None:
-        """Pre-select swatch and populate hex entry from saved setting."""
-        saved = self._repo.get_setting("accent_color", "")
-        if saved and _is_valid_hex(saved):
-            self._hex_edit.blockSignals(True)
-            self._hex_edit.setText(saved)
-            self._hex_edit.blockSignals(False)
-            self._current_hex = saved
-            # Select matching swatch if it matches a preset
-            try:
-                idx = ACCENT_PRESETS.index(saved)
-                self._select_swatch(idx)
-            except ValueError:
-                pass  # Custom hex not in presets — no swatch highlighted
-
-    # ------------------------------------------------------------------
-    # Interaction handlers
-    # ------------------------------------------------------------------
-
-    def _on_swatch_clicked(self, idx: int) -> None:
-        """Select swatch, populate hex entry, and preview."""
-        self._select_swatch(idx)
-        hex_val = ACCENT_PRESETS[idx]
-        self._hex_edit.blockSignals(True)
-        self._hex_edit.setText(hex_val)
-        self._hex_edit.blockSignals(False)
-        self._current_hex = hex_val
-        self._preview(hex_val)
-
-    def _on_hex_changed(self, text: str) -> None:
-        """Validate hex entry; preview live on valid input, show error on invalid."""
-        if _is_valid_hex(text):
-            self._hex_edit.setStyleSheet("")
-            self._current_hex = text
-            self._preview(text)
-            # Update swatch selection if matches a preset
-            try:
-                idx = ACCENT_PRESETS.index(text)
-                self._select_swatch(idx)
-            except ValueError:
-                self._deselect_all_swatches()
-        else:
-            if text:  # Only show error styling when there's actual invalid input
-                self._hex_edit.setStyleSheet(f"border: 1px solid {ERROR_COLOR_HEX};")
-            else:
-                self._hex_edit.setStyleSheet("")  # clear error when field is emptied
+    def _on_color_changed(self, color: QColor) -> None:
+        """Live-preview on every currentColorChanged (D-11, D-12)."""
+        self._current_hex = color.name()  # lowercase #rrggbb
+        apply_accent_palette(QApplication.instance(), self._current_hex)
 
     def _on_apply(self) -> None:
-        """Save accent_color to repo, write QSS file, accept dialog."""
+        """Persist accent_color, write QSS file, accept (D-14)."""
+        # D-14.1: defense-in-depth — _is_valid_hex guard even though
+        # currentColorChanged always emits valid QColor values.
         if not self._current_hex or not _is_valid_hex(self._current_hex):
             return
         self._repo.set_setting("accent_color", self._current_hex)
@@ -180,56 +120,37 @@ class AccentColorDialog(QDialog):
             with open(css_path, "w") as f:
                 f.write(build_accent_qss(self._current_hex))
         except OSError:
-            pass  # Non-fatal — palette is already applied via QPalette
+            pass  # Non-fatal — palette already applied via QPalette.
         self.accept()
 
     def _on_reset(self) -> None:
-        """Clear saved accent setting and restore original palette."""
+        """Clear saved accent, restore snapshot, reset picker; dialog stays open (D-15)."""
         self._repo.set_setting("accent_color", "")
         reset_accent_palette(QApplication.instance(), self._original_palette)
-        self._deselect_all_swatches()
-        self._hex_edit.blockSignals(True)
-        self._hex_edit.setText("")
-        self._hex_edit.blockSignals(False)
-        self._hex_edit.setStyleSheet("")
+        # D-15.3: visually return picker to default. blockSignals so the
+        # currentColorChanged emission from setCurrentColor does not
+        # clobber our `_current_hex = ""` guard below.
+        self._inner.blockSignals(True)
+        self._inner.setCurrentColor(QColor(ACCENT_COLOR_DEFAULT))
+        self._inner.blockSignals(False)
         self._current_hex = ""
-        self._selected_idx = None
+        # D-15.6: neutralize on-disk QSS file (write empty) so a stale
+        # accent QSS does not apply on next startup before the user re-Applies.
+        try:
+            import os
+            css_path = paths.accent_css_path()
+            os.makedirs(os.path.dirname(css_path), exist_ok=True)
+            with open(css_path, "w") as f:
+                f.write("")
+        except OSError:
+            pass  # Non-fatal — main_window only applies QSS when accent_color is non-empty.
 
     def reject(self) -> None:
-        """Cancel — restore original palette and QSS without saving."""
+        """Cancel — restore snapshot palette and QSS (D-13).
+
+        Window-manager close (X) and Esc both route through reject().
+        """
         app = QApplication.instance()
         app.setPalette(self._original_palette)
         app.setStyleSheet(self._original_qss)
         super().reject()
-
-    # ------------------------------------------------------------------
-    # Preview
-    # ------------------------------------------------------------------
-
-    def _preview(self, hex_value: str) -> None:
-        """Apply accent color live as preview (does not persist)."""
-        apply_accent_palette(QApplication.instance(), hex_value)
-
-    # ------------------------------------------------------------------
-    # Swatch selection helpers
-    # ------------------------------------------------------------------
-
-    def _select_swatch(self, idx: int) -> None:
-        self._deselect_all_swatches()
-        self._selected_idx = idx
-        hex_val = ACCENT_PRESETS[idx]
-        btn = self._swatches[idx]
-        btn.setStyleSheet(
-            f"background-color: {hex_val}; border-radius: 4px;"
-            f" border: 2px solid white;"
-            f" outline: 2px solid {hex_val};"
-        )
-
-    def _deselect_all_swatches(self) -> None:
-        for i, btn in enumerate(self._swatches):
-            hex_val = ACCENT_PRESETS[i]
-            btn.setStyleSheet(
-                f"background-color: {hex_val}; border-radius: 4px;"
-                f" border: 2px solid transparent;"
-            )
-        self._selected_idx = None
