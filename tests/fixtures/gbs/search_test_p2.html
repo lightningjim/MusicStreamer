@@ -1,0 +1,1475 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+<title>test -  Search - GBS-FM</title>
+<link rel="shortcut icon" href="/images/favicon.ico" />
+<link href="images/style.css" rel="stylesheet" type="text/css" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js" type="text/javascript"></script>
+<script type="text/javascript" src="images/swfobject.js"></script>
+<script type="text/javascript" src="images/playload.js"></script>
+<script type="text/javascript">
+
+// //alow object cloning
+// //from http://my.opera.com/GreyWyvern/blog/show.dml/1725165 (thanks to Brian Huisman)
+// Object.prototype.clone = function() {
+//   var newObj = (this instanceof Array) ? [] : {};
+//   for (i in this) {
+//     if (i == 'clone') continue;
+//     if (this[i] && typeof this[i] == "object") {
+//       newObj[i] = this[i].clone();
+//     } else newObj[i] = this[i]
+//   } return newObj;
+// };
+//
+
+
+//convert seconds to minutes:seconds
+function stom(time){
+  seconds = time%60;
+  minutes = parseInt(time/60);
+  if (seconds < 10) {
+    seconds = "0" + seconds.toString(); //add zero to single digit numbers
+  } else {
+    seconds = seconds.toString();
+  }
+  return minutes.toString() + ':' + seconds;
+}
+
+/*** vote handling stuff ***/
+
+function voteHandler(event) {
+  tgt = $(event.target);
+  votelink = event.target.href;
+  if (tgt.hasClass('voted')) {
+    //clicking again to clear vote
+    votelink = votelink.slice(0, votelink.length-1); //get rid of vote at end
+    $.get(votelink + '0'); //vote 0 to clear vote
+    tgt.removeClass("voted");
+  } else {
+    $.get(votelink);
+    tgt.parent().children().removeClass("voted");
+    tgt.addClass("voted");
+  }
+  event.preventDefault();
+}
+
+function addVoteHandlers () {
+  $("a[href*='/vote?']").not('.handled').click(voteHandler).addClass('handled');
+}
+
+/*** progress bar stuff ***/
+
+//both of these are in seconds
+var songLength = 240;
+var songPosition = 14.530000000000019;
+//percentage
+var songProgress = 6.054166666666674;
+
+function setSongLength(length) {
+  songLength = length;
+  $('#songLength').html(stom(length));
+
+}
+
+//set numeric song position
+function setSongPosition(pos) {
+  pos = Math.round(Math.min(pos, songLength));
+  if (songPosition != pos) {
+    $('#songPosition').html(stom(pos));
+    songPosition = pos;
+    setSongProgress((pos/songLength)*100);
+  }
+  ajax_args['position'] = pos;
+}
+
+//set progressbar percentage
+function setSongProgress(percentage) {
+  $("#progbar").css("width", percentage.toString() + '%');
+  //alert(percentage.toString() * '%');
+  songProgress = percentage;
+}
+
+//Increment song position every second
+//TODO: make this more accurate using clock to avoid inaccuracies of delyed calls
+function secondLoop() {
+  setSongPosition(songPosition+1);
+  setTimeout('secondLoop()', 1000);
+}
+
+/*** Clutterbar song info stuff ***/
+
+//Set metadata to appear in clutterbar
+function setClutterMetadata(metadata) {
+  elem = $("div#metadata");
+  old = elem.html();
+  if (metadata != old) {
+    elem.html(metadata);
+  }
+}
+
+/**
+* Sets up the quick search box properly
+**/
+function setupSearch() {
+  searchbox = $('#id_query');
+  searchbox.css('color', 'grey');
+  searchbox.attr('value', "quick search"); //override browser modifications
+  searchbox.focus(function () {
+    if (searchbox.attr('value') == "quick search") {
+      searchbox.attr('value', '');
+      searchbox.css('color', 'black');
+    }
+  });
+}
+
+/**
+* Set up comment box properly
+**/
+function setupComment() {
+  $('#commentform').submit(commentSubmit);
+  commentbox = $('#commentbox');
+  commentbox.removeAttr("disabled") //enable it
+  commentbox.css('color', 'grey');
+  message = "Comment on this track here. Bad things will happen to people who use this for general chat!";
+  commentbox.attr('value', message);
+
+  commentbox.focus(function () {
+    if (commentbox.attr('value') == message) {
+      //clear it and set text to normal colour when in focus
+      commentbox.attr('value', '');
+      commentbox.css('color', 'black');
+    }
+  });
+
+  commentbox.blur(function () {
+    if (commentbox.attr('value') == '') {
+      //clear it and set text to normal colour when in focus
+      commentbox.attr('value', message);
+      commentbox.css('color', 'grey');
+    }
+  });
+}
+
+
+/**
+* Hide message box
+**/
+function hideMessages() {
+  $("p#messages").fadeOut("slow");
+}
+
+/**
+* Add comment to comment box
+**/
+function addComment(comment, time, commenter, title) {
+  elem = $("div#commentsbox");
+  elem.html("<p class='comment' title='title'>" + "@" + time + " &lt;" + commenter + "&gt; " + comment + "\n" + "</p>" + elem.html());
+}
+
+/**
+* Clear the comment box
+**/
+function clearComments() {
+  $("div#commentsbox").html("");
+}
+
+/**
+* Submit a comment entered in the comment box
+**/
+function commentSubmit() {
+  commentbox = $('#commentbox');
+  comment = commentbox.val();
+  args = {};
+  for (var i in ajax_args){
+    args[i] = ajax_args[i];
+  }
+
+  args['comment'] = comment;
+  $.getJSON("/ajax", args, eventDispatcher);
+
+  commentbox.val("");
+  return false; //avoid default behaviour
+}
+
+/**
+* Score stuff
+**/
+
+function setScore(score) {
+  if (score == 0) {
+    score = "none";
+  }
+  $('#avgscore').html(score);
+  // update playlist if necessary
+  $('.playing .score').html(score);
+}
+
+function setUserVote(score) {
+  $("#votebuttonslow > .selectedvote[data-vote!="+score+"]").removeClass("selectedvote");
+  $("#votebuttonslow > *[data-vote="+score+"]").addClass("selectedvote");
+  //update playlist if necessary
+  $(".playing .votes a[data-vote!="+score+"]").removeClass("voted");
+  $(".playing .votes a[data-vote="+score+"]").addClass("voted");
+}
+
+function setupVotes() {
+  $("#votebuttonslow > a").click(function () {
+    args = {};
+    for (var i in ajax_args) {
+      args[i] = ajax_args[i];
+    }
+    button = $(this);
+    if (button.hasClass("selectedvote")) {
+      args['vote'] = 0;
+    } else {
+      args['vote'] = button.attr("data-vote");
+    }
+    $.getJSON("/ajax", args, eventDispatcher);
+
+  });
+}
+
+/*** event handlers for clutterbar ***/
+
+function songLengthHandler(e, length) {
+  setSongLength(length);
+}
+
+function songPositionHandler(e, position) {
+  setSongPosition(position);
+}
+
+function linkedMetadataHandler(e, metadata) {
+  setClutterMetadata(metadata);
+}
+
+function commentHandler(e, comment) {
+  addComment(comment.body, comment.time, comment.commenter, comment.html_title);
+  ajax_args['last_comment'] = comment.id;
+}
+
+function clearCommentsHandler(e, blank) {
+  clearComments();
+  ajax_args['last_comment'] = 0;
+}
+
+function scoreHandler(e, score) {
+  setScore(score);
+}
+
+function userVoteHandler(e, score) {
+  setUserVote(score);
+}
+
+
+
+/*** event loop stuff ***/
+
+//delay between ajax calls
+DELAY = 15000;
+
+//how long messages should show for
+MESSAGES_DELAY = 5000;
+
+//associative array storing args for ajax calls
+//TODO: replace with array of functions to be called to obtain args
+
+
+
+//Called when list of events is recieved from server: triggers the correct javascript events with the correct arguments
+function eventDispatcher(data) {
+  for (i=0; i<data.length; i++) {
+    $('body').trigger(data[i][0], [data[i][1]]);
+  }
+  addVoteHandlers();
+}
+
+
+//Main AJAX loop: handles all periodic AJAX calls
+function ajaxLoop() {
+  $.getJSON("/ajax", ajax_args, eventDispatcher);
+  setTimeout('ajaxLoop()', DELAY);
+}
+
+//for stored ajax args
+var ajax_args = {};
+var now_playing = 785263
+$(document).ready(function(){
+
+  //song position stuff
+  setSongLength(songLength);
+  setSongPosition(songPosition);
+
+  //comment box stuff
+  setupComment();
+  setupVotes();
+
+  //add vote handlers to voting buttons
+  addVoteHandlers();
+
+  //ajax events stuff
+  ajax_args['position'] = songPosition;
+  ajax_args['last_comment'] = 0;
+  $('body').bind('songPosition', songPositionHandler);
+  $('body').bind('songLength', songLengthHandler);
+  $('body').bind('linkedMetadata', linkedMetadataHandler);
+  $('body').bind('comment', commentHandler);
+  $('body').bind('clearComments', clearCommentsHandler);
+  $('body').bind('score', scoreHandler);
+  $('body').bind('userVote', userVoteHandler);
+
+  //loops
+  setupSearch();
+  secondLoop();
+  ajaxLoop();
+  setTimeout('hideMessages()', MESSAGES_DELAY);
+
+});
+</script>
+
+
+
+
+</head>
+
+<body>
+
+<div id="bg1"></div>
+<div id="bg2"></div>
+<div id="leftmenu">
+<a href="/playlist" id="leftmenulogo"></a>
+  <ul id="mainmenu">
+    <li><a href="/playlist" class="boxed">&nbsp;playlist</a></li>
+    <li><a href="/search" class="boxed">&nbsp;search</a></li>
+    <li><form action="/search" method="get" class="boxed"><input accesskey="f" id="id_query" name="query" maxlength="100" type="text" value="quick search"></form></li>
+    <li><a href="/upload" class="boxed">&nbsp;upload</a></li>
+    <li><a href="/search?query=favourites%3DLightning Jim" class="boxed">&nbsp;favourites</a></li>
+    <li><a href="/stats" class="boxed">&nbsp;stats</a></li>
+    <li><a href="/artists/all/1" class="boxed">&nbsp;artists</a></li>
+    <li><a href="/user/1719" class="boxed">&nbsp;user page</a></li>
+    <li><a href="/settings" class="boxed">&nbsp;settings</a></li>
+    <li><a href="/forum/" class="boxed">&nbsp;forums</a></li>
+    <li><a href="https://discord.gg/bH336ryEa7" class="boxed">&nbsp;live chat!</a></li>
+    <li><a href="/logout" class="boxed">&nbsp;logout</a></li>
+    
+    
+    
+  </ul>
+  <p class="listenersthing">icons from <a href="http://www.famfamfam.com/lab/icons/silk/">famfamfam</a></p>
+  <p class="listenersthing" title="g2:5 ghetto:">listeners: 5</p>
+  <p class="listenersthing">stream URLs<br> <a href="https://gbs.fm/96" target="_blank">96k</a> <a href="https://gbs.fm/128" target="_blank">128k</a> <a href="https://gbs.fm/192" target="_blank">192k</a> <a href="https://gbs.fm/256" target="_blank">256k</a> <a href="https://gbs.fm/320" target="_blank">320k</a> <a href="https://gbs.fm/flac" target="_blank">FLAC</a></p>
+  <p class="listenersthing">Winamp URLs<br> <a href="http://195.201.198.122:8000/96.m3u" target="_blank">96k</a> <a href="http://195.201.198.122:8000/128.m3u" target="_blank">128k</a> <a href="http://195.201.198.122:8000/192.m3u" target="_blank">192k</a> <a href="http://195.201.198.122:8000/256.m3u" target="_blank">256k</a> <a href="http://195.201.198.122:8000/320.m3u" target="_blank">320k</a> <a href="http://195.201.198.122:8000/flac.m3u" target="_blank">FLAC</a></p>
+  <p class="listenersthing"><a href='https://ko-fi.com/N4N2ETJQA' target='_blank'><img height='36' style='border:0px;height:36px;' src='/images/kofi2.png' border='0' alt='Buy GBS.fm some of those Kilowatts at ko-fi.com' /></a></p>
+  <p class="listenersthing"><a href='https://discord.gg/bH336ryEa7' target='_blank'><img height='36' style='border:0px;height:36px;' src='/images/discord.png' border='0' alt='Join us on Discord' /></a></p>
+</div>
+
+
+
+<!-- -->
+<div id="maincontainer">
+
+  <div class="playlist">
+    <form action='/search' method="GET">
+    <p>
+      <input type="text" name="query" value="test" maxlength="100" required id="id_query"> 
+    </p>
+    <p>
+      <input type="submit" value="Search" />
+    </p>
+    <p>
+      
+    </p>
+
+    </form>
+  
+  
+  
+  
+  
+  
+  
+      <a href="/search?page=1&query=test">&lt;&lt;</a>
+    
+    Results: page 2 of 12
+    
+      <a href="/search?page=3&query=test">&gt;&gt;</a>
+  
+    
+  <table width="620" class="songs">
+    <tr id="columns">
+      <th>Artist</th>
+      <th>Title</th>
+      <th>Time</th>
+      <th>Uploaded by</th>
+      <th>Add</th>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/50748'>Charles Fox</a></td>
+      <td><a href='/song/478380'>Bullets &amp; Bracelets/Second Contestant</a></td>
+      <td>1:00</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/478380">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/50749'>Artie Kane</a></td>
+      <td><a href='/song/478461'>Bullets And Bracelets Contest/Acceptance</a></td>
+      <td>2:11</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/478461">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/74571'>Il Cerchio Medianico</a></td>
+      <td><a href='/song/708716'>Canzone della bambina senza testa</a></td>
+      <td>4:10</td>
+      <td><a href='/user/66'>Lareine</a></td>
+      <td>
+  <a class="boxed add" href="/add/708716">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/416'>Public Image Limited</a></td>
+      <td><a href='/song/601501'>Careering (Old Grey Whistle Test, February 5 1980)</a></td>
+      <td>5:05</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/601501">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/2546'>Melt-Banana</a></td>
+      <td><a href='/song/472683'>Case D in the Test Tube</a></td>
+      <td>1:59</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/472683">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/70753'>Harvey R. Cohen</a></td>
+      <td><a href='/song/675772'>Cat Scratch Fever / Cat Catchers / Animal Testing</a></td>
+      <td>3:10</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/675772">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682428'>Chairmanfield - Harlem Shake: The Greatest of All Time</a></td>
+      <td>1:33</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682428">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/14018'>Jingles</a></td>
+      <td><a href='/song/779158'>Channel Z Guerilla TX Test - 6949 kHz</a></td>
+      <td>0:48</td>
+      <td><a href='/user/5366'>TrixRabbi</a></td>
+      <td>
+  <a class="boxed add" href="/add/779158">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/11362'>charger paris mirage (test 8)</a></td>
+      <td>4:49</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/11362">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1948'>chins (test 2)</a></td>
+      <td>1:47</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1948">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1950'>clirac (test 3)</a></td>
+      <td>3:24</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1950">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/69418'>Richard Hazard</a></td>
+      <td><a href='/song/660764'>Closet Vacuum/Hysterical Flashback/Elaine Testifies</a></td>
+      <td>3:08</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/660764">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/350423'>cloud study chamber (test 7)</a></td>
+      <td>3:59</td>
+      <td><a href='/user/4002'>farm crisis zero</a></td>
+      <td>
+  <a class="boxed add" href="/add/350423">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/75313'>The Shizit</a></td>
+      <td><a href='/song/714558'>Cold Naked Protest</a></td>
+      <td>4:36</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/714558">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682410'>Collusion - Harlem Shake: The Greatest of All Time</a></td>
+      <td>1:40</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682410">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/18478'>DJ Morgoth</a></td>
+      <td><a href='/song/419660'>Complicated Crown [Avril Lavigne vs. Testament]</a></td>
+      <td>4:02</td>
+      <td><a href='/user/66'>Lareine</a></td>
+      <td>
+  <a class="boxed add" href="/add/419660">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682430'>Con Los TerrorSweethearts - Harlem Shake: The Greatest of All Time</a></td>
+      <td>2:05</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682430">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/22009'>Negative Format</a></td>
+      <td><a href='/song/321750'>Conformance Test</a></td>
+      <td>5:55</td>
+      <td><a href='/user/1233'>Entropist</a></td>
+      <td>
+  <a class="boxed add" href="/add/321750">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828984'>Contest Championship</a></td>
+      <td>0:32</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828984">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/12267'>Hazel</a></td>
+      <td><a href='/song/459213'>Contest Demo (The 2nd Choice)</a></td>
+      <td>4:35</td>
+      <td><a href='/user/78'>Sombrerotron</a></td>
+      <td>
+  <a class="boxed add" href="/add/459213">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/37498'>Vince DiCola</a></td>
+      <td><a href='/song/389925'>Contest for Leadership</a></td>
+      <td>2:05</td>
+      <td><a href='/user/41'>Professor_Murda</a></td>
+      <td>
+  <a class="boxed add" href="/add/389925">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/89039'>Hitomi Sato, Junichi Masuda</a></td>
+      <td><a href='/song/829125'>Contest Hall</a></td>
+      <td>0:34</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829125">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828977'>Contest Lobby</a></td>
+      <td>1:14</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828977">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/47156'>Gaytheist</a></td>
+      <td><a href='/song/440100'>Contest of Competence</a></td>
+      <td>3:07</td>
+      <td><a href='/user/1088'>GoblinBomb</a></td>
+      <td>
+  <a class="boxed add" href="/add/440100">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/89039'>Hitomi Sato, Junichi Masuda</a></td>
+      <td><a href='/song/829132'>Contest Victory!</a></td>
+      <td>0:20</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829132">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828982'>Contest!</a></td>
+      <td>1:37</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828982">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828978'>Contest! (Variation 1)</a></td>
+      <td>1:37</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828978">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828979'>Contest! (Variation 2)</a></td>
+      <td>1:37</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828979">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828980'>Contest! (Variation 3)</a></td>
+      <td>1:37</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828980">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/828981'>Contest! (Variation 4)</a></td>
+      <td>1:37</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/828981">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/89039'>Hitomi Sato, Junichi Masuda</a></td>
+      <td><a href='/song/829128'>Contest! Dress-up</a></td>
+      <td>1:02</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829128">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/89039'>Hitomi Sato, Junichi Masuda</a></td>
+      <td><a href='/song/829131'>Contest! Results Announcement</a></td>
+      <td>0:21</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829131">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7687'>Game Show Theme</a></td>
+      <td><a href='/song/37871'>contestant cue (Match Game)</a></td>
+      <td>1:18</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/37871">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/35629'>Iron Lung</a></td>
+      <td><a href='/song/339918'>Contested</a></td>
+      <td>0:32</td>
+      <td><a href='/user/3503'>Tom Pridgen</a></td>
+      <td>
+  <a class="boxed add" href="/add/339918">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682406'>Counterrorittack - Harlem Shake: The Greatest of All Time</a></td>
+      <td>3:24</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682406">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/23151'>Orphx</a></td>
+      <td><a href='/song/204393'>Cracktest Edit</a></td>
+      <td>5:36</td>
+      <td><a href='/user/2311'>doppler</a></td>
+      <td>
+  <a class="boxed add" href="/add/204393">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/15530'>Superhumanoids</a></td>
+      <td><a href='/song/501575'>Cranial Contest</a></td>
+      <td>3:05</td>
+      <td><a href='/user/3529'>ewe2</a></td>
+      <td>
+  <a class="boxed add" href="/add/501575">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/3008'>Fear Factory</a></td>
+      <td><a href='/song/17738'>Crash Test</a></td>
+      <td>3:47</td>
+      <td><a href='/user/671'>Kuuenbu</a></td>
+      <td>
+  <a class="boxed add" href="/add/17738">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/12206'>Kid Cudi</a></td>
+      <td><a href='/song/767846'>CRASH TEST CUDI</a></td>
+      <td>2:46</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/767846">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/30314'>Carina Dahl</a></td>
+      <td><a href='/song/279510'>Crash Test Dummy (Radio Edit)</a></td>
+      <td>3:20</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/279510">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/54220'>Remo Drive</a></td>
+      <td><a href='/song/514056'>Crash Test Rating</a></td>
+      <td>2:34</td>
+      <td><a href='/user/3420'>Arkhams Razor</a></td>
+      <td>
+  <a class="boxed add" href="/add/514056">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/999'>Amon Tobin</a></td>
+      <td><a href='/song/294733'>Crash Test Speedster Killer</a></td>
+      <td>0:44</td>
+      <td><a href='/user/2551'>RossDude</a></td>
+      <td>
+  <a class="boxed add" href="/add/294733">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/50924'>Anachronist</a></td>
+      <td><a href='/song/481168'>Crash Testing</a></td>
+      <td>3:04</td>
+      <td><a href='/user/3943'>admiral crackbar</a></td>
+      <td>
+  <a class="boxed add" href="/add/481168">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/31023'>Think twice</a></td>
+      <td><a href='/song/288992'>Crush test</a></td>
+      <td>4:02</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/288992">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/38394'>DJ Laz</a></td>
+      <td><a href='/song/735201'>Cruzin&#x27; (Test The Boom) (feat. Man-Dee)</a></td>
+      <td>3:48</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/735201">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/23433'>Edgar Winter</a></td>
+      <td><a href='/song/501442'>Cry Out (Marching Song Of The Protestors)</a></td>
+      <td>5:04</td>
+      <td><a href='/user/41'>Professor_Murda</a></td>
+      <td>
+  <a class="boxed add" href="/add/501442">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/18624'>Super Mash Bros.</a></td>
+      <td><a href='/song/255457'>D.G.A.F.L.Y.F. &amp; 12 Testarossas For Everyone! [Darude vs. Soulja Boy vs. Vengaboys vs. Tag Team vs. R. Kelly vs. Alice DJ vs. Lil&#x27; Mama]</a></td>
+      <td>6:46</td>
+      <td><a href='/user/2676'>Sqeetschy</a></td>
+      <td>
+  <a class="boxed add" href="/add/255457">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1954'>daisy girl (test 2)</a></td>
+      <td>9:54</td>
+      <td><a href='/user/19'>doctor_zero</a></td>
+      <td>
+  <a class="boxed add" href="/add/1954">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1415'>Frank Zappa</a></td>
+      <td><a href='/song/420340'>Dance Contest</a></td>
+      <td>2:59</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/420340">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/16204'>Propaganda</a></td>
+      <td><a href='/song/380024'>Das Testament des Dr. Mabuse (13th Life mix)</a></td>
+      <td>6:31</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/380024">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/16204'>Propaganda</a></td>
+      <td><a href='/song/380032'>Das Testament des Dr. Mabuse (DJ Promo version)</a></td>
+      <td>9:51</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/380032">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/16204'>Propaganda</a></td>
+      <td><a href='/song/828819'>Das Testaments Des Mabuse</a></td>
+      <td>10:17</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/828819">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/10224'>daughter (test 1) (drums pulse)</a></td>
+      <td>7:17</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/10224">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/74698'>Daniel Pemberton</a></td>
+      <td><a href='/song/729514'>De Portago Test Drive</a></td>
+      <td>1:54</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/729514">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/24081'>David Shire</a></td>
+      <td><a href='/song/742571'>Delta Gongs Test</a></td>
+      <td>2:13</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/742571">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/24081'>David Shire</a></td>
+      <td><a href='/song/742572'>Delta Ostinato Test</a></td>
+      <td>2:40</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/742572">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/26454'>Crawl Unit</a></td>
+      <td><a href='/song/241654'>Density Test (Cleansing)</a></td>
+      <td>5:02</td>
+      <td><a href='/user/1088'>GoblinBomb</a></td>
+      <td>
+  <a class="boxed add" href="/add/241654">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" banned  even ">
+      <td><a href='/artist/11048'>65daysofstatic</a></td>
+      <td><a href='/song/456246'>Departure / Shortwave / Noisetest</a></td>
+      <td>11:51</td>
+      <td><a href='/user/1088'>GoblinBomb</a></td>
+      <td>
+  (banned)
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/9710'>A Life Once Lost</a></td>
+      <td><a href='/song/55561'>Detest</a></td>
+      <td>3:15</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/55561">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/49406'>Trofflesby</a></td>
+      <td><a href='/song/511003'>Detestable Visitor ver. SG</a></td>
+      <td>1:42</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/511003">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" banned  odd ">
+      <td><a href='/artist/9182'>{None}</a></td>
+      <td><a href='/song/50010'>Diagnostic Testing Introduction - Sound Imaging Tests 1&amp;2 - Polarity Check - Sound Purity Test - Pink Noise - Sweep Tones - Dynamic Impact Test 1 - Dynamic Impact Test 2</a></td>
+      <td>13:17</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  (banned)
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/3142'>Intestinal Disgorge</a></td>
+      <td><a href='/song/8794'>Dining on Sludgeous Intestinal Contents</a></td>
+      <td>0:22</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/8794">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/3142'>Intestinal Disgorge</a></td>
+      <td><a href='/song/395409'>dining on sludgeous intestinal contents</a></td>
+      <td>2:11</td>
+      <td><a href='/user/27'>peachstapler</a></td>
+      <td>
+  <a class="boxed add" href="/add/395409">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/2655'>AFX</a></td>
+      <td><a href='/song/416806'>dmx acid test</a></td>
+      <td>1:18</td>
+      <td><a href='/user/41'>Professor_Murda</a></td>
+      <td>
+  <a class="boxed add" href="/add/416806">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/33849'>Nile Rodgers</a></td>
+      <td><a href='/song/650183'>Do What You Wanna Do (The Reflex Greatest Dancer Mix)</a></td>
+      <td>5:07</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/650183">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/69791'>BBC Symphony Orchestra, BBC Singers, John Adams</a></td>
+      <td><a href='/song/664862'>Doctor Atomic, Act I, Scene 1: &quot;The test must go on as scheduled&quot;</a></td>
+      <td>3:21</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/664862">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/69791'>BBC Symphony Orchestra, BBC Singers, John Adams</a></td>
+      <td><a href='/song/664885'>Doctor Atomic, Act II, Scene 2: &quot;Edward, the test will be delayed an hour&quot;</a></td>
+      <td>3:02</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/664885">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/31786'>Stray</a></td>
+      <td><a href='/song/314851'>Does It Really Matter? (Testube Remix)</a></td>
+      <td>4:46</td>
+      <td><a href='/user/17'>Hati</a></td>
+      <td>
+  <a class="boxed add" href="/add/314851">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1389'>Fatboy Slim</a></td>
+      <td><a href='/song/503688'>Don&#x27;t Let the Man Get You Down (Greatest Hits Edit)</a></td>
+      <td>3:18</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/503688">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/79755'>Xxxtentacion, Wifisfuneral</a></td>
+      <td><a href='/song/755344'>Don&#x27;t Test Me Remix (feat. Wifisfuneral)</a></td>
+      <td>3:08</td>
+      <td><a href='/user/4037'>pricklypie</a></td>
+      <td>
+  <a class="boxed add" href="/add/755344">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/34383'>Suga Bang Bang</a></td>
+      <td><a href='/song/325446'>Don&#x27;t Test/Wu Stallion</a></td>
+      <td>5:19</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/325446">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/69811'>William H.</a></td>
+      <td><a href='/song/665565'>Donald Trump&#x27;s Our Greatest President</a></td>
+      <td>3:26</td>
+      <td><a href='/user/1210'>coolio_mc</a></td>
+      <td>
+  <a class="boxed add" href="/add/665565">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/85298'>Dorothy Love Coates &amp; The Original Gospel Harmonettes</a></td>
+      <td><a href='/song/793646'>Dot&#x27;s Testimony</a></td>
+      <td>2:09</td>
+      <td><a href='/user/5366'>TrixRabbi</a></td>
+      <td>
+  <a class="boxed add" href="/add/793646">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/52170'>TheLeis</a></td>
+      <td><a href='/song/607075'>Dr. Cossack&#x27;s latest inventions</a></td>
+      <td>2:11</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/607075">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1363'>Ennio Morricone</a></td>
+      <td><a href='/song/604530'>Dramma su di noi (from &quot;Spogliati, protesta, uccidi!&quot;)</a></td>
+      <td>1:35</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/604530">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/8810'>Meat Beat Manifesto</a></td>
+      <td><a href='/song/507676'>Drum Test</a></td>
+      <td>4:40</td>
+      <td><a href='/user/1491'>weakness</a></td>
+      <td>
+  <a class="boxed add" href="/add/507676">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/29046'>John Powell</a></td>
+      <td><a href='/song/597636'>Dryden&#x27;s Patience Is Tested (3M21-22-23)</a></td>
+      <td>5:31</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/597636">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1956'>dummkopf (test 3)</a></td>
+      <td>2:17</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1956">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/812'>Shoji Meguro</a></td>
+      <td><a href='/song/239187'>During the Test...</a></td>
+      <td>1:58</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/239187">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/48121'>Hajime Wakai</a></td>
+      <td><a href='/song/602901'>Earl&#x27;s Test Fail</a></td>
+      <td>0:06</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/602901">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/48121'>Hajime Wakai</a></td>
+      <td><a href='/song/602900'>Earl&#x27;s Test Pass</a></td>
+      <td>0:06</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/602900">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/75786'>Edward J</a></td>
+      <td><a href='/song/718526'>Edward J Bass Test Outro</a></td>
+      <td>2:17</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/718526">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/52124'>Herbert Von Karajan</a></td>
+      <td><a href='/song/492987'>Einen Unseligen Labtest Du</a></td>
+      <td>3:42</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/492987">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/60813'>Georges Brassens</a></td>
+      <td><a href='/song/571987'>El testamento</a></td>
+      <td>3:56</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/571987">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" banned  odd ">
+      <td><a href='/artist/15063'>Giorgio Moroder</a></td>
+      <td><a href='/song/636027'>Electro Disco [The Mix Tape] (Greatest Hits Non-Stop Mix)</a></td>
+      <td>1:10:14</td>
+      <td><a href='/user/3180'>Belteshazzar</a></td>
+      <td>
+  (banned)
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/5108'>Caramelos de Cianuro</a></td>
+      <td><a href='/song/16015'>En Tu Intestino</a></td>
+      <td>4:02</td>
+      <td><a href='/user/16'>Dominus_Vobiscum</a></td>
+      <td>
+  <a class="boxed add" href="/add/16015">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1072'>Benny Hill</a></td>
+      <td><a href='/song/149415'>Ernie (The Fastest Milkman In The West)</a></td>
+      <td>3:52</td>
+      <td><a href='/user/1625'>Test Pilot Monkey</a></td>
+      <td>
+  <a class="boxed add" href="/add/149415">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/41901'>Last Days Of Humanity</a></td>
+      <td><a href='/song/399856'>Erosed intestinal purulency</a></td>
+      <td>0:39</td>
+      <td><a href='/user/1233'>Entropist</a></td>
+      <td>
+  <a class="boxed add" href="/add/399856">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682403'>Et tu, Brutal Courage - Harlem Shake: The Greatest of All Time</a></td>
+      <td>2:43</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682403">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/2161'>Supertramp</a></td>
+      <td><a href='/song/509473'>Even In The Quietest Moments</a></td>
+      <td>6:29</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/509473">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/2161'>Supertramp</a></td>
+      <td><a href='/song/626000'>Even in the Quietest Moments (live 1979)</a></td>
+      <td>5:36</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/626000">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/28757'>Darker My Love</a></td>
+      <td><a href='/song/793781'>Even In Your Lightest Day</a></td>
+      <td>3:43</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/793781">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/4048'>Armageddon Dildos</a></td>
+      <td><a href='/song/44547'>Everyday is Like Sunday (The Shortest Version that They Forgot to Close Down)</a></td>
+      <td>3:18</td>
+      <td><a href='/user/19'>doctor_zero</a></td>
+      <td>
+  <a class="boxed add" href="/add/44547">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/3307'>Matthew Good Band</a></td>
+      <td><a href='/song/82491'>Failing The Rorschach Test</a></td>
+      <td>4:45</td>
+      <td><a href='/user/726'>Entropic</a></td>
+      <td>
+  <a class="boxed add" href="/add/82491">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/4570'>Minutemen</a></td>
+      <td><a href='/song/783751'>Fake Contest</a></td>
+      <td>1:43</td>
+      <td><a href='/user/5366'>TrixRabbi</a></td>
+      <td>
+  <a class="boxed add" href="/add/783751">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/48197'>Atsuhiro Motoyama</a></td>
+      <td><a href='/song/451116'>Fashion Contest: Lively Style</a></td>
+      <td>2:28</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/451116">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/2339'>The Tubes</a></td>
+      <td><a href='/song/389713'>Fastest Gun Alive</a></td>
+      <td>5:05</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/389713">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/51755'>Sturgill Simpson</a></td>
+      <td><a href='/song/609730'>Fastest Horse In Town</a></td>
+      <td>7:06</td>
+      <td><a href='/user/52'>NitWitDogShit</a></td>
+      <td>
+  <a class="boxed add" href="/add/609730">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/48142'>Tomoko Sasaki</a></td>
+      <td><a href='/song/617286'>Fastest Lap</a></td>
+      <td>0:08</td>
+      <td><a href='/user/41'>Professor_Murda</a></td>
+      <td>
+  <a class="boxed add" href="/add/617286">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/1487'>Grandmaster Flash</a></td>
+      <td><a href='/song/693018'>Fastest Man Alive</a></td>
+      <td>5:22</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/693018">Add!</a>
+</td>
+    </tr>
+    
+  </table>
+
+  
+      <a href="/search?page=1&query=test">&lt;&lt;</a>
+    
+    Results: page 2 of 12
+    
+      <a href="/search?page=3&query=test">&gt;&gt;</a>
+  
+
+  
+  
+  </div>
+
+</div>
+
+<!-- this is the end mark i was talking about, the one you'll find with asdf23 -->
+
+<div id="bottomcont">
+<div id="bottombg" title="geez what klutz designed this?"></div>
+
+      <div id="leftist">
+        <form action="#" method="post" id="commentform">
+          <input accesskey="c" autocomplete="off" id="commentbox" name="query" maxlength="400" type="text"
+                 value="You need to enable javascript to use the live comments system." disabled="disabled" />
+        </form>
+        <div id="commentsbox">
+          <a id="expandbutt" href="#" title="expand comment box"></a>
+          
+        </div>
+      </div>
+      <div id="rightist">
+
+        <div id="progbarbox">
+          <div id="progtube">
+            <div style="width:6.054166666666674%;" id="progbar"></div>
+          </div>
+          <span id="songPosition">14.530000000000019</span>/<span id="songLength">240</span>
+        </div>
+        <span><div id="metadata"><a href="/artist/16985">British Electric Foundation</a> (<a href="/album/23281">Music Of Quality And Distinction, Volume 1</a>) - <a href="/song/785263">The Secret Life Of Arabia (with Billy MacKenzie)</a></div>
+        <div id="votebuttonslow">
+        vote:
+         
+        
+          <a href="#" class="" data-vote="1">1</a>
+        
+          <a href="#" class="" data-vote="2">2</a>
+        
+          <a href="#" class="" data-vote="3">3</a>
+        
+          <a href="#" class="" data-vote="4">4</a>
+        
+          <a href="#" class="" data-vote="5">5</a>
+        
+        &nbsp;score: <span id='avgscore'>
+        
+          no votes
+        
+        </span>
+        </div></span>
+      </div>
+
+
+</div>
+</body>
+</html>

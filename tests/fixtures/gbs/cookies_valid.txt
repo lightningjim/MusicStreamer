@@ -1,0 +1,3 @@
+# Netscape HTTP Cookie File
+.gbs.fm	TRUE	/	TRUE	1761855552	csrftoken	<csrftoken-PLACEHOLDER>
+gbs.fm	FALSE	/	TRUE	1747491264	sessionid	<sessionid-PLACEHOLDER>
