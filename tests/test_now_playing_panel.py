@@ -1467,12 +1467,15 @@ def test_gbs_vote_emits_toast_when_cookies_disappear_mid_click(qtbot, tmp_path, 
     This test stamps entryid directly AND calls setEnabled(True) on the button
     before click() so the vote handler is reached and the cookies-None branch
     is exercised.
+
+    Implementation note: _refresh_gbs_visibility calls _on_gbs_poll_tick which
+    can recurse when load_auth_context=None AND the cookie file still exists.
+    We stub _on_gbs_poll_tick to a no-op so the test is isolated to the click-
+    time cookies-None path, not the poll-tick recursion path.
     """
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     os.makedirs(str(tmp_path), exist_ok=True)
-    cookies_path = paths.gbs_cookies_path()
-    os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
-    with open(cookies_path, "w") as f:
+    with open(paths.gbs_cookies_path(), "w") as f:
         f.write("# Netscape HTTP Cookie File\n")
     panel = _construct_gbs_panel(qtbot)
     monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
@@ -1482,8 +1485,14 @@ def test_gbs_vote_emits_toast_when_cookies_disappear_mid_click(qtbot, tmp_path, 
     # Stamp entryid directly (simulating a successful /ajax poll)
     panel._gbs_current_entryid = 1810809
     panel._last_confirmed_vote = 0
-    # Simulate cookies disappearing mid-session
+    # Simulate cookies disappearing mid-session — patch load_auth_context to return None.
+    # Also stub _on_gbs_poll_tick to prevent recursion in _refresh_gbs_visibility:
+    # (_refresh_gbs_visibility calls _on_gbs_poll_tick when should_show=True; if
+    # load_auth_context returns None inside _on_gbs_poll_tick, it calls
+    # _refresh_gbs_visibility again — infinite loop. Production avoids this because
+    # the actual file removal also changes _is_gbs_logged_in(); test decouples them.)
     monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: None)
+    monkeypatch.setattr(panel, "_on_gbs_poll_tick", lambda: None)
     # Per iter-2 plan-check caveat: enable the button so click() reaches the handler
     panel._gbs_vote_buttons[2].setEnabled(True)
     # Expect gbs_vote_error_toast to fire with "session expired" in the message

@@ -416,6 +416,7 @@ class NowPlayingPanel(QWidget):
             btn.setMinimumWidth(32)
             btn.setMaximumWidth(48)
             btn.clicked.connect(self._on_gbs_vote_clicked)  # QA-05 bound method
+            btn.setEnabled(False)  # 60-09 / T10: disabled until /ajax stamps entryid (PINNED: after connect — wiring intact, button intentionally not yet usable)
             self._gbs_vote_row.addWidget(btn)
             self._gbs_vote_buttons.append(btn)
         # Add the vote row to center layout below the playlist widget.
@@ -902,6 +903,7 @@ class NowPlayingPanel(QWidget):
             for btn in self._gbs_vote_buttons:
                 btn.setChecked(False)
             self._gbs_current_entryid = None
+            self._apply_vote_buttons_enabled(False)  # 60-09 / T10: leaving GBS context, re-disable
 
     def _on_gbs_poll_tick(self) -> None:
         """Phase 60 D-06a: kick a worker that hits /ajax with the cursor."""
@@ -956,6 +958,7 @@ class NowPlayingPanel(QWidget):
             new_entryid_int = int(new_entryid)
             if new_entryid_int != self._gbs_current_entryid:
                 self._gbs_current_entryid = new_entryid_int
+            self._apply_vote_buttons_enabled(True)  # 60-09 / T10: entryid known, buttons usable
         # Pitfall 2 / D-07d: server's userVote is the source of truth
         confirmed_vote = int(state.get("user_vote", 0) or 0)
         self._apply_vote_highlight(confirmed_vote)
@@ -991,6 +994,16 @@ class NowPlayingPanel(QWidget):
     # ----------------------------------------------------------------------
     # Phase 60 / GBS-01d: vote control handlers (D-07a/D-07b/D-07c/D-07d)
     # ----------------------------------------------------------------------
+
+    def _apply_vote_buttons_enabled(self, enabled: bool) -> None:
+        """Phase 60 60-09 / T10: gate vote-button affordance behind entryid stamp.
+
+        Disabled when no entryid is known (no successful /ajax poll yet) or
+        when leaving GBS context entirely. Enabled once /ajax confirms the
+        current playing entryid.
+        """
+        for btn in self._gbs_vote_buttons:
+            btn.setEnabled(bool(enabled))
 
     def _apply_vote_highlight(self, vote_value: int) -> None:
         """Highlight the button matching vote_value; clear all others.
@@ -1048,6 +1061,9 @@ class NowPlayingPanel(QWidget):
 
         cookies = gbs_api.load_auth_context()
         if cookies is None:
+            # 60-09 / T11: surface the silent auth-disappeared rollback as a toast
+            # so the user knows why the optimistic highlight reverted.
+            self.gbs_vote_error_toast.emit("GBS.FM session expired — reconnect via Accounts")
             # Auth disappeared — rollback + refresh visibility
             self._apply_vote_highlight(prior_vote)
             self._refresh_gbs_visibility()
