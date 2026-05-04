@@ -10,10 +10,13 @@ are forbidden in this test module.
 """
 from __future__ import annotations
 
+import http.client
 import http.cookiejar
 import io
 import json
+import os
 import urllib.error
+import urllib.request
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -92,7 +95,11 @@ def test_import_idempotent(fake_repo):
 
     with patch("musicstreamer.gbs_api._download_logo", return_value=None):
         inserted_2, updated_2 = import_station(fake_repo)
-    assert (inserted_2, updated_2) == (0, 1)
+    # 60-08 / T6 (Plan 60-08 revision 2): after field-level dirty-check, an
+    # idempotent re-import (no field changes anywhere) returns (0, 0). The
+    # "(0, 1) on real refresh" path is separately covered by
+    # test_import_one_field_changes_returns_one_updated.
+    assert (inserted_2, updated_2) == (0, 0)
     stations_2 = fake_repo.list_stations()
     assert len(stations_2) == 1
     assert stations_2[0].id == sid_1, "station_id MUST be preserved across re-import"
@@ -293,3 +300,155 @@ def test_decode_django_messages_garbage_returns_empty():
     assert _decode_django_messages("") == []
     assert _decode_django_messages("not-base64") == []
     assert _decode_django_messages("###:::") == []
+
+
+# ---------- Plan 60-08 regression tests (T13 + T6) ----------
+# These tests use the real urllib opener chain — patching at the lowest
+# sensible transport layer (AbstractHTTPHandler.do_open) so that
+# _NoRedirect.http_error_302 (and the CPython HTTPDefaultErrorHandler chain)
+# run for real. This is intentionally deeper than the existing
+# test_submit_success_decodes_messages, which patches _open_no_redirect
+# directly and therefore cannot detect the T13 regression.
+
+def _make_fake_302_response(location: str, set_cookie: str | None = None,
+                            body: bytes = b"") -> http.client.HTTPResponse:
+    """Build an http.client.HTTPResponse-shaped object for a fake 302.
+
+    We construct it from a synthetic raw-HTTP byte stream parsed back through
+    http.client so the resulting object exposes the same .status / .headers /
+    .read() surface that AbstractHTTPHandler.do_open would produce.
+    """
+    raw = b"HTTP/1.1 302 Found\r\n"
+    raw += f"Location: {location}\r\n".encode()
+    if set_cookie:
+        raw += f"Set-Cookie: {set_cookie}\r\n".encode()
+    raw += b"Content-Length: " + str(len(body)).encode() + b"\r\n"
+    raw += b"\r\n"
+    raw += body
+
+    class _FakeSock:
+        def __init__(self, data: bytes):
+            self._buf = io.BytesIO(data)
+        def makefile(self, *a, **kw):
+            return self._buf
+        def sendall(self, *a, **kw):
+            pass
+        def close(self):
+            pass
+
+    sock = _FakeSock(raw)
+    resp = http.client.HTTPResponse(sock)
+    resp.begin()
+    return resp
+
+
+def test_open_no_redirect_returns_302_response_not_raises(monkeypatch, fake_cookies_jar):
+    """T13 RED: real _NoRedirect chain returns the response, never raises.
+
+    Patches the LOW-level transport so the entire opener chain (including
+    _NoRedirect.http_error_302) runs against real CPython code paths.
+    Currently FAILS: the broken redirect_request-returns-None pattern causes
+    HTTPError(302) to bubble up before this assertion can be reached.
+    """
+    fake_resp = _make_fake_302_response(
+        location="/playlist",
+        set_cookie="messages=eyJfX2pzb25fbWVzc2FnZXNfXyI6W119; Path=/",
+    )
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(
+        urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open
+    )
+    resp = gbs_api._open_no_redirect("https://gbs.fm/add/123", fake_cookies_jar)
+    assert resp.headers.get("Location") == "/playlist"
+    assert resp.headers.get_all("Set-Cookie")  # non-empty
+
+
+def test_submit_success_via_real_redirect_handler(monkeypatch, fake_cookies_jar, gbs_fixtures_dir):
+    """T13 RED: submit() returns decoded messages text, not HTTPError(302).
+
+    Reads the canonical Set-Cookie value from the fixture and embeds it in a
+    real http.client.HTTPResponse so _NoRedirect.http_error_302 must handle it.
+    """
+    cookie_path = os.path.join(str(gbs_fixtures_dir), "messages_cookie_track_added.txt")
+    with open(cookie_path) as f:
+        cookie_value = f.read().strip()
+    fake_resp = _make_fake_302_response(
+        location="/playlist",
+        set_cookie=f"messages={cookie_value}:sig1:sig2; Path=/",
+    )
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    text = gbs_api.submit(123, fake_cookies_jar)
+    assert "Track added successfully!" in text
+
+
+def test_submit_auth_expired_still_raises(monkeypatch, fake_cookies_jar):
+    """T13 must-not-regress: 302 -> /accounts/login/ still raises GbsAuthExpiredError.
+
+    This test verifies the auth-expired path continues to work after the
+    http_error_302 override is added in Task 2. Expected to PASS now (pre-existing
+    correct behavior), and MUST NOT regress after the GREEN fix.
+    """
+    fake_resp = _make_fake_302_response(location="/accounts/login/?next=/add/123")
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    with pytest.raises(gbs_api.GbsAuthExpiredError):
+        gbs_api.submit(123, fake_cookies_jar)
+
+
+def test_import_no_field_changes_returns_zero_updated(fake_repo):
+    """T6 RED: idempotent re-import (no field changes) must return (0, 0).
+
+    Pre-populates the repo with exactly the canonical GBS quality tier data
+    by running import_station once, then asserts a second call returns (0, 0).
+    Currently FAILS: import_station unconditionally returns (0, 1) on the
+    update path regardless of actual field changes.
+    """
+    with patch("musicstreamer.gbs_api._download_logo", return_value=None):
+        import_station(fake_repo)  # first call: inserts
+        inserted, updated = import_station(fake_repo)  # second call: no-op
+    assert (inserted, updated) == (0, 0), (
+        f"Expected (0, 0) for idempotent re-import, got ({inserted}, {updated})"
+    )
+
+
+def test_import_one_field_changes_returns_one_updated(fake_repo):
+    """T6 must-not-regress: when a real field changes, return (0, 1).
+
+    Pre-populates via first import_station call (canonical state), then
+    mutates one stream's bitrate_kbps by +1 to simulate an upstream change,
+    then asserts the second import returns (0, 1).
+    Expected to PASS now (new functionality verified after GREEN).
+    """
+    with patch("musicstreamer.gbs_api._download_logo", return_value=None):
+        import_station(fake_repo)  # first call: inserts canonical state
+    # Mutate one stream field to simulate an upstream change
+    sid = fake_repo.list_stations()[0].id
+    streams = fake_repo.list_streams(sid)
+    assert streams, "Expected 6 streams after first import"
+    first_stream = streams[0]
+    # Corrupt bitrate_kbps by +1 so the dirty-check detects a change
+    fake_repo.update_stream(
+        first_stream.id, first_stream.url, first_stream.label or "",
+        first_stream.quality, first_stream.position,
+        first_stream.stream_type or "shoutcast", first_stream.codec,
+        bitrate_kbps=first_stream.bitrate_kbps + 1,
+    )
+    with patch("musicstreamer.gbs_api._download_logo", return_value=None):
+        inserted, updated = import_station(fake_repo)
+    assert (inserted, updated) == (0, 1), (
+        f"Expected (0, 1) when one field changed, got ({inserted}, {updated})"
+    )
+
+
+def test_import_fresh_insert_returns_one_zero(fake_repo):
+    """T6 must-not-regress: fresh insert still returns (1, 0).
+
+    Expected to PASS both before and after the GREEN fix.
+    """
+    with patch("musicstreamer.gbs_api._download_logo", return_value=None):
+        inserted, updated = import_station(fake_repo)
+    assert (inserted, updated) == (1, 0)
