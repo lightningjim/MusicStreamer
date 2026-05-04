@@ -320,9 +320,9 @@ Plans:
   2. Selecting a color on the visual picker updates the hex field and applies the accent color immediately
   3. Entering a hex value still works as before — the visual picker reflects the hex value
   4. The chosen color persists across app restarts (same SQLite persistence as existing accent logic)
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
-- [ ] 59-01-PLAN.md — Rewrite tests/test_accent_color_dialog.py with 9 tests (T-59-A..H + Pitfall 3 corrupt-hex defensive); TDD-RED state for Wave 0
+- [x] 59-01-PLAN.md — Rewrite tests/test_accent_color_dialog.py with 9 tests (T-59-A..H + Pitfall 3 corrupt-hex defensive); TDD-RED state for Wave 0
 - [ ] 59-02-PLAN.md — Rewrite musicstreamer/ui_qt/accent_color_dialog.py wrapping QColorDialog (NoButtons | DontUseNativeDialog) per CONTEXT.md D-01..D-19 and RESEARCH §"Construct + embed + wire"; turns Plan 01 tests GREEN
 - [ ] 59-03-PLAN.md — Manual UAT on Linux X11 (DPR=1.0): SC #1..4 + eyedropper + Reset/Cancel/X + idempotent reseed + flicker observation
 **UI hint**: yes
@@ -388,7 +388,7 @@ Plans:
 | 56. Windows DI.fm + SMTC Start Menu | 5/5 | Complete   | 2026-05-02 |
 | 57. Windows Audio Glitch + Test Fix | 5/5 | Complete    | 2026-05-03 |
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
-| 59. Visual Accent Color Picker | 0/? | Not started | - |
+| 59. Visual Accent Color Picker | 1/3 | In Progress|  |
 | 60. GBS.FM Integration | 0/? | Not started | - |
 | 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
