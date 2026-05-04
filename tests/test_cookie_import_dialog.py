@@ -240,3 +240,98 @@ def test_google_login_launches_qprocess(qtbot, monkeypatch):
     assert start_args[0][0] == sys.executable
     assert "--mode" in start_args[0][1]
     assert "google" in start_args[0][1]
+
+
+# ---------------------------------------------------------------------------
+# Phase 60 / GBS-01b: parameterization regression + new coverage
+# ---------------------------------------------------------------------------
+
+def test_dialog_default_construction_preserves_youtube_behavior(qtbot, tmp_path, monkeypatch):
+    """Regression — passing only the legacy positional args still configures YouTube."""
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+    from musicstreamer import paths
+    captured_toasts = []
+    dlg = CookieImportDialog(toast_callback=captured_toasts.append)
+    qtbot.addWidget(dlg)
+    assert dlg.windowTitle() == "YouTube Cookies"
+    assert dlg._target_label == "YouTube"
+    assert dlg._cookies_path is paths.cookies_path
+    assert dlg._oauth_mode == "google"
+    # 3 tabs: File / Paste / Google Login
+    assert dlg._tabs.count() == 3
+
+
+def test_dialog_gbs_construction_omits_oauth_tab(qtbot, tmp_path, monkeypatch):
+    """Phase 60 D-04: GBS dialog has File + Paste tabs only when oauth_mode=None."""
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+    from musicstreamer import paths, gbs_api
+    captured_toasts = []
+    dlg = CookieImportDialog(
+        toast_callback=captured_toasts.append,
+        target_label="GBS.FM",
+        cookies_path=paths.gbs_cookies_path,
+        validator=gbs_api._validate_gbs_cookies,
+        oauth_mode=None,
+    )
+    qtbot.addWidget(dlg)
+    assert dlg.windowTitle() == "GBS.FM Cookies"
+    assert dlg._target_label == "GBS.FM"
+    assert dlg._cookies_path is paths.gbs_cookies_path
+    assert dlg._oauth_mode is None
+    # 2 tabs only — no OAuth tab
+    assert dlg._tabs.count() == 2
+
+
+def test_gbs_paste_invalid_shows_target_specific_error(qtbot, monkeypatch):
+    """Validator + error string parameterized for GBS.FM."""
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+    from musicstreamer import paths, gbs_api
+    captured_toasts = []
+    dlg = CookieImportDialog(
+        toast_callback=captured_toasts.append,
+        target_label="GBS.FM",
+        cookies_path=paths.gbs_cookies_path,
+        validator=gbs_api._validate_gbs_cookies,
+        oauth_mode=None,
+    )
+    qtbot.addWidget(dlg)
+    # Paste plainly invalid content
+    dlg._paste_edit.setPlainText("# garbage")
+    dlg._on_paste_import()
+    assert dlg._error_label.isVisible()
+    assert "GBS.FM" in dlg._error_label.text()
+
+
+def test_gbs_paste_valid_writes_to_gbs_cookies_path(qtbot, tmp_path, monkeypatch):
+    """Phase 60 D-04 + Phase 999.7 0o600: write goes to gbs_cookies_path; perms are 0o600."""
+    import os
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+    from musicstreamer import paths, gbs_api
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)  # HIGH 3: explicit setup boilerplate
+    captured_toasts = []
+    dlg = CookieImportDialog(
+        toast_callback=captured_toasts.append,
+        target_label="GBS.FM",
+        cookies_path=paths.gbs_cookies_path,
+        validator=gbs_api._validate_gbs_cookies,
+        oauth_mode=None,
+    )
+    qtbot.addWidget(dlg)
+    valid_cookies = (
+        "# Netscape HTTP Cookie File\n"
+        ".gbs.fm\tTRUE\t/\tTRUE\t9999999999\tcsrftoken\tabc123\n"
+        "gbs.fm\tFALSE\t/\tTRUE\t9999999999\tsessionid\txyz789\n"
+    )
+    dlg._paste_edit.setPlainText(valid_cookies)
+    dlg._on_paste_import()
+    target = paths.gbs_cookies_path()
+    assert os.path.exists(target)
+    # Content matches
+    with open(target) as f:
+        assert "sessionid" in f.read()
+    # 0o600 perms (Phase 999.7 convention)
+    mode = os.stat(target).st_mode & 0o777
+    assert mode == 0o600
+    # Toast text uses target_label
+    assert any("GBS.FM cookies imported" in t for t in captured_toasts)
