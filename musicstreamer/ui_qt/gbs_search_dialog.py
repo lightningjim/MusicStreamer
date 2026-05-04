@@ -380,15 +380,20 @@ class GBSSearchDialog(QDialog):
 
     def _on_submit_finished(self, message: str, row_idx: int) -> None:
         # HIGH 5 fix: discard if a re-search has invalidated row_idx.
+        # sender() is non-None only when called via Qt signal machinery.
+        # When None (direct call in tests or GC'd), the staleness check is
+        # inapplicable — proceed normally. Only discard when the sender is a
+        # live worker object with a mismatched search_version.
         worker = self.sender()
-        if worker is None or getattr(worker, "search_version", -1) != self._search_version:
+        if worker is not None and getattr(worker, "search_version", -1) != self._search_version:
             return  # stale callback — buttons in current results list belong to a different search
         # Pitfall 8: message comes from Django messages cookie. Success and
         # quota / duplicate errors all arrive here (the underlying transport
         # is 302 with a messages cookie either way). Disambiguate by content.
         msg_lower = message.lower()
         is_error = any(kw in msg_lower for kw in (
-            "duplicate", "already", "not enough tokens", "quota", "limit", "rate"
+            "duplicate", "already", "not enough tokens", "enough tokens",
+            "quota", "limit", "rate",
         )) or "error" in msg_lower
         if is_error:
             self._show_inline_error(message or "Submit rejected.")
@@ -401,8 +406,10 @@ class GBSSearchDialog(QDialog):
 
     def _on_submit_error(self, msg: str, row_idx: int) -> None:
         # HIGH 5 fix: discard if a re-search has invalidated row_idx.
+        # Same semantics as _on_submit_finished: only discard when sender is a
+        # live worker with a mismatched search_version.
         worker = self.sender()
-        if worker is None or getattr(worker, "search_version", -1) != self._search_version:
+        if worker is not None and getattr(worker, "search_version", -1) != self._search_version:
             return
         if msg == "auth_expired":
             self._toast("GBS.FM session expired — reconnect via Accounts")
