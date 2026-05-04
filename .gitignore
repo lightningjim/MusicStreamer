@@ -5,13 +5,43 @@ __pycache__/
 *.egg-info/
 .eggs/
 
-# Phase 44 Windows packaging build outputs
+# Build / packaging artifacts
+dist/
+build/
 dist/installer/
 packaging/windows/artifacts/
 packaging/windows/build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editor / agent working dirs
+.idea/
+.vscode/
+.claude/
+.clone/
+
+# GSD planning workspace (internal-only docs)
+.planning/
 
 # Per-developer local launch helper (tracked accidentally in f17c0db, untracked in follow-up)
 run_local.sh
 
 # Local-only dev fixtures (cookies, tokens, scratch). Never commit.
 .local/
+
+# Credentials / tokens (paths the app reads from — defensive, in case one ever lands in the repo)
+twitch-token.txt
+cookies.txt
+gbs-cookies.txt
+*.pem
+*.key
+.env
+.env.*
+
+# Local databases / user data
+*.sqlite
+*.sqlite3
+*.db
