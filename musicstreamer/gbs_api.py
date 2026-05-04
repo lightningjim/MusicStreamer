@@ -244,7 +244,8 @@ def _fold_ajax_events(events: list) -> dict:
     state: dict = {
         "user_vote": 0,
         "score": "no votes",
-        "queue_html_snippets": [],
+        "queue_html_snippets": [],   # RETAINED for backward-compat (rev-2 decision — zero callers)
+        "queue_rows": [],             # 60-10 / T8: parsed upcoming queue rows (list[dict])
         "removed_ids": [],
     }
     for evt in events:
@@ -269,7 +270,8 @@ def _fold_ajax_events(events: list) -> dict:
         elif name == "score":
             state["score"] = payload
         elif name == "adds":
-            state["queue_html_snippets"].append(payload)
+            state["queue_html_snippets"].append(payload)   # RETAINED (rev-2)
+            state["queue_rows"].extend(_parse_adds_html(payload))  # 60-10 / T8
         elif name == "removal":
             if isinstance(payload, dict) and "id" in payload:
                 state["removed_ids"].append(payload["id"])
@@ -377,6 +379,118 @@ class _SongRowParser(HTMLParser):
             self._row[self._capture] = (self._row.get(self._capture, "") + data).strip()
         if self._in_songs_table and self._row is not None:
             self._td_text += data
+
+
+class _QueueRowParser(HTMLParser):
+    """Parse `adds` event HTML — one or more <tr> rows describing the upcoming queue.
+
+    Skips rows with class containing 'playing' (now-playing, rendered separately via
+    icy_title) and class containing 'history' (already played). Returns one dict per
+    upcoming row.
+
+    Per-row dict keys: entryid (int), songid (int|None), artist (str), title (str),
+    duration (str).
+
+    Reference: 60-DIAGNOSIS-playlist-enumeration.md §5a.
+    Mitigates: T-60-10-02 (parser misidentifies rows), T-60-10-04 (malformed HTML).
+    """
+
+    _SONG_RE = re.compile(r"^/song/(\d+)$")
+    _ARTIST_RE = re.compile(r"^/artist/(\d+)$")
+
+    def __init__(self):
+        super().__init__()
+        self.rows: list = []
+        self._current: Optional[dict] = None
+        self._skip_current: bool = False
+        self._in_artistry_td: bool = False
+        self._in_time_td: bool = False
+        self._in_song_anchor: bool = False
+        self._in_artist_anchor: bool = False
+
+    def handle_starttag(self, tag, attrs):
+        ad = dict(attrs)
+        if tag == "tr":
+            row_class = (ad.get("class") or "")
+            row_id = ad.get("id") or ""
+            # T-60-10-02: skip playing/history rows — they are NOT upcoming.
+            self._skip_current = ("playing" in row_class) or ("history" in row_class)
+            if not self._skip_current and row_id:
+                try:
+                    entryid = int(row_id)
+                except ValueError:
+                    self._skip_current = True
+                    return
+                self._current = {
+                    "entryid": entryid,
+                    "songid": None,
+                    "artist": "",
+                    "title": "",
+                    "duration": "",
+                }
+            else:
+                self._current = None
+        elif self._current and tag == "td":
+            td_class = ad.get("class") or ""
+            self._in_artistry_td = "artistry" in td_class
+            self._in_time_td = "time" in td_class
+        elif self._current and tag == "a":
+            href = ad.get("href") or ""
+            m_song = self._SONG_RE.match(href)
+            m_artist = self._ARTIST_RE.match(href)
+            if m_song:
+                self._current["songid"] = int(m_song.group(1))
+                self._in_song_anchor = True
+            elif m_artist:
+                self._in_artist_anchor = True
+
+    def handle_endtag(self, tag):
+        if tag == "tr":
+            if self._current is not None and not self._skip_current:
+                self.rows.append(self._current)
+            self._current = None
+            self._skip_current = False
+            self._in_artistry_td = False
+            self._in_time_td = False
+            self._in_song_anchor = False
+            self._in_artist_anchor = False
+        elif tag == "td":
+            self._in_artistry_td = False
+            self._in_time_td = False
+        elif tag == "a":
+            self._in_song_anchor = False
+            self._in_artist_anchor = False
+
+    def handle_data(self, data):
+        if not self._current or self._skip_current:
+            return
+        txt = data.strip()
+        if not txt:
+            return
+        if self._in_artist_anchor and self._in_artistry_td:
+            self._current["artist"] = txt
+        elif self._in_song_anchor:
+            self._current["title"] = txt
+        elif self._in_time_td:
+            self._current["duration"] = txt
+
+
+def _parse_adds_html(html_str: str) -> list:
+    """Parse `adds` event HTML and return a list of upcoming queue row dicts.
+
+    Each dict has keys: entryid (int), songid (int|None), artist (str),
+    title (str), duration (str).
+
+    Pitfall 6 / T-60-10-04: defensive — bad HTML returns empty list, never raises.
+    Reference: 60-DIAGNOSIS-playlist-enumeration.md §5a.
+    """
+    parser = _QueueRowParser()
+    try:
+        parser.feed(html_str or "")
+        parser.close()
+    except Exception:
+        return []  # Pitfall 6: bad HTML → empty, never raises
+    return parser.rows
 
 
 _PAGE_OF_RE = re.compile(r"page\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
