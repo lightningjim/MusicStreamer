@@ -1501,3 +1501,99 @@ def test_gbs_vote_emits_toast_when_cookies_disappear_mid_click(qtbot, tmp_path, 
     assert "session expired" in blocker.args[0].lower(), (
         f"Expected 'session expired' in toast text, got: {blocker.args[0]!r}"
     )
+
+
+# ---------- Plan 60-10: queue enumeration renderer tests (T8) ----------
+
+def test_gbs_playlist_renders_enumerated_queue(qtbot, tmp_path, monkeypatch):
+    """60-10 / T8 (RED): _on_gbs_playlist_ready must render one row per queue_rows entry.
+
+    Passes a state dict with 3 queue_rows entries and asserts the widget count
+    and D-10b row format ('{n}. {artist} - {title} [{duration}]').
+
+    Currently FAILS: renderer reads queue_summary (ignored here), never queue_rows.
+    Fix (Task 3): add queue_rows loop in _on_gbs_playlist_ready + _GBS_QUEUE_MAX_ROWS cap.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# Netscape HTTP Cookie File\n")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 1
+    state = {
+        "now_playing_entryid": 99,
+        "now_playing_songid": None,
+        "icy_title": "Now Playing - Artist",
+        "score": "5 (3 votes)",
+        "user_vote": 0,
+        "queue_rows": [
+            {"entryid": 100, "songid": 1, "artist": "A1", "title": "T1", "duration": "3:00"},
+            {"entryid": 101, "songid": 2, "artist": "A2", "title": "T2", "duration": "4:00"},
+            {"entryid": 102, "songid": 3, "artist": "A3", "title": "T3", "duration": "2:30"},
+        ],
+        "queue_html_snippets": [],
+        "removed_ids": [],
+    }
+    panel._on_gbs_playlist_ready(1, state)
+    count = panel._gbs_playlist_widget.count()
+    assert count == 5, (
+        f"Expected 5 items (1 now-playing + 3 queue + 1 score); got {count}"
+    )
+    # D-10b format: '{n}. {artist} - {title} [{duration}]'
+    assert panel._gbs_playlist_widget.item(1).text() == "1. A1 - T1 [3:00]", (
+        f"Row 1 format incorrect: {panel._gbs_playlist_widget.item(1).text()!r}"
+    )
+    assert panel._gbs_playlist_widget.item(2).text() == "2. A2 - T2 [4:00]"
+    assert panel._gbs_playlist_widget.item(3).text() == "3. A3 - T3 [2:30]"
+
+
+def test_gbs_playlist_caps_queue_at_10(qtbot, tmp_path, monkeypatch):
+    """60-10 / T8 / D-10a (RED): _on_gbs_playlist_ready caps queue_rows at 10 entries.
+
+    Passes 15 queue_rows and asserts widget count == 12 (1 now-playing + 10 capped + 1 score).
+    The 10th item must start with '10.'.
+
+    Currently FAILS: no cap exists (the loop itself does not exist yet).
+    Fix (Task 3): add [:_GBS_QUEUE_MAX_ROWS] slice in the queue_rows loop.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# Netscape HTTP Cookie File\n")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 2
+    queue_rows = [
+        {"entryid": 1000 + i, "songid": i, "artist": f"Artist{i}", "title": f"Title{i}", "duration": "3:00"}
+        for i in range(15)
+    ]
+    state = {
+        "now_playing_entryid": 999,
+        "now_playing_songid": None,
+        "icy_title": "Now Playing - Test",
+        "score": "3 (1 vote)",
+        "user_vote": 0,
+        "queue_rows": queue_rows,
+        "queue_html_snippets": [],
+        "removed_ids": [],
+    }
+    panel._on_gbs_playlist_ready(2, state)
+    count = panel._gbs_playlist_widget.count()
+    assert count == 12, (
+        f"Expected 12 items (1 now-playing + 10 capped + 1 score); got {count}"
+    )
+    # The 10th queue item (index 10) must start with '10.'
+    assert panel._gbs_playlist_widget.item(10).text().startswith("10."), (
+        f"item(10) should start with '10.'; got: {panel._gbs_playlist_widget.item(10).text()!r}"
+    )

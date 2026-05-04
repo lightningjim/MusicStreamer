@@ -452,3 +452,90 @@ def test_import_fresh_insert_returns_one_zero(fake_repo):
     with patch("musicstreamer.gbs_api._download_logo", return_value=None):
         inserted, updated = import_station(fake_repo)
     assert (inserted, updated) == (1, 0)
+
+
+# ---------- Plan 60-10: queue enumeration parser tests (T8) ----------
+
+def test_fetch_playlist_enumerates_queue(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """60-10 / T8 (RED): fetch_active_playlist must return queue_rows as a list[dict].
+
+    Uses the canonical ajax_cold_start.json fixture which has one 'adds' event
+    containing 4 <tr> rows: one with class='playing' (entryid 1810809) and three
+    upcoming rows (no-play/no-history class: 1810810, 1810811, 1810812).
+
+    Currently FAILS: _fold_ajax_events does not populate state['queue_rows'].
+    Fix (Task 2): add _QueueRowParser + state['queue_rows'] = [] + extend on 'adds'.
+    """
+    payload = (gbs_fixtures_dir / "ajax_cold_start.json").read_bytes()
+    monkeypatch.setattr(
+        gbs_api, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload),
+    )
+    state = fetch_active_playlist(fake_cookies_jar)
+    # queue_rows must exist and be a non-empty list
+    assert "queue_rows" in state, "state must have 'queue_rows' key (missing — T8 parser not implemented)"
+    rows = state["queue_rows"]
+    assert isinstance(rows, list) and len(rows) >= 1, (
+        f"queue_rows must be a non-empty list; got: {rows!r}"
+    )
+    # Each row must have all required keys
+    required_keys = {"entryid", "songid", "artist", "title", "duration"}
+    for row in rows:
+        missing = required_keys - set(row.keys())
+        assert not missing, f"row {row!r} missing keys: {missing}"
+    # No upcoming row should be the now-playing row (class='playing')
+    # The now-playing entryid from the fixture is 1810809 (only row with class='playing').
+    now_playing_entryid = state.get("now_playing_entryid")
+    if now_playing_entryid is not None:
+        queue_entryids = [r["entryid"] for r in rows]
+        assert now_playing_entryid not in queue_entryids, (
+            f"now-playing entryid {now_playing_entryid} must NOT appear in queue_rows; "
+            f"got: {queue_entryids}"
+        )
+
+
+def test_queue_parser_skips_playing_and_history(monkeypatch):
+    """60-10 / T8 (RED): _parse_adds_html must skip class='playing'/'history' rows.
+
+    Constructs a minimal HTML snippet with 4 <tr> rows:
+      - class='playing' (should be skipped)
+      - class='history' (should be skipped)
+      - class='odd' (should be included)
+      - no class (should be included)
+
+    Currently FAILS: _parse_adds_html does not exist yet.
+    Fix (Task 2): add _QueueRowParser + _parse_adds_html helper in gbs_api.py.
+    """
+    from musicstreamer.gbs_api import _parse_adds_html
+    html = """
+    <tr id="100" class="playing odd">
+        <td class="artistry"><a href='/artist/1'>PlayingArtist</a></td>
+        <td><a href='/song/101'>PlayingTitle</a></td>
+        <td class="time">3:00</td>
+    </tr>
+    <tr id="200" class="history even">
+        <td class="artistry"><a href='/artist/2'>HistoryArtist</a></td>
+        <td><a href='/song/201'>HistoryTitle</a></td>
+        <td class="time">4:30</td>
+    </tr>
+    <tr id="300" class="odd">
+        <td class="artistry"><a href='/artist/3'>OddArtist</a></td>
+        <td><a href='/song/301'>OddTitle</a></td>
+        <td class="time">2:15</td>
+    </tr>
+    <tr id="400">
+        <td class="artistry"><a href='/artist/4'>NoClassArtist</a></td>
+        <td><a href='/song/401'>NoClassTitle</a></td>
+        <td class="time">5:10</td>
+    </tr>
+    """
+    rows = _parse_adds_html(html)
+    assert len(rows) == 2, f"Expected 2 upcoming rows (odd + no-class); got {len(rows)}: {rows!r}"
+    entryids = [r["entryid"] for r in rows]
+    assert 300 in entryids, "odd-class row (id=300) must be included"
+    assert 400 in entryids, "no-class row (id=400) must be included"
+    assert 100 not in entryids, "playing row (id=100) must be skipped"
+    assert 200 not in entryids, "history row (id=200) must be skipped"
+    # Each row has all required keys
+    for row in rows:
+        assert set(row.keys()) >= {"entryid", "songid", "artist", "title", "duration"}
