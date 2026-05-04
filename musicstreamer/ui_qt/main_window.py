@@ -171,6 +171,10 @@ class MainWindow(QMainWindow):
         act_gbs_add = self._menu.addAction("Add GBS.FM")
         act_gbs_add.triggered.connect(self._on_gbs_add_clicked)  # QA-05 bound method
 
+        # Phase 60 D-08a / GBS-01e: search-and-submit dialog
+        act_gbs_search = self._menu.addAction("Search GBS.FM…")  # U+2026 ellipsis
+        act_gbs_search.triggered.connect(self._open_gbs_search_dialog)  # QA-05
+
         self._menu.addSeparator()
 
         # Group 2: Settings dialogs (D-16, D-17, D-18)
@@ -771,3 +775,15 @@ class MainWindow(QMainWindow):
             truncated = (msg[:80] + "…") if len(msg) > 80 else msg
             self.show_toast(f"GBS.FM import failed: {truncated}")
         self._gbs_import_worker = None
+
+    def _open_gbs_search_dialog(self) -> None:
+        """Phase 60 D-08 / GBS-01e: open the search-and-submit dialog.
+
+        Mirrors _open_discovery_dialog at line 704 (drops the player arg per
+        CONTEXT.md "Phase 60's search dialog does NOT need preview play").
+        submission_completed is not connected here — submitting a song does not
+        touch the local library, so no station-list refresh is needed.
+        """
+        from musicstreamer.ui_qt.gbs_search_dialog import GBSSearchDialog
+        dlg = GBSSearchDialog(self._repo, self.show_toast, parent=self)
+        dlg.exec()
