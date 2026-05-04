@@ -493,12 +493,96 @@ def _parse_adds_html(html_str: str) -> list:
     return parser.rows
 
 
+class _ArtistAlbumParser(HTMLParser):
+    """Extract `<p class="artists">` blocks above the songs table.
+
+    gbs.fm reuses class="artists" for BOTH the Artist and Album blocks
+    (diagnosis §2a). The block's category is determined by the leading
+    text node — "Artists:" vs "Albums:".
+
+    Each block contains <li><a href="/artist/N">name</a></li> entries
+    (or /album/N for the album block).
+
+    Mitigates T-60-11-01 (HTML injection): stores plain str from handle_data;
+    URL stored separately in dict, not rendered. T-60-11-02 (off-host hrefs):
+    hrefs are stored as-is; click handler (Shape 4) uses item.text() not href.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.artist_links: list = []
+        self.album_links: list = []
+        self._in_artists_p: bool = False
+        self._current_block: Optional[str] = None  # "artists" | "albums" | None
+        self._pending_anchor_url: Optional[str] = None
+        self._collect_anchor_text: bool = False
+
+    def handle_starttag(self, tag, attrs):
+        ad = dict(attrs)
+        if tag == "p" and "artists" in (ad.get("class") or ""):
+            self._in_artists_p = True
+            self._current_block = None  # decided by next non-empty data node
+        elif self._in_artists_p and tag == "a":
+            self._pending_anchor_url = ad.get("href") or ""
+            self._collect_anchor_text = True
+
+    def handle_endtag(self, tag):
+        if tag == "p" and self._in_artists_p:
+            self._in_artists_p = False
+            self._current_block = None
+        elif tag == "a":
+            self._collect_anchor_text = False
+            self._pending_anchor_url = None
+
+    def handle_data(self, data):
+        if not self._in_artists_p:
+            return
+        txt = data.strip()
+        if not txt:
+            return
+        # First non-empty data node decides the block category.
+        if self._current_block is None:
+            lower = txt.lower()
+            if lower.startswith("artists"):
+                self._current_block = "artists"
+            elif lower.startswith("albums"):
+                self._current_block = "albums"
+            return
+        # Inside an anchor: collect the text + href pair.
+        if self._collect_anchor_text and self._pending_anchor_url is not None:
+            target = (self.artist_links if self._current_block == "artists"
+                      else self.album_links)
+            target.append({"text": txt, "url": self._pending_anchor_url})
+            self._collect_anchor_text = False  # one text node per anchor
+
+
+def _parse_artist_album_html(html_str: str) -> tuple:
+    """Parse search HTML and return (artist_links, album_links) lists.
+
+    Each list contains dicts with keys: text (str), url (str).
+    Returns ([], []) on parse error or no matches.
+
+    Defensive: never raises — Pitfall 6 applies here too.
+    """
+    parser = _ArtistAlbumParser()
+    try:
+        parser.feed(html_str or "")
+        parser.close()
+    except Exception:
+        return ([], [])
+    return (parser.artist_links, parser.album_links)
+
+
 _PAGE_OF_RE = re.compile(r"page\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
 
 
 def search(query: str, page: int,
           cookies: http.cookiejar.MozillaCookieJar) -> dict:
-    """GET /search?query=&page=. Returns {results, page, total_pages}."""
+    """GET /search?query=&page=. Returns {results, page, total_pages, artist_links, album_links}.
+
+    60-11 / T12: artist_links and album_links are new keys ([] on page 2+ or no matches).
+    Backward-compatible: existing callers that only read results/page/total_pages are unaffected.
+    """
     args = {"query": query, "page": int(page)}
     url = f"{GBS_BASE}/search?{urllib.parse.urlencode(args)}"
     try:
@@ -509,13 +593,18 @@ def search(query: str, page: int,
             raise GbsAuthExpiredError(f"Session expired (search 302→login)") from e
         raise
 
+    # 60-11 / T12: parse artist/album blocks BEFORE song rows (same HTML, different parser).
+    # _parse_artist_album_html is defensive — returns ([], []) on any parse error.
+    artist_links, album_links = _parse_artist_album_html(html)
+
     parser = _SongRowParser()
     try:
         parser.feed(html)
     except Exception as exc:
         # Pitfall 6: parse failure → empty results, log and move on
         _log.warning("search HTML parse failed for query=%r page=%s: %s", query, page, exc)
-        return {"results": [], "page": int(page), "total_pages": int(page)}
+        return {"results": [], "page": int(page), "total_pages": int(page),
+                "artist_links": artist_links, "album_links": album_links}
 
     total_pages = int(page)
     m = _PAGE_OF_RE.search(html)
@@ -524,7 +613,13 @@ def search(query: str, page: int,
             total_pages = int(m.group(2))
         except ValueError:
             total_pages = int(page)
-    return {"results": parser.results, "page": int(page), "total_pages": total_pages}
+    return {
+        "results": parser.results,
+        "page": int(page),
+        "total_pages": total_pages,
+        "artist_links": artist_links,   # 60-11 / T12: [] on page 2+ or no matches
+        "album_links": album_links,     # 60-11 / T12: [] on page 2+ or no matches
+    }
 
 
 # ---------- Capability 6: Submit ----------

@@ -262,3 +262,137 @@ def test_gbs_submit_in_flight_isolated_across_searches(dialog_logged_in):
         "Stale callback should not relabel row 0 in results-set-B"
     assert dlg._submit_buttons[0].isEnabled() is True, \
         "Stale callback should not disable row 0 in results-set-B"
+
+
+# ---------- Plan 60-11 / T12: Artist:/Album: panel tests (RED) ----------
+
+def test_artist_panel_shown_when_links_present(dialog_logged_in):
+    """60-11 / T12 (RED): emitting metadata_ready with non-empty artist list shows the panel.
+
+    D-11c LOCKED: panel is hidden when empty, shown when non-empty.
+    D-11b LOCKED: max-height 80px.
+
+    Currently FAILS: _artist_list does not exist; metadata_ready signal does not exist.
+    Fix (Task 3): add _artist_list QListWidget + _on_metadata_ready slot.
+    """
+    dlg, _ = dialog_logged_in
+    artist_links = [{"text": "Testament", "url": "/artist/4803"}]
+    album_links = []
+    # Call the slot directly (signal not yet wired in RED phase — testing slot behavior)
+    dlg._on_metadata_ready(artist_links, album_links)
+    # Artist panel must be visible and populated
+    assert not dlg._artist_list.isHidden(), (
+        "_artist_list must be visible when artist_links is non-empty (D-11c)"
+    )
+    assert dlg._artist_list.count() == 1, (
+        f"_artist_list must have 1 item; got {dlg._artist_list.count()}"
+    )
+    assert dlg._artist_list.item(0).text() == "Testament", (
+        f"First item text must be 'Testament'; got {dlg._artist_list.item(0).text()!r}"
+    )
+    # Album panel must be hidden (empty album_links — D-11c)
+    assert dlg._album_list.isHidden(), (
+        "_album_list must be hidden when album_links is empty (D-11c)"
+    )
+
+
+def test_artist_panel_hidden_when_no_links(dialog_logged_in):
+    """60-11 / T12 (RED): emitting metadata_ready with empty lists hides both panels.
+
+    D-11c LOCKED: panels hidden when their corresponding list is empty.
+
+    Currently FAILS: _artist_list / _album_list do not exist.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([], [])
+    assert dlg._artist_list.isHidden(), (
+        "_artist_list must be hidden when artist_links is [] (D-11c)"
+    )
+    assert dlg._album_list.isHidden(), (
+        "_album_list must be hidden when album_links is [] (D-11c)"
+    )
+
+
+# ---------- Plan 60-11 / T12: Shape 4 click integration tests ----------
+
+def test_artist_click_kicks_free_text_search(dialog_logged_in, monkeypatch):
+    """60-11 / T12 — D-11a Shape 4: clicking an artist entry re-searches by artist name.
+
+    Shape 4 (both Option A): /artist/<id> has no parseable song table, so
+    clicking navigates by setting the search input to the artist text and calling
+    _start_search. This test patches _start_search to spy without real HTTP.
+
+    Verifies:
+    (a) dialog._search_edit.text() == "Testament" after click
+    (b) _start_search was called once
+    """
+    dlg, _ = dialog_logged_in
+    # Populate the artist panel via _on_metadata_ready
+    artist_links = [{"text": "Testament", "url": "/artist/4803"}]
+    dlg._on_metadata_ready(artist_links, [])
+    assert not dlg._artist_list.isHidden(), "Setup: _artist_list should be visible"
+    assert dlg._artist_list.count() == 1, "Setup: _artist_list should have 1 item"
+
+    # Spy on _start_search via monkeypatch
+    start_search_calls = []
+    original_start_search = dlg._start_search
+
+    def _spy_start_search():
+        start_search_calls.append(1)
+        # Don't actually call through (would need cookies + worker)
+
+    monkeypatch.setattr(dlg, "_start_search", _spy_start_search)
+
+    # Simulate activating the first item (as if user double-clicked or pressed Enter)
+    item = dlg._artist_list.item(0)
+    dlg._artist_list.itemActivated.emit(item)
+
+    # (a) Search text must now be the artist name
+    assert dlg._search_edit.text() == "Testament", (
+        f"_search_edit.text() must be 'Testament' after artist click; got {dlg._search_edit.text()!r}"
+    )
+    # (b) _start_search must have been called once
+    assert len(start_search_calls) == 1, (
+        f"_start_search must be called once after artist click; called {len(start_search_calls)} times"
+    )
+
+
+def test_album_click_kicks_free_text_search(dialog_logged_in, monkeypatch):
+    """60-11 / T12 — D-11a Shape 4: clicking an album entry re-searches by album name.
+
+    Shape 4 (both Option A): /album/<id> has no parseable song table, so
+    clicking navigates by setting the search input to the album text and calling
+    _start_search.
+
+    Verifies:
+    (a) dialog._search_edit.text() == "#gbs-fm's greatest shits" after click
+    (b) _start_search was called once
+    """
+    dlg, _ = dialog_logged_in
+    # Populate the album panel via _on_metadata_ready
+    album_links = [{"text": "#gbs-fm's greatest shits", "url": "/album/1488"}]
+    dlg._on_metadata_ready([], album_links)
+    assert not dlg._album_list.isHidden(), "Setup: _album_list should be visible"
+    assert dlg._album_list.count() == 1, "Setup: _album_list should have 1 item"
+
+    # Spy on _start_search via monkeypatch
+    start_search_calls = []
+
+    def _spy_start_search():
+        start_search_calls.append(1)
+
+    monkeypatch.setattr(dlg, "_start_search", _spy_start_search)
+
+    # Simulate activating the first item
+    item = dlg._album_list.item(0)
+    dlg._album_list.itemActivated.emit(item)
+
+    # (a) Search text must now be the album name
+    assert dlg._search_edit.text() == "#gbs-fm's greatest shits", (
+        f"_search_edit.text() must be '#gbs-fm\\'s greatest shits' after album click; "
+        f"got {dlg._search_edit.text()!r}"
+    )
+    # (b) _start_search must have been called once
+    assert len(start_search_calls) == 1, (
+        f"_start_search must be called once after album click; called {len(start_search_calls)} times"
+    )
