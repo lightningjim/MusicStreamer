@@ -101,6 +101,19 @@ class AccountsDialog(QDialog):
         self._youtube_action_btn.clicked.connect(self._on_youtube_action_clicked)  # QA-05
         youtube_layout.addWidget(self._youtube_action_btn)
 
+        # === Phase 60 D-04c: GBS.FM group (between YouTube and Twitch) ===
+        self._gbs_box = QGroupBox("GBS.FM", self)
+        gbs_layout = QVBoxLayout(self._gbs_box)
+
+        self._gbs_status_label = QLabel(self)
+        self._gbs_status_label.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04
+        self._gbs_status_label.setFont(status_font)
+        gbs_layout.addWidget(self._gbs_status_label)
+
+        self._gbs_action_btn = QPushButton(self)
+        self._gbs_action_btn.clicked.connect(self._on_gbs_action_clicked)  # QA-05
+        gbs_layout.addWidget(self._gbs_action_btn)
+
         # Twitch group box (existing — unchanged shape; status_font now shared)
         twitch_box = QGroupBox("Twitch", self)
         twitch_layout = QVBoxLayout(twitch_box)
@@ -135,6 +148,7 @@ class AccountsDialog(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(8)
         layout.addWidget(self._youtube_box)
+        layout.addWidget(self._gbs_box)         # Phase 60 D-04c
         layout.addWidget(twitch_box)
         layout.addWidget(aa_box)
         layout.addWidget(btn_box)
@@ -156,6 +170,10 @@ class AccountsDialog(QDialog):
         """Phase 48 D-07: True when ``audioaddict_listen_key`` is non-empty."""
         return bool(self._repo.get_setting("audioaddict_listen_key", ""))
 
+    def _is_gbs_connected(self) -> bool:
+        """Phase 60 D-04 ladder #3: True when paths.gbs_cookies_path() exists on disk."""
+        return os.path.exists(paths.gbs_cookies_path())
+
     def _update_status(self) -> None:
         # Phase 53 D-02 / D-07 / D-08: YouTube status (top of method to mirror D-09 order).
         if self._is_youtube_connected():
@@ -164,6 +182,14 @@ class AccountsDialog(QDialog):
         else:
             self._youtube_status_label.setText("Not connected")
             self._youtube_action_btn.setText("Import YouTube Cookies...")
+
+        # Phase 60 D-04c: GBS.FM status (mirror YouTube block)
+        if self._is_gbs_connected():
+            self._gbs_status_label.setText("Connected")
+            self._gbs_action_btn.setText("Disconnect")
+        else:
+            self._gbs_status_label.setText("Not connected")
+            self._gbs_action_btn.setText("Import GBS.FM Cookies...")
 
         if self._oauth_proc is not None:
             self._status_label.setText("Connecting...")
@@ -267,6 +293,40 @@ class AccountsDialog(QDialog):
             dlg = CookieImportDialog(self._toast_callback, parent=self)
             dlg.exec()
             # D-discretion: call _update_status unconditionally — idempotent.
+            self._update_status()
+
+    def _on_gbs_action_clicked(self) -> None:
+        """Phase 60 D-04c: Connect (open parameterized CookieImportDialog) or Disconnect."""
+        if self._is_gbs_connected():
+            answer = QMessageBox.question(
+                self, "Disconnect GBS.FM?",
+                "This will delete your saved GBS.FM cookies. "
+                "You will need to import them again to vote, view the active "
+                "playlist, or submit songs.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                try:
+                    os.remove(paths.gbs_cookies_path())
+                except OSError:
+                    # HIGH 2 fix: tolerate broader OSError tree
+                    # (FileNotFoundError, PermissionError, IsADirectoryError, ...).
+                    # Status update fires regardless so UI stays consistent.
+                    pass
+                self._update_status()
+        else:
+            from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+            from musicstreamer import gbs_api
+            dlg = CookieImportDialog(
+                self._toast_callback,
+                parent=self,
+                target_label="GBS.FM",
+                cookies_path=paths.gbs_cookies_path,
+                validator=gbs_api._validate_gbs_cookies,
+                oauth_mode=None,   # Phase 60 v1: file + paste tabs only (RESEARCH Q3)
+            )
+            dlg.exec()
             self._update_status()
 
     def _launch_oauth_subprocess(self) -> None:

@@ -863,7 +863,7 @@ class TestAccountsDialogYouTube:
         assert fake_repo.get_setting("audioaddict_listen_key", "") == "dummykey"  # D-04: untouched
 
     def test_group_order(self, tmp_data_dir, qtbot, fake_repo):
-        """D-09: Group order in layout is YouTube → Twitch → AudioAddict."""
+        """D-09 / D-04c: Group order in layout is YouTube → GBS.FM → Twitch → AudioAddict."""
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         dlg = AccountsDialog(fake_repo)
         qtbot.addWidget(dlg)
@@ -873,7 +873,7 @@ class TestAccountsDialogYouTube:
             w = layout.itemAt(i).widget()
             if isinstance(w, QGroupBox):
                 groupboxes.append(w.title())
-        assert groupboxes == ["YouTube", "Twitch", "AudioAddict"]
+        assert groupboxes == ["YouTube", "GBS.FM", "Twitch", "AudioAddict"]
 
     def test_status_label_plain_text(self, tmp_data_dir, qtbot, fake_repo):
         """T-40-04: YouTube status label uses Qt.TextFormat.PlainText."""
