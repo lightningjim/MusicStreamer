@@ -51,6 +51,15 @@ def twitch_token_path() -> str:
     return os.path.join(_root(), "twitch-token.txt")
 
 
+def gbs_cookies_path() -> str:
+    """Phase 60 D-04 (ladder #3 LOCKED): GBS.FM session cookies file.
+
+    Mirrors the YouTube cookies path shape. Pure — does not create the
+    directory. Caller writes with 0o600 perms (Phase 999.7 convention).
+    """
+    return os.path.join(_root(), "gbs-cookies.txt")
+
+
 def oauth_log_path() -> str:
     """Phase 999.3 D-10: path to the persistent OAuth diagnostic log."""
     return os.path.join(_root(), "oauth.log")

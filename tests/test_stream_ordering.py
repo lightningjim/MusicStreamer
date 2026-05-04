@@ -142,3 +142,34 @@ def test_does_not_mutate_input():
     _ = order_streams(streams)
     assert streams == original_order  # list not reordered
     assert streams is not original_order  # sanity: different objects, same values
+
+
+# Phase 60 / GBS-01f: regression — FLAC bitrate sentinel sorts FIRST among GBS quality tiers.
+def test_gbs_flac_ordering():
+    """RESEARCH §Open Question Q1: bitrate_kbps=1411 for FLAC interacts with
+    Phase 47.1 D-09 partition logic so FLAC sorts above all MP3 tiers.
+
+    With codec_rank(FLAC)=3 > codec_rank(MP3)=1, FLAC wins regardless of
+    bitrate_kbps as long as bitrate_kbps > 0 (otherwise FLAC would be
+    partitioned LAST as 'unknown bitrate').
+    """
+    from musicstreamer.gbs_api import _GBS_QUALITY_TIERS
+    streams = []
+    for i, t in enumerate(_GBS_QUALITY_TIERS, start=1):
+        streams.append(StationStream(
+            id=i, station_id=1, url=t["url"], label="",
+            quality=t["quality"], position=t["position"],
+            stream_type="shoutcast", codec=t["codec"],
+            bitrate_kbps=t["bitrate_kbps"],
+        ))
+    ordered = order_streams(streams)
+    # FLAC must be first
+    assert ordered[0].codec == "FLAC", f"FLAC should sort first; got {ordered[0].codec}"
+    assert ordered[0].bitrate_kbps == 1411
+    # All FLAC tiers come before all MP3 tiers
+    flac_indices = [i for i, s in enumerate(ordered) if s.codec == "FLAC"]
+    mp3_indices = [i for i, s in enumerate(ordered) if s.codec == "MP3"]
+    assert max(flac_indices) < min(mp3_indices)
+    # Among MP3 tiers, highest bitrate wins
+    mp3_streams = [s for s in ordered if s.codec == "MP3"]
+    assert mp3_streams[0].bitrate_kbps == 320
