@@ -1148,3 +1148,236 @@ def test_gbs_playlist_resets_position_on_track_change(qtbot, tmp_path, monkeypat
         "song_position": 42,
     })
     assert panel._gbs_poll_cursor.get("position") == 42
+
+
+# ===========================================================================
+# Phase 60 / GBS-01d: vote control on NowPlayingPanel
+# ===========================================================================
+
+
+def _make_state(entryid: int = 1810736, user_vote: int = 0,
+               icy_title: str = "Test Artist - Test Title"):
+    """Folded /ajax state shape from gbs_api.fetch_active_playlist."""
+    return {
+        "now_playing_entryid": entryid,
+        "now_playing_songid": 1,
+        "icy_title": icy_title,
+        "user_vote": user_vote,
+        "score": "5.0 (1 vote)" if user_vote == 0 else f"{user_vote}.0 (1 vote)",
+        "queue_html_snippets": [],
+        "removed_ids": [],
+    }
+
+
+def test_gbs_vote_buttons_hidden_for_non_gbs(qtbot, tmp_path, monkeypatch):
+    """D-07: non-GBS station bound -> all 5 buttons invisible."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel.bind_station(_make_gbs_station(provider_name="DI.fm"))
+    for btn in panel._gbs_vote_buttons:
+        assert btn.isVisible() is False
+
+
+def test_gbs_vote_buttons_hidden_when_logged_out(qtbot, tmp_path, monkeypatch):
+    """D-07 / D-04 ladder #3: GBS station, no cookies file -> buttons invisible."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel.bind_station(_make_gbs_station())  # GBS but no cookies file
+    for btn in panel._gbs_vote_buttons:
+        assert btn.isVisible() is False
+
+
+def test_gbs_vote_buttons_visible_when_gbs_and_logged_in(qtbot, tmp_path, monkeypatch):
+    """D-07: GBS + cookies -> buttons visible, count == 5."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    for btn in panel._gbs_vote_buttons:
+        assert not btn.isHidden()
+    assert len(panel._gbs_vote_buttons) == 5
+
+
+def test_gbs_vote_optimistic_success(qtbot, tmp_path, monkeypatch):
+    """Pitfall 2: server-returned user_vote is the FINAL highlighted state."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsVoteWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    # Stamp entryid via the playlist-ready hook (Pitfall 1)
+    panel._gbs_poll_token = 1
+    panel._on_gbs_playlist_ready(1, _make_state(entryid=999, user_vote=0))
+    assert panel._gbs_current_entryid == 999
+    # Simulate a click on button 3 (index 2)
+    btn3 = panel._gbs_vote_buttons[2]  # vote_value=3
+    btn3.click()
+    # Optimistic: button 3 highlighted
+    assert btn3.isChecked() is True
+    assert panel._current_highlighted_vote() == 3
+    # Worker emits server-confirmed user_vote=3
+    panel._on_gbs_vote_finished(panel._gbs_vote_token, 3, 0, "4.0 (2 votes)")
+    assert panel._current_highlighted_vote() == 3
+
+
+def test_gbs_vote_optimistic_rollback_on_error(qtbot, tmp_path, monkeypatch):
+    """Worker error -> button reverts to prior_vote, toast emitted."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsVoteWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 1
+    panel._on_gbs_playlist_ready(1, _make_state(entryid=999, user_vote=0))
+    captured_toasts = []
+    panel.gbs_vote_error_toast.connect(captured_toasts.append)
+    panel._gbs_vote_buttons[2].click()  # click button 3
+    panel._on_gbs_vote_error(panel._gbs_vote_token, 0, "Connection refused")
+    # Highlight reverts to prior_vote=0 (no button highlighted)
+    assert panel._current_highlighted_vote() == 0
+    assert any("Vote failed" in t and "Connection refused" in t for t in captured_toasts)
+
+
+def test_gbs_vote_optimistic_rollback_on_auth_expired(qtbot, tmp_path, monkeypatch):
+    """auth_expired path -> 'session expired' toast + rollback."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsVoteWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 1
+    panel._on_gbs_playlist_ready(1, _make_state(entryid=999, user_vote=0))
+    captured_toasts = []
+    panel.gbs_vote_error_toast.connect(captured_toasts.append)
+    panel._gbs_vote_buttons[2].click()
+    panel._on_gbs_vote_error(panel._gbs_vote_token, 0, "auth_expired")
+    assert panel._current_highlighted_vote() == 0
+    assert any("session expired" in t.lower() and "Accounts" in t for t in captured_toasts)
+
+
+def test_gbs_vote_entryid_only_from_ajax(qtbot, tmp_path, monkeypatch):
+    """Pitfall 1: ICY title change does NOT update _gbs_current_entryid."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    assert panel._gbs_current_entryid is None
+    # Simulate ICY title change (on_title_changed should NOT update entryid)
+    if hasattr(panel, "on_title_changed"):
+        panel.on_title_changed("New Track - New Title")
+    # _gbs_current_entryid still None
+    assert panel._gbs_current_entryid is None
+    # Now simulate /ajax response — this is the ONLY way entryid gets set
+    panel._gbs_poll_token = 1
+    panel._on_gbs_playlist_ready(1, _make_state(entryid=12345))
+    assert panel._gbs_current_entryid == 12345
+
+
+def test_gbs_vote_clicking_same_value_clears(qtbot, tmp_path, monkeypatch):
+    """RESEARCH §Capability 4: re-clicking the same vote value submits vote=0 (clear)."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    captured_worker_args = {}
+
+    # Use a plain object (not MagicMock subclass) so __init__ kwargs are
+    # captured reliably without MagicMock intercepting the call protocol.
+    class FakeVoteWorker:
+        def __init__(self, *args, **kwargs):
+            captured_worker_args["kwargs"] = kwargs
+
+        def start(self):
+            pass
+
+        def vote_finished(self, *args):
+            pass
+
+        def vote_error(self, *args):
+            pass
+
+        def connect(self, *args):
+            pass
+
+    # Patch the signals too since connect() is called on them
+    import musicstreamer.ui_qt.now_playing_panel as _npp_mod
+    original_worker = _npp_mod._GbsVoteWorker
+
+    class _CapturingWorker:
+        """Captures kwargs and provides no-op signal stubs."""
+        def __init__(self, *args, **kwargs):
+            captured_worker_args["kwargs"] = kwargs
+            self._token = kwargs.get("token", 0)
+
+        def start(self):
+            pass
+
+        class _Sig:
+            def connect(self, *a): pass
+
+        vote_finished = _Sig()
+        vote_error = _Sig()
+
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsVoteWorker", _CapturingWorker)
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 1
+    # Pre-set highlight to 3 via server-confirmed vote
+    panel._on_gbs_playlist_ready(1, _make_state(entryid=999, user_vote=3))
+    assert panel._current_highlighted_vote() == 3
+    # Click button '3' again -> should submit vote=0 (clear)
+    panel._gbs_vote_buttons[2].click()
+    assert captured_worker_args["kwargs"]["vote_value"] == 0
+
+
+def test_gbs_vote_stale_token_discarded(qtbot, tmp_path, monkeypatch):
+    """Stale vote_finished from a stale token must NOT mutate the highlight."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel._gbs_vote_token = 10
+    panel._apply_vote_highlight(2)  # Set baseline highlight
+    panel._on_gbs_vote_finished(3, 5, 0, "5.0 (1 vote)")  # stale token=3
+    assert panel._current_highlighted_vote() == 2
+
+
+def test_gbs_vote_no_entryid_ignores_click(qtbot, tmp_path, monkeypatch):
+    """No entryid stamped -> click is a no-op (no worker spawned)."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    assert panel._gbs_current_entryid is None
+    started = []
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsVoteWorker.start",
+                        lambda self: started.append(True))
+    panel._gbs_vote_buttons[2].click()
+    assert started == []

@@ -288,6 +288,8 @@ class MainWindow(QMainWindow):
         self.now_playing.edit_requested.connect(self._on_edit_requested)
         # Phase 64 / D-02a: 'Also on:' sibling click → switch playback (bound-method per QA-05).
         self.now_playing.sibling_activated.connect(self._on_sibling_activated)
+        # Phase 60 D-07a: forward vote-error toasts from NowPlayingPanel to show_toast (QA-05).
+        self.now_playing.gbs_vote_error_toast.connect(self.show_toast)
         # Right-click edit from station list
         self.station_panel.edit_requested.connect(self._on_edit_requested)
         # Phase 999.1 D-02: "+" button in panel header shares MainWindow slot
