@@ -97,6 +97,35 @@ class _ImportPreviewWorker(QThread):
             self.error.emit(str(exc))
 
 
+class _GbsImportWorker(QThread):
+    """Phase 60 D-02 / GBS-01a: kick gbs_api.import_station() off the UI thread.
+
+    Mirrors _ExportWorker shape (main_window.py:64-79). Pitfall 3 — emits the
+    sentinel string ``"auth_expired"`` via the error signal when the gbs_api
+    raises GbsAuthExpiredError so the UI surfaces a re-auth prompt instead
+    of the raw exception text.
+    """
+    finished = Signal(int, int)   # (inserted, updated) per import_station signature
+    error = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def run(self):
+        try:
+            from musicstreamer.repo import Repo
+            from musicstreamer import gbs_api
+            repo = Repo(db_connect())
+            inserted, updated = gbs_api.import_station(repo)
+            self.finished.emit(int(inserted), int(updated))
+        except Exception as exc:
+            from musicstreamer import gbs_api
+            if isinstance(exc, gbs_api.GbsAuthExpiredError):
+                self.error.emit("auth_expired")
+            else:
+                self.error.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     """Main application window — station list + now-playing + toast overlay."""
 
@@ -137,6 +166,10 @@ class MainWindow(QMainWindow):
 
         act_import = self._menu.addAction("Import Stations")
         act_import.triggered.connect(self._open_import_dialog)
+
+        # Phase 60 D-02 / GBS-01a: idempotent multi-quality GBS.FM import
+        act_gbs_add = self._menu.addAction("Add GBS.FM")
+        act_gbs_add.triggered.connect(self._on_gbs_add_clicked)  # QA-05 bound method
 
         self._menu.addSeparator()
 
@@ -216,6 +249,9 @@ class MainWindow(QMainWindow):
         # D-09/D-10: constructed AFTER centralWidget is set.
         # ------------------------------------------------------------------
         self._toast = ToastOverlay(self)
+
+        # Phase 60 D-02: GBS.FM import worker retention (SYNC-05)
+        self._gbs_import_worker = None
 
         # ------------------------------------------------------------------
         # Status bar
@@ -698,3 +734,40 @@ class MainWindow(QMainWindow):
         from musicstreamer.ui_qt.equalizer_dialog import EqualizerDialog
         dlg = EqualizerDialog(self._player, self._repo, self.show_toast, parent=self)
         dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Phase 60 D-02 / GBS-01a: GBS.FM import handlers
+    # ------------------------------------------------------------------
+
+    def _on_gbs_add_clicked(self) -> None:
+        """Phase 60 D-02 / D-02a: kick the GBS.FM import on a worker thread.
+
+        Idempotent: re-clicking refreshes streams in place. UI never blocks —
+        worker runs the urllib calls + logo download off-thread. Pitfall 3:
+        auth-expired surfaces as a re-auth toast.
+        """
+        self.show_toast("Importing GBS.FM…")
+        self._gbs_import_worker = _GbsImportWorker(parent=self)  # SYNC-05 retain
+        self._gbs_import_worker.finished.connect(self._on_gbs_import_finished)  # QA-05
+        self._gbs_import_worker.error.connect(self._on_gbs_import_error)        # QA-05
+        self._gbs_import_worker.start()
+
+    def _on_gbs_import_finished(self, inserted: int, updated: int) -> None:
+        """D-02a: distinct toast for fresh insert vs in-place refresh."""
+        if inserted:
+            self.show_toast("GBS.FM added")
+        elif updated:
+            self.show_toast("GBS.FM streams updated")
+        else:
+            self.show_toast("GBS.FM import: no changes")
+        self._refresh_station_list()
+        self._gbs_import_worker = None
+
+    def _on_gbs_import_error(self, msg: str) -> None:
+        """Pitfall 3: auth_expired sentinel → reconnect prompt; else generic."""
+        if msg == "auth_expired":
+            self.show_toast("GBS.FM session expired — reconnect via Accounts")
+        else:
+            truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+            self.show_toast(f"GBS.FM import failed: {truncated}")
+        self._gbs_import_worker = None
