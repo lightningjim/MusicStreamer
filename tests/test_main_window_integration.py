@@ -397,6 +397,7 @@ EXPECTED_ACTION_TEXTS = [
     "Discover Stations",
     "Import Stations",
     "Add GBS.FM",          # Phase 60 D-02 (Plan 60-03)
+    "Search GBS.FM…",  # Phase 60 D-08a (Plan 60-07; U+2026 ellipsis)
     "Accent Color",
     "Accounts",            # Phase 53 D-13: YouTube Cookies entry removed; cookie management consolidated into Accounts dialog
     "Equalizer",           # Phase 47.2 D-07
@@ -407,7 +408,7 @@ EXPECTED_ACTION_TEXTS = [
 
 
 def test_hamburger_menu_actions(window):
-    """Hamburger menu contains exactly 10 non-separator actions with correct text."""
+    """Hamburger menu contains exactly 11 non-separator actions with correct text."""
     menu = window._menu
     actions = [a for a in menu.actions() if not a.isSeparator()]
     texts = [a.text() for a in actions]
