@@ -291,15 +291,31 @@ class _GbsPollWorker(QThread):
         worker.start()
 
     def _on_gbs_playlist_ready(self, token: int, state) -> None:
-        """Render the playlist state. Pitfall 1 — discard stale tokens."""
+        """Render the playlist state. Pitfall 1 — discard stale tokens.
+
+        HIGH 4 fix: `position` is a seconds-into-current-song cursor, NOT a
+        monotonic pagination cursor. When the `now_playing` entryid changes
+        (track transition), we MUST reset position=0 — carrying the previous
+        song's `song_position` into the next /ajax call gives gbs.fm a stale
+        delta reference. Track changes detected by comparing new entryid
+        against the previously-seen one.
+        """
         if token != self._gbs_poll_token:
             return  # stale — newer poll in flight
         # Advance cursor for next tick
-        if state.get("now_playing_entryid") is not None:
-            self._gbs_poll_cursor["now_playing"] = state["now_playing_entryid"]
+        new_entryid = state.get("now_playing_entryid")
+        prev_entryid = self._gbs_poll_cursor.get("now_playing")
+        track_changed = (
+            new_entryid is not None and new_entryid != prev_entryid
+        )
+        if new_entryid is not None:
+            self._gbs_poll_cursor["now_playing"] = new_entryid
         if state.get("last_removal_id") is not None:
             self._gbs_poll_cursor["last_removal"] = state["last_removal_id"]
-        if state.get("song_position") is not None:
+        if track_changed:
+            # HIGH 4 fix: reset position cursor on track transition.
+            self._gbs_poll_cursor["position"] = 0
+        elif state.get("song_position") is not None:
             try:
                 self._gbs_poll_cursor["position"] = int(state["song_position"])
             except (TypeError, ValueError):
@@ -376,6 +392,7 @@ Decisions implemented: D-06 (widget on NowPlayingPanel hide-when-not-GBS), D-06a
       - test_gbs_stale_token_discarded (Pitfall 1): two ticks; first response arrives with old token → render is no-op
       - test_gbs_auth_expired_hides_widget_no_toast (Pitfall 3): emit playlist_error(token, "auth_expired") → widget invisible + timer stopped + no toast emitted
       - test_refresh_gbs_visibility_runs_once_per_bind_station (Phase 64 D-04 invariant): mock _refresh_gbs_visibility, call bind_station once → method called exactly once
+      - **test_gbs_playlist_resets_position_on_track_change (HIGH 4 fix):** two consecutive _on_gbs_playlist_ready calls with DIFFERENT now_playing_entryid; first call has song_position=200, second call has different entryid + song_position=15; assert `panel._gbs_poll_cursor["position"] == 0` after the second call (reset on track change), NOT 15 or 200. Then a third call with the SAME entryid as the second + song_position=42 → assert `position == 42` (advances normally when entryid is stable).
   </behavior>
   <action>
 Append the following at the end of `tests/test_now_playing_panel.py`:

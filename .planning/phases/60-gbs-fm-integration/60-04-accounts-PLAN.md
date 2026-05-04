@@ -382,6 +382,7 @@ def test_gbs_paste_valid_writes_to_gbs_cookies_path(qtbot, tmp_path, monkeypatch
     from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
     from musicstreamer import paths, gbs_api
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)  # HIGH 3: explicit setup boilerplate
     captured_toasts = []
     dlg = CookieImportDialog(
         toast_callback=captured_toasts.append,
@@ -524,7 +525,10 @@ Add a sibling block (same shape as YouTube):
             if answer == QMessageBox.StandardButton.Yes:
                 try:
                     os.remove(paths.gbs_cookies_path())
-                except FileNotFoundError:
+                except OSError:
+                    # HIGH 2 fix: tolerate broader OSError tree
+                    # (FileNotFoundError, PermissionError, IsADirectoryError, ...).
+                    # Status update fires regardless so UI stays consistent.
                     pass
                 self._update_status()
         else:
@@ -542,7 +546,9 @@ Add a sibling block (same shape as YouTube):
             self._update_status()
 ```
 
-**Step F — Add tests** to `tests/test_accounts_dialog.py`. Add a new class `TestAccountsDialogGBS` mirroring `TestAccountsDialogYouTube`:
+**Step F — Add tests** to `tests/test_accounts_dialog.py`. Add a new class `TestAccountsDialogGBS` mirroring `TestAccountsDialogYouTube`.
+
+**HIGH 3 boilerplate (applies to all tests in this plan AND downstream 60-05/60-06/60-07 tests):** Every test that monkeypatches `paths._root_override = str(tmp_path)` and then writes through `paths.gbs_cookies_path()` MUST also call `os.makedirs(str(tmp_path), exist_ok=True)` immediately after the monkeypatch. `_write_cookies` does `makedirs(dirname(dest), exist_ok=True)` defensively, but explicit test setup makes the dependency visible and survives test-order shifts.
 
 ```python
 class TestAccountsDialogGBS:
@@ -550,9 +556,11 @@ class TestAccountsDialogGBS:
 
     def test_gbs_box_position_between_youtube_and_twitch(self, qtbot, fake_repo, tmp_path, monkeypatch):
         """D-04c: _gbs_box must render BETWEEN YouTube and Twitch."""
+        import os
         from musicstreamer import paths
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)  # HIGH 3: explicit setup boilerplate
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
         # _gbs_box exists with correct title
@@ -578,9 +586,11 @@ class TestAccountsDialogGBS:
 
     def test_gbs_status_initial_not_connected(self, qtbot, fake_repo, tmp_path, monkeypatch):
         """Fresh state: cookies file missing → 'Not connected' label + 'Import GBS.FM Cookies...' button."""
+        import os
         from musicstreamer import paths
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)  # HIGH 3: explicit setup boilerplate
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
         assert dlg._gbs_status_label.text() == "Not connected"
@@ -620,19 +630,39 @@ class TestAccountsDialogGBS:
         assert not os.path.exists(paths.gbs_cookies_path())
         assert dlg._gbs_status_label.text() == "Not connected"
 
-    def test_gbs_disconnect_filenotfound_tolerated(self, qtbot, fake_repo, tmp_path, monkeypatch):
-        """Race: cookie removed externally between is_connected and remove() — must not raise."""
+    def test_gbs_disconnect_oserror_tolerated(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """HIGH 2 fix: cookie remove() raises OSError variant — must not propagate.
+
+        Covers:
+        - FileNotFoundError (race: cookie removed externally between is_connected and remove())
+        - PermissionError (file mode flipped to 0o000 mid-flight)
+        - IsADirectoryError (someone replaced the cookie file with a directory)
+        """
+        import os
         from PySide6.QtWidgets import QMessageBox
         from musicstreamer import paths
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
-        # Stub _is_gbs_connected → True so we take the disconnect branch
         monkeypatch.setattr(dlg, "_is_gbs_connected", lambda: True)
         monkeypatch.setattr(QMessageBox, "question",
                             staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Yes))
-        # File doesn't actually exist — must tolerate FileNotFoundError silently
+
+        # Variant A: file doesn't exist (FileNotFoundError)
+        dlg._on_gbs_action_clicked()  # No exception expected
+
+        # Variant B: simulate PermissionError via monkeypatched os.remove
+        def _raise_permission(_path):
+            raise PermissionError("simulated 0o000 perms")
+        monkeypatch.setattr(os, "remove", _raise_permission)
+        dlg._on_gbs_action_clicked()  # No exception expected
+
+        # Variant C: simulate IsADirectoryError
+        def _raise_isadir(_path):
+            raise IsADirectoryError("simulated directory at cookie path")
+        monkeypatch.setattr(os, "remove", _raise_isadir)
         dlg._on_gbs_action_clicked()  # No exception expected
 
     def test_gbs_connect_opens_dialog_with_correct_kwargs(self, qtbot, fake_repo, tmp_path, monkeypatch):

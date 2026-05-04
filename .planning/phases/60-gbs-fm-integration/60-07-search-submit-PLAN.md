@@ -255,11 +255,15 @@ class _GbsSubmitWorker(QThread):
     # error: (msg, row_idx)
     error = Signal(str, int)
 
-    def __init__(self, songid: int, cookies, row_idx: int, parent=None):
+    def __init__(self, songid: int, cookies, row_idx: int,
+                 search_version: int, parent=None):
         super().__init__(parent)
         self._songid = songid
         self._cookies = cookies
         self._row_idx = row_idx
+        # HIGH 5 fix: stamp search_version so the dialog can discard
+        # callbacks from in-flight submits that belong to a stale search.
+        self.search_version = search_version
 
     def run(self):
         try:
@@ -305,6 +309,10 @@ class GBSSearchDialog(QDialog):
         self._current_query = ""
         self._results: list[dict] = []
         self._submit_buttons: list[QPushButton] = []
+        # HIGH 5 fix: monotonic version token. Incremented on every new
+        # search; submits from stale searches are discarded by version mismatch
+        # in _on_submit_finished / _on_submit_error.
+        self._search_version: int = 0
 
         self._build_ui()
         self._refresh_login_gate()
@@ -415,6 +423,10 @@ class GBSSearchDialog(QDialog):
             return
         self._current_query = query
         self._current_page = 1
+        # HIGH 5 fix: bump search_version BEFORE dispatching the worker so any
+        # in-flight submits from the previous results set get discarded by
+        # version mismatch when their callbacks fire.
+        self._search_version += 1
         self._kick_search_worker(cookies, page=1)
 
     def _kick_search_worker(self, cookies, page: int) -> None:
@@ -520,12 +532,23 @@ class GBSSearchDialog(QDialog):
         if 0 <= row_idx < len(self._submit_buttons):
             self._submit_buttons[row_idx].setEnabled(False)
             self._submit_buttons[row_idx].setText("Adding…")
-        self._submit_worker = _GbsSubmitWorker(songid, cookies, row_idx, parent=self)
+        # HIGH 5 fix: stamp current _search_version so callbacks know whether
+        # the underlying results list is still the one this submit was
+        # dispatched against.
+        self._submit_worker = _GbsSubmitWorker(
+            songid, cookies, row_idx,
+            search_version=self._search_version,
+            parent=self,
+        )
         self._submit_worker.finished.connect(self._on_submit_finished)  # QA-05
         self._submit_worker.error.connect(self._on_submit_error)        # QA-05
         self._submit_worker.start()
 
     def _on_submit_finished(self, message: str, row_idx: int) -> None:
+        # HIGH 5 fix: discard if a re-search has invalidated row_idx.
+        worker = self.sender()
+        if worker is None or getattr(worker, "search_version", -1) != self._search_version:
+            return  # stale callback — buttons in current results list belong to a different search
         # Pitfall 8: message comes from Django messages cookie. Success and
         # quota / duplicate errors all arrive here (the underlying transport
         # is 302 with a messages cookie either way). Disambiguate by content.
@@ -543,6 +566,10 @@ class GBSSearchDialog(QDialog):
         self._submit_worker = None
 
     def _on_submit_error(self, msg: str, row_idx: int) -> None:
+        # HIGH 5 fix: discard if a re-search has invalidated row_idx.
+        worker = self.sender()
+        if worker is None or getattr(worker, "search_version", -1) != self._search_version:
+            return
         if msg == "auth_expired":
             self._toast("GBS.FM session expired — reconnect via Accounts")
             self._refresh_login_gate()
@@ -626,22 +653,40 @@ Now insert TWO new lines BETWEEN `act_gbs_add.triggered.connect(...)` and `self.
 
 (`submission_completed` is fired by the dialog but Phase 60 doesn't need to refresh the station list on submit success — submitting a song doesn't touch the local library. Leave the signal unconnected for now; future phase can attach a "submit history" widget here if desired.)
 
-**Step C — update EXPECTED_ACTION_TEXTS** if Plan 60-03 surfaced one. Run:
-```bash
-grep -n "EXPECTED_ACTION_TEXTS" tests/
+**Step C — update EXPECTED_ACTION_TEXTS lock (BLOCKER 2 fix — MANDATORY, NOT conditional)**:
+
+Plan 60-03 already added `"Add GBS.FM"` to `tests/test_main_window_integration.py` `EXPECTED_ACTION_TEXTS`. This plan must add `"Search GBS.FM…"` (with the U+2026 ellipsis character, not three periods) IMMEDIATELY AFTER `"Add GBS.FM"`. Final shape:
+
+```python
+EXPECTED_ACTION_TEXTS = [
+    "New Station",
+    "Discover Stations",
+    "Import Stations",
+    "Add GBS.FM",          # Phase 60 D-02 (Plan 60-03)
+    "Search GBS.FM…",      # Phase 60 D-08a (this plan; U+2026 ellipsis)
+    "Accent Color",
+    "Accounts",
+    "Equalizer",
+    "Stats for Nerds",
+    "Export Settings",
+    "Import Settings",
+]
 ```
-If a list exists, append `"Search GBS.FM…"` (U+2026) in the correct order — directly after `"Add GBS.FM"`.
+
+Also update `test_hamburger_menu_actions` docstring from `"exactly 10 non-separator actions"` (after 60-03) to `"exactly 11 non-separator actions"`.
 
 Decisions implemented: D-08a (Group 1 placement next to Add GBS.FM); QA-05.
   </action>
   <verify>
-    <automated>grep -q 'addAction("Search GBS.FM' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '_open_gbs_search_dialog' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q 'GBSSearchDialog' musicstreamer/ui_qt/main_window.py &amp;&amp; ! grep -E 'act_gbs_search\.triggered\.connect\(lambda' musicstreamer/ui_qt/main_window.py &amp;&amp; python -c "import ast; ast.parse(open('musicstreamer/ui_qt/main_window.py').read())"</automated>
+    <automated>grep -q 'addAction("Search GBS.FM' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '_open_gbs_search_dialog' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q 'GBSSearchDialog' musicstreamer/ui_qt/main_window.py &amp;&amp; ! grep -E 'act_gbs_search\.triggered\.connect\(lambda' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '"Search GBS.FM' tests/test_main_window_integration.py &amp;&amp; python -c "import ast; ast.parse(open('musicstreamer/ui_qt/main_window.py').read())" &amp;&amp; pytest tests/test_main_window_integration.py::test_hamburger_menu_actions -x</automated>
   </verify>
   <done>
 - "Search GBS.FM…" menu entry exists in Group 1 next to "Add GBS.FM"
 - _open_gbs_search_dialog handler instantiates GBSSearchDialog with (repo, show_toast, parent)
 - Bound-method connection (no QA-05 violation)
 - Module parses cleanly
+- `EXPECTED_ACTION_TEXTS` in tests/test_main_window_integration.py contains "Search GBS.FM…" directly after "Add GBS.FM" (BLOCKER 2 fix)
+- `test_hamburger_menu_actions` passes
   </done>
 </task>
 
@@ -666,6 +711,7 @@ Decisions implemented: D-08a (Group 1 placement next to Add GBS.FM); QA-05.
     - test_submit_inline_error_on_token_quota: emit finished("You don't have enough tokens", 0) → inline error visible
     - test_submit_auth_expired_toasts_and_relocks_login: emit error("auth_expired", 0) → toast + login gate re-checked
     - test_no_self_capturing_lambdas_in_dialog: grep guard against `lambda` in clicked.connect
+    - **test_gbs_submit_in_flight_isolated_across_searches (HIGH 5 fix):** dispatch a submit on row 0 of results-set-A (capture the worker reference); trigger a re-search to results-set-B (dialog `_on_search_clicked` bumps `_search_version`); finally fire the captured worker's `finished` signal with `row_idx=0`. Assert: (a) the toast was NOT emitted (callback discarded by version mismatch), (b) row 0's button in results-set-B is still in its initial "Add!" state (NOT re-enabled or relabeled by the stale callback). Mirrors the `_gbs_poll_token` stale-discard pattern from Plan 60-05 (Pitfall 1).
   </behavior>
   <action>
 Create `tests/test_gbs_search_dialog.py`:

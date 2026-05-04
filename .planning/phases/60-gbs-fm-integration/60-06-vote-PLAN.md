@@ -130,10 +130,11 @@ def _on_star_clicked(self) -> None:
     - `_gbs_current_entryid: Optional[int] = None` — updated ONLY by `_on_gbs_playlist_ready` from Plan 60-05's poll
     - `_gbs_vote_token: int = 0` — guards stale vote responses
     - `_gbs_vote_worker = None` — SYNC-05 retention slot
+    - `_last_confirmed_vote: int = 0` — server-confirmed user vote value (BLOCKER 1 fix). Set by `_on_gbs_playlist_ready` from `state["user_vote"]` and by `_on_gbs_vote_finished` from `server_user_vote`. NOT derived from `_current_highlighted_vote()` post-click — Qt toggles the button BEFORE `clicked` fires, so the highlight is unreliable.
     - `_refresh_gbs_visibility` (existing from 60-05) extends to ALSO show/hide vote buttons via the SAME predicate (is_gbs AND logged_in)
-    - `_on_gbs_playlist_ready` (existing from 60-05) extends to also: (a) capture `now_playing_entryid` into `self._gbs_current_entryid`, (b) call a new helper `_apply_vote_highlight(state.get('user_vote', 0))`
+    - `_on_gbs_playlist_ready` (existing from 60-05) extends to also: (a) capture `now_playing_entryid` into `self._gbs_current_entryid`, (b) call a new helper `_apply_vote_highlight(state.get('user_vote', 0))`, **(c) update `self._last_confirmed_vote = int(state.get('user_vote', 0))` (BLOCKER 1 fix — keeps vote-clear logic accurate)**
     - `_apply_vote_highlight(vote_value)`: sets `setChecked(True)` only on the button matching vote_value; all others setChecked(False); use `QPushButton.setCheckable(True)` on each button at construction
-    - `_on_gbs_vote_clicked` (slot for ALL 5 buttons; uses sender + property): determines the clicked vote value via `self.sender().property("vote_value")`; ignores click if `self._gbs_current_entryid is None` (no track context); captures `prior_vote = current_highlighted_vote_or_0` for rollback; OPTIMISTICALLY highlights the clicked button; kicks _GbsVoteWorker(entryid, vote_value, cookies, token, prior_vote) on a thread
+    - `_on_gbs_vote_clicked` (slot for ALL 5 buttons; uses sender + property): determines the clicked vote value via `self.sender().property("vote_value")`; ignores click if `self._gbs_current_entryid is None` (no track context); **uses `prior_vote = self._last_confirmed_vote` (NOT `_current_highlighted_vote()`) — BLOCKER 1 fix**; if `vote_value == prior_vote` then `submit_value = 0` (vote-clear); OPTIMISTICALLY highlights the appropriate button (or none); kicks _GbsVoteWorker(entryid, submit_value, cookies, token, prior_vote) on a thread
     - `_GbsVoteWorker(QThread)`: `vote_finished = Signal(int, int, int, str)` (token, server_user_vote, prior_vote_for_rollback_on_error_path_only, score_str); `vote_error = Signal(int, int, str)` (token, prior_vote, msg_or_'auth_expired'); calls `gbs_api.vote_now_playing(entryid, vote, cookies)` returning {user_vote, score}; emits accordingly
     - `_on_gbs_vote_finished`: if token stale → ignore; else apply server-returned user_vote via `_apply_vote_highlight` (Pitfall 2 — server is truth)
     - `_on_gbs_vote_error`: if token stale → ignore; rollback to prior_vote via `_apply_vote_highlight`; if msg=="auth_expired" → toast "GBS.FM session expired — reconnect via Accounts"; else toast "Vote failed: {msg}"
@@ -209,6 +210,12 @@ class _GbsVoteWorker(QThread):
         # Pitfall 2 + cover_art precedent: stale-vote-response token guard
         self._gbs_vote_token: int = 0
         self._gbs_vote_worker = None  # SYNC-05 retain
+
+        # BLOCKER 1 fix: server-confirmed vote tracked separately from
+        # _current_highlighted_vote() (Qt toggles checkable buttons before
+        # `clicked` fires, so post-toggle highlight is unreliable for the
+        # "is this a vote-clear?" check).
+        self._last_confirmed_vote: int = 0
 ```
 
 **Step C — Extend `_refresh_gbs_visibility`** (defined in 60-05) to ALSO toggle the vote buttons. Modify the method to add at the end:
@@ -233,7 +240,9 @@ class _GbsVoteWorker(QThread):
             if new_entryid != self._gbs_current_entryid:
                 self._gbs_current_entryid = new_entryid
         # Pitfall 2 / D-07d: server's userVote is the source of truth
-        self._apply_vote_highlight(int(state.get("user_vote", 0) or 0))
+        confirmed_vote = int(state.get("user_vote", 0) or 0)
+        self._apply_vote_highlight(confirmed_vote)
+        self._last_confirmed_vote = confirmed_vote  # BLOCKER 1 fix — drives vote-clear logic
 ```
 
 **Step E — Add helper + click + result + error handlers** (place near the existing _on_gbs_playlist_* handlers from 60-05):
@@ -264,6 +273,14 @@ class _GbsVoteWorker(QThread):
         Pitfall 1: requires self._gbs_current_entryid (sourced from /ajax).
         Pitfall 2: optimistic highlight will be CONFIRMED or ROLLED BACK
         by the worker's signal handlers — server is truth.
+
+        BLOCKER 1 fix: read `prior_vote` from self._last_confirmed_vote, NOT
+        from _current_highlighted_vote(). Qt toggles a checkable QPushButton's
+        check state BEFORE emitting `clicked`, so reading the highlight here
+        gives the post-toggle value (always wrong by one click).
+        self._last_confirmed_vote is set by _on_gbs_playlist_ready from
+        /ajax responses and by _on_gbs_vote_finished from vote round-trips —
+        always reflects what the server thinks the user's vote is.
         """
         from musicstreamer import gbs_api
         sender = self.sender()
@@ -273,11 +290,9 @@ class _GbsVoteWorker(QThread):
             vote_value = int(sender.property("vote_value"))
         except (TypeError, ValueError):
             return
-        prior_vote = self._current_highlighted_vote()
-        # If clicking the SAME button that's already highlighted, this is
-        # a vote-0 (clear) per RESEARCH §Capability 4 — sender is highlighted,
-        # but Qt emitted clicked AFTER toggling, so isChecked is now False.
-        # We treat that as: if vote_value == prior_vote → submit vote=0 (clear).
+        prior_vote = self._last_confirmed_vote  # BLOCKER 1 fix
+        # If clicking the SAME button that's already server-confirmed, this is
+        # a vote-0 (clear) per RESEARCH §Capability 4.
         if vote_value == prior_vote:
             submit_value = 0
             optimistic_value = 0
@@ -311,10 +326,16 @@ class _GbsVoteWorker(QThread):
 
     def _on_gbs_vote_finished(self, token: int, server_user_vote: int,
                               prior_vote: int, score: str) -> None:
-        """Pitfall 2: server is source of truth; apply server-returned vote."""
+        """Pitfall 2: server is source of truth; apply server-returned vote.
+
+        BLOCKER 1 fix: also stash the server-confirmed value into
+        self._last_confirmed_vote so the NEXT click computes prior_vote
+        correctly (vote-clear logic depends on this).
+        """
         if token != self._gbs_vote_token:
             return
         self._apply_vote_highlight(int(server_user_vote))
+        self._last_confirmed_vote = int(server_user_vote)  # BLOCKER 1 fix
         # Optionally refresh score display in the playlist widget; v1 shows
         # the score in the playlist QListWidget on the next /ajax tick.
 

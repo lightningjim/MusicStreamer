@@ -59,11 +59,13 @@ created: 2026-05-04
 | GBS-01c | Active-playlist widget hidden for non-GBS.FM stations | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_playlist_hidden_for_non_gbs -x` | ❌ W0 | ⬜ pending |
 | GBS-01c | Active-playlist widget populates from mock | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_playlist_populates -x` | ❌ W0 | ⬜ pending |
 | GBS-01c | Active-playlist QTimer pauses when widget hidden | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_playlist_timer_pauses -x` | ❌ W0 | ⬜ pending |
+| GBS-01c | Active-playlist resets cursor `position` on track change (HIGH 4) | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_gbs_playlist_resets_position_on_track_change -x` | ❌ W0 | ⬜ pending |
 | GBS-01d | Vote button hidden when logged out | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_vote_hidden_when_logged_out -x` | ❌ W0 | ⬜ pending |
 | GBS-01d | `vote_now_playing()` parses success fixture into `{user_vote, score}` | unit | `pytest tests/test_gbs_api.py::test_vote_now_playing_success -x` | ❌ W0 | ⬜ pending |
 | GBS-01d | Vote click → optimistic UI → API success → confirmed state from response | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_vote_optimistic_success -x` | ❌ W0 | ⬜ pending |
 | GBS-01d | Vote click → optimistic UI → API failure → rollback + toast | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_vote_optimistic_rollback -x` | ❌ W0 | ⬜ pending |
 | GBS-01d | Vote button entryid updates only on `now_playing` event from `/ajax` (Pitfall 1 race) | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_vote_entryid_updates_from_ajax -x` | ❌ W0 | ⬜ pending |
+| GBS-01d | Re-clicking the highlighted vote value submits vote=0 (clear; BLOCKER 1) | UI | `pytest tests/ui_qt/test_now_playing_panel_gbs.py::test_gbs_vote_clicking_same_value_clears -x` | ❌ W0 | ⬜ pending |
 | GBS-01e | `search()` parses test_p1 fixture into result list with songid+artist+title | unit | `pytest tests/test_gbs_api.py::test_search_parses_results -x` | ❌ W0 | ⬜ pending |
 | GBS-01e | `search()` extracts pagination from "page X of Y" text | unit | `pytest tests/test_gbs_api.py::test_search_pagination -x` | ❌ W0 | ⬜ pending |
 | GBS-01e | `submit()` decodes Django messages cookie on success path | unit | `pytest tests/test_gbs_api.py::test_submit_success_decodes_messages -x` | ❌ W0 | ⬜ pending |
@@ -71,6 +73,7 @@ created: 2026-05-04
 | GBS-01e | GBSSearchDialog query → results list populated from `search()` mock | UI | `pytest tests/ui_qt/test_gbs_search_dialog.py::test_search_populates -x` | ❌ W0 | ⬜ pending |
 | GBS-01e | GBSSearchDialog Submit → calls `submit(songid)` and toasts on success | UI | `pytest tests/ui_qt/test_gbs_search_dialog.py::test_submit_success -x` | ❌ W0 | ⬜ pending |
 | GBS-01e | GBSSearchDialog Submit → inline error on duplicate / token-quota | UI | `pytest tests/ui_qt/test_gbs_search_dialog.py::test_submit_inline_error -x` | ❌ W0 | ⬜ pending |
+| GBS-01e | GBSSearchDialog in-flight submit isolated across re-search (HIGH 5) | UI | `pytest tests/ui_qt/test_gbs_search_dialog.py::test_gbs_submit_in_flight_isolated_across_searches -x` | ❌ W0 | ⬜ pending |
 | GBS-01f | `stream_ordering.order_streams` consumes Phase 60 output unchanged | regression | `pytest tests/test_stream_ordering.py -x` | ✅ exists | ⬜ pending |
 
 *Status legend: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
@@ -83,9 +86,9 @@ created: 2026-05-04
 - [ ] `tests/ui_qt/test_now_playing_panel_gbs.py` — covers GBS-01c (active playlist widget) + GBS-01d (vote UI)
 - [ ] `tests/ui_qt/test_gbs_search_dialog.py` — covers GBS-01e (search/submit dialog UI)
 - [ ] Extension to `tests/ui_qt/test_accounts_dialog.py` — covers GBS-01b (AccountsDialog group + Connect/Disconnect cookies write)
-- [ ] `tests/conftest.py` shared fixtures: `mock_gbs_api`, `fake_repo`, `fake_cookies_jar`
-- [ ] `tests/fixtures/gbs/*.{json,html,txt}` — 15 captured response payloads (see `60-RESEARCH.md §Validation Architecture` table)
-- [ ] `scripts/gbs_capture_fixtures.sh` — re-runnable capture script for refreshing fixtures when gbs.fm changes UI
+- [ ] `tests/conftest.py` shared fixtures: `mock_gbs_api` (with `spec=[...]` declared method names), `fake_repo` (with `_FakeStation.station_art_path` matching `models.Station`), `fake_cookies_jar`
+- [ ] `tests/fixtures/gbs/*.{json,html,txt}` — **17 fixture files** (15 captured response payloads from the capture script + 2 hand-crafted validator-rejection cookie variants for GBS-01b: `cookies_invalid_no_sessionid.txt`, `cookies_invalid_wrong_domain.txt`). See `60-RESEARCH.md §Validation Architecture` table.
+- [ ] `scripts/gbs_capture_fixtures.sh` — re-runnable capture script for refreshing the 15 captured fixtures when gbs.fm changes UI (does NOT generate the 2 validator-rejection cookies — those are hand-crafted error cases)
 - [ ] Extension to `tests/test_stream_ordering.py` — `test_gbs_flac_ordering` regression for FLAC bitrate sentinel value
 - [ ] (Optional) `scripts/gbs_live_smoke.py` — opt-in live-API smoke launcher (`pytest -m live`)
 
@@ -107,7 +110,7 @@ created: 2026-05-04
 
 - [ ] All tasks have `<automated>` verify or Wave 0 dependencies
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (15 fixtures + 4 test files + 1 capture script)
+- [ ] Wave 0 covers all MISSING references (**17 fixtures** + 4 test files + 1 capture script)
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 10 s for quick subset
 - [ ] `nyquist_compliant: true` set in frontmatter

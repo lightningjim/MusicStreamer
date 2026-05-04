@@ -226,18 +226,33 @@ class _GbsImportWorker(QThread):
         self._gbs_import_worker = None
 ```
 
-**Step E — `EXPECTED_ACTION_TEXTS` housekeeping**: Run
+**Step E — `EXPECTED_ACTION_TEXTS` lock update (BLOCKER 2 fix — MANDATORY, NOT conditional)**:
 
-```bash
-grep -rn "EXPECTED_ACTION_TEXTS" tests/
+`tests/test_main_window_integration.py:394-403` defines `EXPECTED_ACTION_TEXTS` with 9 entries. `test_hamburger_menu_actions` asserts exact equality. Inserting a new menu action without updating this list fails the test silently. **DO THIS EDIT — do not skip.**
+
+Open `tests/test_main_window_integration.py`. Locate the `EXPECTED_ACTION_TEXTS = [` block (currently lines 394-403). Insert `"Add GBS.FM",` IMMEDIATELY AFTER `"Import Stations",` so Group 1 reads:
+
+```python
+EXPECTED_ACTION_TEXTS = [
+    "New Station",         # Phase 999.1 D-01 (Plan 03)
+    "Discover Stations",
+    "Import Stations",
+    "Add GBS.FM",          # Phase 60 D-02 (this plan)
+    "Accent Color",
+    "Accounts",
+    "Equalizer",
+    "Stats for Nerds",
+    "Export Settings",
+    "Import Settings",
+]
 ```
 
-If a list of expected hamburger menu labels exists (Phase 53 added one for the Accounts-menu refactor), append `"Add GBS.FM"` in the correct position — after `"Import Stations"`. If grep returns nothing, skip this step (Plan 60-07 will reconcile if needed).
+Also update the docstring on `test_hamburger_menu_actions` from `"exactly 9 non-separator actions"` to `"exactly 10 non-separator actions"` (Plan 60-07 will bump to 11 when "Search GBS.FM…" lands).
 
 Decisions implemented: D-02 (menu placement), D-02a (idempotent toast distinction), D-02b (always-present), D-02d (provider via gbs_api), D-03c (typed exception sentinel), QA-05 (bound methods), Pitfalls 3 + 5.
   </action>
   <verify>
-    <automated>grep -q "addAction(\"Add GBS\\.FM\")" musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '_on_gbs_add_clicked' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '_GbsImportWorker' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q 'GBS.FM streams updated' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q 'auth_expired' musicstreamer/ui_qt/main_window.py &amp;&amp; python -c "import ast; ast.parse(open('musicstreamer/ui_qt/main_window.py').read())"</automated>
+    <automated>grep -q "addAction(\"Add GBS\\.FM\")" musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '_on_gbs_add_clicked' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '_GbsImportWorker' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q 'GBS.FM streams updated' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q 'auth_expired' musicstreamer/ui_qt/main_window.py &amp;&amp; grep -q '"Add GBS.FM"' tests/test_main_window_integration.py &amp;&amp; python -c "import ast; ast.parse(open('musicstreamer/ui_qt/main_window.py').read())" &amp;&amp; pytest tests/test_main_window_integration.py::test_hamburger_menu_actions -x</automated>
   </verify>
   <done>
 - Menu action "Add GBS.FM" exists at main_window.py
@@ -246,6 +261,8 @@ Decisions implemented: D-02 (menu placement), D-02a (idempotent toast distinctio
 - Bound-method connections (no `lambda` near act_gbs_add)
 - Module parses cleanly (no syntax errors)
 - self._gbs_import_worker initialized to None in __init__
+- `EXPECTED_ACTION_TEXTS` in tests/test_main_window_integration.py contains "Add GBS.FM" between "Import Stations" and "Accent Color" (BLOCKER 2 fix)
+- `test_hamburger_menu_actions` passes
   </done>
 </task>
 

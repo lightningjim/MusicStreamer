@@ -30,7 +30,7 @@ tags: [phase60, fixtures, wave0, gbs-fm]
 
 must_haves:
   truths:
-    - "All 15 fixture files exist under tests/fixtures/gbs/ with concrete payloads matching shapes documented in 60-RESEARCH.md §Validation Architecture"
+    - "All 17 fixture files exist under tests/fixtures/gbs/ with concrete payloads matching shapes documented in 60-RESEARCH.md §Validation Architecture (15 capture-script outputs + 2 validator-rejection cookie fixtures for GBS-01b)"
     - "scripts/gbs_capture_fixtures.sh exists, is executable, and re-runs the capture flow against ~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt"
     - "tests/conftest.py exposes mock_gbs_api, fake_repo, fake_cookies_jar fixtures usable by every Phase 60 test file"
     - "All fixture files commit-safe — no real csrftoken/sessionid values; only documented PLACEHOLDER tokens (per RESEARCH §Validation Architecture)"
@@ -49,8 +49,8 @@ must_haves:
   key_links:
     - from: "tests/conftest.py"
       to: "musicstreamer.gbs_api"
-      via: "MagicMock(spec=...) — module is referenced by name only; physical module ships in 60-02"
-      pattern: "spec=.*gbs_api|fake_repo|fake_cookies_jar"
+      via: "MagicMock(spec=[...]) — module surface declared by string-name list so the fixture is forward-compatible (Plan 60-02 ships the real module). spec= catches API drift between conftest and 60-02."
+      pattern: "spec=\\[.*fetch_streams|spec=\\[.*fetch_active_playlist"
     - from: "scripts/gbs_capture_fixtures.sh"
       to: "~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt"
       via: "curl -b <path> https://gbs.fm/..."
@@ -58,11 +58,13 @@ must_haves:
 ---
 
 <objective>
-Wave 0 deliverable: pin all 15 captured-payload fixtures, the capture-script harness, and the shared pytest fixtures into the repo so every later Phase 60 plan can write deterministic unit/integration tests against real gbs.fm response shapes (no live HTTP in CI).
+Wave 0 deliverable: pin all 17 captured-payload-or-hand-crafted fixtures (15 capture-script outputs + 2 validator-rejection cookie variants), the capture-script harness, and the shared pytest fixtures into the repo so every later Phase 60 plan can write deterministic unit/integration tests against real gbs.fm response shapes (no live HTTP in CI).
 
-Purpose: Lock the test-data contract before any production code is written. RESEARCH.md §Validation Architecture tied 29 test cases to specific fixture files; without them, Plans 02–07 cannot ship green automated verification. Per VALIDATION.md, this also unblocks the Nyquist-validation gate.
+Purpose: Lock the test-data contract before any production code is written. RESEARCH.md §Validation Architecture tied 29 test cases to specific fixture files; without them, Plans 02–07 cannot ship green automated verification. The 2 extra validator-rejection cookie fixtures (cookies_invalid_no_sessionid.txt, cookies_invalid_wrong_domain.txt) drive `test_validate_cookies_reject_no_sessionid` and `test_validate_cookies_reject_wrong_domain` per Plan 60-02 GBS-01b coverage.
 
-Output: 15 fixture files (committed), 1 bash capture script, conftest.py extension with three new fixtures.
+Per VALIDATION.md, this also unblocks the Nyquist-validation gate.
+
+Output: 17 fixture files (committed), 1 bash capture script, conftest.py extension with three new fixtures.
 </objective>
 
 <execution_context>
@@ -98,8 +100,8 @@ def _stub_bus_bridge(monkeypatch):
     monkeypatch.setattr(_player_mod, "_ensure_bus_bridge", lambda: MagicMock())
 ```
 
-<!-- gbs_api module surface (will be created in Plan 60-02; conftest fixtures spec against it by name) -->
-Forward reference (Plan 60-02 creates these — conftest uses MagicMock(spec=) by string):
+<!-- gbs_api module surface (will be created in Plan 60-02; conftest fixtures spec against it by string-name list) -->
+Forward reference (Plan 60-02 creates these — conftest uses MagicMock(spec=[...]) by string list so no import is required at Wave 0):
 - musicstreamer.gbs_api.fetch_streams() -> list[dict]
 - musicstreamer.gbs_api.fetch_station_metadata() -> dict
 - musicstreamer.gbs_api.import_station(repo, on_progress=None) -> tuple[int, int]
@@ -107,6 +109,7 @@ Forward reference (Plan 60-02 creates these — conftest uses MagicMock(spec=) b
 - musicstreamer.gbs_api.vote_now_playing(entryid, vote, cookies) -> dict
 - musicstreamer.gbs_api.search(query, page, cookies) -> dict
 - musicstreamer.gbs_api.submit(songid, cookies) -> str
+- musicstreamer.gbs_api.load_auth_context() -> Optional[MozillaCookieJar]
 - musicstreamer.gbs_api.GbsApiError
 - musicstreamer.gbs_api.GbsAuthExpiredError
 </interfaces>
@@ -115,9 +118,9 @@ Forward reference (Plan 60-02 creates these — conftest uses MagicMock(spec=) b
 <tasks>
 
 <task type="auto">
-  <name>Task 1: Create gbs_capture_fixtures.sh + capture all 15 fixtures</name>
+  <name>Task 1: Create gbs_capture_fixtures.sh + capture all 17 fixtures</name>
   <read_first>
-    - .planning/phases/60-gbs-fm-integration/60-RESEARCH.md (read §Validation Architecture → "Pinned Fixtures" table — 15 rows; §Capability 1-6 for response-shape examples; §Code Examples §Example 4 for messages-cookie raw shape)
+    - .planning/phases/60-gbs-fm-integration/60-RESEARCH.md (read §Validation Architecture → "Pinned Fixtures" table; §Capability 1-6 for response-shape examples; §Code Examples §Example 4 for messages-cookie raw shape)
     - ~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt (verify presence; if missing the script will be created but capture step fails — document in summary)
   </read_first>
   <action>
@@ -181,13 +184,14 @@ curl -sS -b "$COOKIES" "$BASE/api/vote?songid=88135&vote=0" > "$OUT/api_vote_leg
 
 echo "Done. Fixtures written to $OUT/"
 echo "REMEMBER: sanitize cookies_valid.txt manually — replace real sessionid/csrftoken values with PLACEHOLDERs."
+echo "REMEMBER: hand-create the 2 validator-rejection cookie fixtures (cookies_invalid_no_sessionid.txt, cookies_invalid_wrong_domain.txt) — these are NOT captured because they're hand-crafted error cases for GBS-01b."
 ```
 
 `chmod +x scripts/gbs_capture_fixtures.sh`.
 
-Then RUN the script once (if dev cookies fixture present at `~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt`) to capture the live payloads.
+Then RUN the script once (if dev cookies fixture present at `~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt`) to capture the 15 live payloads. Hand-create the 2 validator-rejection cookie fixtures regardless (the capture script does not produce them — they're synthetic error cases).
 
-If the fixture is MISSING (D-04a path), instead create each of the 15 fixture files with concrete shapes derived from RESEARCH.md §Capability 1-6. Specifically:
+If the fixture is MISSING (D-04a path), instead hand-create each of the 17 fixture files with concrete shapes derived from RESEARCH.md §Capability 1-6. Specifically:
 
 - `ajax_cold_start.json` — JSON array per RESEARCH §Capability 3 "Cold-start call" example. Use the documented response shape: `[["removal", {"entryid": 44, "id": 1}], ..., ["now_playing", 1810736], ["metadata", "Crippling Alcoholism (With Love From A Padded Room) - Templeton"], ["linkedMetadata", "<a href='/artist/84134'>...</a>"], ["songLength", 274], ["clearComments", ""], ["userVote", 0], ["score", "no votes"], ["adds", "<tr id='1810736' class='playing odd'>...</tr>"], ["pllength", "Playlist is 11:21 long with 3 dongs"], ["songPosition", 202.68999999999997]]`. Provide AT LEAST one of each event type (now_playing, metadata, linkedMetadata, songLength, songPosition, userVote, score, adds, removal, clearComments, pllength).
 - `ajax_steady_state.json` — minimal-delta: `[["userVote", 0], ["score", "5.0 (1 vote)"], ["songPosition", 200.49000000000004]]`.
@@ -208,8 +212,8 @@ If the fixture is MISSING (D-04a path), instead create each of the 15 fixture fi
   .gbs.fm	TRUE	/	TRUE	1761855552	csrftoken	<csrftoken-PLACEHOLDER>
   gbs.fm	FALSE	/	TRUE	1747491264	sessionid	<sessionid-PLACEHOLDER>
   ```
-- `cookies_invalid_no_sessionid.txt` — same shape, csrftoken row only (no sessionid line).
-- `cookies_invalid_wrong_domain.txt` — same shape but domain `.evil.example.com` for both rows.
+- `cookies_invalid_no_sessionid.txt` — same shape, csrftoken row only (no sessionid line). Hand-crafted; drives `test_validate_cookies_reject_no_sessionid` (Plan 60-02 GBS-01b).
+- `cookies_invalid_wrong_domain.txt` — same shape but domain `.evil.example.com` for both rows. Hand-crafted; drives `test_validate_cookies_reject_wrong_domain` (Plan 60-02 GBS-01b).
 - `messages_cookie_track_added.txt` — single line: `W1siX19qc29uX21lc3NhZ2UiLDAsMjUsIlRyYWNrIGFkZGVkIHN1Y2Nlc3NmdWxseSEiLCIiXV0`. (Base64-url; padding will be re-added by the decoder.)
 
 After running script OR hand-creating: ensure `tests/fixtures/gbs/cookies_valid.txt` has BOTH cookie lines AND the `# Netscape HTTP Cookie File` header. Replace any leaked real csrftoken/sessionid values with PLACEHOLDERs before commit.
@@ -217,12 +221,13 @@ After running script OR hand-creating: ensure `tests/fixtures/gbs/cookies_valid.
 Decision implements D-04a (corrected dev fixture location), VALIDATION.md Wave 0 Requirements rows 6-7, RESEARCH.md §Validation Architecture "Pinned Fixtures" table.
   </action>
   <verify>
-    <automated>test -x scripts/gbs_capture_fixtures.sh &amp;&amp; ls tests/fixtures/gbs/*.json tests/fixtures/gbs/*.html tests/fixtures/gbs/*.txt | wc -l | grep -qE '^\s*1[5-9]|^\s*2[0-9]' &amp;&amp; grep -q 'Netscape HTTP Cookie File' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; grep -q 'csrftoken-PLACEHOLDER' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; grep -q 'sessionid-PLACEHOLDER' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; ! grep -E 'q6UZ9t0|v6mfkwosmt' tests/fixtures/gbs/cookies_valid.txt</automated>
+    <automated>test -x scripts/gbs_capture_fixtures.sh &amp;&amp; [ "$(find tests/fixtures/gbs -type f \( -name '*.json' -o -name '*.html' -o -name '*.txt' \) | wc -l)" = "17" ] &amp;&amp; grep -q 'Netscape HTTP Cookie File' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; grep -q 'csrftoken-PLACEHOLDER' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; grep -q 'sessionid-PLACEHOLDER' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; ! grep -E 'q6UZ9t0|v6mfkwosmt' tests/fixtures/gbs/cookies_valid.txt &amp;&amp; test -f tests/fixtures/gbs/cookies_invalid_no_sessionid.txt &amp;&amp; test -f tests/fixtures/gbs/cookies_invalid_wrong_domain.txt</automated>
   </verify>
   <done>
-- 15 fixture files exist under tests/fixtures/gbs/ (json + html + txt mix)
+- Exactly 17 fixture files exist under tests/fixtures/gbs/ (json + html + txt mix; 15 capture-script outputs + 2 validator-rejection cookies)
 - scripts/gbs_capture_fixtures.sh exists, is executable, references the D-04a path
 - cookies_valid.txt has Netscape header + sessionid + csrftoken with PLACEHOLDERs (no leaked real tokens)
+- cookies_invalid_no_sessionid.txt and cookies_invalid_wrong_domain.txt exist (hand-crafted error cases for GBS-01b)
 - ajax_cold_start.json contains a now_playing event AND a userVote event AND a score event AND an adds event
 - search_test_p1.html contains "Results: page 1 of"
   </done>
@@ -235,6 +240,7 @@ Decision implements D-04a (corrected dev fixture location), VALIDATION.md Wave 0
     - .planning/phases/60-gbs-fm-integration/60-PATTERNS.md (read §"tests/conftest.py extension" — lines documenting fake_repo API surface)
     - .planning/phases/60-gbs-fm-integration/60-RESEARCH.md (skim §Code Examples — for the gbs_api function signatures referenced by the MagicMock spec)
     - musicstreamer/repo.py (read lines 178-225 + 348-410 — the Repo methods Phase 60 calls: insert_station, insert_stream, list_streams, update_stream, station_exists_by_url, get_setting, set_setting, update_station_art)
+    - musicstreamer/models.py (lines 11-37 — verify the canonical Station/StationStream attribute names; `Station.station_art_path` is the real attribute, NOT `station_art`)
   </read_first>
   <action>
 Append to `tests/conftest.py` (do NOT remove or modify the existing autouse `_stub_bus_bridge` fixture):
@@ -254,10 +260,20 @@ def mock_gbs_api():
     """MagicMock with the gbs_api module surface pre-stubbed.
 
     Phase 60-02 creates the real module. This fixture stays decoupled
-    via spec-by-name — no import — so Wave 0 tests can RED against the
-    spec before 60-02 lands.
+    via spec-by-string-list — no import — so Wave 0 tests can RED against
+    the spec before 60-02 lands. spec=[...] catches API drift between
+    the conftest fixture and the real module signatures (BLOCKER 4 fix).
     """
-    api = MagicMock()
+    api = MagicMock(spec=[
+        "fetch_streams",
+        "fetch_station_metadata",
+        "import_station",
+        "fetch_active_playlist",
+        "vote_now_playing",
+        "search",
+        "submit",
+        "load_auth_context",
+    ])
     api.fetch_streams.return_value = [
         {"url": "https://gbs.fm/96", "quality": "96", "position": 60, "codec": "MP3", "bitrate_kbps": 96},
         {"url": "https://gbs.fm/128", "quality": "128", "position": 50, "codec": "MP3", "bitrate_kbps": 128},
@@ -294,10 +310,16 @@ def mock_gbs_api():
         "total_pages": 1,
     }
     api.submit.return_value = "Track added successfully!"
+    api.load_auth_context.return_value = None
     return api
 
 
 class _FakeStation:
+    """Mirrors the real musicstreamer.models.Station attribute surface
+    that Phase 60 touches. HIGH 1 fix: attribute is `station_art_path`
+    (matching models.py:31) — NOT `station_art`. _FakeRepo.update_station_art
+    writes through to this canonical attribute name.
+    """
     def __init__(self, station_id, name, url, provider_name, tags=""):
         self.id = station_id
         self.name = name
@@ -305,7 +327,7 @@ class _FakeStation:
         self.provider_name = provider_name
         self.tags = tags
         self.streams = []
-        self.station_art = None
+        self.station_art_path = None   # canonical name (HIGH 1)
 
 
 class _FakeStream:
@@ -387,8 +409,10 @@ class _FakeRepo:
         self._settings[key] = value
 
     def update_station_art(self, station_id, art_path):
+        """HIGH 1 fix: writes to canonical `station_art_path` attribute
+        (matching musicstreamer.models.Station.station_art_path)."""
         if station_id in self._stations:
-            self._stations[station_id].station_art = art_path
+            self._stations[station_id].station_art_path = art_path
 
     def get_station(self, station_id):
         return self._stations.get(station_id)
@@ -415,16 +439,19 @@ def gbs_fixtures_dir():
     return Path(__file__).parent / "fixtures" / "gbs"
 ```
 
-Decision implements VALIDATION.md Wave 0 Requirements row 5 + PATTERNS.md §"tests/conftest.py extension". `fake_repo` mirrors the real `Repo` API surface used in PATTERNS.md §"Repo multi-stream insert/update". `mock_gbs_api` is decoupled from the actual `musicstreamer.gbs_api` module via `MagicMock()` (no spec=) — Plan 60-02 will create the module; this fixture is forward-compatible.
+Decision implements VALIDATION.md Wave 0 Requirements row 5 + PATTERNS.md §"tests/conftest.py extension". `fake_repo` mirrors the real `Repo` API surface used in PATTERNS.md §"Repo multi-stream insert/update". `mock_gbs_api` is decoupled from the actual `musicstreamer.gbs_api` module via `MagicMock(spec=[...])` (Plan 60-02 will create the module; the string-list spec is forward-compatible AND catches API drift — BLOCKER 4 fix). `_FakeStation.station_art_path` matches the canonical `musicstreamer.models.Station.station_art_path` attribute (HIGH 1 fix — was `station_art` in the original draft).
   </action>
   <verify>
-    <automated>python -c "import sys; sys.path.insert(0, '.'); from tests.conftest import _FakeRepo; r = _FakeRepo(); sid = r.insert_station('GBS.FM', 'https://gbs.fm/96', 'GBS.FM', ''); assert r.station_exists_by_url('https://gbs.fm/96'); assert len(r.list_streams(sid)) == 1; r.insert_stream(sid, 'https://gbs.fm/128', quality='128', bitrate_kbps=128); assert len(r.list_streams(sid)) == 2; r.set_setting('foo', 'bar'); assert r.get_setting('foo') == 'bar'; print('OK')" &amp;&amp; pytest tests/conftest.py --collect-only -q 2>&amp;1 | grep -qE 'no tests ran|0 tests collected' &amp;&amp; grep -q '_stub_bus_bridge' tests/conftest.py</automated>
+    <automated>python -c "import sys; sys.path.insert(0, '.'); from tests.conftest import _FakeRepo; r = _FakeRepo(); sid = r.insert_station('GBS.FM', 'https://gbs.fm/96', 'GBS.FM', ''); assert r.station_exists_by_url('https://gbs.fm/96'); assert len(r.list_streams(sid)) == 1; r.insert_stream(sid, 'https://gbs.fm/128', quality='128', bitrate_kbps=128); assert len(r.list_streams(sid)) == 2; r.set_setting('foo', 'bar'); assert r.get_setting('foo') == 'bar'; r.update_station_art(sid, '/tmp/logo.png'); assert r.get_station(sid).station_art_path == '/tmp/logo.png'; print('OK')" &amp;&amp; pytest tests/conftest.py --collect-only -q 2>&amp;1 | grep -qE 'no tests ran|0 tests collected' &amp;&amp; grep -q '_stub_bus_bridge' tests/conftest.py &amp;&amp; grep -qE 'spec=\[.*"fetch_streams"' tests/conftest.py &amp;&amp; grep -q 'station_art_path' tests/conftest.py &amp;&amp; ! grep -E 'self\.station_art\s*=' tests/conftest.py</automated>
   </verify>
   <done>
 - tests/conftest.py extended with mock_gbs_api, fake_repo, fake_cookies_jar, gbs_fixtures_dir fixtures
 - _stub_bus_bridge autouse fixture intact (regression)
 - _FakeRepo offers station_exists_by_url, insert_station (auto-streams), list_streams, insert_stream, update_stream, get_setting, set_setting, update_station_art, get_station, list_stations
+- mock_gbs_api uses MagicMock(spec=[...]) with all 8 method names listed (BLOCKER 4 fix)
 - mock_gbs_api.fetch_streams() returns 6 entries (96/128/192/256/320/flac) with FLAC bitrate_kbps=1411
+- _FakeStation.station_art_path matches canonical models.Station.station_art_path (HIGH 1 fix; old `station_art` is GONE)
+- _FakeRepo.update_station_art writes to station_art_path
 - pytest collects without errors (no test regressions)
   </done>
 </task>
@@ -455,22 +482,33 @@ Citations: Pitfalls 5, 6, 11 from RESEARCH.md.
 After both tasks complete:
 
 ```bash
-# Wave 0 fixture inventory check
-ls tests/fixtures/gbs/ | wc -l   # ≥ 15
+# Wave 0 fixture inventory check (exactly 17)
+[ "$(find tests/fixtures/gbs -type f \( -name '*.json' -o -name '*.html' -o -name '*.txt' \) | wc -l)" = "17" ]
 test -x scripts/gbs_capture_fixtures.sh
 grep -q 'PLACEHOLDER' tests/fixtures/gbs/cookies_valid.txt
-! grep -E 'q6UZ9t0|v6mfkwosmt' tests/fixtures/gbs/    # no leaked real tokens
+! grep -RE 'q6UZ9t0|v6mfkwosmt' tests/fixtures/gbs/    # no leaked real tokens
+test -f tests/fixtures/gbs/cookies_invalid_no_sessionid.txt
+test -f tests/fixtures/gbs/cookies_invalid_wrong_domain.txt
 
 # conftest sanity
 pytest --collect-only -q 2>&1 | grep -E '(error|PASSED|FAILED)' || echo "Collection clean"
 pytest tests/test_aa_import.py -x -q   # regression — existing autouse fixture still works
+
+# spec=[...] guard (BLOCKER 4)
+grep -E 'spec=\[' tests/conftest.py | grep -q fetch_streams
+
+# station_art_path guard (HIGH 1)
+grep -q 'station_art_path' tests/conftest.py
+! grep -E 'self\.station_art\s*=' tests/conftest.py
 ```
 </verification>
 
 <success_criteria>
-- 15 fixture files in `tests/fixtures/gbs/` matching VALIDATION.md row count
+- Exactly 17 fixture files in `tests/fixtures/gbs/` matching VALIDATION.md row count
 - `scripts/gbs_capture_fixtures.sh` exists, executable, references `~/.local/share/musicstreamer/dev-fixtures/`
 - `tests/conftest.py` has `mock_gbs_api`, `fake_repo`, `fake_cookies_jar`, `gbs_fixtures_dir` fixtures alongside the existing autouse `_stub_bus_bridge`
+- `mock_gbs_api` uses `MagicMock(spec=[...])` with the 8 method names listed (BLOCKER 4)
+- `_FakeStation.station_art_path` matches canonical models.Station.station_art_path; `update_station_art` writes through to it (HIGH 1)
 - No real csrftoken/sessionid values leaked into committed fixtures
 - `pytest --collect-only` runs cleanly (no import errors from conftest extension)
 - One existing test file (e.g. `tests/test_aa_import.py`) still passes (regression check that autouse fixture still works)
