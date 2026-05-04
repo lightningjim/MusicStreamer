@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: "Phase 57 wave 1: 57-01 complete, 57-02 awaits Win11 VM diagnostic"
-last_updated: "2026-05-03T16:58:01.749Z"
-last_activity: 2026-05-03 -- Phase 57 execution started
+status: planning
+stopped_at: Phase 59 context gathered
+last_updated: "2026-05-04T00:09:00.680Z"
+last_activity: 2026-05-03
 progress:
-  total_phases: 22
-  completed_phases: 11
+  total_phases: 23
+  completed_phases: 10
   total_plans: 32
   completed_plans: 32
-  percent: 50
+  percent: 100
 ---
 
 # Project State
@@ -133,6 +133,7 @@ Key v2.0 decisions already settled:
 - Phase 68 added: Add feature for detecting Live performance streams (DI.fm and similar) — currently observed on DI.fm; confirm scope during /gsd-discuss-phase 2026-05-01
 - Phase 69 added: Debug why AAC streams aren't playing in Windows (possibly missing codec) — surfaced during Phase 56 UAT (Finding F2 in 56-05-UAT-LOG.md); suspected missing/misbundled GStreamer AAC decoder (faad / avdec_aac via gst-libav) 2026-05-02
 - Phase 70 added: Hi-res indicator for streams (mirror moOde audio criteria) — promoted from a previously-empty `69-hi-res-...` skeleton folder that pre-existed in `.planning/phases/`; renumbered to 70 to make room for AAC debug at 69; orphan empty folder removed 2026-05-02
+- Phase 71 added: Sister station expansion — (1) GUI affordance to link sister stations from the Edit dialog (currently requires manual DB edits, e.g. the Classical Relaxation pair); (2) extend sister-station support to sources that publish multiple variants of one station (e.g. SomaFM's 2× Drone Zone, 3× Groove Salad) 2026-05-03
 
 ### Pending Todos
 
@@ -162,6 +163,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-02T23:51:12.744Z
-Stopped at: Phase 57 wave 1: 57-01 complete, 57-02 awaits Win11 VM diagnostic
-Resume file: .planning/phases/57-windows-audio-glitch-test-fix/57-DIAGNOSTIC-LOG.md
+Last session: 2026-05-04T00:09:00.668Z
+Stopped at: Phase 59 context gathered
+Resume file: .planning/phases/59-visual-accent-color-picker/59-CONTEXT.md
