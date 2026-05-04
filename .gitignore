@@ -12,3 +12,6 @@ packaging/windows/build/
 
 # Per-developer local launch helper (tracked accidentally in f17c0db, untracked in follow-up)
 run_local.sh
+
+# Local-only dev fixtures (cookies, tokens, scratch). Never commit.
+.local/

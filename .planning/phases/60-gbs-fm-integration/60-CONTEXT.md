@@ -98,7 +98,7 @@ Phase 60 is the **GBS.FM API integration**: ship the foundation **and** the user
 
   Researcher recommends one; planner locks it in `60-PLAN.md`.
 
-- **D-04a:** **Dev fixture for research is OUTSIDE the repo.** Drop location: `~/.local/share/musicstreamer/dev-fixtures/gbs-cookies.txt`. Rationale: session cookies are sensitive — committing them to git history is hard to scrub; outside-repo eliminates the leak risk entirely. There is no `.gitignore` rule for fixtures today, so adding the file inside `.planning/` would be a real risk. Researcher reads from the absolute path; CONTEXT.md captures it (this section). Kyle drops the file after CONTEXT.md is written; researcher checks for its presence at the start of `gsd-phase-researcher`.
+- **D-04a:** **Dev fixture for research lives at `<repo>/.local/gbs.fm.cookies.txt`** (gitignored — `.local/` was added to `.gitignore` 2026-05-04 specifically to keep this fixture out of git sync). Rationale: session cookies are sensitive; the `.local/` ignore rule eliminates the commit-leak risk while keeping the file co-located with the repo for ergonomic researcher access. The original draft proposed `~/.local/share/musicstreamer/dev-fixtures/gbs-cookies.txt` (fully outside-repo) — Kyle elected the project-relative `.local/` path with explicit gitignore protection instead. Researcher reads from `<repo>/.local/gbs.fm.cookies.txt`; checks for its presence at the start of `gsd-phase-researcher` and prompts the user to drop it if missing.
 - **D-04b:** **Dev cookies file is NOT the user-facing v1 auth surface.** It's a development artifact for the researcher to inspect the GBS.FM auth-gated frontend and map the API surface. The user-facing auth UX is whichever option from D-04's preference ladder the planner picks based on research findings.
 - **D-04c:** **AccountsDialog group placement.** Phase 60 inserts the new `_gbs_box: QGroupBox` between `_youtube_box` and the Twitch group at `accounts_dialog.py:91-115`. Add it to `layout` ordering at `accounts_dialog.py:137-138` accordingly. Status label uses the same `Qt.TextFormat.PlainText` (T-40-04) and `status_font` shared with Twitch/YouTube. Action button connection is bound-method (QA-05).
 
@@ -182,9 +182,9 @@ Phase 60 is the **GBS.FM API integration**: ship the foundation **and** the user
 
 - **Site:** https://gbs.fm — the platform being integrated. Researcher visits this directly (with the dev cookies fixture from D-04a) to map the API surface.
 
-### Dev fixture (out of repo)
+### Dev fixture (gitignored, project-relative)
 
-- `~/.local/share/musicstreamer/dev-fixtures/gbs-cookies.txt` — Kyle's session cookies, dropped after CONTEXT.md is committed. Researcher reads from this absolute path. Outside-repo by design (D-04a) — never commit cookies. **Researcher: check for this file's existence at the start; if missing, ask the user to drop it before proceeding.**
+- `<repo>/.local/gbs.fm.cookies.txt` — Kyle's session cookies. `.local/` is gitignored (added 2026-05-04 alongside this CONTEXT.md update; see `.gitignore`). Researcher reads from this project-relative path. Never commit — gitignore + dotted-folder convention make accidental staging effectively impossible. **Researcher: check for this file's existence at the start; if missing, ask the user to drop it before proceeding.**
 
 ### Closest existing patterns (READ FIRST — Phase 60 mirrors these)
 
