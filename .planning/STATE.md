@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 60 context gathered
-last_updated: "2026-05-04T00:56:52.340Z"
+last_updated: "2026-05-04T01:06:55.954Z"
 last_activity: 2026-05-04
 progress:
   total_phases: 23
   completed_phases: 10
   total_plans: 35
-  completed_plans: 33
-  percent: 94
+  completed_plans: 34
+  percent: 97
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 59 (Visual Accent Color Picker) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-05-04
 
@@ -107,6 +107,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: Phase 56-01: aa_normalize_stream_url helper added composing _aa_slug_from_url predicate (D-02). 8 tests cover rewrite + idempotency + passthrough.
 - [Phase 56-02]: Wired aa_normalize_stream_url into Player._set_uri at the URI funnel (D-01) — single insertion point covers all 4 callers (play, _on_youtube_resolved, _on_twitch_resolved, _try_next_stream). Pitfall #1 mitigated via _pipeline.set_property assert_any_call (NOT patch.object(_set_uri)). 3 player-level integration tests + T-56-01 YouTube HLS passthrough lock.
 - [Phase ?]: Phase 59-01: TDD-RED contract for QColorDialog wrapper — 9 tests targeting self._inner / self._current_hex, all failing against current implementation. Plan 02 reads tests as locked spec.
+- [Phase 59-02]: Wrapper QDialog (Pattern b) hosts QColorDialog with NoButtons | DontUseNativeDialog | ShowAlphaChannel=False; ACCENT_PRESETS seeded into Custom Colors slots 0..7 BEFORE inner construction (Pitfall 1); Pitfall 6 _current_hex set in __init__ regardless of wire-order; Pitfall 3 _is_valid_hex guard before setCurrentColor (no #000000 flash); D-15.6 chose write-empty-string to QSS file on Reset; no QTimer throttle on currentColorChanged ships (UAT Plan 03 may revisit). 9/9 RED tests now GREEN; D-19 verified via empty git diff on accent_utils.py.
 
 ### Roadmap Evolution
 
@@ -163,9 +164,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 56 P01 | 7min | 2 tasks | 2 files |
 | Phase 56 P02 | 3min | 2 tasks | 2 files |
 | Phase 59 P01 | 7min | 1 tasks | 1 files |
+| Phase 59 P02 | 9min | 1 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-05-04T00:56:47.825Z
+Last session: 2026-05-04T01:06:55.430Z
 Stopped at: Phase 60 context gathered
 Resume file: None
