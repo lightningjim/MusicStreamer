@@ -934,3 +934,217 @@ def test_panel_does_not_reimplement_aa_detection():
     ]
     for line in forbidden:
         assert line not in src, f"SC #4 violation: panel imports {line!r}"
+
+
+# ===========================================================================
+# Phase 60 / GBS-01c: active-playlist widget on NowPlayingPanel
+# Pattern source: 60-PATTERNS.md §"tests/ui_qt/test_now_playing_panel_gbs.py"
+# Hide-when-empty contract from Phase 64 / Phase 51.
+# ===========================================================================
+
+import os
+from unittest.mock import MagicMock, patch
+from musicstreamer import paths
+
+
+def _make_gbs_station(provider_name: str = "GBS.FM", name: str = "GBS.FM"):
+    """Lightweight Station-shaped object for GBS bind_station tests."""
+    s = MagicMock()
+    s.id = 99
+    s.name = name
+    s.provider_name = provider_name
+    s.tags = ""
+    s.streams = []
+    return s
+
+
+def _construct_gbs_panel(qtbot):
+    """Construct NowPlayingPanel using the same FakePlayer/FakeRepo as the rest of this file."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    return panel
+
+
+def test_gbs_playlist_hidden_for_non_gbs(qtbot, tmp_path, monkeypatch):
+    """GBS-01c: non-GBS station -> widget invisible."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel.bind_station(_make_gbs_station(provider_name="DI.fm"))
+    assert panel._gbs_playlist_widget.isVisible() is False
+
+
+def test_gbs_playlist_hidden_when_logged_out(qtbot, tmp_path, monkeypatch):
+    """D-06b: GBS station but cookies file absent -> widget hidden, timer stopped."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel.bind_station(_make_gbs_station())
+    assert panel._gbs_playlist_widget.isVisible() is False
+    assert panel._gbs_poll_timer.isActive() is False
+
+
+def test_gbs_playlist_visible_when_gbs_and_logged_in(qtbot, tmp_path, monkeypatch):
+    """D-06: GBS + logged-in -> widget visible + timer started."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    # Stub the worker's start so bind_station doesn't actually hit the network
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    # isVisible() returns False for unrealized widgets even when setVisible(True) was called.
+    # isHidden() checks the widget's explicit visibility flag (same fix as Plan 60-04).
+    assert not panel._gbs_playlist_widget.isHidden()
+    assert panel._gbs_poll_timer.isActive() is True
+
+
+def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
+    """Emitting playlist_ready directly populates the widget with 3 items."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 5  # set known token
+    state = {
+        "now_playing_entryid": 1810736,
+        "now_playing_songid": 782491,
+        "icy_title": "Crippling Alcoholism - Templeton",
+        "queue_summary": "Playlist is 11:21 long with 3 dongs",
+        "score": "5.0 (1 vote)",
+        "user_vote": 0,
+        "queue_html_snippets": [],
+        "removed_ids": [],
+    }
+    panel._on_gbs_playlist_ready(5, state)
+    items = [
+        panel._gbs_playlist_widget.item(i).text()
+        for i in range(panel._gbs_playlist_widget.count())
+    ]
+    # Now-playing prefixed with arrow marker
+    assert any("Crippling Alcoholism - Templeton" in t for t in items)
+    # Queue summary
+    assert any("Playlist is 11:21" in t for t in items)
+    # Score
+    assert any("5.0 (1 vote)" in t for t in items)
+
+
+def test_gbs_poll_timer_pauses_when_widget_hidden(qtbot, tmp_path, monkeypatch):
+    """Pitfall 5 / D-06a: rebinding to non-GBS station must stop the timer."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    assert panel._gbs_poll_timer.isActive() is True
+    # Re-bind to non-GBS — timer must stop
+    panel.bind_station(_make_gbs_station(provider_name="DI.fm"))
+    assert panel._gbs_poll_timer.isActive() is False
+    assert panel._gbs_playlist_widget.isVisible() is False
+
+
+def test_gbs_stale_token_discarded(qtbot, tmp_path, monkeypatch):
+    """Pitfall 1: old-token playlist_ready must NOT mutate the widget."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel._gbs_poll_token = 10
+    # Pre-populate so we can detect mutation
+    panel._gbs_playlist_widget.addItem("BASELINE")
+    assert panel._gbs_playlist_widget.count() == 1
+    # Emit with stale token (3 != 10)
+    panel._on_gbs_playlist_ready(3, {"icy_title": "should not render"})
+    assert panel._gbs_playlist_widget.count() == 1
+    assert panel._gbs_playlist_widget.item(0).text() == "BASELINE"
+
+
+def test_gbs_auth_expired_hides_widget_no_toast(qtbot, tmp_path, monkeypatch):
+    """Pitfall 3: auth_expired -> widget hidden + timer stopped, no toast spam."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    panel._gbs_poll_token = 5
+    panel._gbs_playlist_widget.setVisible(True)
+    panel._gbs_poll_timer.start()
+    panel._on_gbs_playlist_error(5, "auth_expired")
+    assert panel._gbs_playlist_widget.isVisible() is False
+    assert panel._gbs_poll_timer.isActive() is False
+
+
+def test_refresh_gbs_visibility_runs_once_per_bind_station(qtbot, tmp_path, monkeypatch):
+    """Phase 64 D-04 invariant: _refresh_gbs_visibility is called EXACTLY once per bind_station."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    counter = {"n": 0}
+    original = panel._refresh_gbs_visibility
+
+    def counting_refresh():
+        counter["n"] += 1
+        original()
+
+    monkeypatch.setattr(panel, "_refresh_gbs_visibility", counting_refresh)
+    panel.bind_station(_make_gbs_station(provider_name="DI.fm"))
+    assert counter["n"] == 1
+
+
+def test_gbs_playlist_resets_position_on_track_change(qtbot, tmp_path, monkeypatch):
+    """HIGH 4 fix: position cursor resets to 0 on track-entryid change.
+
+    Three-step sequence:
+      1. First call: entryid=100, song_position=200 -> cursor["position"] == 0 (new track)
+      2. Second call: entryid=200 (different), song_position=15 -> cursor["position"] == 0
+         (reset on track transition, NOT 15)
+      3. Third call: entryid=200 (same as #2), song_position=42 -> cursor["position"] == 42
+         (advances normally when entryid is stable)
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    panel._gbs_poll_token = 7
+
+    # Step 1: first poll response — brand-new entryid (no prev_entryid)
+    panel._on_gbs_playlist_ready(7, {
+        "now_playing_entryid": 100,
+        "song_position": 200,
+    })
+    # New entryid, no previous -> track_changed=True -> position reset to 0
+    assert panel._gbs_poll_cursor.get("position") == 0
+
+    # Step 2: different entryid -> track transition -> position reset to 0
+    panel._on_gbs_playlist_ready(7, {
+        "now_playing_entryid": 200,
+        "song_position": 15,
+    })
+    assert panel._gbs_poll_cursor.get("position") == 0, (
+        "Expected position=0 on track change (HIGH 4 fix), got "
+        + str(panel._gbs_poll_cursor.get("position"))
+    )
+
+    # Step 3: same entryid as step 2 -> position advances normally
+    panel._on_gbs_playlist_ready(7, {
+        "now_playing_entryid": 200,
+        "song_position": 42,
+    })
+    assert panel._gbs_poll_cursor.get("position") == 42
