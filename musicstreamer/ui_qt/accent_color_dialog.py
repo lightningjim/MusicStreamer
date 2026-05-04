@@ -12,6 +12,7 @@ Security: hex input validated by _is_valid_hex before QSS injection (T-40-02).
 """
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -65,6 +66,12 @@ class AccentColorDialog(QDialog):
         self._inner.setOption(QColorDialog.ColorDialogOption.NoButtons, True)
         self._inner.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
         self._inner.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, False)
+        # QColorDialog is itself a QDialog. When added to a layout as a child
+        # widget, the default Qt.Dialog window flag causes Qt to suppress its
+        # content rendering on real X11 (offscreen Qt happens to work without
+        # this). Strip the dialog flag so it renders as a plain child widget.
+        self._inner.setWindowFlags(Qt.Widget)
+        self._inner.setSizeGripEnabled(False)
 
         # D-17 + Pitfall 3 color-flash guard: validate saved hex before
         # setCurrentColor; QColor("invalid") silently becomes #000000 and
