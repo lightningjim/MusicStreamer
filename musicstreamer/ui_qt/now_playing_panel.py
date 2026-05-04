@@ -25,15 +25,20 @@ against the panel.
 """
 from __future__ import annotations
 
+import logging
+import os
 from typing import Optional
 
-from PySide6.QtCore import QEvent, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QThread
 from PySide6.QtGui import QFont, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QProgressBar,
     QSlider,
     QToolButton,
@@ -50,6 +55,37 @@ from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
+
+_log = logging.getLogger(__name__)
+
+
+class _GbsPollWorker(QThread):
+    """Phase 60 D-06a / GBS-01c: poll gbs_api.fetch_active_playlist on a worker thread.
+
+    Mirrors cover_art's worker-thread + Qt-queued signal pattern. Pitfall 1
+    + Pitfall 5: token guard on the consuming side discards stale responses
+    when station re-binds mid-poll.
+    """
+
+    playlist_ready = Signal(int, object)   # (token, state_dict)
+    playlist_error = Signal(int, str)      # (token, msg or sentinel)
+
+    def __init__(self, token: int, cookies, cursor=None, parent=None):
+        super().__init__(parent)
+        self._token = token
+        self._cookies = cookies
+        self._cursor = cursor
+
+    def run(self):
+        from musicstreamer import gbs_api
+        try:
+            state = gbs_api.fetch_active_playlist(self._cookies, cursor=self._cursor)
+            self.playlist_ready.emit(self._token, state)
+        except Exception as exc:
+            if isinstance(exc, gbs_api.GbsAuthExpiredError):
+                self.playlist_error.emit(self._token, "auth_expired")
+            else:
+                self.playlist_error.emit(self._token, str(exc))
 
 
 class _MutedLabel(QLabel):
@@ -304,6 +340,26 @@ class NowPlayingPanel(QWidget):
         self._stats_widget = self._build_stats_widget()
         center.addWidget(self._stats_widget)
 
+        # === Phase 60 D-06: GBS.FM active-playlist widget (hide-when-empty) ===
+        # Phase 64 _sibling_label precedent — invisible until populated.
+        # Pitfall 11: PlainText for gbs.fm-side strings (artist/title/score).
+        self._gbs_playlist_widget = QListWidget(self)
+        self._gbs_playlist_widget.setVisible(False)
+        self._gbs_playlist_widget.setMaximumHeight(180)  # ~6 rows; lets controls keep prominence
+        center.addWidget(self._gbs_playlist_widget)
+
+        # Phase 60 D-06a RESOLVED: 15s poll cadence (matches gbs.fm web UI DELAY=15000)
+        self._gbs_poll_timer = QTimer(self)
+        self._gbs_poll_timer.setInterval(15000)
+        self._gbs_poll_timer.timeout.connect(self._on_gbs_poll_tick)  # QA-05
+
+        # Pitfall 1 + cover_art precedent: stale-response token guard
+        self._gbs_poll_token: int = 0
+        self._gbs_poll_worker = None  # SYNC-05 retention slot
+
+        # Cursor for the /ajax endpoint — advanced by every successful poll.
+        self._gbs_poll_cursor: dict = {}
+
         outer.addLayout(center, 1)
 
         # ------------------------------------------------------------------
@@ -374,6 +430,11 @@ class NowPlayingPanel(QWidget):
         # This is the ONLY call site for _refresh_siblings -- D-04 invariant
         # (locked by test_refresh_siblings_runs_once_per_bind_station_call).
         self._refresh_siblings()
+        # Phase 60 D-06: re-derive GBS active-playlist visibility for the
+        # newly bound station. Phase 64 D-04 invariant — _refresh_gbs_visibility
+        # is the ONLY call site (test_refresh_gbs_visibility_runs_once_per_bind_station
+        # locks this).
+        self._refresh_gbs_visibility()
 
     # ----------------------------------------------------------------------
     # Player signal slots (wired by MainWindow in 37-04)
@@ -722,6 +783,118 @@ class NowPlayingPanel(QWidget):
         if sibling is None:
             return
         self.sibling_activated.emit(sibling)
+
+    # ----------------------------------------------------------------------
+    # Phase 60 / GBS-01c: active-playlist widget handlers (D-06/D-06a/D-06b)
+    # ----------------------------------------------------------------------
+
+    def _is_gbs_logged_in(self) -> bool:
+        """Phase 60 D-04 ladder #3: true if cookies file exists."""
+        from musicstreamer import paths
+        return os.path.exists(paths.gbs_cookies_path())
+
+    def _refresh_gbs_visibility(self) -> None:
+        """Phase 60 D-06: show widget iff GBS.FM station bound AND logged in.
+
+        Side effect: starts the 15s poll timer when shown; stops when hidden.
+        Pitfall 5 — pause polling when not visible.
+        """
+        is_gbs = (self._station is not None
+                  and self._station.provider_name == "GBS.FM")
+        logged_in = self._is_gbs_logged_in()
+        should_show = is_gbs and logged_in
+
+        self._gbs_playlist_widget.setVisible(should_show)
+
+        if should_show:
+            # Reset cursor on station change — fresh start
+            self._gbs_poll_cursor = {}
+            self._gbs_playlist_widget.clear()
+            placeholder = QListWidgetItem("Loading playlist…")
+            self._gbs_playlist_widget.addItem(placeholder)
+            # Trigger an immediate first poll (don't wait 15s)
+            self._on_gbs_poll_tick()
+            if not self._gbs_poll_timer.isActive():
+                self._gbs_poll_timer.start()
+        else:
+            self._gbs_poll_timer.stop()
+            self._gbs_playlist_widget.clear()
+
+    def _on_gbs_poll_tick(self) -> None:
+        """Phase 60 D-06a: kick a worker that hits /ajax with the cursor."""
+        from musicstreamer import gbs_api
+        cookies = gbs_api.load_auth_context()
+        if cookies is None:
+            # Auth disappeared mid-poll — refresh visibility (which will stop timer)
+            self._refresh_gbs_visibility()
+            return
+        self._gbs_poll_token += 1
+        token = self._gbs_poll_token
+        worker = _GbsPollWorker(
+            token, cookies, cursor=dict(self._gbs_poll_cursor), parent=self
+        )
+        worker.playlist_ready.connect(self._on_gbs_playlist_ready)  # QA-05
+        worker.playlist_error.connect(self._on_gbs_playlist_error)  # QA-05
+        self._gbs_poll_worker = worker  # SYNC-05 retain
+        worker.start()
+
+    def _on_gbs_playlist_ready(self, token: int, state) -> None:
+        """Render the playlist state. Pitfall 1 — discard stale tokens.
+
+        HIGH 4 fix: `position` is a seconds-into-current-song cursor, NOT a
+        monotonic pagination cursor. When the `now_playing` entryid changes
+        (track transition), we MUST reset position=0 — carrying the previous
+        song's `song_position` into the next /ajax call gives gbs.fm a stale
+        delta reference. Track changes detected by comparing new entryid
+        against the previously-seen one.
+        """
+        if token != self._gbs_poll_token:
+            return  # stale — newer poll in flight
+        # Advance cursor for next tick
+        new_entryid = state.get("now_playing_entryid")
+        prev_entryid = self._gbs_poll_cursor.get("now_playing")
+        track_changed = (
+            new_entryid is not None and new_entryid != prev_entryid
+        )
+        if new_entryid is not None:
+            self._gbs_poll_cursor["now_playing"] = new_entryid
+        if state.get("last_removal_id") is not None:
+            self._gbs_poll_cursor["last_removal"] = state["last_removal_id"]
+        if track_changed:
+            # HIGH 4 fix: reset position cursor on track transition.
+            self._gbs_poll_cursor["position"] = 0
+        elif state.get("song_position") is not None:
+            try:
+                self._gbs_poll_cursor["position"] = int(state["song_position"])
+            except (TypeError, ValueError):
+                pass
+        # Render: clear + add now-playing row + parsed queue rows.
+        # Pitfall 11 — PlainText for everything; QListWidgetItem default is PlainText.
+        self._gbs_playlist_widget.clear()
+        icy = state.get("icy_title")
+        if icy:
+            now_item = QListWidgetItem(f"▶ {icy}")
+            self._gbs_playlist_widget.addItem(now_item)
+        # Queue summary for v1 (Pitfall 6 — defensive HTML parsing happens in gbs_api).
+        summary = state.get("queue_summary")
+        if summary:
+            self._gbs_playlist_widget.addItem(QListWidgetItem(summary))
+        score = state.get("score")
+        if score:
+            self._gbs_playlist_widget.addItem(QListWidgetItem(f"Score: {score}"))
+
+    def _on_gbs_playlist_error(self, token: int, msg: str) -> None:
+        """Auth expiry -> hide widget + stop timer; other errors -> silent log."""
+        if token != self._gbs_poll_token:
+            return
+        if msg == "auth_expired":
+            # Pitfall 3: don't toast-spam on every poll tick; just hide.
+            self._gbs_playlist_widget.setVisible(False)
+            self._gbs_poll_timer.stop()
+            self._gbs_playlist_widget.clear()
+        else:
+            # Pitfall 5 + 7: don't retry; just log.
+            _log.warning("GBS.FM playlist poll failed: %s", msg)
 
     # ----------------------------------------------------------------------
     # Phase 47.1: Stats-for-nerds widget construction (D-07/D-08/D-09/D-10)
