@@ -539,3 +539,84 @@ def test_queue_parser_skips_playing_and_history(monkeypatch):
     # Each row has all required keys
     for row in rows:
         assert set(row.keys()) >= {"entryid", "songid", "artist", "title", "duration"}
+
+
+# ---------- Plan 60-11: artist/album parser tests (T12) ----------
+
+def test_search_returns_artist_links(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """60-11 / T12 (RED): search() must return artist_links as non-empty list on page 1.
+
+    Uses search_test_p1.html which contains <p class="artists">Artists: block with
+    Testament (/artist/4803) among others (diagnosis §2a, §4).
+
+    Currently FAILS: search() dict has no 'artist_links' key.
+    Fix (Task 2): add _ArtistAlbumParser + artist_links key to search() return dict.
+    """
+    payload = (gbs_fixtures_dir / "search_test_p1.html").read_bytes()
+    monkeypatch.setattr(
+        gbs_api, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+    )
+    out = search("test", 1, fake_cookies_jar)
+    assert "artist_links" in out, "search() must return 'artist_links' key"
+    links = out["artist_links"]
+    assert isinstance(links, list), f"artist_links must be a list; got {type(links)}"
+    assert len(links) >= 1, f"artist_links must be non-empty on page 1 with matches; got {links!r}"
+    for entry in links:
+        assert "text" in entry and "url" in entry, f"Each artist_links entry must have 'text' and 'url': {entry!r}"
+        assert isinstance(entry["text"], str), f"entry['text'] must be str: {entry!r}"
+        assert isinstance(entry["url"], str), f"entry['url'] must be str: {entry!r}"
+    # Testament is present in search_test_p1.html at /artist/4803 (diagnosis §2a)
+    urls = [e["url"] for e in links]
+    assert "/artist/4803" in urls, (
+        f"Expected /artist/4803 (Testament) in artist_links urls; got: {urls}"
+    )
+
+
+def test_search_returns_album_links(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """60-11 / T12 (RED): search() must return album_links as non-empty list on page 1.
+
+    Uses search_test_p1.html which contains <p class="artists">Albums: block with
+    /album/1488 (#gbs-fm's greatest shits) (diagnosis §2a, §4).
+
+    Currently FAILS: search() dict has no 'album_links' key.
+    """
+    payload = (gbs_fixtures_dir / "search_test_p1.html").read_bytes()
+    monkeypatch.setattr(
+        gbs_api, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+    )
+    out = search("test", 1, fake_cookies_jar)
+    assert "album_links" in out, "search() must return 'album_links' key"
+    links = out["album_links"]
+    assert isinstance(links, list), f"album_links must be a list; got {type(links)}"
+    assert len(links) >= 1, f"album_links must be non-empty on page 1 with matches; got {links!r}"
+    for entry in links:
+        assert "text" in entry and "url" in entry, f"Each album_links entry must have 'text' and 'url': {entry!r}"
+    urls = [e["url"] for e in links]
+    assert "/album/1488" in urls, (
+        f"Expected /album/1488 in album_links urls; got: {urls}"
+    )
+
+
+def test_search_page2_has_no_artist_album_links(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """60-11 / T12 (RED): search() must return empty artist_links + album_links on page 2.
+
+    search_test_p2.html has no <p class="artists"> blocks (diagnosis §2a — page 2+ omits them).
+
+    Currently FAILS: search() dict has no 'artist_links'/'album_links' keys.
+    """
+    payload = (gbs_fixtures_dir / "search_test_p2.html").read_bytes()
+    monkeypatch.setattr(
+        gbs_api, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+    )
+    out = search("test", 2, fake_cookies_jar)
+    assert "artist_links" in out, "search() must return 'artist_links' key even on page 2"
+    assert "album_links" in out, "search() must return 'album_links' key even on page 2"
+    assert out["artist_links"] == [], (
+        f"artist_links must be [] on page 2 (no blocks in p2 fixture); got {out['artist_links']!r}"
+    )
+    assert out["album_links"] == [], (
+        f"album_links must be [] on page 2 (no blocks in p2 fixture); got {out['album_links']!r}"
+    )
