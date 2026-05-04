@@ -974,7 +974,7 @@ def test_logo_download(fake_repo, monkeypatch):
     assert art_path_holder["src"] == fake_tmp_path
     assert art_path_holder["kind"] == "station_art"
     sid = fake_repo.list_stations()[0].id
-    assert fake_repo.get_station(sid).station_art is not None
+    assert fake_repo.get_station(sid).station_art_path is not None  # HIGH 1: matches canonical Station.station_art_path attribute
 
 
 # ---------- GBS-01b: cookie validator ----------
