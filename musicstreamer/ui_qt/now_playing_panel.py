@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QProgressBar,
+    QPushButton,
     QSlider,
     QToolButton,
     QVBoxLayout,
@@ -86,6 +87,41 @@ class _GbsPollWorker(QThread):
                 self.playlist_error.emit(self._token, "auth_expired")
             else:
                 self.playlist_error.emit(self._token, str(exc))
+
+
+class _GbsVoteWorker(QThread):
+    """Phase 60 D-07a / GBS-01d: send a vote off the UI thread.
+
+    Mirrors _GbsPollWorker shape (Plan 60-05). Pitfall 2: server is truth —
+    payload includes the API-returned user_vote so the consumer can confirm
+    or rollback the optimistic highlight.
+    """
+    # finished payload: (token, server_user_vote, prior_vote_for_rollback_record, score_str)
+    vote_finished = Signal(int, int, int, str)
+    # error payload: (token, prior_vote_for_rollback, msg_or_'auth_expired')
+    vote_error = Signal(int, int, str)
+
+    def __init__(self, token: int, entryid: int, vote_value: int,
+                 cookies, prior_vote: int, parent=None):
+        super().__init__(parent)
+        self._token = token
+        self._entryid = entryid
+        self._vote_value = vote_value
+        self._cookies = cookies
+        self._prior_vote = prior_vote
+
+    def run(self):
+        from musicstreamer import gbs_api
+        try:
+            result = gbs_api.vote_now_playing(self._entryid, self._vote_value, self._cookies)
+            server_vote = int(result.get("user_vote", 0))
+            score = str(result.get("score", ""))
+            self.vote_finished.emit(self._token, server_vote, self._prior_vote, score)
+        except Exception as exc:
+            if isinstance(exc, gbs_api.GbsAuthExpiredError):
+                self.vote_error.emit(self._token, self._prior_vote, "auth_expired")
+            else:
+                self.vote_error.emit(self._token, self._prior_vote, str(exc))
 
 
 class _MutedLabel(QLabel):
@@ -157,6 +193,11 @@ class NowPlayingPanel(QWidget):
     # active playback. Mirrors edit_requested in payload shape (Station via
     # Signal(object)).
     sibling_activated = Signal(object)
+
+    # Phase 60 D-07a: fire on vote failure so MainWindow.show_toast surfaces
+    # the error to the user. Mirrors track_starred pattern — forward via bound
+    # method connection (QA-05).
+    gbs_vote_error_toast = Signal(str)
 
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -359,6 +400,39 @@ class NowPlayingPanel(QWidget):
 
         # Cursor for the /ajax endpoint — advanced by every successful poll.
         self._gbs_poll_cursor: dict = {}
+
+        # === Phase 60 D-07: GBS.FM vote control (5 buttons, 1-5 score) ===
+        # RESEARCH §Claude's Discretion: 5 separate buttons (NOT thumb-up/down) —
+        # gbs.fm uses a 1-5 score system. setCheckable(True) lets us highlight
+        # the user's current vote. Pitfall 11: PlainText on the labels (default).
+        self._gbs_vote_row = QHBoxLayout()
+        self._gbs_vote_row.setSpacing(4)
+        self._gbs_vote_buttons: list = []
+        for v in range(1, 6):
+            btn = QPushButton(str(v), self)
+            btn.setCheckable(True)
+            btn.setVisible(False)
+            btn.setProperty("vote_value", v)
+            btn.setMinimumWidth(32)
+            btn.setMaximumWidth(48)
+            btn.clicked.connect(self._on_gbs_vote_clicked)  # QA-05 bound method
+            self._gbs_vote_row.addWidget(btn)
+            self._gbs_vote_buttons.append(btn)
+        # Add the vote row to center layout below the playlist widget.
+        center.addLayout(self._gbs_vote_row)
+
+        # Pitfall 1: entryid stamps ONLY from /ajax now_playing event
+        self._gbs_current_entryid: Optional[int] = None
+
+        # Pitfall 2 + cover_art precedent: stale-vote-response token guard
+        self._gbs_vote_token: int = 0
+        self._gbs_vote_worker = None  # SYNC-05 retain
+
+        # BLOCKER 1 fix: server-confirmed vote tracked separately from
+        # _current_highlighted_vote() (Qt toggles checkable buttons before
+        # `clicked` fires, so post-toggle highlight is unreliable for the
+        # "is this a vote-clear?" check).
+        self._last_confirmed_vote: int = 0
 
         outer.addLayout(center, 1)
 
@@ -820,6 +894,15 @@ class NowPlayingPanel(QWidget):
             self._gbs_poll_timer.stop()
             self._gbs_playlist_widget.clear()
 
+        # Phase 60 D-07: vote buttons share the same auth+provider gate.
+        for btn in self._gbs_vote_buttons:
+            btn.setVisible(should_show)
+        if not should_show:
+            # Reset highlighting when leaving GBS context
+            for btn in self._gbs_vote_buttons:
+                btn.setChecked(False)
+            self._gbs_current_entryid = None
+
     def _on_gbs_poll_tick(self) -> None:
         """Phase 60 D-06a: kick a worker that hits /ajax with the cursor."""
         from musicstreamer import gbs_api
@@ -868,6 +951,15 @@ class NowPlayingPanel(QWidget):
                 self._gbs_poll_cursor["position"] = int(state["song_position"])
             except (TypeError, ValueError):
                 pass
+        # Phase 60 D-07 / Pitfall 1: entryid captured ONLY from /ajax response
+        if new_entryid is not None:
+            new_entryid_int = int(new_entryid)
+            if new_entryid_int != self._gbs_current_entryid:
+                self._gbs_current_entryid = new_entryid_int
+        # Pitfall 2 / D-07d: server's userVote is the source of truth
+        confirmed_vote = int(state.get("user_vote", 0) or 0)
+        self._apply_vote_highlight(confirmed_vote)
+        self._last_confirmed_vote = confirmed_vote  # BLOCKER 1 fix — drives vote-clear logic
         # Render: clear + add now-playing row + parsed queue rows.
         # Pitfall 11 — PlainText for everything; QListWidgetItem default is PlainText.
         self._gbs_playlist_widget.clear()
@@ -895,6 +987,110 @@ class NowPlayingPanel(QWidget):
         else:
             # Pitfall 5 + 7: don't retry; just log.
             _log.warning("GBS.FM playlist poll failed: %s", msg)
+
+    # ----------------------------------------------------------------------
+    # Phase 60 / GBS-01d: vote control handlers (D-07a/D-07b/D-07c/D-07d)
+    # ----------------------------------------------------------------------
+
+    def _apply_vote_highlight(self, vote_value: int) -> None:
+        """Highlight the button matching vote_value; clear all others.
+
+        vote_value=0 means no vote — all buttons unchecked.
+        """
+        for btn in self._gbs_vote_buttons:
+            btn.setChecked(int(btn.property("vote_value") or 0) == int(vote_value))
+
+    def _current_highlighted_vote(self) -> int:
+        """Return the currently-highlighted vote value, or 0 if none."""
+        for btn in self._gbs_vote_buttons:
+            if btn.isChecked():
+                v = btn.property("vote_value")
+                try:
+                    return int(v)
+                except (TypeError, ValueError):
+                    return 0
+        return 0
+
+    def _on_gbs_vote_clicked(self) -> None:
+        """D-07 / D-07a: optimistic UI + worker-thread vote round-trip.
+
+        Pitfall 1: requires self._gbs_current_entryid (sourced from /ajax).
+        Pitfall 2: optimistic highlight will be CONFIRMED or ROLLED BACK
+        by the worker's signal handlers — server is truth.
+
+        BLOCKER 1 fix: read `prior_vote` from self._last_confirmed_vote, NOT
+        from _current_highlighted_vote(). Qt toggles a checkable QPushButton's
+        check state BEFORE emitting `clicked`, so reading the highlight here
+        gives the post-toggle value (always wrong by one click).
+        self._last_confirmed_vote is set by _on_gbs_playlist_ready from
+        /ajax responses and by _on_gbs_vote_finished from vote round-trips —
+        always reflects what the server thinks the user's vote is.
+        """
+        from musicstreamer import gbs_api
+        sender = self.sender()
+        if sender is None or self._gbs_current_entryid is None:
+            return  # No track context — ignore the click
+        try:
+            vote_value = int(sender.property("vote_value"))
+        except (TypeError, ValueError):
+            return
+        prior_vote = self._last_confirmed_vote  # BLOCKER 1 fix
+        # If clicking the SAME button that's already server-confirmed, this is
+        # a vote-0 (clear) per RESEARCH §Capability 4.
+        if vote_value == prior_vote:
+            submit_value = 0
+            optimistic_value = 0
+        else:
+            submit_value = vote_value
+            optimistic_value = vote_value
+        # OPTIMISTIC highlight (will be confirmed by server response)
+        self._apply_vote_highlight(optimistic_value)
+
+        cookies = gbs_api.load_auth_context()
+        if cookies is None:
+            # Auth disappeared — rollback + refresh visibility
+            self._apply_vote_highlight(prior_vote)
+            self._refresh_gbs_visibility()
+            return
+
+        self._gbs_vote_token += 1
+        token = self._gbs_vote_token
+        worker = _GbsVoteWorker(
+            token=token,
+            entryid=int(self._gbs_current_entryid),
+            vote_value=submit_value,
+            cookies=cookies,
+            prior_vote=prior_vote,
+            parent=self,
+        )
+        worker.vote_finished.connect(self._on_gbs_vote_finished)  # QA-05
+        worker.vote_error.connect(self._on_gbs_vote_error)        # QA-05
+        self._gbs_vote_worker = worker  # SYNC-05 retain
+        worker.start()
+
+    def _on_gbs_vote_finished(self, token: int, server_user_vote: int,
+                              prior_vote: int, score: str) -> None:
+        """Pitfall 2: server is source of truth; apply server-returned vote.
+
+        BLOCKER 1 fix: also stash the server-confirmed value into
+        self._last_confirmed_vote so the NEXT click computes prior_vote
+        correctly (vote-clear logic depends on this).
+        """
+        if token != self._gbs_vote_token:
+            return
+        self._apply_vote_highlight(int(server_user_vote))
+        self._last_confirmed_vote = int(server_user_vote)  # BLOCKER 1 fix
+
+    def _on_gbs_vote_error(self, token: int, prior_vote: int, msg: str) -> None:
+        """Pitfall 2 + Pitfall 7: rollback to prior_vote; surface error."""
+        if token != self._gbs_vote_token:
+            return
+        self._apply_vote_highlight(int(prior_vote))
+        if msg == "auth_expired":
+            self.gbs_vote_error_toast.emit("GBS.FM session expired — reconnect via Accounts")
+        else:
+            truncated = (msg[:60] + "…") if len(msg) > 60 else msg
+            self.gbs_vote_error_toast.emit(f"Vote failed: {truncated}")
 
     # ----------------------------------------------------------------------
     # Phase 47.1: Stats-for-nerds widget construction (D-07/D-08/D-09/D-10)
