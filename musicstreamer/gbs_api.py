@@ -502,9 +502,19 @@ def _find_existing_station_id(repo: Repo) -> Optional[int]:
 def import_station(repo: Repo, on_progress=None) -> tuple:
     """Idempotent multi-quality import per D-01 / D-02a.
 
-    Returns (inserted, updated). 1+0 on first call, 0+1 on re-import.
+    Returns (inserted, updated).
+      (1, 0)  — first call; GBS.FM station not yet in library
+      (0, 1)  — re-import with at least one stream field changed
+      (0, 0)  — re-import with no field changes (idempotent no-op)
+
     Logo + metadata refresh on every call. Pitfall 4: re-import is
     truncate-and-reset (matches aa_import semantics).
+
+    Field-level dirty-check (T6 fix, 60-DIAGNOSIS-302-messages.md §3):
+    The update path now compares (url, quality, position, codec, bitrate_kbps)
+    for each existing stream against the canonical tier list. repo.update_stream
+    is always called (keeps SQLite WAL consistent), but the return value only
+    counts as updated=1 when at least one field actually changed.
     """
     streams = fetch_streams()
     meta = fetch_station_metadata()
@@ -546,9 +556,22 @@ def import_station(repo: Repo, on_progress=None) -> tuple:
         station_id = existing_id
         # Refresh streams in place: align by URL (URLs are stable per RESEARCH §Capability 1).
         existing_streams = {s.url: s for s in repo.list_streams(station_id)}
+        # Field-level dirty flag: True if ANY stream field changed (T6 fix).
+        # repo.update_stream is still called unconditionally to keep SQLite WAL
+        # consistent (T-60-08-04 threat mitigation). Only the return tuple changes.
+        any_field_changed = False
         for s in streams:
             if s["url"] in existing_streams:
                 row = existing_streams[s["url"]]
+                # Compare the 5 canonical fields (label/stream_type excluded —
+                # those aren't part of the canonical tier list and may carry
+                # user edits or default values).
+                target = (s["url"], s["quality"], s["position"],
+                          s["codec"], int(s["bitrate_kbps"]))
+                existing = (row.url, row.quality, row.position,
+                            row.codec, int(row.bitrate_kbps or 0))
+                if target != existing:
+                    any_field_changed = True
                 repo.update_stream(
                     row.id, s["url"], row.label or "",
                     s["quality"], s["position"],
@@ -556,13 +579,15 @@ def import_station(repo: Repo, on_progress=None) -> tuple:
                     bitrate_kbps=s["bitrate_kbps"],
                 )
             else:
+                # New tier URL not previously in library — counts as a change.
+                any_field_changed = True
                 repo.insert_stream(
                     station_id, s["url"], label="",
                     quality=s["quality"], position=s["position"],
                     stream_type="shoutcast", codec=s["codec"],
                     bitrate_kbps=s["bitrate_kbps"],
                 )
-        inserted, updated = 0, 1
+        inserted, updated = 0, (1 if any_field_changed else 0)
 
     # Logo download (always re-fetch — catches gbs.fm-side updates)
     tmp_path = _download_logo(meta["logo_url"])
