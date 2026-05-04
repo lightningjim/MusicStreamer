@@ -165,11 +165,28 @@ def _open_no_redirect(url: str, cookies: http.cookiejar.MozillaCookieJar,
     """GET that does NOT follow redirects — used for /add/<songid> submit.
 
     The 302 response is returned directly so caller can read Set-Cookie:
-    messages=... before following. RESEARCH Code Example 4.
+    messages=... and Location headers. RESEARCH Code Example 4.
+
+    CPython's urllib chain (HTTPRedirectHandler.http_error_302 →
+    redirect_request → None → http_error_default) unconditionally raises
+    HTTPError(302) when redirect_request returns None. The fix is to override
+    http_error_302 directly to return fp (the raw response file-object), which
+    stops the chain at the response and prevents the HTTPError raise.
+    See: cpython/Lib/urllib/request.py HTTPDefaultErrorHandler.http_error_default
+    and 60-DIAGNOSIS-302-messages.md §2 + §5a.
     """
     class _NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *a, **kw):
-            return None
+        # Override http_error_302 to return fp (the raw response) instead of
+        # following the redirect. The former redirect_request-returns-None
+        # pattern caused CPython's http_error_default to raise HTTPError(302),
+        # which prevented submit() from ever reading the Set-Cookie: messages
+        # header (T13 root cause — 60-DIAGNOSIS-302-messages.md §2).
+        def http_error_302(self, req, fp, code, msg, headers):
+            return fp
+        # Belt-and-braces: cover 301/303/307 in case gbs.fm changes its
+        # redirect code in the future (diagnosis §6 Open Question 1).
+        http_error_301 = http_error_307 = http_error_303 = http_error_302
+
     handler_cookie = urllib.request.HTTPCookieProcessor(cookies)
     handler_noredir = _NoRedirect()
     opener = urllib.request.build_opener(handler_cookie, handler_noredir)
