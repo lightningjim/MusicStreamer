@@ -1365,7 +1365,13 @@ def test_gbs_vote_stale_token_discarded(qtbot, tmp_path, monkeypatch):
 
 
 def test_gbs_vote_no_entryid_ignores_click(qtbot, tmp_path, monkeypatch):
-    """No entryid stamped -> click is a no-op (no worker spawned)."""
+    """In-handler entryid-None guard returns silently with no worker started.
+
+    60-09 / T10: after this plan, the vote buttons are also DISABLED at the
+    Qt level when entryid is None. This test bypasses the Qt gate via a
+    direct _on_gbs_vote_clicked call so the IN-HANDLER guard at line 1031
+    remains exercised — defense-in-depth coverage.
+    """
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     os.makedirs(str(tmp_path), exist_ok=True)
     with open(paths.gbs_cookies_path(), "w") as f:
@@ -1379,5 +1385,110 @@ def test_gbs_vote_no_entryid_ignores_click(qtbot, tmp_path, monkeypatch):
     started = []
     monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsVoteWorker.start",
                         lambda self: started.append(True))
-    panel._gbs_vote_buttons[2].click()
-    assert started == []
+    # 60-09: bypass the disabled-button Qt gate by temporarily enabling the
+    # button so we can reach the in-handler guard (the button is disabled
+    # while entryid is None after this plan's fix).
+    panel._gbs_vote_buttons[2].setEnabled(True)
+    panel._gbs_vote_buttons[2].click()  # now reaches handler; in-handler guard catches None
+    assert started == [], "in-handler guard must drop click when _gbs_current_entryid is None"
+
+
+# ---------------------------------------------------------------------------
+# Phase 60-09 TDD-RED: 3 failing tests for T10 (vote button enable gate) +
+# T11 (cookies-None toast emission)
+# ---------------------------------------------------------------------------
+
+
+def test_gbs_vote_buttons_disabled_until_entryid_stamped(qtbot, tmp_path, monkeypatch):
+    """60-09 / T10 (RED): vote buttons must be disabled until /ajax stamps entryid.
+
+    Currently fails: buttons are enabled by default after setVisible(True).
+    Fix (Task 2): add setEnabled(False) in the construction loop; enable via
+    _apply_vote_buttons_enabled(True) in _on_gbs_playlist_ready.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# Netscape HTTP Cookie File\n")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    # Buttons should be visible (GBS + logged in) but DISABLED until entryid arrives
+    for btn in panel._gbs_vote_buttons:
+        assert not btn.isHidden(), "button should be visible after bind"
+        assert btn.isEnabled() is False, (
+            f"button {btn.property('vote_value')} must be DISABLED "
+            "until /ajax stamps _gbs_current_entryid"
+        )
+
+
+def test_gbs_vote_buttons_enabled_after_first_ajax(qtbot, tmp_path, monkeypatch):
+    """60-09 / T10 (RED): buttons become enabled once _on_gbs_playlist_ready stamps entryid.
+
+    Currently fails: _on_gbs_playlist_ready does not call any enable toggle.
+    Fix (Task 2): _on_gbs_playlist_ready calls _apply_vote_buttons_enabled(True)
+    inside the `if new_entryid is not None` block.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# Netscape HTTP Cookie File\n")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    # Pre-condition: all buttons disabled (before /ajax response)
+    for btn in panel._gbs_vote_buttons:
+        assert btn.isEnabled() is False, "pre-condition: must be disabled before first poll"
+    # Simulate a successful /ajax response that stamps the entryid
+    panel._gbs_poll_token = 1
+    panel._on_gbs_playlist_ready(1, _make_state(entryid=1810809, user_vote=0))
+    assert panel._gbs_current_entryid == 1810809
+    # After /ajax stamps entryid, all buttons must be enabled
+    for btn in panel._gbs_vote_buttons:
+        assert btn.isEnabled() is True, (
+            f"button {btn.property('vote_value')} must be ENABLED "
+            "after _on_gbs_playlist_ready stamps entryid"
+        )
+
+
+def test_gbs_vote_emits_toast_when_cookies_disappear_mid_click(qtbot, tmp_path, monkeypatch):
+    """60-09 / T11 (RED): cookies-None guard must emit gbs_vote_error_toast.
+
+    Currently fails: the cookies-None branch at _on_gbs_vote_clicked line 1050
+    silently rolls back + hides, but never emits gbs_vote_error_toast.
+    Fix (Task 2): emit gbs_vote_error_toast with auth-expired message before returning.
+
+    NOTE (iter-2 plan-check caveat): after Task 2's Step 2a, the button is
+    DISABLED at construction time and stays disabled until entryid is stamped.
+    This test stamps entryid directly AND calls setEnabled(True) on the button
+    before click() so the vote handler is reached and the cookies-None branch
+    is exercised.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    cookies_path = paths.gbs_cookies_path()
+    os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+    with open(cookies_path, "w") as f:
+        f.write("# Netscape HTTP Cookie File\n")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                        lambda self: None)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    # Stamp entryid directly (simulating a successful /ajax poll)
+    panel._gbs_current_entryid = 1810809
+    panel._last_confirmed_vote = 0
+    # Simulate cookies disappearing mid-session
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: None)
+    # Per iter-2 plan-check caveat: enable the button so click() reaches the handler
+    panel._gbs_vote_buttons[2].setEnabled(True)
+    # Expect gbs_vote_error_toast to fire with "session expired" in the message
+    with qtbot.waitSignal(panel.gbs_vote_error_toast, timeout=1000) as blocker:
+        panel._gbs_vote_buttons[2].click()
+    assert "session expired" in blocker.args[0].lower(), (
+        f"Expected 'session expired' in toast text, got: {blocker.args[0]!r}"
+    )
