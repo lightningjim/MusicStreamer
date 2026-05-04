@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: planning
+status: executing
 stopped_at: Phase 60 context gathered
-last_updated: "2026-05-04T00:47:20.506Z"
-last_activity: 2026-05-03
+last_updated: "2026-05-04T00:50:13.854Z"
+last_activity: 2026-05-04 -- Phase 59 planning complete
 progress:
   total_phases: 23
   completed_phases: 10
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 58
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-03
+Status: Ready to execute
+Last activity: 2026-05-04 -- Phase 59 planning complete
 
 ## Performance Metrics
 
@@ -134,6 +134,7 @@ Key v2.0 decisions already settled:
 - Phase 69 added: Debug why AAC streams aren't playing in Windows (possibly missing codec) — surfaced during Phase 56 UAT (Finding F2 in 56-05-UAT-LOG.md); suspected missing/misbundled GStreamer AAC decoder (faad / avdec_aac via gst-libav) 2026-05-02
 - Phase 70 added: Hi-res indicator for streams (mirror moOde audio criteria) — promoted from a previously-empty `69-hi-res-...` skeleton folder that pre-existed in `.planning/phases/`; renumbered to 70 to make room for AAC debug at 69; orphan empty folder removed 2026-05-02
 - Phase 71 added: Sister station expansion — (1) GUI affordance to link sister stations from the Edit dialog (currently requires manual DB edits, e.g. the Classical Relaxation pair); (2) extend sister-station support to sources that publish multiple variants of one station (e.g. SomaFM's 2× Drone Zone, 3× Groove Salad) 2026-05-03
+- Phase 60 edited: edited fields: goal, success_criteria (scope expanded to include active playlist, voting, and search-and-submit per user clarification; comments / chat mirror / song upload remain deferred)
 
 ### Pending Todos
 

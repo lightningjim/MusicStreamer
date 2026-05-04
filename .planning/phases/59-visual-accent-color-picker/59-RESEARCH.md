@@ -576,22 +576,22 @@ def test_cancel_restores_palette_and_does_not_save(qtbot, repo, qapp):
 
 **This table is short:** All other claims in this research were either VERIFIED empirically in this repo's PySide6 6.11.0 environment OR CITED to Qt 6.11 official docs. The planner can treat the locked CONTEXT.md decisions as fully evidence-supported.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Do we keep the `setMinimumWidth(360)` call from today's dialog, drop it, or raise it?**
    - What we know: `QColorDialog`'s `sizeHint()` is `(522, 387)` with `NoButtons | DontUseNativeDialog`. The 360px minimum is functionally a no-op now.
    - What's unclear: Does the planner want a wider explicit minimum (e.g., 540) to ensure the dialog doesn't shrink below the inner widget? Or rely on layout-driven sizing alone?
-   - Recommendation: **Drop `setMinimumWidth(360)` entirely** — let `QVBoxLayout` propagate the inner widget's intrinsic size. Add a comment in the wrapper noting "Wrapper size is driven by inner QColorDialog (~522x387 + button row)." (Pitfall 7.)
+   - **RESOLVED:** Drop `setMinimumWidth(360)` entirely — let `QVBoxLayout` propagate the inner widget's intrinsic size. Add a comment in the wrapper noting "Wrapper size is driven by inner QColorDialog (~522x387 + button row)." (Pitfall 7.)
 
 2. **Reset semantics: optional QSS-file cleanup?**
    - What we know: Today's dialog leaves `paths.accent_css_path()` on disk after Reset (no cleanup). It's overwritten on next Apply. `main_window.py:189-192` only loads the file when `accent_color` setting is non-empty, so on next startup the stale file is ignored.
    - What's unclear: Should Phase 59 polish this by `os.remove`ing the file on Reset?
-   - Recommendation: **Locked path D-15 list items 1-5 are sufficient.** D-15.6 (`os.remove` cleanup) is captured as Claude's Discretion — planner may include it as a 1-line `try: os.remove(paths.accent_css_path()); except OSError: pass` if they want, or skip it. Either is acceptable.
+   - **RESOLVED:** Locked path D-15 list items 1-5 are sufficient. D-15.6 (`os.remove` cleanup) is captured as Claude's Discretion — planner may include it as a 1-line `try: os.remove(paths.accent_css_path()); except OSError: pass` if they want, or skip it. Either is acceptable. (Plan 02 chose to write empty string to QSS file for predictability.)
 
 3. **Idempotency of the reseed across multiple dialog opens within one session.**
    - What we know: `setCustomColor` is process-static (verified empirically — survives across dialog instance deletion within the same `QApplication`). Reseeding overwrites whatever the user did to slots 0..7 in a previous session-open of the dialog.
    - What's unclear: Is "user edited a Custom Colors slot in dialog open #1, then opens dialog #2 and finds their edit gone" a UX surprise the team is comfortable with?
-   - Recommendation: **Yes, accept this — the locked D-03 explicitly chose idempotent reseeding over preservation.** The 8 curated presets are the project's brand identity; users editing slots 0..7 in-session is an expected loss. Slots 8..15 stay user-editable within the session and survive across re-opens (until app exit).
+   - **RESOLVED:** Yes, accept this — the locked D-03 explicitly chose idempotent reseeding over preservation. The 8 curated presets are the project's brand identity; users editing slots 0..7 in-session is an expected loss. Slots 8..15 stay user-editable within the session and survive across re-opens (until app exit).
 
 ## Environment Availability
 

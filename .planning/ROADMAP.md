@@ -320,18 +320,24 @@ Plans:
   2. Selecting a color on the visual picker updates the hex field and applies the accent color immediately
   3. Entering a hex value still works as before — the visual picker reflects the hex value
   4. The chosen color persists across app restarts (same SQLite persistence as existing accent logic)
-**Plans:** TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 59-01-PLAN.md — Rewrite tests/test_accent_color_dialog.py with 9 tests (T-59-A..H + Pitfall 3 corrupt-hex defensive); TDD-RED state for Wave 0
+- [ ] 59-02-PLAN.md — Rewrite musicstreamer/ui_qt/accent_color_dialog.py wrapping QColorDialog (NoButtons | DontUseNativeDialog) per CONTEXT.md D-01..D-19 and RESEARCH §"Construct + embed + wire"; turns Plan 01 tests GREEN
+- [ ] 59-03-PLAN.md — Manual UAT on Linux X11 (DPR=1.0): SC #1..4 + eyedropper + Reset/Cancel/X + idempotent reseed + flicker observation
 **UI hint**: yes
 
 ### Phase 60: GBS.FM Integration
-**Goal:** Users can browse, save, and play GBS.FM streams directly inside MusicStreamer without opening a browser.
+**Goal:** GBS.FM is integrated as a first-class station inside MusicStreamer via the GBS.FM API: multi-quality auto-import, optional AccountsDialog login, view of the active playlist, vote on the currently-playing track, and search-and-submit songs to the station. Comments, Discord↔IRC chat mirror, and song upload are deferred to a later phase.
 **Depends on:** Nothing
 **Requirements:** GBS-01
 **Success Criteria** (what must be TRUE):
-  1. GBS.FM streams are accessible from within MusicStreamer (via import flow, discovery tab, or dedicated integration — exact mechanism decided at /gsd-discuss-phase time)
-  2. A GBS.FM station saved to the library plays via the standard playback path (GStreamer)
-  3. GBS.FM station art and metadata are populated where available
-  4. GBS.FM integration does not break existing import or discovery flows
+  1. An "Add GBS.FM" hamburger menu entry fetches all GBS.FM stream qualities via the GBS.FM API and saves them as one library row with multiple `station_streams` entries (mirroring the `aa_import.import_stations_multi` shape); re-clicking refreshes streams idempotently
+  2. AccountsDialog has a working "GBS.FM" group (status label + Connect/Disconnect button mirroring the YouTube/Twitch precedent) whose auth round-trip stores credentials and reflects connected state correctly — exact auth flow (API key paste / OAuth subprocess / cookies-import / username-password) picked at planning time based on research
+  3. While a GBS.FM station is playing, the Now Playing surface shows the active GBS.FM playlist (current/upcoming tracks, or whatever context the API exposes)
+  4. While a GBS.FM station is playing, the user can vote on the currently-playing track via a Now Playing control; votes round-trip to the GBS.FM API with optimistic UI
+  5. The user can search the GBS.FM catalog and submit a song to the station's playlist; submission round-trips to the API and confirms success/failure
+  6. GBS.FM station art and metadata are populated where the API exposes them, and existing import / discovery / station list / playback flows are unchanged
 **Plans:** TBD
 
 ### Phase 61: Linux App Display Name in WM Dialogs
@@ -466,6 +472,16 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 70 to break down)
+
+### Phase 71: Sister station expansion: (1) Add ability to link sister stations in GUI under Edit dialog (currently requires manual DB editing — e.g., the Classical Relaxation pair had to be inserted by hand); (2) Extend sister-station support to additional sources beyond SomaFM-style pairs, accommodating sites that publish multiple variants of a station (e.g., SomaFM has 2 Drone Zones and 3 Groove Salad stations)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 70
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 71 to break down)
 
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*
