@@ -34,6 +34,8 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QProgressBar,
     QPushButton,
     QTableView,
@@ -54,6 +56,9 @@ class _GbsSearchWorker(QThread):
     """Phase 60 D-08 / GBS-01e: gbs_api.search on a worker thread."""
     # finished payload: (results_list, page, total_pages)
     finished = Signal(list, int, int)
+    # 60-11 / T12: pre-existing finished signal kept stable; artist/album link
+    # metadata streams via a separate signal so the existing 16 tests don't churn.
+    metadata_ready = Signal(list, list)  # (artist_links, album_links)
     # error: ('auth_expired' sentinel OR raw message)
     error = Signal(str)
 
@@ -66,10 +71,31 @@ class _GbsSearchWorker(QThread):
     def run(self):
         try:
             out = gbs_api.search(self._query, self._page, self._cookies)
+            # =====================================================================
+            # ORDERING INVARIANT (60-11 / T12 — DEFENSIVE; DO NOT REORDER):
+            #
+            # finished MUST emit BEFORE metadata_ready.
+            #
+            # Why: _on_search_finished -> _render_results -> _clear_table HIDES
+            # the artist/album panels. _on_metadata_ready then RE-SHOWS them by
+            # populating the lists (D-11c). If metadata_ready emits first, the
+            # subsequent _clear_table call from finished will hide the panels
+            # we just populated. Qt signal queue order matches emit order, so
+            # the emit ordering here is the load-bearing invariant.
+            #
+            # If a future refactor splits this method or adds buffering, the
+            # invariant must be preserved (or _clear_table must be made aware
+            # of the metadata state — currently the simpler invariant is the
+            # right call per diagnosis §5d acceptable trade-off).
+            # =====================================================================
             self.finished.emit(
                 list(out.get("results", [])),
                 int(out.get("page", self._page)),
                 int(out.get("total_pages", self._page)),
+            )
+            self.metadata_ready.emit(
+                list(out.get("artist_links", [])),
+                list(out.get("album_links", [])),
             )
         except Exception as exc:
             if isinstance(exc, gbs_api.GbsAuthExpiredError):
@@ -180,6 +206,34 @@ class GBSSearchDialog(QDialog):
         self._progress.setVisible(False)
         root.addWidget(self._progress)
 
+        # 60-11 / T12: Artist:/Album: panels — hidden by default, shown when
+        # search response includes non-empty artist_links / album_links (page 1
+        # with matches per diagnosis §2a). D-11b LOCKED max-height 80px.
+        # D-11c LOCKED: hidden when empty, shown only via _on_metadata_ready.
+        self._artist_label = QLabel("Artist:", self)
+        self._artist_label.setTextFormat(Qt.TextFormat.PlainText)
+        self._artist_label.setVisible(False)
+        root.addWidget(self._artist_label)
+
+        self._artist_list = QListWidget(self)
+        self._artist_list.setMaximumHeight(80)  # D-11b LOCKED default
+        self._artist_list.setVisible(False)
+        # D-11a Shape 4 LOCKED: click navigates via free-text search (QA-05)
+        self._artist_list.itemActivated.connect(self._on_artist_link_activated)
+        root.addWidget(self._artist_list)
+
+        self._album_label = QLabel("Album:", self)
+        self._album_label.setTextFormat(Qt.TextFormat.PlainText)
+        self._album_label.setVisible(False)
+        root.addWidget(self._album_label)
+
+        self._album_list = QListWidget(self)
+        self._album_list.setMaximumHeight(80)  # D-11b LOCKED default
+        self._album_list.setVisible(False)
+        # D-11a Shape 4 LOCKED: click navigates via free-text search (QA-05)
+        self._album_list.itemActivated.connect(self._on_album_link_activated)
+        root.addWidget(self._album_list)
+
         # Results table
         self._results_table = QTableView(self)
         self._model = QStandardItemModel(0, 4, self)
@@ -271,8 +325,9 @@ class GBSSearchDialog(QDialog):
         self._progress.setVisible(True)
         self._clear_table()
         self._search_worker = _GbsSearchWorker(self._current_query, page, cookies, parent=self)
-        self._search_worker.finished.connect(self._on_search_finished)  # QA-05
-        self._search_worker.error.connect(self._on_search_error)        # QA-05
+        self._search_worker.finished.connect(self._on_search_finished)          # QA-05
+        self._search_worker.metadata_ready.connect(self._on_metadata_ready)    # 60-11 / T12 QA-05
+        self._search_worker.error.connect(self._on_search_error)               # QA-05
         self._search_worker.start()
 
     def _on_search_finished(self, results: list, page: int, total_pages: int) -> None:
@@ -297,6 +352,66 @@ class GBSSearchDialog(QDialog):
             truncated = (msg[:80] + "…") if len(msg) > 80 else msg
             self._show_inline_error(f"Search failed: {truncated}")
         self._search_worker = None
+
+    def _on_metadata_ready(self, artist_links: list, album_links: list) -> None:
+        """60-11 / T12: populate Artist:/Album: panels above the song results.
+
+        D-11c LOCKED: hide entirely when the corresponding list is empty.
+        Each entry stores its href in Qt.ItemDataRole.UserRole for navigation.
+
+        Per the ORDERING INVARIANT in _GbsSearchWorker.run(), this slot runs
+        AFTER _on_search_finished -> _clear_table, so we always start with
+        cleared+hidden panels. Population here is the only path that re-shows.
+        """
+        # Artist panel
+        self._artist_list.clear()
+        for entry in artist_links:
+            item = QListWidgetItem(str(entry.get("text", "")))  # PlainText (T-40-04)
+            item.setData(Qt.ItemDataRole.UserRole, str(entry.get("url", "")))
+            self._artist_list.addItem(item)
+        has_artists = bool(artist_links)
+        self._artist_label.setVisible(has_artists)
+        self._artist_list.setVisible(has_artists)
+        # Album panel
+        self._album_list.clear()
+        for entry in album_links:
+            item = QListWidgetItem(str(entry.get("text", "")))  # PlainText (T-40-04)
+            item.setData(Qt.ItemDataRole.UserRole, str(entry.get("url", "")))
+            self._album_list.addItem(item)
+        has_albums = bool(album_links)
+        self._album_label.setVisible(has_albums)
+        self._album_list.setVisible(has_albums)
+
+    # ---------- Artist/Album click navigation (D-11a Shape 4 LOCKED) ----------
+    # Per Task 0 capture: Shape 4 locked — /artist/<id> has no <table class='songs'>;
+    # /album/<id> has no <table class='songs'>. Both surfaces use free-text search fallback.
+    # Navigation: clicking an entry sets the search field to the item text and re-runs search.
+
+    def _on_artist_link_activated(self, item) -> None:
+        """60-11 / T12 — D-11a Shape 4: free-text search fallback for artist navigation.
+
+        Sets the search input to the artist name and kicks a new search.
+        Uses item.text() (plain text, T-40-04) — NOT the href (Shape 4 ignores /artist/<id>
+        since that page has no parseable song table per Task 0 fixture inspection).
+        """
+        artist_text = item.text()
+        if not artist_text:
+            return
+        self._search_edit.setText(artist_text)
+        self._start_search()
+
+    def _on_album_link_activated(self, item) -> None:
+        """60-11 / T12 — D-11a Shape 4: free-text search fallback for album navigation.
+
+        Sets the search input to the album name and kicks a new search.
+        Uses item.text() (plain text, T-40-04) — NOT the href (Shape 4 ignores /album/<id>
+        since that page has no parseable song table per Task 0 fixture inspection).
+        """
+        album_text = item.text()
+        if not album_text:
+            return
+        self._search_edit.setText(album_text)
+        self._start_search()
 
     # ---------- Pagination ----------
 
@@ -323,6 +438,18 @@ class GBSSearchDialog(QDialog):
     def _clear_table(self) -> None:
         self._model.removeRows(0, self._model.rowCount())
         self._submit_buttons = []
+        # 60-11 / T12: also hide artist/album panels — they re-show only when
+        # the next search response includes non-empty links via _on_metadata_ready.
+        # See ORDERING INVARIANT in _GbsSearchWorker.run(): metadata_ready emits
+        # AFTER finished, so this hide is always followed by the correct re-show.
+        if hasattr(self, "_artist_list"):
+            self._artist_list.clear()
+            self._artist_label.setVisible(False)
+            self._artist_list.setVisible(False)
+        if hasattr(self, "_album_list"):
+            self._album_list.clear()
+            self._album_label.setVisible(False)
+            self._album_list.setVisible(False)
 
     def _render_results(self) -> None:
         self._clear_table()
