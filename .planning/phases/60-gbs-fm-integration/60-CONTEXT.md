@@ -98,7 +98,7 @@ Phase 60 is the **GBS.FM API integration**: ship the foundation **and** the user
 
   Researcher recommends one; planner locks it in `60-PLAN.md`.
 
-- **D-04a:** **Dev fixture for research lives at `<repo>/.local/gbs.fm.cookies.txt`** (gitignored — `.local/` was added to `.gitignore` 2026-05-04 specifically to keep this fixture out of git sync). Rationale: session cookies are sensitive; the `.local/` ignore rule eliminates the commit-leak risk while keeping the file co-located with the repo for ergonomic researcher access. The original draft proposed `~/.local/share/musicstreamer/dev-fixtures/gbs-cookies.txt` (fully outside-repo) — Kyle elected the project-relative `.local/` path with explicit gitignore protection instead. Researcher reads from `<repo>/.local/gbs.fm.cookies.txt`; checks for its presence at the start of `gsd-phase-researcher` and prompts the user to drop it if missing.
+- **D-04a:** **Dev fixture for research lives OUTSIDE the OneDrive-synced repo** at `~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt` (Netscape cookies.txt format). Rationale: the project root is under `~/OneDrive/Projects/MusicStreamer/`, so a project-relative `.local/` path is exposed to OneDrive cloud sync (and an early attempt at `<repo>/.local/gbs.fm.cookies.txt` got purged by OneDrive on the first sync cycle, 2026-05-04). The home-directory XDG path is fully outside OneDrive's tree AND outside git's tree — defense in depth on both fronts. `.local/` remains in the project `.gitignore` as belt-and-braces protection in case anything is ever dropped there. Researcher reads the cookie from `~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt`; checks for its presence at the start of `gsd-phase-researcher` and prompts the user to drop it if missing.
 - **D-04b:** **Dev cookies file is NOT the user-facing v1 auth surface.** It's a development artifact for the researcher to inspect the GBS.FM auth-gated frontend and map the API surface. The user-facing auth UX is whichever option from D-04's preference ladder the planner picks based on research findings.
 - **D-04c:** **AccountsDialog group placement.** Phase 60 inserts the new `_gbs_box: QGroupBox` between `_youtube_box` and the Twitch group at `accounts_dialog.py:91-115`. Add it to `layout` ordering at `accounts_dialog.py:137-138` accordingly. Status label uses the same `Qt.TextFormat.PlainText` (T-40-04) and `status_font` shared with Twitch/YouTube. Action button connection is bound-method (QA-05).
 
@@ -182,9 +182,9 @@ Phase 60 is the **GBS.FM API integration**: ship the foundation **and** the user
 
 - **Site:** https://gbs.fm — the platform being integrated. Researcher visits this directly (with the dev cookies fixture from D-04a) to map the API surface.
 
-### Dev fixture (gitignored, project-relative)
+### Dev fixture (out of repo AND out of OneDrive sync)
 
-- `<repo>/.local/gbs.fm.cookies.txt` — Kyle's session cookies. `.local/` is gitignored (added 2026-05-04 alongside this CONTEXT.md update; see `.gitignore`). Researcher reads from this project-relative path. Never commit — gitignore + dotted-folder convention make accidental staging effectively impossible. **Researcher: check for this file's existence at the start; if missing, ask the user to drop it before proceeding.**
+- `~/.local/share/musicstreamer/dev-fixtures/gbs.fm.cookies.txt` — Kyle's session cookies (Netscape format). Lives under `$HOME/.local/share/`, which is outside the OneDrive-synced project root. Researcher reads from this absolute path. Never commit — `.local/` is also in the project `.gitignore` as belt-and-braces protection. **Researcher: check for this file's existence at the start; if missing, ask the user to drop it before proceeding.**
 
 ### Closest existing patterns (READ FIRST — Phase 60 mirrors these)
 
