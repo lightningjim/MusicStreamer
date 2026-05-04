@@ -338,7 +338,16 @@ Plans:
   4. While a GBS.FM station is playing, the user can vote on the currently-playing track via a Now Playing control; votes round-trip to the GBS.FM API with optimistic UI
   5. The user can search the GBS.FM catalog and submit a song to the station's playlist; submission round-trips to the API and confirms success/failure
   6. GBS.FM station art and metadata are populated where the API exposes them, and existing import / discovery / station list / playback flows are unchanged
-**Plans:** TBD
+**Plans:** 7 plans
+
+Plans:
+- [ ] 60-01-fixtures-tests-PLAN.md — Wave 0: 15 captured fixtures + scripts/gbs_capture_fixtures.sh + tests/conftest.py extension (mock_gbs_api / fake_repo / fake_cookies_jar)
+- [ ] 60-02-api-client-PLAN.md — Wave 1: musicstreamer/gbs_api.py (HTTP client + import orchestrator + HTML/JSON parsers + typed exceptions, FLAC sentinel=1411) + paths.gbs_cookies_path + tests/test_gbs_api.py + tests/test_stream_ordering.py extension
+- [ ] 60-03-import-PLAN.md — Wave 2 (parallel with 60-04): "Add GBS.FM" hamburger entry + _GbsImportWorker + idempotent insert/update toasts in main_window.py
+- [ ] 60-04-accounts-PLAN.md — Wave 2 (parallel with 60-03): CookieImportDialog parameterization (target_label/cookies_path/validator/oauth_mode) + AccountsDialog _gbs_box (D-04 ladder #3 LOCKED)
+- [ ] 60-05-active-playlist-PLAN.md — Wave 3: NowPlayingPanel _gbs_playlist_widget + 15s /ajax poll + _GbsPollWorker + token-guard + auth-expired hide
+- [ ] 60-06-vote-PLAN.md — Wave 4 (parallel with 60-07): NowPlayingPanel 5 vote buttons (1-5) + _GbsVoteWorker + optimistic UI + server-truth confirmation + entryid-from-/ajax
+- [ ] 60-07-search-submit-PLAN.md — Wave 4 (parallel with 60-06): musicstreamer/ui_qt/gbs_search_dialog.py + main_window "Search GBS.FM…" entry + login-gated UI + per-row Add + inline error vs toast (D-08d)
 
 ### Phase 61: Linux App Display Name in WM Dialogs
 **Goal:** Force-quit and other WM-level dialogs (and Activities/Alt-Tab where the same string is read) display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer". Linux parallel to the Windows AUMID work in Phase 56 (WIN-02).
