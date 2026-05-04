@@ -1003,7 +1003,14 @@ def test_gbs_playlist_visible_when_gbs_and_logged_in(qtbot, tmp_path, monkeypatc
 
 
 def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
-    """Emitting playlist_ready directly populates the widget with 3 items."""
+    """Emitting playlist_ready directly populates the widget with enumerated queue rows.
+
+    60-10 / T8 (Step 3a): Updated per revision-2 plan directive to assert on
+    enumerated queue_rows rendering instead of the removed queue_summary line.
+    - queue_rows added with 2 entries (D-10b format asserted)
+    - queue_summary is retained on the state dict for parity but is NO LONGER asserted
+      (D-10c: pllength summary not rendered)
+    """
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     os.makedirs(str(tmp_path), exist_ok=True)
     with open(paths.gbs_cookies_path(), "w") as f:
@@ -1020,7 +1027,13 @@ def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
         "now_playing_entryid": 1810736,
         "now_playing_songid": 782491,
         "icy_title": "Crippling Alcoholism - Templeton",
-        "queue_summary": "Playlist is 11:21 long with 3 dongs",
+        # 60-10 / T8: queue_summary is no longer rendered (D-10c). Replace with
+        # queue_rows so the test exercises the new enumerated-rendering path.
+        "queue_summary": "Playlist is 11:21 long with 3 dongs",  # kept on state dict for parity, but no longer asserted on
+        "queue_rows": [
+            {"entryid": 1810810, "songid": 1, "artist": "Foo", "title": "Bar", "duration": "3:00"},
+            {"entryid": 1810811, "songid": 2, "artist": "Baz", "title": "Quux", "duration": "4:30"},
+        ],
         "score": "5.0 (1 vote)",
         "user_vote": 0,
         "queue_html_snippets": [],
@@ -1031,11 +1044,14 @@ def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
         panel._gbs_playlist_widget.item(i).text()
         for i in range(panel._gbs_playlist_widget.count())
     ]
-    # Now-playing prefixed with arrow marker
+    # Now-playing prefixed with arrow marker (unchanged)
     assert any("Crippling Alcoholism - Templeton" in t for t in items)
-    # Queue summary
-    assert any("Playlist is 11:21" in t for t in items)
-    # Score
+    # 60-10 / T8: queue_rows enumerated per D-10b — was queue_summary "Playlist is 11:21" (REMOVED).
+    assert any("1. Foo - Bar [3:00]" in t for t in items)
+    assert any("2. Baz - Quux [4:30]" in t for t in items)
+    # 60-10 / T8: pllength summary line is NOT rendered (D-10c).
+    assert not any("Playlist is 11:21" in t for t in items)
+    # Score (unchanged)
     assert any("5.0 (1 vote)" in t for t in items)
 
 

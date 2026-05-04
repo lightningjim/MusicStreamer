@@ -57,6 +57,11 @@ from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
 
+# Phase 60 60-10 / D-10a: cap upcoming queue rendering. The widget already has
+# setMaximumHeight(180) (~6 rows visible without scroll), so 10 leaves scroll
+# room without bloating the QListWidget item count. Mitigates T-60-10-03.
+_GBS_QUEUE_MAX_ROWS = 10
+
 _log = logging.getLogger(__name__)
 
 
@@ -968,12 +973,21 @@ class NowPlayingPanel(QWidget):
         self._gbs_playlist_widget.clear()
         icy = state.get("icy_title")
         if icy:
-            now_item = QListWidgetItem(f"▶ {icy}")
-            self._gbs_playlist_widget.addItem(now_item)
-        # Queue summary for v1 (Pitfall 6 — defensive HTML parsing happens in gbs_api).
-        summary = state.get("queue_summary")
-        if summary:
-            self._gbs_playlist_widget.addItem(QListWidgetItem(summary))
+            # Pitfall 11: PlainText (QListWidgetItem default).
+            self._gbs_playlist_widget.addItem(QListWidgetItem(f"▶ {icy}"))
+        # 60-10 / T8: enumerate upcoming queue from parsed rows (per D-10a max 10 rows).
+        queue_rows = state.get("queue_rows") or []
+        for n, row in enumerate(queue_rows[:_GBS_QUEUE_MAX_ROWS], start=1):
+            artist = (row.get("artist") or "").strip()
+            title = (row.get("title") or "").strip()
+            duration = (row.get("duration") or "").strip()
+            # D-10b: "{n}. {artist} - {title} [{duration}]"
+            if duration:
+                label = f"{n}. {artist} - {title} [{duration}]"
+            else:
+                label = f"{n}. {artist} - {title}"
+            self._gbs_playlist_widget.addItem(QListWidgetItem(label))
+        # D-10c: pllength summary intentionally not rendered ('dongs' jargon).
         score = state.get("score")
         if score:
             self._gbs_playlist_widget.addItem(QListWidgetItem(f"Score: {score}"))
