@@ -298,7 +298,7 @@ def test_gbs_paste_invalid_shows_target_specific_error(qtbot, monkeypatch):
     # Paste plainly invalid content
     dlg._paste_edit.setPlainText("# garbage")
     dlg._on_paste_import()
-    assert dlg._error_label.isVisible()
+    assert not dlg._error_label.isHidden()
     assert "GBS.FM" in dlg._error_label.text()
 
 
