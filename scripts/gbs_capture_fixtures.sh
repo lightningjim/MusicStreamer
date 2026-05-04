@@ -53,6 +53,12 @@ curl -sS -b "$COOKIES" "$BASE/api/nowplaying" > "$OUT/api_nowplaying.txt"
 curl -sS -b "$COOKIES" "$BASE/api/metadata" > "$OUT/api_metadata.txt"
 curl -sS -b "$COOKIES" "$BASE/api/vote?songid=88135&vote=0" > "$OUT/api_vote_legacy.txt" || true
 
+# 14. /artist/<id> — Testament (4803, present in search_test_p1.html artist block)
+curl -sS -b "$COOKIES" "$BASE/artist/4803" > "$OUT/artist_4803.html"
+
+# 15. /album/<id> — sample album (1488, present in search_test_p1.html album block)
+curl -sS -b "$COOKIES" "$BASE/album/1488" > "$OUT/album_1488.html"
+
 echo "Done. Fixtures written to $OUT/"
 echo "REMEMBER: sanitize cookies_valid.txt manually — replace real sessionid/csrftoken values with PLACEHOLDERs."
 echo "REMEMBER: hand-create the 2 validator-rejection cookie fixtures (cookies_invalid_no_sessionid.txt, cookies_invalid_wrong_domain.txt) — these are NOT captured because they're hand-crafted error cases for GBS-01b."
