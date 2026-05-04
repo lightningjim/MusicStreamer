@@ -1,0 +1,1523 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+<title>British Electric Foundation (Music Of Quality And Distinction, Volume 1) - The Secret Life Of Arabia (with Billy MacKenzie) - GBS-FM</title>
+<link rel="shortcut icon" href="/images/favicon.ico" />
+<link href="images/style.css" rel="stylesheet" type="text/css" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js" type="text/javascript"></script>
+<script type="text/javascript" src="images/swfobject.js"></script>
+<script type="text/javascript" src="images/playload.js"></script>
+<script type="text/javascript">
+
+// //alow object cloning
+// //from http://my.opera.com/GreyWyvern/blog/show.dml/1725165 (thanks to Brian Huisman)
+// Object.prototype.clone = function() {
+//   var newObj = (this instanceof Array) ? [] : {};
+//   for (i in this) {
+//     if (i == 'clone') continue;
+//     if (this[i] && typeof this[i] == "object") {
+//       newObj[i] = this[i].clone();
+//     } else newObj[i] = this[i]
+//   } return newObj;
+// };
+//
+
+
+//convert seconds to minutes:seconds
+function stom(time){
+  seconds = time%60;
+  minutes = parseInt(time/60);
+  if (seconds < 10) {
+    seconds = "0" + seconds.toString(); //add zero to single digit numbers
+  } else {
+    seconds = seconds.toString();
+  }
+  return minutes.toString() + ':' + seconds;
+}
+
+/*** vote handling stuff ***/
+
+function voteHandler(event) {
+  tgt = $(event.target);
+  votelink = event.target.href;
+  if (tgt.hasClass('voted')) {
+    //clicking again to clear vote
+    votelink = votelink.slice(0, votelink.length-1); //get rid of vote at end
+    $.get(votelink + '0'); //vote 0 to clear vote
+    tgt.removeClass("voted");
+  } else {
+    $.get(votelink);
+    tgt.parent().children().removeClass("voted");
+    tgt.addClass("voted");
+  }
+  event.preventDefault();
+}
+
+function addVoteHandlers () {
+  $("a[href*='/vote?']").not('.handled').click(voteHandler).addClass('handled');
+}
+
+/*** progress bar stuff ***/
+
+//both of these are in seconds
+var songLength = 240;
+var songPosition = 10.490000000000009;
+//percentage
+var songProgress = 4.370833333333337;
+
+function setSongLength(length) {
+  songLength = length;
+  $('#songLength').html(stom(length));
+
+}
+
+//set numeric song position
+function setSongPosition(pos) {
+  pos = Math.round(Math.min(pos, songLength));
+  if (songPosition != pos) {
+    $('#songPosition').html(stom(pos));
+    songPosition = pos;
+    setSongProgress((pos/songLength)*100);
+  }
+  ajax_args['position'] = pos;
+}
+
+//set progressbar percentage
+function setSongProgress(percentage) {
+  $("#progbar").css("width", percentage.toString() + '%');
+  //alert(percentage.toString() * '%');
+  songProgress = percentage;
+}
+
+//Increment song position every second
+//TODO: make this more accurate using clock to avoid inaccuracies of delyed calls
+function secondLoop() {
+  setSongPosition(songPosition+1);
+  setTimeout('secondLoop()', 1000);
+}
+
+/*** Clutterbar song info stuff ***/
+
+//Set metadata to appear in clutterbar
+function setClutterMetadata(metadata) {
+  elem = $("div#metadata");
+  old = elem.html();
+  if (metadata != old) {
+    elem.html(metadata);
+  }
+}
+
+/**
+* Sets up the quick search box properly
+**/
+function setupSearch() {
+  searchbox = $('#id_query');
+  searchbox.css('color', 'grey');
+  searchbox.attr('value', "quick search"); //override browser modifications
+  searchbox.focus(function () {
+    if (searchbox.attr('value') == "quick search") {
+      searchbox.attr('value', '');
+      searchbox.css('color', 'black');
+    }
+  });
+}
+
+/**
+* Set up comment box properly
+**/
+function setupComment() {
+  $('#commentform').submit(commentSubmit);
+  commentbox = $('#commentbox');
+  commentbox.removeAttr("disabled") //enable it
+  commentbox.css('color', 'grey');
+  message = "Comment on this track here. Bad things will happen to people who use this for general chat!";
+  commentbox.attr('value', message);
+
+  commentbox.focus(function () {
+    if (commentbox.attr('value') == message) {
+      //clear it and set text to normal colour when in focus
+      commentbox.attr('value', '');
+      commentbox.css('color', 'black');
+    }
+  });
+
+  commentbox.blur(function () {
+    if (commentbox.attr('value') == '') {
+      //clear it and set text to normal colour when in focus
+      commentbox.attr('value', message);
+      commentbox.css('color', 'grey');
+    }
+  });
+}
+
+
+/**
+* Hide message box
+**/
+function hideMessages() {
+  $("p#messages").fadeOut("slow");
+}
+
+/**
+* Add comment to comment box
+**/
+function addComment(comment, time, commenter, title) {
+  elem = $("div#commentsbox");
+  elem.html("<p class='comment' title='title'>" + "@" + time + " &lt;" + commenter + "&gt; " + comment + "\n" + "</p>" + elem.html());
+}
+
+/**
+* Clear the comment box
+**/
+function clearComments() {
+  $("div#commentsbox").html("");
+}
+
+/**
+* Submit a comment entered in the comment box
+**/
+function commentSubmit() {
+  commentbox = $('#commentbox');
+  comment = commentbox.val();
+  args = {};
+  for (var i in ajax_args){
+    args[i] = ajax_args[i];
+  }
+
+  args['comment'] = comment;
+  $.getJSON("/ajax", args, eventDispatcher);
+
+  commentbox.val("");
+  return false; //avoid default behaviour
+}
+
+/**
+* Score stuff
+**/
+
+function setScore(score) {
+  if (score == 0) {
+    score = "none";
+  }
+  $('#avgscore').html(score);
+  // update playlist if necessary
+  $('.playing .score').html(score);
+}
+
+function setUserVote(score) {
+  $("#votebuttonslow > .selectedvote[data-vote!="+score+"]").removeClass("selectedvote");
+  $("#votebuttonslow > *[data-vote="+score+"]").addClass("selectedvote");
+  //update playlist if necessary
+  $(".playing .votes a[data-vote!="+score+"]").removeClass("voted");
+  $(".playing .votes a[data-vote="+score+"]").addClass("voted");
+}
+
+function setupVotes() {
+  $("#votebuttonslow > a").click(function () {
+    args = {};
+    for (var i in ajax_args) {
+      args[i] = ajax_args[i];
+    }
+    button = $(this);
+    if (button.hasClass("selectedvote")) {
+      args['vote'] = 0;
+    } else {
+      args['vote'] = button.attr("data-vote");
+    }
+    $.getJSON("/ajax", args, eventDispatcher);
+
+  });
+}
+
+/*** event handlers for clutterbar ***/
+
+function songLengthHandler(e, length) {
+  setSongLength(length);
+}
+
+function songPositionHandler(e, position) {
+  setSongPosition(position);
+}
+
+function linkedMetadataHandler(e, metadata) {
+  setClutterMetadata(metadata);
+}
+
+function commentHandler(e, comment) {
+  addComment(comment.body, comment.time, comment.commenter, comment.html_title);
+  ajax_args['last_comment'] = comment.id;
+}
+
+function clearCommentsHandler(e, blank) {
+  clearComments();
+  ajax_args['last_comment'] = 0;
+}
+
+function scoreHandler(e, score) {
+  setScore(score);
+}
+
+function userVoteHandler(e, score) {
+  setUserVote(score);
+}
+
+
+
+/*** event loop stuff ***/
+
+//delay between ajax calls
+DELAY = 15000;
+
+//how long messages should show for
+MESSAGES_DELAY = 5000;
+
+//associative array storing args for ajax calls
+//TODO: replace with array of functions to be called to obtain args
+
+
+
+//Called when list of events is recieved from server: triggers the correct javascript events with the correct arguments
+function eventDispatcher(data) {
+  for (i=0; i<data.length; i++) {
+    $('body').trigger(data[i][0], [data[i][1]]);
+  }
+  addVoteHandlers();
+}
+
+
+//Main AJAX loop: handles all periodic AJAX calls
+function ajaxLoop() {
+  $.getJSON("/ajax", ajax_args, eventDispatcher);
+  setTimeout('ajaxLoop()', DELAY);
+}
+
+//for stored ajax args
+var ajax_args = {};
+var now_playing = 785263
+$(document).ready(function(){
+
+  //song position stuff
+  setSongLength(songLength);
+  setSongPosition(songPosition);
+
+  //comment box stuff
+  setupComment();
+  setupVotes();
+
+  //add vote handlers to voting buttons
+  addVoteHandlers();
+
+  //ajax events stuff
+  ajax_args['position'] = songPosition;
+  ajax_args['last_comment'] = 0;
+  $('body').bind('songPosition', songPositionHandler);
+  $('body').bind('songLength', songLengthHandler);
+  $('body').bind('linkedMetadata', linkedMetadataHandler);
+  $('body').bind('comment', commentHandler);
+  $('body').bind('clearComments', clearCommentsHandler);
+  $('body').bind('score', scoreHandler);
+  $('body').bind('userVote', userVoteHandler);
+
+  //loops
+  setupSearch();
+  secondLoop();
+  ajaxLoop();
+  setTimeout('hideMessages()', MESSAGES_DELAY);
+
+});
+</script>
+
+
+
+
+
+<script type="text/javascript">
+
+var getLastEntry = function(){
+  return $('#playlist > :last-child').attr('id');
+}
+
+/*
+* Get the entry ID of the currently playing track
+*/
+function getNowPlayingID() {
+  return $(".playing").attr('id')
+}
+
+var stom = function(time){
+  seconds = time%60;
+  minutes = parseInt(time/60);
+  if (seconds < 10) {
+    seconds = "0" + seconds.toString(); //add zero to single digit numbers
+  } else {
+    seconds = seconds.toString();
+  }
+  return minutes.toString() + ':' + seconds;
+}
+
+var stripe = function(data) {
+  if($('#playlist tr:first').hasClass('odd')) {
+    $('#playlist tr:nth-child(odd)').removeClass('even').addClass('odd');
+    $('#playlist tr:nth-child(even)').removeClass('odd').addClass('even');
+  } else {
+    $('#playlist tr:nth-child(even)').removeClass('even').addClass('odd');
+    $('#playlist tr:nth-child(odd)').removeClass('odd').addClass('even');
+  }
+}
+
+var pruneHandler = function(){
+  oldplaylist = $(".history");
+  for (var i=0; i<(oldplaylist.length - 11); i++) { //TODO historylength (10) should be a user setting so need to fix somehow
+    //(but it's +1 for weird reasons I can't quite discern)
+    $(oldplaylist[i]).fadeOut('slow', removeCallback);
+  }
+}
+
+
+
+/**
+* Main loop: handles all periodic calls
+**/
+function funLoop() {
+  pruneHandler();
+  stripe();
+  setTimeout('funLoop()', DELAY);
+}
+
+var removeCallback = function() {
+  $(this).remove();
+}
+
+
+/** event callbacks **/
+function removalHandler(e, data) {
+  removal = $(document.getElementById(data['entryid']));
+  if (!removal.hasClass("playing")) { //if it's playing, it should stay there and become historical
+    removal.fadeOut("slow", removeCallback);
+  }
+  ajax_args['last_removal'] = data['id'];
+}
+
+function addsHandler(e, html) {
+  lastentry = $('#playlist > :last-child');
+  newentry = lastentry.after(html);
+  ajax_args['last_add'] = getLastEntry();
+}
+
+function nowPlayingHandler(e, entryid) {
+  currplaying = $(".playing");
+  currplaying.removeClass('playing');
+  currplaying.addClass('history');
+  //remove irrelevent action buttons
+  currplaying.children(".actions").children(".skip").hide();
+  nextplaying = $(document.getElementById(entryid));
+  nextplaying.addClass('playing');
+  //change action buttons
+  nextplaying.children(".actions").children(".remove").hide();
+  nextplaying.children(".actions").children(".skip").show();
+  ajax_args['now_playing'] = getNowPlayingID();
+}
+
+function metadataHandler(e, metadata) {
+  pltitle = metadata + " - GBS-FM";
+  if ($("title").html() != pltitle) {
+    $("title").html(pltitle);
+  }
+}
+
+function pllengthHandler(e, html) {
+  length = $("#length")
+  if (length.html() != html) {
+      length.html(html);
+  }
+}
+
+
+$(document).ready(function(){
+  //ajax calls & event handler bindings
+  //TODO: do this automatically with just the events and args or something
+  ajax_args['last_removal'] = 55554;
+  $('body').bind('removal', removalHandler);
+
+  ajax_args['last_add'] = getLastEntry();
+  $('body').bind('adds', addsHandler);
+
+  ajax_args['now_playing'] = getNowPlayingID();
+  $('body').bind('now_playing', nowPlayingHandler);
+
+  //no-arg event handlers
+  $('body').bind('metadata', metadataHandler);
+  $('body').bind('pllength', pllengthHandler);
+  funLoop();
+
+});
+
+</script>
+
+
+
+</head>
+
+<body>
+
+<div id="bg1"></div>
+<div id="bg2"></div>
+<div id="leftmenu">
+<a href="/playlist" id="leftmenulogo"></a>
+  <ul id="mainmenu">
+    <li><a href="/playlist" class="boxed">&nbsp;playlist</a></li>
+    <li><a href="/search" class="boxed">&nbsp;search</a></li>
+    <li><form action="/search" method="get" class="boxed"><input accesskey="f" id="id_query" name="query" maxlength="100" type="text" value="quick search"></form></li>
+    <li><a href="/upload" class="boxed">&nbsp;upload</a></li>
+    <li><a href="/search?query=favourites%3DLightning Jim" class="boxed">&nbsp;favourites</a></li>
+    <li><a href="/stats" class="boxed">&nbsp;stats</a></li>
+    <li><a href="/artists/all/1" class="boxed">&nbsp;artists</a></li>
+    <li><a href="/user/1719" class="boxed">&nbsp;user page</a></li>
+    <li><a href="/settings" class="boxed">&nbsp;settings</a></li>
+    <li><a href="/forum/" class="boxed">&nbsp;forums</a></li>
+    <li><a href="https://discord.gg/bH336ryEa7" class="boxed">&nbsp;live chat!</a></li>
+    <li><a href="/logout" class="boxed">&nbsp;logout</a></li>
+    
+    
+    
+  </ul>
+  <p class="listenersthing">icons from <a href="http://www.famfamfam.com/lab/icons/silk/">famfamfam</a></p>
+  <p class="listenersthing" title="g2:5 ghetto:">listeners: 5</p>
+  <p class="listenersthing">stream URLs<br> <a href="https://gbs.fm/96" target="_blank">96k</a> <a href="https://gbs.fm/128" target="_blank">128k</a> <a href="https://gbs.fm/192" target="_blank">192k</a> <a href="https://gbs.fm/256" target="_blank">256k</a> <a href="https://gbs.fm/320" target="_blank">320k</a> <a href="https://gbs.fm/flac" target="_blank">FLAC</a></p>
+  <p class="listenersthing">Winamp URLs<br> <a href="http://195.201.198.122:8000/96.m3u" target="_blank">96k</a> <a href="http://195.201.198.122:8000/128.m3u" target="_blank">128k</a> <a href="http://195.201.198.122:8000/192.m3u" target="_blank">192k</a> <a href="http://195.201.198.122:8000/256.m3u" target="_blank">256k</a> <a href="http://195.201.198.122:8000/320.m3u" target="_blank">320k</a> <a href="http://195.201.198.122:8000/flac.m3u" target="_blank">FLAC</a></p>
+  <p class="listenersthing"><a href='https://ko-fi.com/N4N2ETJQA' target='_blank'><img height='36' style='border:0px;height:36px;' src='/images/kofi2.png' border='0' alt='Buy GBS.fm some of those Kilowatts at ko-fi.com' /></a></p>
+  <p class="listenersthing"><a href='https://discord.gg/bH336ryEa7' target='_blank'><img height='36' style='border:0px;height:36px;' src='/images/discord.png' border='0' alt='Join us on Discord' /></a></p>
+</div>
+
+
+
+<!-- -->
+<div id="maincontainer">
+
+  
+  <p id="noticearea"><b>GBS-FM</b>: Workers of the world unite!* 
+<br><b>DO NOT UPLOAD AI GARBAGE LIKE <a href="/song/726310">THIS</a>. WE WILL BAN IT AND NOT LIKE YOU.</b> Please only upload human-created music, and also, please report any AI dongs you find.</br>Hit us up on the Discord. [*LATEST FAD]</p>
+  
+    
+    
+    <table class="playlist" id="playlisttable">
+    <tbody id='playlist'>
+      
+        <tr><th colspan="9" class="plinfo">
+          You have 48 tokens, so you can add extra dongs to the playlist!
+        </th></tr>
+      
+      <tr><th colspan="9" id="length">
+Playlist is 11:34 long with 3 dongs
+</th></tr>
+      <tr id='columns'>
+        <th>Artist</th>
+        <th>Title</th>
+        <th>Time</th>
+        <th>Added by</th>
+        <th>Vote</th>
+        <th>Score</th>
+        <th>Farts</th>
+        <th>Fav</th>
+        <th>Skip/Del.</th>
+      </tr>
+      
+
+        <tr
+        
+          id="h1766525"
+        
+        class="
+        
+        odd 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/38430'>Tengger Cavalry</a></td>
+        <td><a href='/song/852683'>One‐Track Mind</a></td>
+        <td class="time">3:09</td>
+        <td>
+          <a
+            title='uploaded by: Belteshazzar'
+            href='/user/3180'
+          >
+              Belteshazzar
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=852683&vote=1" class="vote1 " data-songid="852683" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=852683&vote=2" class="vote2 " data-songid="852683" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=852683&vote=3" class="vote3 " data-songid="852683" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=852683&vote=4" class="vote4 " data-songid="852683" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=852683&vote=5" class="vote5 " data-songid="852683" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/852683'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766526"
+        
+        class="
+        
+        even 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/75083'>Pinkpantheress</a></td>
+        <td><a href='/song/852656'>Romeo (with Rachel Chinouriri)</a></td>
+        <td class="time">2:47</td>
+        <td>
+          <a
+            title='uploaded by: Haifisch'
+            href='/user/3267'
+          >
+              Haifisch
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=852656&vote=1" class="vote1 " data-songid="852656" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=852656&vote=2" class="vote2 " data-songid="852656" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=852656&vote=3" class="vote3 " data-songid="852656" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=852656&vote=4" class="vote4 " data-songid="852656" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=852656&vote=5" class="vote5 " data-songid="852656" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/852656'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766527"
+        
+        class="
+        
+        odd 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/15659'>Chromatics</a></td>
+        <td><a href='/song/845820'>Blue Girl (Don&#x27;t Say A Word)</a></td>
+        <td class="time">3:17</td>
+        <td>
+          <a
+            title='uploaded by: egonindapotty'
+            href='/user/3522'
+          >
+              egonindapotty
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=845820&vote=1" class="vote1 " data-songid="845820" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=845820&vote=2" class="vote2 " data-songid="845820" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=845820&vote=3" class="vote3 " data-songid="845820" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=845820&vote=4" class="vote4 " data-songid="845820" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=845820&vote=5" class="vote5 " data-songid="845820" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          4.0 (2 votes)
+          
+        </td>
+	<td class="emoticon">
+	  
+	  <img src="images/emoticons/emot-dance.gif" title="4.0">
+	  
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/845820'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766528"
+        
+        class="
+        
+        even 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/27799'>Ian Thomas</a></td>
+        <td><a href='/song/726545'>The Same Colour Eyes</a></td>
+        <td class="time">3:50</td>
+        <td>
+          <a
+            title='uploaded by: ChrisKnight'
+            href='/user/961'
+          >
+              ChrisKnight
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=726545&vote=1" class="vote1 " data-songid="726545" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=726545&vote=2" class="vote2 " data-songid="726545" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=726545&vote=3" class="vote3 " data-songid="726545" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=726545&vote=4" class="vote4 " data-songid="726545" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=726545&vote=5" class="vote5 " data-songid="726545" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          4.0 (1 vote)
+          
+        </td>
+	<td class="emoticon">
+	  
+	  <img src="images/emoticons/emot-dance.gif" title="4.0">
+	  
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/726545'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766529"
+        
+        class="
+        
+        odd 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/27493'>The Juliana Theory</a></td>
+        <td><a href='/song/341383'>Show Me The Money</a></td>
+        <td class="time">4:29</td>
+        <td>
+          <a
+            title='uploaded by: Tom Pridgen'
+            href='/user/73'
+          >
+              Whatbot
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=341383&vote=1" class="vote1 " data-songid="341383" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=341383&vote=2" class="vote2 " data-songid="341383" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=341383&vote=3" class="vote3 " data-songid="341383" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=341383&vote=4" class="vote4 " data-songid="341383" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=341383&vote=5" class="vote5 " data-songid="341383" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/341383'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766530"
+        
+        class="
+        
+        even 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/38430'>Tengger Cavalry</a></td>
+        <td><a href='/song/852677'>Ride Into Grave and Glory (War Horse II)</a></td>
+        <td class="time">4:13</td>
+        <td>
+          <a
+            title='uploaded by: Belteshazzar'
+            href='/user/3180'
+          >
+              Belteshazzar
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=852677&vote=1" class="vote1 " data-songid="852677" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=852677&vote=2" class="vote2 " data-songid="852677" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=852677&vote=3" class="vote3 " data-songid="852677" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=852677&vote=4" class="vote4 " data-songid="852677" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=852677&vote=5" class="vote5 " data-songid="852677" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/852677'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766531"
+        
+        class="
+        
+        odd 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/91871'>Future &amp; Metro Boomin</a></td>
+        <td><a href='/song/850521'>Came To Party</a></td>
+        <td class="time">3:18</td>
+        <td>
+          <a
+            title='uploaded by: Haifisch'
+            href='/user/3267'
+          >
+              Haifisch
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=850521&vote=1" class="vote1 " data-songid="850521" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=850521&vote=2" class="vote2 " data-songid="850521" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=850521&vote=3" class="vote3 " data-songid="850521" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=850521&vote=4" class="vote4 " data-songid="850521" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=850521&vote=5" class="vote5 " data-songid="850521" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/850521'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766532"
+        
+        class="
+        
+        even 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/87926'>Reggie Stocker</a></td>
+        <td><a href='/song/817381'>tha nu yu (intro)</a></td>
+        <td class="time">0:59</td>
+        <td>
+          <a
+            title='uploaded by: CosmicChampGalaxy'
+            href='/user/5427'
+          >
+              CosmicChampGalaxy
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=817381&vote=1" class="vote1 " data-songid="817381" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=817381&vote=2" class="vote2 " data-songid="817381" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=817381&vote=3" class="vote3 " data-songid="817381" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=817381&vote=4" class="vote4 " data-songid="817381" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=817381&vote=5" class="vote5 " data-songid="817381" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/817381'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766533"
+        
+        class="
+        
+        odd 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/20303'>Frenzal Rhomb</a></td>
+        <td><a href='/song/813691'>Nothings Wrong</a></td>
+        <td class="time">2:15</td>
+        <td>
+          <a
+            title='uploaded by: The Sausages'
+            href='/user/73'
+          >
+              Whatbot
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=813691&vote=1" class="vote1 " data-songid="813691" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=813691&vote=2" class="vote2 " data-songid="813691" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=813691&vote=3" class="vote3 " data-songid="813691" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=813691&vote=4" class="vote4 " data-songid="813691" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=813691&vote=5" class="vote5 " data-songid="813691" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/813691'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="h1766534"
+        
+        class="
+        
+        even 
+        
+          history
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/1992'>Ram Jam</a></td>
+        <td><a href='/song/852812'>Black Betty (PulpFusion Mix)</a></td>
+        <td class="time">7:59</td>
+        <td>
+          <a
+            title='uploaded by: Haifisch'
+            href='/user/3267'
+          >
+              Haifisch
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=852812&vote=1" class="vote1 " data-songid="852812" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=852812&vote=2" class="vote2 " data-songid="852812" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=852812&vote=3" class="vote3 " data-songid="852812" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=852812&vote=4" class="vote4 " data-songid="852812" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=852812&vote=5" class="vote5 " data-songid="852812" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/852812'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="1810809"
+        
+        class="
+        
+          playing
+        
+        odd 
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/16985'>British Electric Foundation</a></td>
+        <td><a href='/song/785263'>The Secret Life Of Arabia (with Billy MacKenzie)</a></td>
+        <td class="time">4:00</td>
+        <td>
+          <a
+            title='uploaded by: ChrisKnight'
+            href='/user/961'
+          >
+              ChrisKnight
+          </a>
+        </td>
+        <!-- 
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=785263&vote=1" class="vote1 " data-songid="785263" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=785263&vote=2" class="vote2 " data-songid="785263" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=785263&vote=3" class="vote3 " data-songid="785263" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=785263&vote=4" class="vote4 " data-songid="785263" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=785263&vote=5" class="vote5 " data-songid="785263" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/785263'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="1810810"
+        
+        class="
+        
+        even 
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/2893'>David Byrne</a></td>
+        <td><a href='/song/846263'>drivers license</a></td>
+        <td class="time">3:26</td>
+        <td>
+          <a
+            title='uploaded by: egonindapotty'
+            href='/user/3522'
+          >
+              egonindapotty
+          </a>
+        </td>
+        <!-- 
+          notyet
+        
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=846263&vote=1" class="vote1 " data-songid="846263" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=846263&vote=2" class="vote2 " data-songid="846263" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=846263&vote=3" class="vote3 " data-songid="846263" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=846263&vote=4" class="vote4 " data-songid="846263" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=846263&vote=5" class="vote5 " data-songid="846263" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          4.5 (2 votes)
+          
+        </td>
+	<td class="emoticon">
+	  
+	  <img src="images/emoticons/emot-rock.gif" title="4.5">
+	  
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/846263'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="1810811"
+        
+        class="
+        
+        odd 
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/89316'>French Vanilla</a></td>
+        <td><a href='/song/831550'>Evolution of a Friendship</a></td>
+        <td class="time">3:28</td>
+        <td>
+          <a
+            title='uploaded by: TrixRabbi'
+            href='/user/5366'
+          >
+              TrixRabbi
+          </a>
+        </td>
+        <!-- 
+          notyet
+        
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=831550&vote=1" class="vote1 " data-songid="831550" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=831550&vote=2" class="vote2 " data-songid="831550" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=831550&vote=3" class="vote3 " data-songid="831550" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=831550&vote=4" class="vote4 " data-songid="831550" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=831550&vote=5" class="vote5 " data-songid="831550" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/831550'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+        <tr
+        
+          id="1810812"
+        
+        class="
+        
+        even 
+        
+        
+        
+        ">
+        <td class="artistry"><a href='/artist/2111'>Soundgarden</a></td>
+        <td><a href='/song/852816'>Black Hole Sun (PulpFusion Mix)</a></td>
+        <td class="time">4:40</td>
+        <td>
+          <a
+            title='uploaded by: Haifisch'
+            href='/user/3267'
+          >
+              Haifisch
+          </a>
+        </td>
+        <!-- 
+          notyet
+        
+        TODO: add to classes VVV when prevoting prevention is on
+        -->
+        <td class="votes details">
+        
+        
+          <a href="/api/vote?songid=852816&vote=1" class="vote1 " data-songid="852816" data-vote="1">1</a>
+        
+          <a href="/api/vote?songid=852816&vote=2" class="vote2 " data-songid="852816" data-vote="2">2</a>
+        
+          <a href="/api/vote?songid=852816&vote=3" class="vote3 " data-songid="852816" data-vote="3">3</a>
+        
+          <a href="/api/vote?songid=852816&vote=4" class="vote4 " data-songid="852816" data-vote="4">4</a>
+        
+          <a href="/api/vote?songid=852816&vote=5" class="vote5 " data-songid="852816" data-vote="5">5</a>
+        
+        </td>
+        <td class="score">
+          
+          no votes
+          
+        </td>
+	<td class="emoticon">
+	  
+	  
+          
+	</td>
+        <td class="actions">
+          
+            <a href='/favourite/852816'>
+              
+              <img src="images/heart_add.png" title="Add this dong to your favourites" alt="favourite" />
+              
+            </a>
+          
+          </td>
+          <td>
+          
+          
+
+        </td>
+        </tr>
+      
+
+    </tbody>
+    </table>
+    
+
+</div>
+
+<!-- this is the end mark i was talking about, the one you'll find with asdf23 -->
+
+<div id="bottomcont">
+<div id="bottombg" title="geez what klutz designed this?"></div>
+
+      <div id="leftist">
+        <form action="#" method="post" id="commentform">
+          <input accesskey="c" autocomplete="off" id="commentbox" name="query" maxlength="400" type="text"
+                 value="You need to enable javascript to use the live comments system." disabled="disabled" />
+        </form>
+        <div id="commentsbox">
+          <a id="expandbutt" href="#" title="expand comment box"></a>
+          
+        </div>
+      </div>
+      <div id="rightist">
+
+        <div id="progbarbox">
+          <div id="progtube">
+            <div style="width:4.370833333333337%;" id="progbar"></div>
+          </div>
+          <span id="songPosition">10.490000000000009</span>/<span id="songLength">240</span>
+        </div>
+        <span><div id="metadata"><a href="/artist/16985">British Electric Foundation</a> (<a href="/album/23281">Music Of Quality And Distinction, Volume 1</a>) - <a href="/song/785263">The Secret Life Of Arabia (with Billy MacKenzie)</a></div>
+        <div id="votebuttonslow">
+        vote:
+         
+        
+          <a href="#" class="" data-vote="1">1</a>
+        
+          <a href="#" class="" data-vote="2">2</a>
+        
+          <a href="#" class="" data-vote="3">3</a>
+        
+          <a href="#" class="" data-vote="4">4</a>
+        
+          <a href="#" class="" data-vote="5">5</a>
+        
+        &nbsp;score: <span id='avgscore'>
+        
+          no votes
+        
+        </span>
+        </div></span>
+      </div>
+
+
+</div>
+</body>
+</html>

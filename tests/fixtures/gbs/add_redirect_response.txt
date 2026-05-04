@@ -1,0 +1,4 @@
+HTTP/2 302
+location: /playlist
+set-cookie: messages=W1siX19qc29uX21lc3NhZ2UiLDAsMjUsIlRyYWNrIGFkZGVkIHN1Y2Nlc3NmdWxseSEiLCIiXV0:1wJtOd:6O1abc; path=/; httponly
+

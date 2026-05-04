@@ -1,0 +1,2543 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+<title>test -  Search - GBS-FM</title>
+<link rel="shortcut icon" href="/images/favicon.ico" />
+<link href="images/style.css" rel="stylesheet" type="text/css" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.3/jquery.min.js" type="text/javascript"></script>
+<script type="text/javascript" src="images/swfobject.js"></script>
+<script type="text/javascript" src="images/playload.js"></script>
+<script type="text/javascript">
+
+// //alow object cloning
+// //from http://my.opera.com/GreyWyvern/blog/show.dml/1725165 (thanks to Brian Huisman)
+// Object.prototype.clone = function() {
+//   var newObj = (this instanceof Array) ? [] : {};
+//   for (i in this) {
+//     if (i == 'clone') continue;
+//     if (this[i] && typeof this[i] == "object") {
+//       newObj[i] = this[i].clone();
+//     } else newObj[i] = this[i]
+//   } return newObj;
+// };
+//
+
+
+//convert seconds to minutes:seconds
+function stom(time){
+  seconds = time%60;
+  minutes = parseInt(time/60);
+  if (seconds < 10) {
+    seconds = "0" + seconds.toString(); //add zero to single digit numbers
+  } else {
+    seconds = seconds.toString();
+  }
+  return minutes.toString() + ':' + seconds;
+}
+
+/*** vote handling stuff ***/
+
+function voteHandler(event) {
+  tgt = $(event.target);
+  votelink = event.target.href;
+  if (tgt.hasClass('voted')) {
+    //clicking again to clear vote
+    votelink = votelink.slice(0, votelink.length-1); //get rid of vote at end
+    $.get(votelink + '0'); //vote 0 to clear vote
+    tgt.removeClass("voted");
+  } else {
+    $.get(votelink);
+    tgt.parent().children().removeClass("voted");
+    tgt.addClass("voted");
+  }
+  event.preventDefault();
+}
+
+function addVoteHandlers () {
+  $("a[href*='/vote?']").not('.handled').click(voteHandler).addClass('handled');
+}
+
+/*** progress bar stuff ***/
+
+//both of these are in seconds
+var songLength = 240;
+var songPosition = 12.529999999999996;
+//percentage
+var songProgress = 5.220833333333331;
+
+function setSongLength(length) {
+  songLength = length;
+  $('#songLength').html(stom(length));
+
+}
+
+//set numeric song position
+function setSongPosition(pos) {
+  pos = Math.round(Math.min(pos, songLength));
+  if (songPosition != pos) {
+    $('#songPosition').html(stom(pos));
+    songPosition = pos;
+    setSongProgress((pos/songLength)*100);
+  }
+  ajax_args['position'] = pos;
+}
+
+//set progressbar percentage
+function setSongProgress(percentage) {
+  $("#progbar").css("width", percentage.toString() + '%');
+  //alert(percentage.toString() * '%');
+  songProgress = percentage;
+}
+
+//Increment song position every second
+//TODO: make this more accurate using clock to avoid inaccuracies of delyed calls
+function secondLoop() {
+  setSongPosition(songPosition+1);
+  setTimeout('secondLoop()', 1000);
+}
+
+/*** Clutterbar song info stuff ***/
+
+//Set metadata to appear in clutterbar
+function setClutterMetadata(metadata) {
+  elem = $("div#metadata");
+  old = elem.html();
+  if (metadata != old) {
+    elem.html(metadata);
+  }
+}
+
+/**
+* Sets up the quick search box properly
+**/
+function setupSearch() {
+  searchbox = $('#id_query');
+  searchbox.css('color', 'grey');
+  searchbox.attr('value', "quick search"); //override browser modifications
+  searchbox.focus(function () {
+    if (searchbox.attr('value') == "quick search") {
+      searchbox.attr('value', '');
+      searchbox.css('color', 'black');
+    }
+  });
+}
+
+/**
+* Set up comment box properly
+**/
+function setupComment() {
+  $('#commentform').submit(commentSubmit);
+  commentbox = $('#commentbox');
+  commentbox.removeAttr("disabled") //enable it
+  commentbox.css('color', 'grey');
+  message = "Comment on this track here. Bad things will happen to people who use this for general chat!";
+  commentbox.attr('value', message);
+
+  commentbox.focus(function () {
+    if (commentbox.attr('value') == message) {
+      //clear it and set text to normal colour when in focus
+      commentbox.attr('value', '');
+      commentbox.css('color', 'black');
+    }
+  });
+
+  commentbox.blur(function () {
+    if (commentbox.attr('value') == '') {
+      //clear it and set text to normal colour when in focus
+      commentbox.attr('value', message);
+      commentbox.css('color', 'grey');
+    }
+  });
+}
+
+
+/**
+* Hide message box
+**/
+function hideMessages() {
+  $("p#messages").fadeOut("slow");
+}
+
+/**
+* Add comment to comment box
+**/
+function addComment(comment, time, commenter, title) {
+  elem = $("div#commentsbox");
+  elem.html("<p class='comment' title='title'>" + "@" + time + " &lt;" + commenter + "&gt; " + comment + "\n" + "</p>" + elem.html());
+}
+
+/**
+* Clear the comment box
+**/
+function clearComments() {
+  $("div#commentsbox").html("");
+}
+
+/**
+* Submit a comment entered in the comment box
+**/
+function commentSubmit() {
+  commentbox = $('#commentbox');
+  comment = commentbox.val();
+  args = {};
+  for (var i in ajax_args){
+    args[i] = ajax_args[i];
+  }
+
+  args['comment'] = comment;
+  $.getJSON("/ajax", args, eventDispatcher);
+
+  commentbox.val("");
+  return false; //avoid default behaviour
+}
+
+/**
+* Score stuff
+**/
+
+function setScore(score) {
+  if (score == 0) {
+    score = "none";
+  }
+  $('#avgscore').html(score);
+  // update playlist if necessary
+  $('.playing .score').html(score);
+}
+
+function setUserVote(score) {
+  $("#votebuttonslow > .selectedvote[data-vote!="+score+"]").removeClass("selectedvote");
+  $("#votebuttonslow > *[data-vote="+score+"]").addClass("selectedvote");
+  //update playlist if necessary
+  $(".playing .votes a[data-vote!="+score+"]").removeClass("voted");
+  $(".playing .votes a[data-vote="+score+"]").addClass("voted");
+}
+
+function setupVotes() {
+  $("#votebuttonslow > a").click(function () {
+    args = {};
+    for (var i in ajax_args) {
+      args[i] = ajax_args[i];
+    }
+    button = $(this);
+    if (button.hasClass("selectedvote")) {
+      args['vote'] = 0;
+    } else {
+      args['vote'] = button.attr("data-vote");
+    }
+    $.getJSON("/ajax", args, eventDispatcher);
+
+  });
+}
+
+/*** event handlers for clutterbar ***/
+
+function songLengthHandler(e, length) {
+  setSongLength(length);
+}
+
+function songPositionHandler(e, position) {
+  setSongPosition(position);
+}
+
+function linkedMetadataHandler(e, metadata) {
+  setClutterMetadata(metadata);
+}
+
+function commentHandler(e, comment) {
+  addComment(comment.body, comment.time, comment.commenter, comment.html_title);
+  ajax_args['last_comment'] = comment.id;
+}
+
+function clearCommentsHandler(e, blank) {
+  clearComments();
+  ajax_args['last_comment'] = 0;
+}
+
+function scoreHandler(e, score) {
+  setScore(score);
+}
+
+function userVoteHandler(e, score) {
+  setUserVote(score);
+}
+
+
+
+/*** event loop stuff ***/
+
+//delay between ajax calls
+DELAY = 15000;
+
+//how long messages should show for
+MESSAGES_DELAY = 5000;
+
+//associative array storing args for ajax calls
+//TODO: replace with array of functions to be called to obtain args
+
+
+
+//Called when list of events is recieved from server: triggers the correct javascript events with the correct arguments
+function eventDispatcher(data) {
+  for (i=0; i<data.length; i++) {
+    $('body').trigger(data[i][0], [data[i][1]]);
+  }
+  addVoteHandlers();
+}
+
+
+//Main AJAX loop: handles all periodic AJAX calls
+function ajaxLoop() {
+  $.getJSON("/ajax", ajax_args, eventDispatcher);
+  setTimeout('ajaxLoop()', DELAY);
+}
+
+//for stored ajax args
+var ajax_args = {};
+var now_playing = 785263
+$(document).ready(function(){
+
+  //song position stuff
+  setSongLength(songLength);
+  setSongPosition(songPosition);
+
+  //comment box stuff
+  setupComment();
+  setupVotes();
+
+  //add vote handlers to voting buttons
+  addVoteHandlers();
+
+  //ajax events stuff
+  ajax_args['position'] = songPosition;
+  ajax_args['last_comment'] = 0;
+  $('body').bind('songPosition', songPositionHandler);
+  $('body').bind('songLength', songLengthHandler);
+  $('body').bind('linkedMetadata', linkedMetadataHandler);
+  $('body').bind('comment', commentHandler);
+  $('body').bind('clearComments', clearCommentsHandler);
+  $('body').bind('score', scoreHandler);
+  $('body').bind('userVote', userVoteHandler);
+
+  //loops
+  setupSearch();
+  secondLoop();
+  ajaxLoop();
+  setTimeout('hideMessages()', MESSAGES_DELAY);
+
+});
+</script>
+
+
+
+
+</head>
+
+<body>
+
+<div id="bg1"></div>
+<div id="bg2"></div>
+<div id="leftmenu">
+<a href="/playlist" id="leftmenulogo"></a>
+  <ul id="mainmenu">
+    <li><a href="/playlist" class="boxed">&nbsp;playlist</a></li>
+    <li><a href="/search" class="boxed">&nbsp;search</a></li>
+    <li><form action="/search" method="get" class="boxed"><input accesskey="f" id="id_query" name="query" maxlength="100" type="text" value="quick search"></form></li>
+    <li><a href="/upload" class="boxed">&nbsp;upload</a></li>
+    <li><a href="/search?query=favourites%3DLightning Jim" class="boxed">&nbsp;favourites</a></li>
+    <li><a href="/stats" class="boxed">&nbsp;stats</a></li>
+    <li><a href="/artists/all/1" class="boxed">&nbsp;artists</a></li>
+    <li><a href="/user/1719" class="boxed">&nbsp;user page</a></li>
+    <li><a href="/settings" class="boxed">&nbsp;settings</a></li>
+    <li><a href="/forum/" class="boxed">&nbsp;forums</a></li>
+    <li><a href="https://discord.gg/bH336ryEa7" class="boxed">&nbsp;live chat!</a></li>
+    <li><a href="/logout" class="boxed">&nbsp;logout</a></li>
+    
+    
+    
+  </ul>
+  <p class="listenersthing">icons from <a href="http://www.famfamfam.com/lab/icons/silk/">famfamfam</a></p>
+  <p class="listenersthing" title="g2:5 ghetto:">listeners: 5</p>
+  <p class="listenersthing">stream URLs<br> <a href="https://gbs.fm/96" target="_blank">96k</a> <a href="https://gbs.fm/128" target="_blank">128k</a> <a href="https://gbs.fm/192" target="_blank">192k</a> <a href="https://gbs.fm/256" target="_blank">256k</a> <a href="https://gbs.fm/320" target="_blank">320k</a> <a href="https://gbs.fm/flac" target="_blank">FLAC</a></p>
+  <p class="listenersthing">Winamp URLs<br> <a href="http://195.201.198.122:8000/96.m3u" target="_blank">96k</a> <a href="http://195.201.198.122:8000/128.m3u" target="_blank">128k</a> <a href="http://195.201.198.122:8000/192.m3u" target="_blank">192k</a> <a href="http://195.201.198.122:8000/256.m3u" target="_blank">256k</a> <a href="http://195.201.198.122:8000/320.m3u" target="_blank">320k</a> <a href="http://195.201.198.122:8000/flac.m3u" target="_blank">FLAC</a></p>
+  <p class="listenersthing"><a href='https://ko-fi.com/N4N2ETJQA' target='_blank'><img height='36' style='border:0px;height:36px;' src='/images/kofi2.png' border='0' alt='Buy GBS.fm some of those Kilowatts at ko-fi.com' /></a></p>
+  <p class="listenersthing"><a href='https://discord.gg/bH336ryEa7' target='_blank'><img height='36' style='border:0px;height:36px;' src='/images/discord.png' border='0' alt='Join us on Discord' /></a></p>
+</div>
+
+
+
+<!-- -->
+<div id="maincontainer">
+
+  <div class="playlist">
+    <form action='/search' method="GET">
+    <p>
+      <input type="text" name="query" value="test" maxlength="100" required id="id_query"> 
+    </p>
+    <p>
+      <input type="submit" value="Search" />
+    </p>
+    <p>
+      
+    </p>
+
+    </form>
+  
+  
+  
+  <p class="artists">Artists:<ul>
+    
+      <li><a href="/artist/53817">Ahmayktesta</a></li>
+    
+      <li><a href="/artist/15774">Alpha Test Pilot</a></li>
+    
+      <li><a href="/artist/1203">Crash Test Dummies</a></li>
+    
+      <li><a href="/artist/81235">Daniel Testas</a></li>
+    
+      <li><a href="/artist/21359">DJ Magnetic Dozer vs. Alpha Test Pilot</a></li>
+    
+      <li><a href="/artist/38421">Empathy Test</a></li>
+    
+      <li><a href="/artist/39465">Eternal Testament</a></li>
+    
+      <li><a href="/artist/73501">Hugh Jackman &amp; The Greatest Showman Ensemble</a></li>
+    
+      <li><a href="/artist/73492">Hugh Jackman, Keala Settle, Daniel Everidge, Zendaya &amp; The Greatest Showman Ensemble</a></li>
+    
+      <li><a href="/artist/73493">Hugh Jackman, Keala Settle, Zac Efron, Zendaya &amp; The Greatest Showman Ensemble</a></li>
+    
+      <li><a href="/artist/3142">Intestinal Disgorge</a></li>
+    
+      <li><a href="/artist/37864">Jamaica&#x27;s Greatest</a></li>
+    
+      <li><a href="/artist/73498">Keala Settle &amp; The Greatest Showman Ensemble</a></li>
+    
+      <li><a href="/artist/81703">Luca Testa,El Chuape,Bomber,Ale Zuber</a></li>
+    
+      <li><a href="/artist/81411">MC Protesto</a></li>
+    
+      <li><a href="/artist/12695">Mr. Mackey, Stan Marsh, Eric Cartman, Kyle Broflovski, Wendy Testaburger And Gregory</a></li>
+    
+      <li><a href="/artist/5106">My Brightest Diamond</a></li>
+    
+      <li><a href="/artist/16864">My Latest Novel</a></li>
+    
+      <li><a href="/artist/86511">Nervous Testpilot</a></li>
+    
+      <li><a href="/artist/29699">nervous_testpilot</a></li>
+    
+      <li><a href="/artist/64433">Peter &amp; The Test Tube Babies</a></li>
+    
+      <li><a href="/artist/12721">Protest the Hero</a></li>
+    
+      <li><a href="/artist/21965">Protestant</a></li>
+    
+      <li><a href="/artist/20693">Ron Artest</a></li>
+    
+      <li><a href="/artist/3522">Rorschach Test</a></li>
+    
+      <li><a href="/artist/39162">Sound Test</a></li>
+    
+      <li><a href="/artist/5653">Stan Marsh &amp; Wendy Testaburger</a></li>
+    
+      <li><a href="/artist/7681">Television&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/artist/14462">Test Dept.</a></li>
+    
+      <li><a href="/artist/27190">Test Dept. &amp; South Wales Striking Miners Choir</a></li>
+    
+      <li><a href="/artist/61431">Test Icicles</a></li>
+    
+      <li><a href="/artist/5516">Test of Time</a></li>
+    
+      <li><a href="/artist/5515">Test of Time (Entity)</a></li>
+    
+      <li><a href="/artist/5919">Test of Time (`eNtiTy)</a></li>
+    
+      <li><a href="/artist/28615">Test Your Reflex</a></li>
+    
+      <li><a href="/artist/4803">Testament</a></li>
+    
+      <li><a href="/artist/72341">Testcard F</a></li>
+    
+      <li><a href="/artist/28889">Testing</a></li>
+    
+      <li><a href="/artist/30743">the greatest cover band of all time</a></li>
+    
+      <li><a href="/artist/76749">The Sweetest Ache</a></li>
+    
+      <li><a href="/artist/16220">The Whitest Boy Alive</a></li>
+    
+      <li><a href="/artist/16695">The Whitest Kids U&#x27; Know</a></li>
+    
+      <li><a href="/artist/52239">TheBestestGuestest</a></li>
+    
+      <li><a href="/artist/90932">Voĉo Protesta</a></li>
+    
+    
+      <li><a href="/artist/15477">Whitest Boy Alive</a></li></ul>
+    
+  </p>
+  
+  
+  <p class="artists">Albums:<ul>
+    
+      <li><a href="/album/1488">#gbs-fm&#x27;s greatest shits</a></li>
+    
+      <li><a href="/album/50413">100 Greatest Miami Bass Songs Ever</a></li>
+    
+      <li><a href="/album/25815">13 Most Beautiful: Songs For Andy Warhol&#x27;s Screen Tests</a></li>
+    
+      <li><a href="/album/4981">16 Greatest Hits</a></li>
+    
+      <li><a href="/album/57855">19 Greatest Hits</a></li>
+    
+      <li><a href="/album/58602">20 All-Time Greatest Hits</a></li>
+    
+      <li><a href="/album/27262">20 Greatest Hits</a></li>
+    
+      <li><a href="/album/37509">20 Greatest Hits - Vol. I</a></li>
+    
+      <li><a href="/album/40307">2011 JJJ Hottest 100</a></li>
+    
+      <li><a href="/album/92167">2020-Greatest Hits 1975-1983</a></li>
+    
+      <li><a href="/album/72313">24 Greatest Hits</a></li>
+    
+      <li><a href="/album/46120">25 All-Time Greatest Hits</a></li>
+    
+      <li><a href="/album/44531">30 Greatest Hits</a></li>
+    
+      <li><a href="/album/72123">40 Greatest Hits</a></li>
+    
+      <li><a href="/album/78779">60 Greatest Ever Irish Rebel Songs</a></li>
+    
+      <li><a href="/album/7309">A Brief History of Rhyme: MC Hawking&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/17867">A Colbert Christmas: The Greatest Gift of All!</a></li>
+    
+      <li><a href="/album/36675">A Silent Protest</a></li>
+    
+      <li><a href="/album/14744">A Slight Case Of Overbombing: Greatest Hits, Volume One</a></li>
+    
+      <li><a href="/album/11457">Al Green - Greatest Hits</a></li>
+    
+      <li><a href="/album/11456">Al Green&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/50996">Alan Jackson Greatest Hits</a></li>
+    
+      <li><a href="/album/12898">All The Greatest Hits</a></li>
+    
+      <li><a href="/album/22421">All Time Greatest Film and TV Themes Vol. 1</a></li>
+    
+      <li><a href="/album/16365">All Time Greatest Hits</a></li>
+    
+      <li><a href="/album/46686">All-Time Greatest Hits</a></li>
+    
+      <li><a href="/album/94210">Alpha Test 4</a></li>
+    
+      <li><a href="/album/71905">Alvin Stardust: Greatest Hits</a></li>
+    
+      <li><a href="/album/78139">America&#x27;s Greatest Hero</a></li>
+    
+      <li><a href="/album/87488">American Dad! Greatest Hits</a></li>
+    
+      <li><a href="/album/48003">And Love Said No: The Greatest Hits 1997-2004</a></li>
+    
+      <li><a href="/album/22701">Andy Williams&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/92105">Anthology: Greatest Hits 1986-1997</a></li>
+    
+      <li><a href="/album/19851">Babes Say the Hottest Things</a></li>
+    
+      <li><a href="/album/16156">Bang!... The Greatest Hits of Frankie Goes to Hollywood</a></li>
+    
+      <li><a href="/album/13273">Banned In D.C.: Bad Brains Greatest Riffs</a></li>
+    
+      <li><a href="/album/9774">Barack&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/57748">Baseball&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/19341">Beautiful People: The Greatest Hits of Melanie</a></li>
+    
+      <li><a href="/album/42264">Behind the Magnolia Curtain/Blow Your Top - Lore And Testament Vol. 1</a></li>
+    
+      <li><a href="/album/20258">Best: The Greatest Hits of S Club 7</a></li>
+    
+      <li><a href="/album/37391">Bestest Friend</a></li>
+    
+      <li><a href="/album/15530">Billie Holiday&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/10802">Blue Hawaii Andy Williams Greatest Songs of the Islands</a></li>
+    
+      <li><a href="/album/9082">Buck Bumble&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/4032">Cheech &amp; Chong&#x27;s Greatest Hit</a></li>
+    
+      <li><a href="/album/969">Chipmunks Greatest Christmas Hits</a></li>
+    
+      <li><a href="/album/87566">Chromakopia (Test Pressing, Version 1)</a></li>
+    
+      <li><a href="/album/26976">Classic Jazz - The World&#x27;s Greatest Jazz Collection 1917-1932: Vol. 3</a></li>
+    
+      <li><a href="/album/84887">Classics: Their Greatest Hits</a></li>
+    
+      <li><a href="/album/70558">Connie Francis: 24 Greatest Hits</a></li>
+    
+      <li><a href="/album/13521">Contest Entry</a></li>
+    
+      <li><a href="/album/52878">Country Mike&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/68225">Crazyshow 4: Websitestory</a></li>
+    
+      <li><a href="/album/67070">Cylobs Latest Effort</a></li>
+    
+      <li><a href="/album/58053">Das Testament</a></li>
+    
+      <li><a href="/album/35080">Das Testament - Special Gold Edition - CD 1</a></li>
+    
+      <li><a href="/album/35320">Das Testament - Special Gold Edition - CD 2</a></li>
+    
+      <li><a href="/album/61815">Dead! The Grim Reaper&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/89809">Deep River Of Song: Louisiana, &quot;Catch That Train And Testify!&quot; - The Alan Lomax Collection</a></li>
+    
+      <li><a href="/album/56057">Deluxe: Greatest Hits</a></li>
+    
+      <li><a href="/album/21898">Desire: Greatest Hits Remixed</a></li>
+    
+      <li><a href="/album/5314">Disc 1 The Old Testament</a></li>
+    
+      <li><a href="/album/59415">Disc One: All Their Greatest Hits (1991-2001)</a></li>
+    
+      <li><a href="/album/6535">Disney&#x27;s Greatest (Volume 2)</a></li>
+    
+      <li><a href="/album/47674">Disney&#x27;s Greatest, Vol. 3</a></li>
+    
+      <li><a href="/album/18541">DJ Salinger&#x27;s Greatest Hits 1985-1995</a></li>
+    
+      <li><a href="/album/14703">Donovan&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/69540">Dr. Demento Presents The Greatest Novelty Records Of All Time, Volume 1: The 1940s (And Before)</a></li>
+    
+      <li><a href="/album/69539">Dr. Demento Presents The Greatest Novelty Records Of All Time, Volume 2: The 1950s</a></li>
+    
+      <li><a href="/album/69538">Dr. Demento Presents The Greatest Novelty Records Of All Time, Volume 3: The 1960s</a></li>
+    
+      <li><a href="/album/69537">Dr. Demento Presents The Greatest Novelty Records Of All Time, Volume 4: The 1970s</a></li>
+    
+      <li><a href="/album/69536">Dr. Demento Presents The Greatest Novelty Records Of All Time, Volume 5: The 1980s</a></li>
+    
+      <li><a href="/album/6418">Dr. Demento Presents The Greatest Novelty Records Of All Time, Volume 6: Christmas</a></li>
+    
+      <li><a href="/album/1415">Dwelling of Duels/Rock-Out!!! - Jan Contest</a></li>
+    
+      <li><a href="/album/32624">Dying is Your Latest Fashion</a></li>
+    
+      <li><a href="/album/75003">Electronically Tested</a></li>
+    
+      <li><a href="/album/6942">Entity - Test of Time</a></li>
+    
+      <li><a href="/album/59764">Eurovision Song Contest</a></li>
+    
+      <li><a href="/album/20409">Eurovision Song Contest 1956 - Lugano, Switzerland</a></li>
+    
+      <li><a href="/album/20408">Eurovision Song Contest 1957 - Frankfurt, West Germany</a></li>
+    
+      <li><a href="/album/20410">Eurovision Song Contest 1958 - Hilversum, Netherlands</a></li>
+    
+      <li><a href="/album/54238">Eurovision Song Contest 1959 - Cannes, France</a></li>
+    
+      <li><a href="/album/51316">Eurovision Song Contest 1960 - London, United Kingdom</a></li>
+    
+      <li><a href="/album/54239">Eurovision Song Contest 1961 - Cannes, France</a></li>
+    
+      <li><a href="/album/51379">Eurovision Song Contest 1962 - Luxembourg, Luxembourg</a></li>
+    
+      <li><a href="/album/58713">Eurovision Song Contest 1964 - Copenhagen, Denmark</a></li>
+    
+      <li><a href="/album/33941">Eurovision Song Contest 1993 - Millstreet, Ireland</a></li>
+    
+      <li><a href="/album/33940">Eurovision Song Contest 1994 - Dublin, Ireland</a></li>
+    
+      <li><a href="/album/33939">Eurovision Song Contest 1995 - Dublin, Ireland</a></li>
+    
+      <li><a href="/album/33937">Eurovision Song Contest 1996 - Oslo, Norway</a></li>
+    
+      <li><a href="/album/33936">Eurovision Song Contest 1997 - Dublin, Ireland</a></li>
+    
+      <li><a href="/album/33934">Eurovision Song Contest 1998 - Birmingham, United Kingdom</a></li>
+    
+      <li><a href="/album/33933">Eurovision Song Contest 1999 - Jerusalem, Israel</a></li>
+    
+      <li><a href="/album/33931">Eurovision Song Contest 2000 - Stockholm, Sweden</a></li>
+    
+      <li><a href="/album/33929">Eurovision Song Contest 2001 - Copenhagen, Denmark</a></li>
+    
+      <li><a href="/album/33927">Eurovision Song Contest 2002 - Tallinn, Estonia</a></li>
+    
+      <li><a href="/album/33926">Eurovision Song Contest 2003 - Riga, Latvia</a></li>
+    
+      <li><a href="/album/33925">Eurovision Song Contest 2004 - Istanbul, Turkey</a></li>
+    
+      <li><a href="/album/33922">Eurovision Song Contest 2005 - Kiev, Ukraine</a></li>
+    
+      <li><a href="/album/33921">Eurovision Song Contest 2006 - Athens, Greece</a></li>
+    
+      <li><a href="/album/33919">Eurovision Song Contest 2007 - Helsinki, Finland</a></li>
+    
+      <li><a href="/album/33917">Eurovision Song Contest 2008 - Belgrade, Serbia</a></li>
+    
+      <li><a href="/album/33916">Eurovision Song Contest 2009 - Moscow, Russia</a></li>
+    
+      <li><a href="/album/20418">Eurovision Song Contest 2010 - Oslo, Norway</a></li>
+    
+      <li><a href="/album/34421">Eurovision Song Contest 2011 - Düsseldorf, Germany</a></li>
+    
+      <li><a href="/album/42049">Eurovision Song Contest 2012 - Baku, Azerbaijan</a></li>
+    
+      <li><a href="/album/45630">Eurovision Song Contest 2013 - Malmö</a></li>
+    
+      <li><a href="/album/50662">Eurovision Song Contest 2014 - Copenhagen, Denmark</a></li>
+    
+      <li><a href="/album/54897">Eurovision Song Contest 2015 - Vienna, Austria</a></li>
+    
+      <li><a href="/album/68626">Eurovision Song Contest 2018 - Lisbon</a></li>
+    
+      <li><a href="/album/68624">Eurovision Song Contest 2019 - Tel Aviv</a></li>
+    
+      <li><a href="/album/68625">Eurovision Song Contest 2020 - A Tribute To The Artists And Songs</a></li>
+    
+      <li><a href="/album/73992">Eurovision Song Contest 2021 - Rotterdam, Netherlands</a></li>
+    
+      <li><a href="/album/77804">Eurovision Song Contest 2022 - Turin, Italy</a></li>
+    
+      <li><a href="/album/80641">Eurovision Song Contest 2023 - Liverpool, UK</a></li>
+    
+      <li><a href="/album/84408">Eurovision Song Contest 2024 - Malmö, Sweden</a></li>
+    
+      <li><a href="/album/89908">Eurovision Song Contest 2025 - Basel, Switzerland</a></li>
+    
+      <li><a href="/album/30227">Even In The Quietest Moments</a></li>
+    
+      <li><a href="/album/31570">Every Day Is Halloween: Greatest Tricks</a></li>
+    
+      <li><a href="/album/53823">Fat Music, Volume 2: Survival of the Fattest</a></li>
+    
+      <li><a href="/album/42027">Forever Delayed - The Greatest Hits</a></li>
+    
+      <li><a href="/album/80969">Fourteen Greatest Hits</a></li>
+    
+      <li><a href="/album/21885">Frankie Yankovic and His Yanks&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/32826">Freddy&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/12788">From Protest to Resistance</a></li>
+    
+      <li><a href="/album/84371">Fuck You Bitch: All-Time Greatest Hits</a></li>
+    
+      <li><a href="/album/90817">Gary Puckett &amp; The Union Gap&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/74797">Gold Album. 20th Anniversary Greatest Hits Collection (CD1)</a></li>
+    
+      <li><a href="/album/74798">Gold Album. 20th Anniversary Greatest Hits Collection (CD2)</a></li>
+    
+      <li><a href="/album/74804">Gold Album. 20th Anniversary Greatest Hits Collection (CD3)</a></li>
+    
+      <li><a href="/album/4684">Gold: Greatest Hits</a></li>
+    
+      <li><a href="/album/7276">Goonswarm Greatest Hits</a></li>
+    
+      <li><a href="/album/11640">Greatest And Latest</a></li>
+    
+      <li><a href="/album/23684">Greatest Comedy Cuts</a></li>
+    
+      <li><a href="/album/88132">Greatest Ever Christmas Party Megamix</a></li>
+    
+      <li><a href="/album/30101">Greatest Ever Sixties-The Definitive Collection</a></li>
+    
+      <li><a href="/album/59758">Greatest Features</a></li>
+    
+      <li><a href="/album/90407">Greatest Gospel Hits</a></li>
+    
+      <li><a href="/album/90007">Greatest Hates</a></li>
+    
+      <li><a href="/album/32195">Greatest Hats</a></li>
+    
+      <li><a href="/album/325">Greatest Hits</a></li>
+    
+      <li><a href="/album/12755">Greatest Hits #10</a></li>
+    
+      <li><a href="/album/7453">Greatest Hits &amp; Finest Performances Disc 3</a></li>
+    
+      <li><a href="/album/68016">Greatest Hits &amp; Remixes (CD 1)</a></li>
+    
+      <li><a href="/album/68017">Greatest Hits &amp; Remixes (CD 2)</a></li>
+    
+      <li><a href="/album/71476">Greatest Hits &#x27;70-&#x27;78 Disc 1</a></li>
+    
+      <li><a href="/album/71477">Greatest Hits &#x27;70-&#x27;78 Disc 2</a></li>
+    
+      <li><a href="/album/14291">Greatest Hits &#x27;84-87</a></li>
+    
+      <li><a href="/album/27010">Greatest Hits &#x27;93-&#x27;03</a></li>
+    
+      <li><a href="/album/1818">Greatest Hits &#x27;97</a></li>
+    
+      <li><a href="/album/7495">Greatest Hits &#x27;98 - Volume 1</a></li>
+    
+      <li><a href="/album/57745">Greatest Hits (1951-1958 Atlantic)</a></li>
+    
+      <li><a href="/album/3463">Greatest Hits (Acoustic)</a></li>
+    
+      <li><a href="/album/30013">Greatest Hits (disc 1)</a></li>
+    
+      <li><a href="/album/30014">Greatest Hits (disc 2)</a></li>
+    
+      <li><a href="/album/69891">Greatest Hits (Disc Two)</a></li>
+    
+      <li><a href="/album/77396">Greatest Hits (Japan)</a></li>
+    
+      <li><a href="/album/27394">Greatest Hits (So Far)</a></li>
+    
+      <li><a href="/album/69409">Greatest Hits (The Atlantic Years)</a></li>
+    
+      <li><a href="/album/72241">Greatest Hits (Volume 1)</a></li>
+    
+      <li><a href="/album/4984">Greatest Hits + Five Unreleased</a></li>
+    
+      <li><a href="/album/36426">Greatest Hits - Back to the Start</a></li>
+    
+      <li><a href="/album/10636">Greatest Hits - Harpsichord</a></li>
+    
+      <li><a href="/album/79910">Greatest Hits - Volume 3</a></li>
+    
+      <li><a href="/album/37519">Greatest Hits 1</a></li>
+    
+      <li><a href="/album/95485">Greatest Hits 1939-1946</a></li>
+    
+      <li><a href="/album/95502">Greatest Hits 1948 - 1954</a></li>
+    
+      <li><a href="/album/8506">Greatest Hits 1969-1999 Disc 2</a></li>
+    
+      <li><a href="/album/62935">Greatest Hits 1970-2002 Disc 2</a></li>
+    
+      <li><a href="/album/14840">Greatest Hits 1974-78</a></li>
+    
+      <li><a href="/album/49518">Greatest Hits 1981-1985</a></li>
+    
+      <li><a href="/album/49545">Greatest Hits 1985-1995</a></li>
+    
+      <li><a href="/album/33473">Greatest Hits 1990-1992</a></li>
+    
+      <li><a href="/album/31778">Greatest Hits 2</a></li>
+    
+      <li><a href="/album/10559">Greatest Hits 2000 - Platinum</a></li>
+    
+      <li><a href="/album/80015">Greatest Hits 2014</a></li>
+    
+      <li><a href="/album/28627">Greatest Hits CD1</a></li>
+    
+      <li><a href="/album/28631">Greatest Hits CD2</a></li>
+    
+      <li><a href="/album/82206">Greatest Hits Chopped &amp; Screwed (CD1)</a></li>
+    
+      <li><a href="/album/82207">Greatest Hits Chopped And Screwed (CD2)</a></li>
+    
+      <li><a href="/album/57675">Greatest Hits Disc 1</a></li>
+    
+      <li><a href="/album/21095">Greatest Hits from the Bong</a></li>
+    
+      <li><a href="/album/20606">Greatest Hits I</a></li>
+    
+      <li><a href="/album/20604">Greatest Hits II</a></li>
+    
+      <li><a href="/album/15532">Greatest Hits III</a></li>
+    
+      <li><a href="/album/7735">Greatest Hits Live</a></li>
+    
+      <li><a href="/album/40673">Greatest Hits of the 20th Century</a></li>
+    
+      <li><a href="/album/4623">Greatest Hits Of The 80&#x27;s - CD 5</a></li>
+    
+      <li><a href="/album/48820">Greatest Hits Of The Millennium: 60s (Vol. 2 CD1)</a></li>
+    
+      <li><a href="/album/16498">Greatest Hits Of The Millennium: 80&#x27;S, Volume 2</a></li>
+    
+      <li><a href="/album/66045">Greatest Hits Of The Millennium: 90s (Vol. 1 CD2)</a></li>
+    
+      <li><a href="/album/66327">Greatest Hits Of The Millennium: 90s (Vol. 3 CD1)</a></li>
+    
+      <li><a href="/album/79127">Greatest Hits Part I</a></li>
+    
+      <li><a href="/album/79128">Greatest Hits Part II</a></li>
+    
+      <li><a href="/album/63298">Greatest Hits Rediscovered</a></li>
+    
+      <li><a href="/album/21657">Greatest Hits Remixed</a></li>
+    
+      <li><a href="/album/69644">Greatest Hits vol 1</a></li>
+    
+      <li><a href="/album/16108">Greatest Hits Vol. 1</a></li>
+    
+      <li><a href="/album/16013">Greatest Hits Vol. 2</a></li>
+    
+      <li><a href="/album/48848">Greatest Hits Volume 1</a></li>
+    
+      <li><a href="/album/31921">Greatest Hits Volume 1 The Singles</a></li>
+    
+      <li><a href="/album/11394">Greatest HIts Volume 2</a></li>
+    
+      <li><a href="/album/36976">Greatest Hits Volume 3</a></li>
+    
+      <li><a href="/album/25014">Greatest Hits Volume I</a></li>
+    
+      <li><a href="/album/26766">Greatest Hits [CBS 1971]</a></li>
+    
+      <li><a href="/album/46636">Greatest Hits [EMI]</a></li>
+    
+      <li><a href="/album/11454">Greatest Hits [Expanded Version]</a></li>
+    
+      <li><a href="/album/76230">Greatest Hits [Explicit]</a></li>
+    
+      <li><a href="/album/2751">Greatest Hits [MCA]</a></li>
+    
+      <li><a href="/album/23235">Greatest Hits [Mono]</a></li>
+    
+      <li><a href="/album/48531">Greatest Hits [UK]</a></li>
+    
+      <li><a href="/album/24138">Greatest Hits!</a></li>
+    
+      <li><a href="/album/64050">Greatest Hits, Vol. 1</a></li>
+    
+      <li><a href="/album/1958">Greatest Hits, Vol. 2</a></li>
+    
+      <li><a href="/album/1067">Greatest Hits, Volume 2: 1978-1985</a></li>
+    
+      <li><a href="/album/12035">Greatest Hits... And Then Some</a></li>
+    
+      <li><a href="/album/42402">Greatest Hits... So Far!!!</a></li>
+    
+      <li><a href="/album/27338">Greatest Hits/Straight Outta Newport</a></li>
+    
+      <li><a href="/album/50621">Greatest Hits: Back to the Start</a></li>
+    
+      <li><a href="/album/59980">Greatest Hits: Deluxe Redux</a></li>
+    
+      <li><a href="/album/45487">Greatest Hits: Feel The Noize</a></li>
+    
+      <li><a href="/album/62741">Greatest Hits: God&#x27;s Favorite Band</a></li>
+    
+      <li><a href="/album/7551">Greatest Hits: My Prerogative</a></li>
+    
+      <li><a href="/album/24831">Greatest Hits: Night Ranger</a></li>
+    
+      <li><a href="/album/8096">Greatest Hits: Remixed</a></li>
+    
+      <li><a href="/album/41038">Greatest Hits: The Road Less Traveled</a></li>
+    
+      <li><a href="/album/38598">Greatest Jazz</a></li>
+    
+      <li><a href="/album/22605">Greatest Kids&#x27; Hits</a></li>
+    
+      <li><a href="/album/44010">Greatest Kiss</a></li>
+    
+      <li><a href="/album/27053">Greatest Lovesongs Vol. 666</a></li>
+    
+      <li><a href="/album/94772">Greatest Misses</a></li>
+    
+      <li><a href="/album/44759">Greatest Mixes</a></li>
+    
+      <li><a href="/album/3376">Greatest Of Delta BluesSingers</a></li>
+    
+      <li><a href="/album/53357">Greatest Shits</a></li>
+    
+      <li><a href="/album/87277">Greatest Songs</a></li>
+    
+      <li><a href="/album/29661">Greatest Stories Live</a></li>
+    
+      <li><a href="/album/17974">Greatest Tits</a></li>
+    
+      <li><a href="/album/88198">Greatest!</a></li>
+    
+      <li><a href="/album/80644">Greatest: Altern 8</a></li>
+    
+      <li><a href="/album/89171">Grooves &amp; Messages - The Greatest Hits Of War</a></li>
+    
+      <li><a href="/album/42993">Guitar Heaven: The Greatest Guitar Classics Of All Time</a></li>
+    
+      <li><a href="/album/61897">Haydns härteste Hits 1797</a></li>
+    
+      <li><a href="/album/71988">Heartbeats: Greatest Hits</a></li>
+    
+      <li><a href="/album/79370">Here In L.A./The Greatest Story Ever Told</a></li>
+    
+      <li><a href="/album/30522">Hermans Hermits&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/18904">High Times: 70&#x27;s Greatest Rock Hits</a></li>
+    
+      <li><a href="/album/46770">High Times: Greatest Hits 1979-1995</a></li>
+    
+      <li><a href="/album/1982">His Greatest Hits Vol. 1</a></li>
+    
+      <li><a href="/album/9645">History - America&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/88661">Hood Hottest Princess</a></li>
+    
+      <li><a href="/album/91780">Hottest 100 (Volume 11 Disc 1)</a></li>
+    
+      <li><a href="/album/34853">Hypocrisy Is The Greatest Luxury</a></li>
+    
+      <li><a href="/album/19251">Hævi Mætal Og Hass - Greatest Hits 1986-96 Volume 1</a></li>
+    
+      <li><a href="/album/43942">I Love Bollywood. 15 Classic Tracks From Bollywood&#x27;s Greatest Singers</a></li>
+    
+      <li><a href="/album/22586">ICE MAG GREECE VOL. 47 REMIX CONTEST CD</a></li>
+    
+      <li><a href="/album/91889">J-Walk&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/40585">J. Geils Band Greatest Hits 1970-1973</a></li>
+    
+      <li><a href="/album/14643">Janis Joplin&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/89448">Japanese Singles Collection: Greatest Hits</a></li>
+    
+      <li><a href="/album/28268">John Denver&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/93492">John Denver&#x27;s Greatest Hits, Volume 3</a></li>
+    
+      <li><a href="/album/93491">John Denver&#x27;s Greatest Hits, Volume Two</a></li>
+    
+      <li><a href="/album/37141">Johnny Cash - Greatest Hits</a></li>
+    
+      <li><a href="/album/1596">Journey&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/52685">Junior Eurovision Song Contest 2014 - Malta</a></li>
+    
+      <li><a href="/album/15918">Kenny Rogers Greatest Hit (Take 1)</a></li>
+    
+      <li><a href="/album/15914">Kenny Rogers Greatest Hit (Take 2)</a></li>
+    
+      <li><a href="/album/2635">klang test pressing</a></li>
+    
+      <li><a href="/album/81880">La testa indipendente</a></li>
+    
+      <li><a href="/album/32364">Latest Version of the Truth [Bonus Track]</a></li>
+    
+      <li><a href="/album/65337">Lenny Kravitz Greatest Hits</a></li>
+    
+      <li><a href="/album/95960">Les Greatest Hits</a></li>
+    
+      <li><a href="/album/68513">Literally ABBA, Greatest Hits in Fact</a></li>
+    
+      <li><a href="/album/87606">Living In A Box Greatest Hits</a></li>
+    
+      <li><a href="/album/22107">Living in Oblivion: The 80&#x27;s Greatest Hits, Volume 2</a></li>
+    
+      <li><a href="/album/6273">Lou Monte Greatest Hits</a></li>
+    
+      <li><a href="/album/37815">Louis Jordan Greatest Hits</a></li>
+    
+      <li><a href="/album/20621">M &amp; P 16 Of Their Greatest Hits</a></li>
+    
+      <li><a href="/album/74204">Maricopa County Jail Caroling Contest, 2010</a></li>
+    
+      <li><a href="/album/25143">Mextremist! Greatest Hits</a></li>
+    
+      <li><a href="/album/11450">More Greatest Hits</a></li>
+    
+      <li><a href="/album/76767">Music Contest 5</a></li>
+    
+      <li><a href="/album/30127">My Life: The Greatest Hits</a></li>
+    
+      <li><a href="/album/6109">My Son, The Greatest</a></li>
+    
+      <li><a href="/album/90819">Neil Diamond&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/71631">No Contest</a></li>
+    
+      <li><a href="/album/47764">Now &amp; Then: Greatest Hits 1964-2004</a></li>
+    
+      <li><a href="/album/77608">Old Grey Whistle Test</a></li>
+    
+      <li><a href="/album/45972">One Thing Leads to Another: Greatest Hits</a></li>
+    
+      <li><a href="/album/35653">Only A Test</a></li>
+    
+      <li><a href="/album/29134">Our Town: Greatest Hits</a></li>
+    
+      <li><a href="/album/63461">P-Dog &amp; Maddog&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/37984">P.H. test/two</a></li>
+    
+      <li><a href="/album/51979">Panflute - Greatest Love Songs</a></li>
+    
+      <li><a href="/album/51982">Panflute - Greatest Love Songs, Volume 2</a></li>
+    
+      <li><a href="/album/51983">Panflute - Greatest Love Songs, Volume 3</a></li>
+    
+      <li><a href="/album/47684">Paul Oakenfold: Greatest Hits &amp; Remixes</a></li>
+    
+      <li><a href="/album/28011">Pencil Test</a></li>
+    
+      <li><a href="/album/88470">Petestrumentals</a></li>
+    
+      <li><a href="/album/8863">Piman&#x27;s Greatest Hits - Vol 1</a></li>
+    
+      <li><a href="/album/24906">Pitchfork&#x27;s 200 Greatest Songs of the 1960s</a></li>
+    
+      <li><a href="/album/22213">Planet BAD (Greatest Hits)</a></li>
+    
+      <li><a href="/album/78060">Platinum Jive Greatest Hits 1969-1999</a></li>
+    
+      <li><a href="/album/23595">Poison&#x27;s Greatest Hits: 1986-1996</a></li>
+    
+      <li><a href="/album/34600">Portal 2: Songs to Test By</a></li>
+    
+      <li><a href="/album/35348">Portal 2: Songs to Test By - Volume 2</a></li>
+    
+      <li><a href="/album/38125">Portal 2: Songs to Test By - Volume 3</a></li>
+    
+      <li><a href="/album/23826">Protest Records</a></li>
+    
+      <li><a href="/album/71406">Protest Songs</a></li>
+    
+      <li><a href="/album/75393">Protest Songs 1924-2012</a></li>
+    
+      <li><a href="/album/12987">Protest [EP]</a></li>
+    
+      <li><a href="/album/84011">Raspberries Greatest</a></li>
+    
+      <li><a href="/album/53752">Reality Testing</a></li>
+    
+      <li><a href="/album/36979">Reflected, Greatest Hits Volume 2</a></li>
+    
+      <li><a href="/album/73069">Reflections - Greatest Hits</a></li>
+    
+      <li><a href="/album/50894">Remember Me Music Remix Contest - Best Of</a></li>
+    
+      <li><a href="/album/7728">Rock &#x27;N&#x27; Soul Pt. 1: Greatest Hits</a></li>
+    
+      <li><a href="/album/22367">Rorschach Testing</a></li>
+    
+      <li><a href="/album/32636">Ruffhouse Records Greatest Hit</a></li>
+    
+      <li><a href="/album/65760">Rule The World: The Greatest Hits</a></li>
+    
+      <li><a href="/album/7242">SA remixing contest #10</a></li>
+    
+      <li><a href="/album/22714">Saturday Morning: Cartoons&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/21986">Save The Turtles: The Turtles Greatest Hits</a></li>
+    
+      <li><a href="/album/50316">Seals &amp; Crofts&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/6548">Sesame Street&#x27;s 25 Greatest Hits</a></li>
+    
+      <li><a href="/album/57985">Signal test</a></li>
+    
+      <li><a href="/album/13187">Simon &amp; Garfunkel&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/71535">Simply Red Greatest Hits</a></li>
+    
+      <li><a href="/album/20932">Singstar Contest 2009</a></li>
+    
+      <li><a href="/album/89428">Skateboarding&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/16045">Slightest Indication of Change</a></li>
+    
+      <li><a href="/album/71548">Sly: Greatest Hits</a></li>
+    
+      <li><a href="/album/95624">Somebody Loves You: 30 Greatest Hits</a></li>
+    
+      <li><a href="/album/89057">Something Weird Greatest Hits (Disc 1)</a></li>
+    
+      <li><a href="/album/89058">Something Weird Greatest Hits (Disc 2)</a></li>
+    
+      <li><a href="/album/52362">Sonic Adventure 2 Greatest Hits Revisited</a></li>
+    
+      <li><a href="/album/86310">Sound Test</a></li>
+    
+      <li><a href="/album/60162">Spacesynth.de Contest TraxX</a></li>
+    
+      <li><a href="/album/37137">Speedcity The Greatest Hits</a></li>
+    
+      <li><a href="/album/59574">SpongeBob’s Greatest Hits</a></li>
+    
+      <li><a href="/album/59426">Staring Contest</a></li>
+    
+      <li><a href="/album/32983">Staring Contest Ep</a></li>
+    
+      <li><a href="/album/61046">Stars On 45 Greatest Hits</a></li>
+    
+      <li><a href="/album/12287">stc is the greatest</a></li>
+    
+      <li><a href="/album/55428">Steven Universe: The Test</a></li>
+    
+      <li><a href="/album/46695">Still On Top-The Greatest Hits</a></li>
+    
+      <li><a href="/album/7317">Still the Greatest</a></li>
+    
+      <li><a href="/album/13464">Street Life - Greatest Hits</a></li>
+    
+      <li><a href="/album/34513">Superbass!!!! (Black Death greatest hits vol.1)</a></li>
+    
+      <li><a href="/album/59549">Survival of the Fastest</a></li>
+    
+      <li><a href="/album/15994">Survival Of The Fittest</a></li>
+    
+      <li><a href="/album/56723">Sweetest Feelin&#x27;: The Very Best of Jackie Wilson</a></li>
+    
+      <li><a href="/album/83011">Sweetest Pie (David Guetta Remixes)</a></li>
+    
+      <li><a href="/album/33348">Sylvester&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/48122">Telekineettinen Testilaboratorio</a></li>
+    
+      <li><a href="/album/9124">Television Greatest Hits</a></li>
+    
+      <li><a href="/album/9121">Television Greatest Hits 6</a></li>
+    
+      <li><a href="/album/2379">Television Greatest Hits II</a></li>
+    
+      <li><a href="/album/9131">Television&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/2060">Television&#x27;s Greatest Hits 70&#x27;s &amp; 80&#x27;s</a></li>
+    
+      <li><a href="/album/42640">Television&#x27;s Greatest Hits Vol. 1</a></li>
+    
+      <li><a href="/album/76850">Television&#x27;s Greatest Hits Volume 3</a></li>
+    
+      <li><a href="/album/61362">Television&#x27;s Greatest Hits Volume 6</a></li>
+    
+      <li><a href="/album/9127">Television&#x27;s Greatest Hits, Volume 4: Black and White Classics</a></li>
+    
+      <li><a href="/album/9110">Television&#x27;s Greatest Hits, Volume 5: In Living Color</a></li>
+    
+      <li><a href="/album/22766">Television&#x27;s Greatest Hits, Volume 6: Remote Control</a></li>
+    
+      <li><a href="/album/1964">Television&#x27;s Greatest Hits: Cable Ready, Volume 7</a></li>
+    
+      <li><a href="/album/9128">Televisions Greatest Hits Vol</a></li>
+    
+      <li><a href="/album/532">test 1</a></li>
+    
+      <li><a href="/album/3656">test 2</a></li>
+    
+      <li><a href="/album/16028">test 3</a></li>
+    
+      <li><a href="/album/65037">Test EP</a></li>
+    
+      <li><a href="/album/13249">Test for Echo</a></li>
+    
+      <li><a href="/album/68982">Test Of Time</a></li>
+    
+      <li><a href="/album/73223">Test Pattern</a></li>
+    
+      <li><a href="/album/43162">Test Patterns For A Living</a></li>
+    
+      <li><a href="/album/20926">Testament</a></li>
+    
+      <li><a href="/album/76132">Testaments</a></li>
+    
+      <li><a href="/album/83834">Tester de Violencia</a></li>
+    
+      <li><a href="/album/6989">Testify</a></li>
+    
+      <li><a href="/album/73492">Testify (Deluxe Edition)</a></li>
+    
+      <li><a href="/album/72070">Testify - EP</a></li>
+    
+      <li><a href="/album/67993">Testifyin&#x27;</a></li>
+    
+      <li><a href="/album/31971">Testimonial Dinner</a></li>
+    
+      <li><a href="/album/21543">Testimony</a></li>
+    
+      <li><a href="/album/91491">TESTING</a></li>
+    
+      <li><a href="/album/63662">Testosterone</a></li>
+    
+      <li><a href="/album/72922">Testosterone!</a></li>
+    
+      <li><a href="/album/62113">Tests</a></li>
+    
+      <li><a href="/album/54297">Testure</a></li>
+    
+      <li><a href="/album/93755">The Best Greatest Hacker In The Universe</a></li>
+    
+      <li><a href="/album/50322">The Best Of Candlebox: Greatest Hits</a></li>
+    
+      <li><a href="/album/73384">The Binet-Simon Test</a></li>
+    
+      <li><a href="/album/72231">The Brightest Light</a></li>
+    
+      <li><a href="/album/72232">The Brightest Light (bonus disc)</a></li>
+    
+      <li><a href="/album/33412">The Dubliners Greatest Hits</a></li>
+    
+      <li><a href="/album/14844">The Greatest</a></li>
+    
+      <li><a href="/album/10268">The Greatest Band of All Time</a></li>
+    
+      <li><a href="/album/91514">the greatest cover band of all time</a></li>
+    
+      <li><a href="/album/6387">The Greatest Day</a></li>
+    
+      <li><a href="/album/71743">The Greatest Generation</a></li>
+    
+      <li><a href="/album/62793">The Greatest Gift Mixtape (Outtakes, Remixes and Demos from Carrie &amp; Lowell)</a></li>
+    
+      <li><a href="/album/43644">The Greatest Grand Ole Opry</a></li>
+    
+      <li><a href="/album/5210">The Greatest Hits</a></li>
+    
+      <li><a href="/album/31160">The Greatest Hits  Collection</a></li>
+    
+      <li><a href="/album/77740">The Greatest Hits - Remixed (CD1)</a></li>
+    
+      <li><a href="/album/5746">The Greatest Hits Collection</a></li>
+    
+      <li><a href="/album/25441">The Greatest Hits Collection II</a></li>
+    
+      <li><a href="/album/36970">The Greatest Hits Collection Volume II</a></li>
+    
+      <li><a href="/album/16587">The Greatest Hits of the 70&#x27;s Volume 4</a></li>
+    
+      <li><a href="/album/8181">The Greatest Hits Of The Monkees</a></li>
+    
+      <li><a href="/album/35880">The Greatest Hits, So Far</a></li>
+    
+      <li><a href="/album/39567">The Greatest Hits: 1969-1999 Disc 2</a></li>
+    
+      <li><a href="/album/64629">The Greatest Hits: Why Try Harder</a></li>
+    
+      <li><a href="/album/96044">The Greatest Horn in the World</a></li>
+    
+      <li><a href="/album/63147">The Greatest Living Englishman</a></li>
+    
+      <li><a href="/album/56806">The Greatest of the Best</a></li>
+    
+      <li><a href="/album/26799">The Greatest of the Guess Who</a></li>
+    
+      <li><a href="/album/68682">The Greatest Romance Ever Told</a></li>
+    
+      <li><a href="/album/86150">The Greatest Scratch</a></li>
+    
+      <li><a href="/album/25880">The Greatest Shits</a></li>
+    
+      <li><a href="/album/28287">The Greatest Show Unearthed</a></li>
+    
+      <li><a href="/album/65648">The Greatest Showman: Original Motion Picture Soundtrack</a></li>
+    
+      <li><a href="/album/19293">The Greatest Songs Ever Written (by Us)</a></li>
+    
+      <li><a href="/album/26649">the greatest sonic abomination ever</a></li>
+    
+      <li><a href="/album/23182">The Greatest Story Ever Told</a></li>
+    
+      <li><a href="/album/39132">The Greatest Video Game Music</a></li>
+    
+      <li><a href="/album/23236">The Hollies&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/76370">THE IDOLM@STER 765PRO ALLSTARS+ GRE@TEST BEST! -THE IDOLM@STER HISTORY-</a></li>
+    
+      <li><a href="/album/87725">The Last Will and Testament</a></li>
+    
+      <li><a href="/album/91199">The Latest</a></li>
+    
+      <li><a href="/album/8178">The Monkees Greatest Hits</a></li>
+    
+      <li><a href="/album/26507">The New Testament</a></li>
+    
+      <li><a href="/album/7237">The Old Testament</a></li>
+    
+      <li><a href="/album/87537">The Pastoral - Not Rustic - World Of Their Greatest Hits</a></li>
+    
+      <li><a href="/album/71870">The Quietest Place on Earth</a></li>
+    
+      <li><a href="/album/18382">The Real Deal: Greatest Hits 2 </a></li>
+    
+      <li><a href="/album/42042">The Real Testament</a></li>
+    
+      <li><a href="/album/41990">The Rolling Stone Magazines 500 Greatest Songs Of All Time</a></li>
+    
+      <li><a href="/album/94288">The Sheffield - XLO Test &amp; Burn-In CD</a></li>
+    
+      <li><a href="/album/14460">The Smurfs&#x27; Greatest Hits</a></li>
+    
+      <li><a href="/album/84535">The Space Lady&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/70517">The Spirit Of Radio: Greatest Hits 1974-1987</a></li>
+    
+      <li><a href="/album/45161">The Trip Hop Test: Part 1</a></li>
+    
+      <li><a href="/album/43967">The Trip Hop Test: Part 2</a></li>
+    
+      <li><a href="/album/45162">The Trip Hop Test: Part 3</a></li>
+    
+      <li><a href="/album/51039">The Village Fugs Sing Ballads Of Contemporary Protest, Point Of Views, And General Dissatisfaction</a></li>
+    
+      <li><a href="/album/35375">The Vogues Greatest Hits</a></li>
+    
+      <li><a href="/album/22902">The Whitest Kids U&#x27; Know</a></li>
+    
+      <li><a href="/album/53217">The Whole Story (His Greatest Hits)</a></li>
+    
+      <li><a href="/album/9125">The Worlds Greatest Anime</a></li>
+    
+      <li><a href="/album/18900">Their Greatest Hits</a></li>
+    
+      <li><a href="/album/84219">This Is Not A Test!</a></li>
+    
+      <li><a href="/album/16466">Those Whom the Gods Detest</a></li>
+    
+      <li><a href="/album/62893">Through A Big Country (Greatest Hits)</a></li>
+    
+      <li><a href="/album/9360">Tommy Boy&#x27;s Greatest Beats</a></li>
+    
+      <li><a href="/album/28093">Top Secret (Greatest Hits)</a></li>
+    
+      <li><a href="/album/33165">Trial By Fire Greatest &amp; Latest</a></li>
+    
+      <li><a href="/album/41721">Triple J Hottest 100 - Volume 1 1993</a></li>
+    
+      <li><a href="/album/41724">Triple J Hottest 100 - Volume 2 1994</a></li>
+    
+      <li><a href="/album/61859">Triple J Hottest 100 - Volume 7 2000</a></li>
+    
+      <li><a href="/album/10735">Triple J Hottest 100 Of 2007</a></li>
+    
+      <li><a href="/album/36644">Triple J Hottest 100 Volume 16</a></li>
+    
+      <li><a href="/album/91819">Triple J: Hottest 100, Volume 10</a></li>
+    
+      <li><a href="/album/63946">Turkvision Song Contest 2013 - Eskişehir, Turkey</a></li>
+    
+      <li><a href="/album/63947">Turkvision Song Contest 2014 - Kazan, Tatarstan</a></li>
+    
+      <li><a href="/album/62443">Turkvision Song Contest 2015 - Istanbul, Turkey</a></li>
+    
+      <li><a href="/album/1819">TV&#x27;s Greatest Hits 1</a></li>
+    
+      <li><a href="/album/9129">TV&#x27;s Greatest Hits Vol.5</a></li>
+    
+      <li><a href="/album/2380">TV&#x27;s Greatest Hits Vol.6</a></li>
+    
+      <li><a href="/album/71852">Vengaboys: Greatest Hits!</a></li>
+    
+      <li><a href="/album/13885">Vol 1 Greatest Hits</a></li>
+    
+      <li><a href="/album/10347">vs The Greatest Of All Time</a></li>
+    
+      <li><a href="/album/66043">Wagner - Greatest Hits</a></li>
+    
+      <li><a href="/album/61914">Wagner Greatest Hits</a></li>
+    
+      <li><a href="/album/14071">Wallace and Ladmo&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/77054">Watergate Vol. 3 - I Hope the President is Forgiven - John W. Dean III Testifies</a></li>
+    
+      <li><a href="/album/90496">White Glove Test</a></li>
+    
+      <li><a href="/album/5643">Who Cares a Lot? The Greatest Hits</a></li>
+    
+      <li><a href="/album/46657">Who&#x27;s Screwin&#x27; Who? 18 T.S.O.L Greatest Non-Hits</a></li>
+    
+      <li><a href="/album/92222">Wilson Pickett&#x27;s Greatest Hits</a></li>
+    
+      <li><a href="/album/55484">WOOF&#x27;s Greatest Bits</a></li>
+    
+      <li><a href="/album/44347">Wreath of Barbs Remix Contest (Contest Losers)</a></li>
+    
+      <li><a href="/album/39680">Yesterday, Today, Tomorrow: The Greatest Hits</a></li>
+    
+    
+      <li><a href="/album/88170">You&#x27;re My Latest Inspiration</a></li></ul>
+    
+  </p>
+  
+  
+  
+  
+    Results: page 1 of 12
+    
+      <a href="/search?page=2&query=test">&gt;&gt;</a>
+  
+    
+  <table width="620" class="songs">
+    <tr id="columns">
+      <th>Artist</th>
+      <th>Title</th>
+      <th>Time</th>
+      <th>Uploaded by</th>
+      <th>Add</th>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/12201'>the pentagon</a></td>
+      <td><a href='/song/88135'>$$ VIRAL $$ (tonetta777 cover) (test 2)</a></td>
+      <td>3:08</td>
+      <td><a href='/user/89'>Conelrad</a></td>
+      <td>
+  (recently played)
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/34303'>The English Baroque Soloists - J. E. Gardiner</a></td>
+      <td><a href='/song/324609'>(Evangelista, Testis I, II, Pontifex) &#x27;Und Wiewohl Viel Falsche Zeugen Herzutraten&#x27;</a></td>
+      <td>1:04</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/324609">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/57819'>Shmu</a></td>
+      <td><a href='/song/647736'>(F-Zero Hero) Fiction As The Greatest Force</a></td>
+      <td>3:30</td>
+      <td><a href='/user/66'>Lareine</a></td>
+      <td>
+  <a class="boxed add" href="/add/647736">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/67215'>Erma Franklin</a></td>
+      <td><a href='/song/645623'>(I Get The) Sweetest Feeling</a></td>
+      <td>3:03</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/645623">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/64257'>The Evaporators</a></td>
+      <td><a href='/song/806285'>(I&#x27;ve Got) Icicles on My Testicles</a></td>
+      <td>2:40</td>
+      <td><a href='/user/5366'>TrixRabbi</a></td>
+      <td>
+  <a class="boxed add" href="/add/806285">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/1359'>Elvis Presley</a></td>
+      <td><a href='/song/96010'>(Marie&#x27;s The Name Of) His Latest Flame</a></td>
+      <td>2:11</td>
+      <td><a href='/user/52'>NitWitDogShit</a></td>
+      <td>
+  <a class="boxed add" href="/add/96010">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1358'>Elvis Costello</a></td>
+      <td><a href='/song/578866'>(Marie&#x27;s The Name) His Latest Flame</a></td>
+      <td>3:08</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/578866">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/2149'>Strong Bad</a></td>
+      <td><a href='/song/549306'>50 Greatest Hits</a></td>
+      <td>0:30</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/549306">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1938'>80S GOTH DANCE (test 1)</a></td>
+      <td>3:37</td>
+      <td><a href='/user/19'>doctor_zero</a></td>
+      <td>
+  <a class="boxed add" href="/add/1938">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/35718'>Oucho Sparks</a></td>
+      <td><a href='/song/342371'>A Contest</a></td>
+      <td>4:08</td>
+      <td><a href='/user/3880'>Stoca Zola</a></td>
+      <td>
+  <a class="boxed add" href="/add/342371">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7482'>Junya Nakano</a></td>
+      <td><a href='/song/481140'>A Contest of Aeons (FFX, FFRK Ver.arrange)</a></td>
+      <td>6:25</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/481140">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/87515'>Junya Nakano (arr. Yoshiki Nakamura)</a></td>
+      <td><a href='/song/813406'>A Contest of Aeons FFRK Ver. arrange from FFX Ver.2</a></td>
+      <td>5:34</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/813406">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7482'>Junya Nakano</a></td>
+      <td><a href='/song/586959'>A Contest of Aeons FFRK Ver. arrange from FFX Ver.3</a></td>
+      <td>6:27</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/586959">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/47696'>MtH</a></td>
+      <td><a href='/song/510617'>A Dreamy Test of Stars and Gadgets</a></td>
+      <td>1:15</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/510617">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/21120'>Architect</a></td>
+      <td><a href='/song/226526'>A Monkeys Testdive in A Highspeed Car with A Broken Stereo</a></td>
+      <td>5:45</td>
+      <td><a href='/user/1657'>qvark</a></td>
+      <td>
+  <a class="boxed add" href="/add/226526">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/52165'>Lenox</a></td>
+      <td><a href='/song/494039'>A Reversed Test of Might</a></td>
+      <td>1:18</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/494039">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/52165'>Lenox</a></td>
+      <td><a href='/song/508670'>A Reversed Test of Might</a></td>
+      <td>1:18</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/508670">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/52165'>Lenox</a></td>
+      <td><a href='/song/607157'>A Reversed Test of Might</a></td>
+      <td>1:19</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/607157">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/26679'>Trigger Point</a></td>
+      <td><a href='/song/244441'>A Silent Protest</a></td>
+      <td>4:27</td>
+      <td><a href='/user/2433'>naginalJJ</a></td>
+      <td>
+  <a class="boxed add" href="/add/244441">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/25194'>Saltillo</a></td>
+      <td><a href='/song/223764'>A Simple Test</a></td>
+      <td>5:31</td>
+      <td><a href='/user/3209'>TVsVeryOwn</a></td>
+      <td>
+  <a class="boxed add" href="/add/223764">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/52225'>KnightOfGames</a></td>
+      <td><a href='/song/494482'>A smooth tutorial on how to make the hottest microgames</a></td>
+      <td>1:37</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/494482">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/25713'>Sievert</a></td>
+      <td><a href='/song/231200'>A Test of Island Courage</a></td>
+      <td>2:48</td>
+      <td><a href='/user/1088'>GoblinBomb</a></td>
+      <td>
+  <a class="boxed add" href="/add/231200">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1940'>a thousand gateaus (test 2)</a></td>
+      <td>2:23</td>
+      <td><a href='/user/66'>Lareine</a></td>
+      <td>
+  <a class="boxed add" href="/add/1940">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/4199'>Deerhoof</a></td>
+      <td><a href='/song/74103'>A-Town Test Site</a></td>
+      <td>2:27</td>
+      <td><a href='/user/24'>leebenningfield</a></td>
+      <td>
+  <a class="boxed add" href="/add/74103">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1941'>Able Archer 83 (test 1)</a></td>
+      <td>9:25</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1941">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/52124'>Herbert Von Karajan</a></td>
+      <td><a href='/song/493179'>Achtest Du So Der Eignen Ehre?</a></td>
+      <td>3:24</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/493179">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1614'>Jerry Goldsmith</a></td>
+      <td><a href='/song/32250'>Acid Test</a></td>
+      <td>3:02</td>
+      <td><a href='/user/60'>TequilaJuan</a></td>
+      <td>
+  <a class="boxed add" href="/add/32250">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/8810'>Meat Beat Manifesto</a></td>
+      <td><a href='/song/712334'>Acid Test</a></td>
+      <td>3:52</td>
+      <td><a href='/user/1491'>weakness</a></td>
+      <td>
+  <a class="boxed add" href="/add/712334">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/82560'>Failure Swift</a></td>
+      <td><a href='/song/766375'>Acid Test</a></td>
+      <td>3:46</td>
+      <td><a href='/user/41'>Professor_Murda</a></td>
+      <td>
+  <a class="boxed add" href="/add/766375">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/60520'>Hecker</a></td>
+      <td><a href='/song/741331'>acidi.1.test</a></td>
+      <td>0:14</td>
+      <td><a href='/user/1559'>Tankakern</a></td>
+      <td>
+  <a class="boxed add" href="/add/741331">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/24855'>Regine Crespin, James King, Etc.; Georg Solti: Vienna Philharmonic Orchestra</a></td>
+      <td><a href='/song/460397'>Act 2: Nichts Lerntest Du</a></td>
+      <td>5:16</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/460397">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/24855'>Regine Crespin, James King, Etc.; Georg Solti: Vienna Philharmonic Orchestra</a></td>
+      <td><a href='/song/460406'>Act 2: So Wenig Achtest Du Ewige Wonne</a></td>
+      <td>5:07</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/460406">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/24855'>Regine Crespin, James King, Etc.; Georg Solti: Vienna Philharmonic Orchestra</a></td>
+      <td><a href='/song/460376'>Act 3: Du Zeugtest Ein Edles Geschlecht</a></td>
+      <td>5:34</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/460376">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/24855'>Regine Crespin, James King, Etc.; Georg Solti: Vienna Philharmonic Orchestra</a></td>
+      <td><a href='/song/460377'>Act 3: So Tatest Du, Was So Gern Zu Tun Ich Begehrt</a></td>
+      <td>6:49</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/460377">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682411'>Ajit does what Nintendon&#x27;t - Harlem Shake: The Greatest of All Time</a></td>
+      <td>2:37</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682411">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682425'>Ajit Pai Forces the Memes - Harlem Shake: The Greatest of All Time</a></td>
+      <td>2:09</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682425">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/62616'>Myeauxyoozi</a></td>
+      <td><a href='/song/682405'>Ajity - Harlem Shake: The Greatest of All Time</a></td>
+      <td>3:56</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/682405">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/11355'>akula (test 5)</a></td>
+      <td>4:53</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/11355">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/12524'>Old Crow Medicine Show</a></td>
+      <td><a href='/song/215541'>Alabama High-Test</a></td>
+      <td>2:25</td>
+      <td><a href='/user/1779'>No. 3 - The Calhoun</a></td>
+      <td>
+  <a class="boxed add" href="/add/215541">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/10537'>Man or Astro-Man?</a></td>
+      <td><a href='/song/404164'>All the Quietest Whispers</a></td>
+      <td>3:10</td>
+      <td><a href='/user/33'>spoon0042</a></td>
+      <td>
+  <a class="boxed add" href="/add/404164">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/67241'>Aesop Rock x Blockhead</a></td>
+      <td><a href='/song/645730'>All The Smartest People</a></td>
+      <td>2:06</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/645730">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/89669'>Henge</a></td>
+      <td><a href='/song/834463'>Alpha Test 4</a></td>
+      <td>5:58</td>
+      <td><a href='/user/3192'>M for Mushroom</a></td>
+      <td>
+  <a class="boxed add" href="/add/834463">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/8288'>Anonymous 4</a></td>
+      <td><a href='/song/46795'>Amor potest conqueri _ Ad amor</a></td>
+      <td>1:23</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/46795">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/11356'>an ironic sort (test 4)</a></td>
+      <td>7:03</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/11356">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/32581'>Country Joe &amp; the Fish</a></td>
+      <td><a href='/song/847673'>An Untitled Protest</a></td>
+      <td>2:49</td>
+      <td><a href='/user/2477'>Trans Ferdinand</a></td>
+      <td>
+  <a class="boxed add" href="/add/847673">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/249'>Orbital</a></td>
+      <td><a href='/song/239501'>Analogue Test Feb &#x27;90</a></td>
+      <td>7:03</td>
+      <td><a href='/user/21'>GoldenAppel</a></td>
+      <td>
+  <a class="boxed add" href="/add/239501">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/249'>Orbital</a></td>
+      <td><a href='/song/505494'>Analogue Test Oct 16</a></td>
+      <td>3:07</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/505494">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/23206'>Red Sparowes</a></td>
+      <td><a href='/song/205108'>And by our own hand did every last bird lie silent in their puddles, the air barren of song as the clouds drifted away. For killing their greatest enemy, the locusts noisily thanked us and turned their jaws toward our crops, swallowing our greed whole.</a></td>
+      <td>1:42</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/205108">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/5004'>The Bad Plus</a></td>
+      <td><a href='/song/64158'>And Here We Test Our Powers of Observation</a></td>
+      <td>4:22</td>
+      <td><a href='/user/21'>GoldenAppel</a></td>
+      <td>
+  <a class="boxed add" href="/add/64158">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/71881'>Beat Knowledge</a></td>
+      <td><a href='/song/687384'>Any Contest</a></td>
+      <td>5:22</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/687384">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/75'>Journey</a></td>
+      <td><a href='/song/252607'>Any Way You Want It (Unknown Level, test 1)</a></td>
+      <td>3:07</td>
+      <td><a href='/user/27'>peachstapler</a></td>
+      <td>
+  <a class="boxed add" href="/add/252607">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/51317'>One Sentence. Supervisor</a></td>
+      <td><a href='/song/484457'>Arrival of the fittest</a></td>
+      <td>0:12</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/484457">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/11357'>atom spies (test 2)</a></td>
+      <td>4:31</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/11357">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/51869'>Bobby Krlic</a></td>
+      <td><a href='/song/528277'>Attestupan</a></td>
+      <td>3:31</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/528277">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/25049'>Yamo</a></td>
+      <td><a href='/song/222796'>Aurora Borealis (Greatest Show For Free)</a></td>
+      <td>6:54</td>
+      <td><a href='/user/1066'>Epsilon Plus</a></td>
+      <td>
+  <a class="boxed add" href="/add/222796">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/236'>Passenger of Shit</a></td>
+      <td><a href='/song/15531'>Bash My Intestines Up My Anus</a></td>
+      <td>1:55</td>
+      <td><a href='/user/679'>TheManko</a></td>
+      <td>
+  <a class="boxed add" href="/add/15531">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/58764'>dune/orange</a></td>
+      <td><a href='/song/653283'>bathroom tests</a></td>
+      <td>2:40</td>
+      <td><a href='/user/1559'>Tankakern</a></td>
+      <td>
+  <a class="boxed add" href="/add/653283">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/56805'>Brothomstates</a></td>
+      <td><a href='/song/551536'>Bathroom Tests</a></td>
+      <td>10:56</td>
+      <td><a href='/user/1559'>Tankakern</a></td>
+      <td>
+  <a class="boxed add" href="/add/551536">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/67705'>Roger Taylor</a></td>
+      <td><a href='/song/653578'>Be My Gal (My Brightest Spark)</a></td>
+      <td>2:45</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/653578">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1943'>beatbox test</a></td>
+      <td>1:04</td>
+      <td><a href='/user/2844'>Anchors</a></td>
+      <td>
+  <a class="boxed add" href="/add/1943">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/70177'>Joey Scarbury</a></td>
+      <td><a href='/song/669532'>Believe It or Not (Theme from &quot;Greatest American Hero&quot;)</a></td>
+      <td>3:15</td>
+      <td><a href='/user/5272'>ziggysane</a></td>
+      <td>
+  <a class="boxed add" href="/add/669532">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/16690'>Insane Ian</a></td>
+      <td><a href='/song/453195'>Believe It Or Not (Theme From &quot;The Greatest American Hero&quot;)</a></td>
+      <td>2:28</td>
+      <td><a href='/user/1379'>pizza_beeblebrox</a></td>
+      <td>
+  <a class="boxed add" href="/add/453195">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/52214'>Chip Jockey</a></td>
+      <td><a href='/song/493965'>Beloved Fastest Hedgehog</a></td>
+      <td>0:54</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/493965">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/35040'>Kan R. Gao, feat. Laura Shigihara</a></td>
+      <td><a href='/song/332122'>Bestest Detectives in the World</a></td>
+      <td>1:16</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/332122">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/17525'>Fuck</a></td>
+      <td><a href='/song/146860'>Bestest Friend</a></td>
+      <td>2:28</td>
+      <td><a href='/user/1049'>ionicism</a></td>
+      <td>
+  <a class="boxed add" href="/add/146860">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/16663'>Kevin Manthei</a></td>
+      <td><a href='/song/139017'>Bestest Friend</a></td>
+      <td>0:48</td>
+      <td><a href='/user/720'>weirdojace</a></td>
+      <td>
+  <a class="boxed add" href="/add/139017">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/16308'>Bomb the Music Industry!</a></td>
+      <td><a href='/song/190885'>Bike Test 1 2 3</a></td>
+      <td>2:38</td>
+      <td><a href='/user/1197'>Kerplunk</a></td>
+      <td>
+  <a class="boxed add" href="/add/190885">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/152824'>bikelock trident (test 2) (gbsfm mix)</a></td>
+      <td>9:56</td>
+      <td><a href='/user/89'>Conelrad</a></td>
+      <td>
+  <a class="boxed add" href="/add/152824">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/58393'>Jean-Michel Bernard</a></td>
+      <td><a href='/song/550205'>Blind Test</a></td>
+      <td>0:54</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/550205">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/1614'>Jerry Goldsmith</a></td>
+      <td><a href='/song/662946'>Blood Test</a></td>
+      <td>1:26</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/662946">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/4384'>In Slaughter Natives</a></td>
+      <td><a href='/song/126569'>Blood Testural</a></td>
+      <td>6:21</td>
+      <td><a href='/user/14'>Nihiliste</a></td>
+      <td>
+  <a class="boxed add" href="/add/126569">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/8576'>Atlus</a></td>
+      <td><a href='/song/311560'>Bloodstained Lineage(Testament</a></td>
+      <td>5:06</td>
+      <td><a href='/user/834'>Darth Nemesis</a></td>
+      <td>
+  <a class="boxed add" href="/add/311560">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/31175'>Amplifier</a></td>
+      <td><a href='/song/292868'>Bloodtest</a></td>
+      <td>5:19</td>
+      <td><a href='/user/2309'>Rushputin</a></td>
+      <td>
+  <a class="boxed add" href="/add/292868">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/17539'>Gore Beyond Necropsy</a></td>
+      <td><a href='/song/147043'>Boiling Detestation</a></td>
+      <td>0:18</td>
+      <td><a href='/user/1242'>ImmortalYawn</a></td>
+      <td>
+  <a class="boxed add" href="/add/147043">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/83922'>Heathcliff Blair/Dudley Simpson</a></td>
+      <td><a href='/song/779841'>Brain of Morbius - The Mind Bending Contest</a></td>
+      <td>1:09</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/779841">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/8810'>Meat Beat Manifesto</a></td>
+      <td><a href='/song/525967'>Break Test</a></td>
+      <td>2:42</td>
+      <td><a href='/user/1491'>weakness</a></td>
+      <td>
+  <a class="boxed add" href="/add/525967">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/16648'>Brendon Small</a></td>
+      <td><a href='/song/624354'>Brendon Steals the Test</a></td>
+      <td>0:41</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/624354">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/16098'>Copeland</a></td>
+      <td><a href='/song/576558'>Brightest</a></td>
+      <td>2:06</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/576558">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/61020'>Esther Russell</a></td>
+      <td><a href='/song/579107'>Brightest and Best</a></td>
+      <td>3:13</td>
+      <td><a href='/user/3436'>Venomous</a></td>
+      <td>
+  <a class="boxed add" href="/add/579107">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/54754'>Choir of St. John the Evangelist</a></td>
+      <td><a href='/song/522881'>Brightest and Best</a></td>
+      <td>1:57</td>
+      <td><a href='/user/3180'>Belteshazzar</a></td>
+      <td>
+  <a class="boxed add" href="/add/522881">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/57952'>M. L. P. Badarak</a></td>
+      <td><a href='/song/544671'>Brightest and Best</a></td>
+      <td>2:35</td>
+      <td><a href='/user/66'>Lareine</a></td>
+      <td>
+  <a class="boxed add" href="/add/544671">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/17759'>The Submarines</a></td>
+      <td><a href='/song/151731'>Brightest Hour</a></td>
+      <td>2:33</td>
+      <td><a href='/user/1049'>ionicism</a></td>
+      <td>
+  <a class="boxed add" href="/add/151731">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/43005'>The Gentle Storm</a></td>
+      <td><a href='/song/410329'>Brightest Light</a></td>
+      <td>4:47</td>
+      <td><a href='/user/666'>Jormagund</a></td>
+      <td>
+  <a class="boxed add" href="/add/410329">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/43005'>The Gentle Storm</a></td>
+      <td><a href='/song/410364'>Brightest Light</a></td>
+      <td>4:55</td>
+      <td><a href='/user/666'>Jormagund</a></td>
+      <td>
+  <a class="boxed add" href="/add/410364">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/39868'>Lord Sutch and Heavy Friends</a></td>
+      <td><a href='/song/377431'>Brightest Light</a></td>
+      <td>3:58</td>
+      <td><a href='/user/21'>GoldenAppel</a></td>
+      <td>
+  <a class="boxed add" href="/add/377431">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/58107'>Aqours</a></td>
+      <td><a href='/song/704983'>Brightest Melody</a></td>
+      <td>4:20</td>
+      <td><a href='/user/3180'>Belteshazzar</a></td>
+      <td>
+  <a class="boxed add" href="/add/704983">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/555'>Britney Spears</a></td>
+      <td><a href='/song/355276'>Brightest Morning Star</a></td>
+      <td>3:01</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/355276">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/32122'>The Gregg Allman Band</a></td>
+      <td><a href='/song/303087'>Brightest Smile In Town</a></td>
+      <td>3:07</td>
+      <td><a href='/user/3010'>kassak</a></td>
+      <td>
+  <a class="boxed add" href="/add/303087">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/1173'>Chris Isaak</a></td>
+      <td><a href='/song/650683'>Brightest Star</a></td>
+      <td>3:03</td>
+      <td><a href='/user/3522'>egonindapotty</a></td>
+      <td>
+  <a class="boxed add" href="/add/650683">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/46480'>Ringo Deathstarr</a></td>
+      <td><a href='/song/549664'>Brightest Star</a></td>
+      <td>5:47</td>
+      <td><a href='/user/3529'>ewe2</a></td>
+      <td>
+  <a class="boxed add" href="/add/549664">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/82879'>Band-Maid</a></td>
+      <td><a href='/song/769314'>Brightest Star</a></td>
+      <td>3:18</td>
+      <td><a href='/user/961'>ChrisKnight</a></td>
+      <td>
+  <a class="boxed add" href="/add/769314">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/18110'>Felt</a></td>
+      <td><a href='/song/403508'>BRIGHTEST WAY</a></td>
+      <td>5:19</td>
+      <td><a href='/user/3180'>Belteshazzar</a></td>
+      <td>
+  <a class="boxed add" href="/add/403508">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/11360'>brittle (test 2)</a></td>
+      <td>3:27</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/11360">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1945'>BRLRP (test 2)</a></td>
+      <td>2:11</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1945">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1946'>BRLRP (test 3)</a></td>
+      <td>2:46</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1946">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/502'>Conelrad</a></td>
+      <td><a href='/song/1947'>BRLRP (test 4)</a></td>
+      <td>3:05</td>
+      <td><a href='/user/703'>Fagin</a></td>
+      <td>
+  <a class="boxed add" href="/add/1947">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/26843'>Junichi Masuda, Go Inchinose</a></td>
+      <td><a href='/song/248180'>Bug-Catching Contest</a></td>
+      <td>1:45</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/248180">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/829358'>Bug-Catching Contest</a></td>
+      <td>0:38</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829358">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" odd ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/829450'>Bug-Catching Contest</a></td>
+      <td>0:34</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829450">Add!</a>
+</td>
+    </tr>
+    
+    <tr class=" even ">
+      <td><a href='/artist/7461'>Junichi Masuda</a></td>
+      <td><a href='/song/829357'>Bug-Catching Contest Start!</a></td>
+      <td>0:22</td>
+      <td><a href='/user/3267'>Haifisch</a></td>
+      <td>
+  <a class="boxed add" href="/add/829357">Add!</a>
+</td>
+    </tr>
+    
+  </table>
+
+  
+    Results: page 1 of 12
+    
+      <a href="/search?page=2&query=test">&gt;&gt;</a>
+  
+
+  
+  
+  </div>
+
+</div>
+
+<!-- this is the end mark i was talking about, the one you'll find with asdf23 -->
+
+<div id="bottomcont">
+<div id="bottombg" title="geez what klutz designed this?"></div>
+
+      <div id="leftist">
+        <form action="#" method="post" id="commentform">
+          <input accesskey="c" autocomplete="off" id="commentbox" name="query" maxlength="400" type="text"
+                 value="You need to enable javascript to use the live comments system." disabled="disabled" />
+        </form>
+        <div id="commentsbox">
+          <a id="expandbutt" href="#" title="expand comment box"></a>
+          
+        </div>
+      </div>
+      <div id="rightist">
+
+        <div id="progbarbox">
+          <div id="progtube">
+            <div style="width:5.220833333333331%;" id="progbar"></div>
+          </div>
+          <span id="songPosition">12.529999999999996</span>/<span id="songLength">240</span>
+        </div>
+        <span><div id="metadata"><a href="/artist/16985">British Electric Foundation</a> (<a href="/album/23281">Music Of Quality And Distinction, Volume 1</a>) - <a href="/song/785263">The Secret Life Of Arabia (with Billy MacKenzie)</a></div>
+        <div id="votebuttonslow">
+        vote:
+         
+        
+          <a href="#" class="" data-vote="1">1</a>
+        
+          <a href="#" class="" data-vote="2">2</a>
+        
+          <a href="#" class="" data-vote="3">3</a>
+        
+          <a href="#" class="" data-vote="4">4</a>
+        
+          <a href="#" class="" data-vote="5">5</a>
+        
+        &nbsp;score: <span id='avgscore'>
+        
+          no votes
+        
+        </span>
+        </div></span>
+      </div>
+
+
+</div>
+</body>
+</html>
