@@ -2,18 +2,25 @@
 
 UI-09 feature: import YouTube cookies via file picker, paste, or Google login.
 
-Constructor: CookieImportDialog(toast_callback: Callable[[str], None], parent=None)
+Phase 60 D-04 (ladder #3 LOCKED): Parameterized for GBS.FM and any future
+provider via keyword-only constructor args (target_label, cookies_path,
+validator, oauth_mode). Default values preserve YouTube behavior so all
+Phase 53 / Phase 22 callers are unaffected (regression-tested).
+
+Constructor: CookieImportDialog(toast_callback, parent=None, *, target_label,
+             cookies_path, validator, oauth_mode)
   toast_callback: forwarded to main-window toast overlay on success.
 
-Three tabs:
-  "File"         — QFileDialog picker for Netscape cookie file
-  "Paste"        — QTextEdit for pasting cookie text
-  "Google Login" — launches subprocess oauth_helper.py --mode google
+Tabs rendered:
+  "File"          — QFileDialog picker for Netscape cookie file
+  "Paste"         — QTextEdit for pasting cookie text
+  "Google Login"  — launches subprocess oauth_helper.py --mode <oauth_mode>
+                    (ONLY added when oauth_mode is not None)
 
-All paths write to paths.cookies_path() with 0o600 permissions.
+All paths write to cookies_path() with 0o600 permissions.
 
 Security:
-  T-40-07: Validate Netscape format + .youtube.com domain before writing.
+  T-40-07: Validate Netscape format + domain before writing (per-instance validator).
   T-40-08: 0o600 permissions immediately after write.
   T-40-09: sys.executable as QProcess program — no PATH injection.
   T-40-10: setTextFormat(Qt.PlainText) on all QLabel instances.
@@ -68,23 +75,46 @@ def _validate_youtube_cookies(text: str) -> bool:
 # ---------------------------------------------------------------------------
 
 class CookieImportDialog(QDialog):
-    """Three-tab dialog for importing YouTube cookies.
+    """Multi-tab dialog for importing third-party cookies (YouTube/GBS.FM/...).
 
-    Tabs: File | Paste | Google Login
-    All paths call _write_cookies() which enforces 0o600 permissions.
+    Phase 40 introduced YouTube; Phase 60 parameterized for GBS.FM (D-04 ladder #3).
+
+    Args:
+      toast_callback: Forwarded to main-window toast on success.
+      parent: Optional parent widget.
+
+    Keyword args (Phase 60 — defaults preserve YouTube behavior):
+      target_label: Display name (e.g. "YouTube", "GBS.FM"). Defaults to "YouTube".
+      cookies_path: Callable returning the destination cookies file path.
+      validator: Callable(text) -> bool — content validation.
+      oauth_mode: --mode argument for oauth_helper subprocess; None disables the
+                  OAuth tab entirely.
+
+    Phase 60 v1 ships gbs.fm with oauth_mode=None (file + paste tabs only).
+    Future phase can add a gbs OAuth helper.
     """
 
     def __init__(
         self,
         toast_callback: Callable[[str], None],
         parent: QWidget | None = None,
+        *,
+        target_label: str = "YouTube",
+        cookies_path: Callable[[], str] = paths.cookies_path,
+        validator: Callable[[str], bool] = _validate_youtube_cookies,
+        oauth_mode: str | None = "google",
     ) -> None:
         super().__init__(parent)
         self._toast = toast_callback
         self._selected_file_path: str | None = None
         self._google_process: QProcess | None = None
+        # Phase 60 D-04: per-instance config
+        self._target_label = target_label
+        self._cookies_path = cookies_path
+        self._validator = validator
+        self._oauth_mode = oauth_mode
 
-        self.setWindowTitle("YouTube Cookies")
+        self.setWindowTitle(f"{target_label} Cookies")
         self.setMinimumWidth(480)
 
         root = QVBoxLayout(self)
@@ -95,7 +125,11 @@ class CookieImportDialog(QDialog):
         self._tabs = QTabWidget()
         self._tabs.addTab(self._build_file_tab(), "File")
         self._tabs.addTab(self._build_paste_tab(), "Paste")
-        self._tabs.addTab(self._build_google_tab(), "Google Login")
+        if oauth_mode is not None:
+            # Tab label uses "Google Login" for the legacy oauth_mode="google";
+            # otherwise use a generic label.
+            tab_label = "Google Login" if oauth_mode == "google" else f"{target_label} Login"
+            self._tabs.addTab(self._build_google_tab(), tab_label)
         root.addWidget(self._tabs)
 
         # Inline error label (shared across tabs, shown below tab widget)
@@ -199,8 +233,8 @@ class CookieImportDialog(QDialog):
     def _on_paste_import(self) -> None:
         self._hide_error()
         text = self._paste_edit.toPlainText()
-        if not _validate_youtube_cookies(text):
-            self._show_error("Invalid cookies: no .youtube.com entries found.")
+        if not self._validator(text):
+            self._show_error(f"Invalid cookies: no entries for {self._target_label} found.")
             return
         self._write_cookies(text)
 
@@ -245,8 +279,8 @@ class CookieImportDialog(QDialog):
             self._show_error("File is empty.")
             return
 
-        if not _validate_youtube_cookies(text):
-            self._show_error("Invalid cookies: no .youtube.com entries found.")
+        if not self._validator(text):
+            self._show_error(f"Invalid cookies: no entries for {self._target_label} found.")
             return
 
         self._write_cookies(text)
@@ -266,7 +300,7 @@ class CookieImportDialog(QDialog):
         process.finished.connect(self._on_google_process_finished)
         process.start(
             sys.executable,
-            ["-m", "musicstreamer.oauth_helper", "--mode", "google"],
+            ["-m", "musicstreamer.oauth_helper", "--mode", self._oauth_mode or "google"],
         )
 
     def _on_google_process_finished(self, exit_code: int, exit_status: object) -> None:
@@ -286,8 +320,8 @@ class CookieImportDialog(QDialog):
             QMessageBox.warning(self, "Google Login", "Google login failed.")
             return
 
-        if not _validate_youtube_cookies(text):
-            self._show_error("Invalid cookies: no .youtube.com entries found.")
+        if not self._validator(text):
+            self._show_error(f"Invalid cookies: no entries for {self._target_label} found.")
             return
 
         self._write_cookies(text)
@@ -297,14 +331,14 @@ class CookieImportDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _write_cookies(self, text: str) -> None:
-        """Write cookie text to cookies_path() with 0o600 permissions."""
-        dest = paths.cookies_path()
+        """Write cookie text to self._cookies_path() with 0o600 permissions."""
+        dest = self._cookies_path()
         # Ensure parent directory exists
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest, "w", encoding="utf-8") as fh:
             fh.write(text)
         os.chmod(dest, 0o600)
-        self._toast("YouTube cookies imported.")
+        self._toast(f"{self._target_label} cookies imported.")
         self.accept()
 
     def _show_error(self, message: str) -> None:
