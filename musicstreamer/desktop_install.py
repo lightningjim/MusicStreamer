@@ -229,7 +229,7 @@ def _best_effort(cmd: list[str]) -> None:
 
 
 def _write_marker(marker: Path) -> None:
-    """Atomically write the install marker (mirrors ``migration._write_marker``)."""
+    """Atomically write the install marker (atomic rename; stricter than ``migration._write_marker``)."""
     marker.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -243,4 +243,8 @@ def _write_marker(marker: Path) -> None:
             f"app_id={constants.APP_ID}\n"
         )
         tmp_path = Path(tmp.name)
-    os.replace(tmp_path, marker)
+    try:
+        os.replace(tmp_path, marker)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
