@@ -187,7 +187,13 @@ def _atomic_copy(src: Path, dst: Path) -> None:
     works cross-platform (matches the discipline in
     ``musicstreamer/cookie_utils.py``). ``os.replace`` does NOT follow
     symlinks at the destination (T-61-03-02 mitigation).
+
+    Note: ``dst.parent`` is passed as the ``dir=`` argument to
+    ``NamedTemporaryFile`` and is resolved through any symlinks. For
+    diagnostics on hostile-symlink scenarios (code review WR-05), log
+    the resolved parent path at debug level.
     """
+    _log.debug("install dir resolved to: %s", dst.parent.resolve())
     with tempfile.NamedTemporaryFile(
         dir=str(dst.parent), prefix=f".{dst.name}.", delete=False
     ) as tmp:
