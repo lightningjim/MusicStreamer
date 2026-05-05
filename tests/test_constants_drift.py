@@ -47,3 +47,22 @@ def test_no_org_example_literal_remains_in_python_sources():
         if needle in text:
             hits.append(str(py.relative_to(pkg_root.parent)))
     assert not hits, f"Phase 61 left placeholder behind in: {hits}"
+
+
+def test_dev_launch_script_app_id_matches_constants():
+    """scripts/dev-launch.sh hardcodes APP_ID for the systemd scope name; keep it in sync.
+
+    The shell script can't import musicstreamer.constants, so the value is
+    duplicated. This test fails loud if anyone bumps constants.APP_ID without
+    also updating the script — preventing the systemd scope unit from
+    resolving to a stale app id (which would re-trigger the BUG-08 dock/icon
+    symptom under the dev-launch path).
+    """
+    script = Path(__file__).parent.parent / "scripts" / "dev-launch.sh"
+    text = script.read_text(encoding="utf-8")
+    expected = f'APP_ID="{constants.APP_ID}"'
+    assert expected in text, (
+        f"scripts/dev-launch.sh must declare {expected!r} verbatim "
+        f"(found APP_ID lines: "
+        f"{[ln for ln in text.splitlines() if 'APP_ID=' in ln]})"
+    )
