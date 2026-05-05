@@ -110,12 +110,60 @@ def test_existing_files_preserved(tmp_path, fake_bundled):
     apps.mkdir(parents=True)
     pre_existing = apps / "org.lightningjim.MusicStreamer.desktop"
     pre_existing.write_text("USER MODIFIED CONTENT")
+    # World-readable mode: signals "user-curated, indexable file" to the
+    # shell. The new mode-broken-repair path (61-04 follow-up) only
+    # overwrites files whose mode is restrictive.
+    pre_existing.chmod(0o644)
 
     desktop_install.ensure_installed()
 
     # The user's file is preserved verbatim.
     assert pre_existing.read_text() == "USER MODIFIED CONTENT", (
         "ensure_installed() clobbered an existing user-modified .desktop"
+    )
+
+
+def test_mode_broken_existing_file_is_repaired(tmp_path, fake_bundled):
+    """Phase 61 / 61-04 follow-up: a stale 0600-mode .desktop is overwritten.
+
+    GNOME Shell's ``GAppInfoMonitor`` silently ignores ``.desktop`` files
+    that aren't world-readable. A leftover 0600-mode file from a prior
+    manual install would shadow today's install — file exists, but the
+    shell can't read it, so the force-quit dialog falls back to the raw
+    app_id. ``_needs_install`` detects this case and triggers a repair
+    overwrite; ``_ensure_world_readable`` brings the freshly-written
+    file to mode 0644.
+
+    Surfaced during Plan 04 UAT on Kyle's rig: a stale Apr 15 file at
+    ``~/.local/share/applications/org.lightningjim.MusicStreamer.desktop``
+    with mode 0600 caused the force-quit dialog to read
+    ``"org.lightningjim.MusicStreamer" Is Not Responding`` instead of
+    ``"MusicStreamer" Is Not Responding``.
+    """
+    if not sys.platform.startswith("linux"):
+        pytest.skip("desktop_install is Linux-only")
+
+    xdg = tmp_path / "xdg_data"
+    apps = xdg / "applications"
+    apps.mkdir(parents=True)
+    stale = apps / "org.lightningjim.MusicStreamer.desktop"
+    stale.write_text("STALE 0600-MODE CONTENT FROM AN OLD MANUAL INSTALL")
+    stale.chmod(0o600)
+    assert (stale.stat().st_mode & 0o777) == 0o600, "fixture mode setup failed"
+
+    desktop_install.ensure_installed()
+
+    # File overwritten with bundled content (no longer the stale stub).
+    content = stale.read_text()
+    assert "Name=MusicStreamer" in content, (
+        f"Stale 0600 file not overwritten with bundled content. Got: {content[:80]!r}"
+    )
+    assert "STALE" not in content, "Stale content should have been replaced"
+
+    # Mode bumped to 0644 so the shell can index it.
+    new_mode = stale.stat().st_mode & 0o777
+    assert new_mode == 0o644, (
+        f"Repaired file should be mode 0o644 (world-readable); got 0o{new_mode:o}"
     )
 
 

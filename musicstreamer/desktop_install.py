@@ -99,8 +99,9 @@ def _do_install() -> None:
     # 1. .desktop file -> ~/.local/share/applications/<app_id>.desktop
     desktop_dst = xdg / "applications" / f"{constants.APP_ID}.desktop"
     desktop_dst.parent.mkdir(parents=True, exist_ok=True)
-    if not desktop_dst.exists():
+    if _needs_install(desktop_dst):
         _atomic_copy(_BUNDLED_DESKTOP, desktop_dst)
+        _ensure_world_readable(desktop_dst)
         _log.info("Installed .desktop file: %s", desktop_dst)
 
     # 2. Icon -> ~/.local/share/icons/hicolor/256x256/apps/<app_id>.png
@@ -109,8 +110,9 @@ def _do_install() -> None:
         / f"{constants.APP_ID}.png"
     )
     icon_dst.parent.mkdir(parents=True, exist_ok=True)
-    if not icon_dst.exists():
+    if _needs_install(icon_dst):
         _atomic_copy(_BUNDLED_ICON, icon_dst)
+        _ensure_world_readable(icon_dst)
         _log.info("Installed icon: %s", icon_dst)
 
     # 3. Best-effort cache hooks (D-13). Failure is fine -- caches will
@@ -119,6 +121,56 @@ def _do_install() -> None:
     _best_effort(
         ["gtk-update-icon-cache", "--quiet", str(xdg / "icons" / "hicolor")]
     )
+
+
+def _needs_install(dst: Path) -> bool:
+    """True if ``dst`` is missing OR mode-broken (not world-readable).
+
+    GNOME Shell's ``GAppInfoMonitor`` silently ignores ``.desktop``
+    files that aren't readable by group/other. A stale 0600-mode file
+    from a prior manual install (or any user experiment) would shadow
+    the bundled install — the file exists but the shell can't see it,
+    so the force-quit dialog falls back to the raw app_id and the
+    icon falls back to a generic placeholder.
+
+    Mode-broken stale files are NOT meaningful user customizations.
+    Bytes that match the bundled source aren't user-modified either,
+    but the cheaper signal is the read bit: if the file isn't world-
+    readable, no app-info system will pick it up regardless of
+    content, so overwriting is safe and corrective.
+    """
+    if not dst.exists():
+        return True
+    try:
+        mode = dst.stat().st_mode
+    except OSError:
+        return True
+    # Other-readable bit (0o004) is the freedesktop-standard signal that
+    # the shell will index this file. If it's missing, the install is
+    # effectively broken and we replace it.
+    if not (mode & 0o004):
+        _log.info(
+            "Existing %s has restrictive mode 0o%o (not world-readable) "
+            "— treating as stale and overwriting",
+            dst, mode & 0o777,
+        )
+        return True
+    return False
+
+
+def _ensure_world_readable(dst: Path) -> None:
+    """Force mode 0644 on a freshly-written .desktop / icon file.
+
+    ``shutil.copy2`` preserves source mode, but the source file's mode
+    can be wrong (e.g., 0600 on a private-checkout tree where umask
+    stripped read bits, or a dev tarball with peculiar permissions).
+    Setting 0644 here is the freedesktop-standard mode for app-info
+    indexable files.
+    """
+    try:
+        dst.chmod(0o644)
+    except OSError as exc:
+        _log.debug("Could not chmod 0o644 on %s: %s", dst, exc)
 
 
 def _atomic_copy(src: Path, dst: Path) -> None:
