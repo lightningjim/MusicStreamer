@@ -53,6 +53,13 @@ _BUNDLED_ICON = _PACKAGE_ROOT / "packaging" / "linux" / f"{constants.APP_ID}.png
 # 32-64px and downscales cleanly).
 _ICON_BUCKET = "256x256"
 
+# Marker version. Bump (e.g. ``"v2"``) whenever the bundled ``.desktop``
+# Exec= line, the bundled icon, or any user-visible install metadata
+# changes — see module docstring "Future-proofing note". Promoting the
+# literal to a constant (per code review WR-02) makes the bump
+# mechanical: change one line and all marker reads/writes track.
+_MARKER_VERSION = "v1"
+
 
 def _xdg_data_home() -> Path:
     """``$XDG_DATA_HOME`` with the freedesktop fallback to ``~/.local/share``."""
@@ -64,7 +71,7 @@ def _xdg_data_home() -> Path:
 
 def _install_marker() -> Path:
     """Marker under ``paths.data_dir()`` (respects ``_root_override`` test hook)."""
-    return Path(paths.data_dir()) / ".desktop-installed-v1"
+    return Path(paths.data_dir()) / f".desktop-installed-{_MARKER_VERSION}"
 
 
 def ensure_installed() -> None:
@@ -232,7 +239,8 @@ def _write_marker(marker: Path) -> None:
         encoding="utf-8",
     ) as tmp:
         tmp.write(
-            f"desktop install v1 complete; app_id={constants.APP_ID}\n"
+            f"desktop install {_MARKER_VERSION} complete; "
+            f"app_id={constants.APP_ID}\n"
         )
         tmp_path = Path(tmp.name)
     os.replace(tmp_path, marker)
