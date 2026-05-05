@@ -151,6 +151,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows (completed 2026-05-01)
 - [x] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry (completed 2026-05-04)
 - [x] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer (completed 2026-05-04)
+- [ ] **Phase 60.1: GBS.FM Search Artist/Album Drill-Down** — Multi-word artist/album link clicks + drill-down navigation to /artist/&lt;id&gt; and /album/&lt;id&gt; pages (Phase 60 round-2 UAT T12 follow-up)
 - [ ] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer"
 - [ ] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation
 - [ ] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close
@@ -348,6 +349,21 @@ Plans:
 - [x] 60-05-active-playlist-PLAN.md — Wave 3: NowPlayingPanel _gbs_playlist_widget + 15s /ajax poll + _GbsPollWorker + token-guard + auth-expired hide
 - [x] 60-06-vote-PLAN.md — Wave 4 (parallel with 60-07): NowPlayingPanel 5 vote buttons (1-5) + _GbsVoteWorker + optimistic UI + server-truth confirmation + entryid-from-/ajax
 - [x] 60-07-search-submit-PLAN.md — Wave 4 (parallel with 60-06): musicstreamer/ui_qt/gbs_search_dialog.py + main_window "Search GBS.FM…" entry + login-gated UI + per-row Add + inline error vs toast (D-08d)
+
+### Phase 60.1: GBS.FM Search Artist/Album Drill-Down
+**Goal:** The Artist:/Album: panels in `GBSSearchDialog` (added by Phase 60-11) handle multi-word names correctly and offer real drill-down navigation into the artist/album catalog page, instead of the current Shape 4 free-text-search fallback. Surface lives in `musicstreamer/gbs_api.py` (parsers) and `musicstreamer/ui_qt/gbs_search_dialog.py` (dialog).
+**Depends on:** Phase 60
+**Requirements:** GBS-01e (refines)
+**Success Criteria** (what must be TRUE):
+  1. Clicking an Artist link with a multi-word name (e.g. "Foo Fighters", "Pearl Jam") opens that artist's catalog (the user can see the artist's songs/albums) — does NOT just re-run a base song search.
+  2. Clicking an Album link with a multi-word name behaves the same way for the album's catalog.
+  3. The single-word click path that already works in Phase 60-11 continues to work — no regression on the simple case.
+  4. Existing Phase 60 tests (`test_artist_click_kicks_free_text_search`, `test_album_click_kicks_free_text_search`) are either updated to match the new contract or marked superseded; new tests cover multi-word and drill-down paths.
+**Round-2 UAT context (2026-05-04):**
+  - Issue A — Multi-word click only surfaces song results. Likely cause: query encoding or the search worker dropping artist/album results when the input contains spaces. Verify against `tests/fixtures/gbs/search_test_p1.html` first.
+  - Issue B — Click does base re-search instead of drilling into `/artist/<id>` or `/album/<id>`. Phase 60-11 locked D-11a=Shape 4 (free-text fallback) because the deterministic gate `<table class="songs">` count was 0 on both captured pages. The actual `/artist/4803` (44KB Testament) uses `<table class="artist">` and `/album/1488` (13KB) uses an unclassed `<table width="620">`. Phase 60.1 should add `_ArtistPageParser` for the artist-table shape and either an album parser or accept that the album surface is unstructured.
+  - Captured fixtures already in repo: `tests/fixtures/gbs/artist_4803.html`, `tests/fixtures/gbs/album_1488.html` (committed in `7376b1a`).
+**Plans:** TBD
 
 ### Phase 61: Linux App Display Name in WM Dialogs
 **Goal:** Force-quit and other WM-level dialogs (and Activities/Alt-Tab where the same string is read) display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer". Linux parallel to the Windows AUMID work in Phase 56 (WIN-02).

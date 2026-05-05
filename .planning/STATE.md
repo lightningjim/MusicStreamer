@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 60 context gathered
-last_updated: "2026-05-04T18:18:13.878Z"
+stopped_at: Phase 60 shipped + UAT done; 6 issues clustered into 4 gap-closure plans (60-08/09/10/11); plan-checker step interrupted by cookie-leak pause. Cookie leak resolved via commit 0c58595 (.gitignore now covers .planning/, gbs-cookies.txt, cookies.txt, twitch-token.txt). Gap-closure plans exist on disk but are now gitignored — workflow strategy for unfixed UAT issues needs user decision.
+last_updated: "2026-05-04T23:58:38.635Z"
 last_activity: 2026-05-04 -- Phase 60 execution started
 progress:
   total_phases: 23
-  completed_phases: 11
-  total_plans: 42
-  completed_plans: 35
-  percent: 83
+  completed_phases: 12
+  total_plans: 46
+  completed_plans: 46
+  percent: 100
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 60 (gbs-fm-integration) — EXECUTING
-Plan: 1 of 7
+Plan: 1 of 11
 Status: Executing Phase 60
 Last activity: 2026-05-04 -- Phase 60 execution started
 
@@ -137,6 +137,7 @@ Key v2.0 decisions already settled:
 - Phase 70 added: Hi-res indicator for streams (mirror moOde audio criteria) — promoted from a previously-empty `69-hi-res-...` skeleton folder that pre-existed in `.planning/phases/`; renumbered to 70 to make room for AAC debug at 69; orphan empty folder removed 2026-05-02
 - Phase 71 added: Sister station expansion — (1) GUI affordance to link sister stations from the Edit dialog (currently requires manual DB edits, e.g. the Classical Relaxation pair); (2) extend sister-station support to sources that publish multiple variants of one station (e.g. SomaFM's 2× Drone Zone, 3× Groove Salad) 2026-05-03
 - Phase 60 edited: edited fields: goal, success_criteria (scope expanded to include active playlist, voting, and search-and-submit per user clarification; comments / chat mirror / song upload remain deferred)
+- Phase 60.1 added: GBS.FM Search Artist/Album Drill-Down — follow-up to Phase 60 round-2 UAT T12 (2026-05-04). Phase 60 gap-closure closed 5 of 6 round-1 issues; T12 panels render but (A) multi-word click only surfaces song results and (B) clicks fall back to free-text search instead of /artist/<id> drill-down. Locked D-11a=Shape 4 was driven by deterministic `<table class="songs">` grep on captured pages, but actual /artist/4803 uses `<table class="artist">` and /album/1488 uses unclassed `<table width="620">`. Captured fixtures already in repo (commit 7376b1a).
 
 ### Pending Todos
 
@@ -168,6 +169,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-04T01:06:55.430Z
-Stopped at: Phase 60 context gathered
-Resume file: None
+Last session: 2026-05-04T22:30:00.000Z
+Stopped at: Phase 60 shipped + UAT done; 6 issues clustered into 4 gap-closure plans (60-08/09/10/11); plan-checker step interrupted by cookie-leak pause. Cookie leak resolved via commit 0c58595 (.gitignore now covers .planning/, gbs-cookies.txt, cookies.txt, twitch-token.txt). Gap-closure plans exist on disk but are now gitignored — workflow strategy for unfixed UAT issues needs user decision.
+Resume file: .planning/phases/60-gbs-fm-integration/.continue-here.md, .planning/HANDOFF.json
