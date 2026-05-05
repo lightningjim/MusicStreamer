@@ -209,16 +209,16 @@ def _best_effort(cmd: list[str]) -> None:
             cmd, capture_output=True, text=True, timeout=10
         )
         if result.returncode != 0:
-            _log.debug(
+            _log.warning(
                 "%s exit %d: %s",
                 cmd[0], result.returncode, result.stderr.strip()
             )
     except FileNotFoundError:
         _log.debug("%s not found on PATH -- skipping cache refresh", cmd[0])
     except subprocess.TimeoutExpired:
-        _log.debug("%s timed out -- skipping", cmd[0])
+        _log.warning("%s timed out after 10s -- skipping", cmd[0])
     except Exception as exc:  # noqa: BLE001
-        _log.debug("%s raised %s -- skipping", cmd[0], exc)
+        _log.warning("%s raised %s -- skipping", cmd[0], exc)
 
 
 def _write_marker(marker: Path) -> None:
