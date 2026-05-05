@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 60 shipped + UAT done; 6 issues clustered into 4 gap-closure plans (60-08/09/10/11); plan-checker step interrupted by cookie-leak pause. Cookie leak resolved via commit 0c58595 (.gitignore now covers .planning/, gbs-cookies.txt, cookies.txt, twitch-token.txt). Gap-closure plans exist on disk but are now gitignored — workflow strategy for unfixed UAT issues needs user decision.
-last_updated: "2026-05-04T23:58:38.635Z"
-last_activity: 2026-05-04 -- Phase 60 execution started
+stopped_at: Phase 61 context gathered
+last_updated: "2026-05-05T16:25:55.843Z"
+last_activity: 2026-05-05
 progress:
-  total_phases: 23
+  total_phases: 25
   completed_phases: 12
-  total_plans: 46
-  completed_plans: 46
-  percent: 100
+  total_plans: 50
+  completed_plans: 48
+  percent: 96
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 60 (gbs-fm-integration) — EXECUTING
-Plan: 1 of 11
-Status: Executing Phase 60
-Last activity: 2026-05-04 -- Phase 60 execution started
+Plan: 2 of 11
+Status: Ready to execute
+Last activity: 2026-05-05
 
 ## Performance Metrics
 
@@ -108,6 +108,7 @@ Key v2.0 decisions already settled:
 - [Phase 56-02]: Wired aa_normalize_stream_url into Player._set_uri at the URI funnel (D-01) — single insertion point covers all 4 callers (play, _on_youtube_resolved, _on_twitch_resolved, _try_next_stream). Pitfall #1 mitigated via _pipeline.set_property assert_any_call (NOT patch.object(_set_uri)). 3 player-level integration tests + T-56-01 YouTube HLS passthrough lock.
 - [Phase ?]: Phase 59-01: TDD-RED contract for QColorDialog wrapper — 9 tests targeting self._inner / self._current_hex, all failing against current implementation. Plan 02 reads tests as locked spec.
 - [Phase 59-02]: Wrapper QDialog (Pattern b) hosts QColorDialog with NoButtons | DontUseNativeDialog | ShowAlphaChannel=False; ACCENT_PRESETS seeded into Custom Colors slots 0..7 BEFORE inner construction (Pitfall 1); Pitfall 6 _current_hex set in __init__ regardless of wire-order; Pitfall 3 _is_valid_hex guard before setCurrentColor (no #000000 flash); D-15.6 chose write-empty-string to QSS file on Reset; no QTimer throttle on currentColorChanged ships (UAT Plan 03 may revisit). 9/9 RED tests now GREEN; D-19 verified via empty git diff on accent_utils.py.
+- [Phase 61]: Phase 61 / Plan 02: APP_ID single-sourced via constants.APP_ID; bundled .desktop relocated to packaging/linux/; drift-guard test module added (tests/test_constants_drift.py) — Eliminates 5 drift sites; future renames are a one-line edit. Drift-guard tests catch silent regression. D-04 MPRIS bus name preserved.
 
 ### Roadmap Evolution
 
@@ -138,6 +139,7 @@ Key v2.0 decisions already settled:
 - Phase 71 added: Sister station expansion — (1) GUI affordance to link sister stations from the Edit dialog (currently requires manual DB edits, e.g. the Classical Relaxation pair); (2) extend sister-station support to sources that publish multiple variants of one station (e.g. SomaFM's 2× Drone Zone, 3× Groove Salad) 2026-05-03
 - Phase 60 edited: edited fields: goal, success_criteria (scope expanded to include active playlist, voting, and search-and-submit per user clarification; comments / chat mirror / song upload remain deferred)
 - Phase 60.1 added: GBS.FM Search Artist/Album Drill-Down — follow-up to Phase 60 round-2 UAT T12 (2026-05-04). Phase 60 gap-closure closed 5 of 6 round-1 issues; T12 panels render but (A) multi-word click only surfaces song results and (B) clicks fall back to free-text search instead of /artist/<id> drill-down. Locked D-11a=Shape 4 was driven by deterministic `<table class="songs">` grep on captured pages, but actual /artist/4803 uses `<table class="artist">` and /album/1488 uses unclassed `<table width="620">`. Captured fixtures already in repo (commit 7376b1a).
+- Phase 72 added: Fullscreen Mode — Hide Left Column for Compact Displays — toggleable mode that hides the left column so bottom-bar controls stop overlapping when window is moved to a small/secondary screen; quick enter/exit (shortcut + menu) so user can flip in and out as device moves between displays 2026-05-05
 
 ### Pending Todos
 
@@ -166,9 +168,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 56 P02 | 3min | 2 tasks | 2 files |
 | Phase 59 P01 | 7min | 1 tasks | 1 files |
 | Phase 59 P02 | 9min | 1 tasks | 1 files |
+| Phase 61 P02 | 6 min | 2 tasks | 7 files |
 
 ## Session Continuity
 
-Last session: 2026-05-04T22:30:00.000Z
-Stopped at: Phase 60 shipped + UAT done; 6 issues clustered into 4 gap-closure plans (60-08/09/10/11); plan-checker step interrupted by cookie-leak pause. Cookie leak resolved via commit 0c58595 (.gitignore now covers .planning/, gbs-cookies.txt, cookies.txt, twitch-token.txt). Gap-closure plans exist on disk but are now gitignored — workflow strategy for unfixed UAT issues needs user decision.
-Resume file: .planning/phases/60-gbs-fm-integration/.continue-here.md, .planning/HANDOFF.json
+Last session: 2026-05-05T16:25:46.579Z
+Stopped at: Phase 61 context gathered
+Resume file: None

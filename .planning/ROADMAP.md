@@ -372,9 +372,15 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. The Linux force-quit dialog shows "MusicStreamer" as the application name (not "org.example.MusicStreamer")
   2. Activities/Alt-Tab and other system surfaces that read the application name show the friendly name consistently
-  3. The app ID used for D-Bus / MPRIS / desktop integration is unchanged (only the user-facing display name changes)
-  4. The fix works on Wayland and X11 (or notes which surface still has limitations and why)
-**Plans:** TBD
+  3. The app ID is migrated from the placeholder org.example.MusicStreamer to org.lightningjim.MusicStreamer (matching the Phase 56 Windows AUMID); the MPRIS bus name (org.mpris.MediaPlayer2.musicstreamer) and D-Bus interface names (org.mpris.MediaPlayer2, org.mpris.MediaPlayer2.Player) are unchanged (amended by 61-CONTEXT.md D-01..D-04)
+  4. The fix works on X11 (the deployment target per project memory); Wayland behavior is captured as side-effect note, not a UAT gate (out of scope per CONTEXT.md)
+**Plans:** 2/4 plans executed
+
+Plans:
+- [x] 61-01-PLAN.md — Diagnostic: capture BEFORE state on Kyle's X11 rig in 61-DIAGNOSTIC-LOG.md (D-14, human-driven, no code change)
+- [x] 61-02-PLAN.md — Rename APP_ID + propagate constants.APP_ID through __main__/mpris2 + Makefile drift fix + .desktop rename/relocate + 4-test drift guard (D-01..D-04, D-06, D-07; deletes stale test_aumid_string_parity.py)
+- [ ] 61-03-PLAN.md — New musicstreamer/desktop_install.py first-launch self-install + 6 unit tests + wire-in to __main__._run_gui (D-09..D-13)
+- [ ] 61-04-PLAN.md — UAT on Kyle's X11 rig: re-run diagnostic POST-FIX, provoke force-quit dialog, confirm Activities/Alt-Tab, sign off (D-16, human-driven)
 
 ### Phase 62: Audio Buffer Underrun Resilience
 **Goal:** Intermittent dropouts/stutters when the GStreamer buffer can't keep up are observable, mitigable, and (once root cause is known) fixed. Surface lives in `musicstreamer/player.py` and the buffer constants in `musicstreamer/constants.py`.
@@ -415,7 +421,7 @@ Plans:
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 3/3 | Complete   | 2026-05-04 |
 | 60. GBS.FM Integration | 7/7 | Complete   | 2026-05-04 |
-| 61. Linux App Display Name in WM Dialogs | 0/? | Not started | - |
+| 61. Linux App Display Name in WM Dialogs | 2/4 | In Progress|  |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
@@ -507,6 +513,16 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 71 to break down)
+
+### Phase 72: Fullscreen Mode — Hide Left Column for Compact Displays
+
+**Goal:** Add a toggleable "fullscreen"/compact mode that hides the left column so the bottom-bar controls stop compressing and overlapping when the window is moved to a small/secondary display. Mode must be quick to enter and exit (e.g., keyboard shortcut + menu/toolbar entry) so the user can flip in and out as they move the device between screens.
+**Requirements**: TBD — confirm during /gsd-plan-phase whether scope includes other panels (right column? Now Playing detail?) or strictly the left column hide. Verify on the user's small-screen device and on the X11 DPR=1.0 deployment target.
+**Depends on:** Phase 71
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 72 to break down)
 
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*
