@@ -14,7 +14,7 @@ import os
 
 from musicstreamer import paths
 
-APP_ID = "org.example.MusicStreamer"
+APP_ID = "org.lightningjim.MusicStreamer"
 
 
 def __getattr__(name):

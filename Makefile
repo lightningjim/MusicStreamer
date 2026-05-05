@@ -1,9 +1,10 @@
 PREFIX ?= $(HOME)/.local
 DESKTOP_DIR = $(PREFIX)/share/applications
-ICON_DIR    = $(PREFIX)/share/icons/hicolor/scalable/apps
+ICON_DIR    = $(PREFIX)/share/icons/hicolor/256x256/apps
 
-DESKTOP_FILE = org.example.MusicStreamer.desktop
-ICON_FILE    = musicstreamer/assets/org.example.MusicStreamer.svg
+DESKTOP_FILE = org.lightningjim.MusicStreamer.desktop
+DESKTOP_SRC  = packaging/linux/$(DESKTOP_FILE)
+ICON_FILE    = packaging/linux/org.lightningjim.MusicStreamer.png
 
 HAS_PIPX := $(shell command -v pipx 2>/dev/null)
 
@@ -27,9 +28,9 @@ install:
 	else \
 		pip install --user -e . --break-system-packages; \
 	fi
-	install -Dm644 $(DESKTOP_FILE) $(DESKTOP_DIR)/$(DESKTOP_FILE)
+	install -Dm644 $(DESKTOP_SRC) $(DESKTOP_DIR)/$(DESKTOP_FILE)
 	@if [ -f "$(ICON_FILE)" ]; then \
-		install -Dm644 $(ICON_FILE) $(ICON_DIR)/org.example.MusicStreamer.svg; \
+		install -Dm644 $(ICON_FILE) $(ICON_DIR)/org.lightningjim.MusicStreamer.png; \
 	fi
 	update-desktop-database $(DESKTOP_DIR) 2>/dev/null || true
 
@@ -40,7 +41,7 @@ uninstall:
 		pip uninstall -y musicstreamer; \
 	fi
 	rm -f $(DESKTOP_DIR)/$(DESKTOP_FILE)
-	rm -f $(ICON_DIR)/org.example.MusicStreamer.svg
+	rm -f $(ICON_DIR)/org.lightningjim.MusicStreamer.png
 	update-desktop-database $(DESKTOP_DIR) 2>/dev/null || true
 
 run:

@@ -11,6 +11,8 @@ import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 
+from musicstreamer import constants
+
 DEFAULT_SMOKE_URL = "https://ice1.somafm.com/groovesalad-128-mp3"
 
 
@@ -96,7 +98,7 @@ def _apply_windows_palette(app) -> None:
     app.setPalette(p)
 
 
-def _set_windows_aumid(app_id: str = "org.lightningjim.MusicStreamer") -> None:
+def _set_windows_aumid(app_id: str | None = None) -> None:
     """Set the Windows AppUserModelID so the SMTC overlay + taskbar group
     under the app's own identity instead of 'Unknown app' / python.exe.
 
@@ -109,7 +111,13 @@ def _set_windows_aumid(app_id: str = "org.lightningjim.MusicStreamer") -> None:
     is correctly set on the process. Shortcut registration lands in the
     Phase 44 installer; for Phase 43.1 we only guarantee the AUMID value
     is correct (verified by the readback below).
+
+    Phase 61 / D-02: app_id default is None; reads constants.APP_ID when
+    unspecified so the Linux app id and the Windows AUMID share a single
+    source of truth.
     """
+    if app_id is None:
+        app_id = constants.APP_ID
     if sys.platform != "win32":
         return
     import ctypes
@@ -140,8 +148,9 @@ def _run_gui(argv: list[str]) -> int:
     from musicstreamer.repo import Repo, db_connect, db_init
 
     app = QApplication(argv)
-    app.setApplicationName("MusicStreamer")
-    app.setDesktopFileName("org.example.MusicStreamer")
+    app.setApplicationName("MusicStreamer")              # D-07: keep
+    app.setApplicationDisplayName("MusicStreamer")       # D-06: NEW (Phase 61)
+    app.setDesktopFileName(constants.APP_ID)             # D-02: read from constants (no .desktop suffix per Qt convention)
     if sys.platform == "win32":
         app.setStyle("Fusion")          # D-14: BEFORE widget construction
         _apply_windows_palette(app)     # D-15: dark-mode palette if applicable

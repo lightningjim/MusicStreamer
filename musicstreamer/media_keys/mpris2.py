@@ -48,6 +48,7 @@ from PySide6.QtGui import QPixmap
 from musicstreamer.media_keys._art_cache import write_cover_png
 from musicstreamer.media_keys.base import MediaKeysBackend
 from musicstreamer.models import Station
+from musicstreamer import constants
 
 _log = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ class _MprisRootAdaptor(QDBusAbstractAdaptor):
 
     @Property(str)
     def DesktopEntry(self) -> str:
-        return "org.example.MusicStreamer"
+        return constants.APP_ID
 
     @Property("QStringList")
     def SupportedUriSchemes(self) -> list[str]:
