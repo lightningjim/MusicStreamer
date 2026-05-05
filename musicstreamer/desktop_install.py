@@ -37,7 +37,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from musicstreamer import constants, paths
+from musicstreamer import constants, paths, subprocess_utils
 
 _log = logging.getLogger(__name__)
 
@@ -147,9 +147,13 @@ def _best_effort(cmd: list[str]) -> None:
     ``cmd`` is a ``list[str]`` (no shell=True), so no shell-injection
     risk even if XDG paths contain unusual characters
     (RESEARCH §Security Domain T-61-03-03).
+
+    Routed through ``subprocess_utils._run`` for PKG-03 compliance —
+    bare blocking subprocess calls are forbidden anywhere else in
+    ``musicstreamer/`` (see ``tests/test_pkg03_compliance.py``).
     """
     try:
-        result = subprocess.run(
+        result = subprocess_utils._run(
             cmd, capture_output=True, text=True, timeout=10
         )
         if result.returncode != 0:

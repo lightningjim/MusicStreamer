@@ -16,3 +16,16 @@ def _popen(args, **kwargs):
     if sys.platform == "win32":
         kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
     return subprocess.Popen(args, **kwargs)
+
+
+def _run(args, **kwargs):
+    """``subprocess.run`` mirror with Windows console-flash suppression.
+
+    Use this from anywhere in ``musicstreamer/`` that needs the
+    blocking ``subprocess.run`` semantics (return code, captured output,
+    timeout). PKG-03 forbids raw ``subprocess.run`` calls in the package
+    so all paths flow through here.
+    """
+    if sys.platform == "win32":
+        kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
+    return subprocess.run(args, **kwargs)

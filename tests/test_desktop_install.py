@@ -135,7 +135,7 @@ def test_cache_hooks_called_best_effort(monkeypatch, fake_bundled):
 
         return _R()
 
-    monkeypatch.setattr(desktop_install.subprocess, "run", fake_run)
+    monkeypatch.setattr(desktop_install.subprocess_utils, "_run", fake_run)
     desktop_install.ensure_installed()
 
     cmd0_names = [c[0] for c in calls]
@@ -155,7 +155,7 @@ def test_missing_cache_tool_does_not_raise(monkeypatch, fake_bundled):
     def fake_run(cmd, *args, **kwargs):
         raise FileNotFoundError(cmd[0])
 
-    monkeypatch.setattr(desktop_install.subprocess, "run", fake_run)
+    monkeypatch.setattr(desktop_install.subprocess_utils, "_run", fake_run)
 
     # Must not raise.
     desktop_install.ensure_installed()
