@@ -43,9 +43,8 @@ def fake_bundled(tmp_path, monkeypatch):
 
 def test_first_launch_installs_files(tmp_path, fake_bundled):
     """Phase 61 / 61-03-01: ensure_installed() writes .desktop + icon + marker."""
-    # Pre-condition: ensure platform is Linux (no early-return).
-    # This test is run on Linux CI; explicit assertion documents the gate.
-    assert sys.platform.startswith("linux"), "Test requires Linux platform"
+    if not sys.platform.startswith("linux"):
+        pytest.skip("desktop_install is Linux-only", allow_module_level=False)
 
     desktop_install.ensure_installed()
 
@@ -67,7 +66,7 @@ def test_first_launch_installs_files(tmp_path, fake_bundled):
 def test_idempotent_via_marker(tmp_path, fake_bundled):
     """Phase 61 / 61-03-02: marker prevents re-install even if files were deleted."""
     if not sys.platform.startswith("linux"):
-        pytest.skip("desktop_install is Linux-only")
+        pytest.skip("desktop_install is Linux-only", allow_module_level=False)
 
     desktop_install.ensure_installed()
     xdg = tmp_path / "xdg_data"
@@ -103,7 +102,7 @@ def test_no_op_off_linux(monkeypatch, fake_bundled):
 def test_existing_files_preserved(tmp_path, fake_bundled):
     """Phase 61 / 61-03-04: D-11 additive — does NOT overwrite user-modified files."""
     if not sys.platform.startswith("linux"):
-        pytest.skip("desktop_install is Linux-only")
+        pytest.skip("desktop_install is Linux-only", allow_module_level=False)
 
     xdg = tmp_path / "xdg_data"
     apps = xdg / "applications"
@@ -141,7 +140,7 @@ def test_mode_broken_existing_file_is_repaired(tmp_path, fake_bundled):
     ``"MusicStreamer" Is Not Responding``.
     """
     if not sys.platform.startswith("linux"):
-        pytest.skip("desktop_install is Linux-only")
+        pytest.skip("desktop_install is Linux-only", allow_module_level=False)
 
     xdg = tmp_path / "xdg_data"
     apps = xdg / "applications"
@@ -170,7 +169,7 @@ def test_mode_broken_existing_file_is_repaired(tmp_path, fake_bundled):
 def test_cache_hooks_called_best_effort(monkeypatch, fake_bundled):
     """Phase 61 / 61-03-05: D-13 best-effort hooks are invoked."""
     if not sys.platform.startswith("linux"):
-        pytest.skip("desktop_install is Linux-only")
+        pytest.skip("desktop_install is Linux-only", allow_module_level=False)
 
     calls = []
 
@@ -198,7 +197,7 @@ def test_cache_hooks_called_best_effort(monkeypatch, fake_bundled):
 def test_missing_cache_tool_does_not_raise(monkeypatch, fake_bundled):
     """Phase 61 / 61-03-06: missing cache tool is caught; install still succeeds."""
     if not sys.platform.startswith("linux"):
-        pytest.skip("desktop_install is Linux-only")
+        pytest.skip("desktop_install is Linux-only", allow_module_level=False)
 
     def fake_run(cmd, *args, **kwargs):
         raise FileNotFoundError(cmd[0])

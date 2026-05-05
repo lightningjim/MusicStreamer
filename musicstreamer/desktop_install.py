@@ -33,6 +33,10 @@ import logging
 import os
 import shutil
 import subprocess
+# NOTE (code review WR-06): tests/test_desktop_install.py::test_no_op_off_linux
+# monkeypatches ``desktop_install.sys.platform`` via this module-level binding.
+# Do NOT refactor to ``from sys import platform`` — that would break the
+# platform-gate test (it would bind the value, not the module attribute).
 import sys
 import tempfile
 from pathlib import Path
