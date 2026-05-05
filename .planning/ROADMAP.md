@@ -374,13 +374,14 @@ Plans:
   2. Activities/Alt-Tab and other system surfaces that read the application name show the friendly name consistently
   3. The app ID is migrated from the placeholder org.example.MusicStreamer to org.lightningjim.MusicStreamer (matching the Phase 56 Windows AUMID); the MPRIS bus name (org.mpris.MediaPlayer2.musicstreamer) and D-Bus interface names (org.mpris.MediaPlayer2, org.mpris.MediaPlayer2.Player) are unchanged (amended by 61-CONTEXT.md D-01..D-04)
   4. The fix works on X11 (the deployment target per project memory); Wayland behavior is captured as side-effect note, not a UAT gate (out of scope per CONTEXT.md)
-**Plans:** 2/4 plans executed
+**Plans:** 5/5 plans executed
 
 Plans:
-- [x] 61-01-PLAN.md — Diagnostic: capture BEFORE state on Kyle's X11 rig in 61-DIAGNOSTIC-LOG.md (D-14, human-driven, no code change)
+- [x] 61-01-PLAN.md — Diagnostic: capture BEFORE state on Kyle's Wayland rig in 61-DIAGNOSTIC-LOG.md (D-14, human-driven, no code change)
 - [x] 61-02-PLAN.md — Rename APP_ID + propagate constants.APP_ID through __main__/mpris2 + Makefile drift fix + .desktop rename/relocate + 4-test drift guard (D-01..D-04, D-06, D-07; deletes stale test_aumid_string_parity.py)
-- [ ] 61-03-PLAN.md — New musicstreamer/desktop_install.py first-launch self-install + 6 unit tests + wire-in to __main__._run_gui (D-09..D-13)
-- [ ] 61-04-PLAN.md — UAT on Kyle's X11 rig: re-run diagnostic POST-FIX, provoke force-quit dialog, confirm Activities/Alt-Tab, sign off (D-16, human-driven)
+- [x] 61-03-PLAN.md — New musicstreamer/desktop_install.py first-launch self-install + 6 unit tests + wire-in to __main__._run_gui (D-09..D-13)
+- [x] 61-04-PLAN.md — UAT on Kyle's Wayland rig: re-run diagnostic POST-FIX, provoke force-quit dialog, confirm Activities/Alt-Tab, sign off (D-16, human-driven) — RESULT: D-16 gate FAILED; surfaced a dev-launch-only edge case (terminal cgroup inheritance); Plan 05 closes
+- [x] 61-05-PLAN.md — Plan 04 gap-closure: env-strip helper (defensive, kept) + scripts/dev-launch.sh wraps musicstreamer in a properly-named systemd user scope so mutter's cgroup-based window↔.desktop matching works for terminal-launched dev runs + drift-guard test for the script's APP_ID literal — BUG-08 closed
 
 ### Phase 62: Audio Buffer Underrun Resilience
 **Goal:** Intermittent dropouts/stutters when the GStreamer buffer can't keep up are observable, mitigable, and (once root cause is known) fixed. Surface lives in `musicstreamer/player.py` and the buffer constants in `musicstreamer/constants.py`.
