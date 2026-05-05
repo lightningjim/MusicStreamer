@@ -133,8 +133,35 @@ def _set_windows_aumid(app_id: str | None = None) -> None:
     shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
 
 
+def _strip_inherited_activation_tokens() -> None:
+    """Pop XDG_ACTIVATION_TOKEN + DESKTOP_STARTUP_ID from our env.
+
+    Phase 61 follow-up to BUG-08 (Plan 04 UAT FAIL → Plan 05 fix).
+
+    When MusicStreamer is launched from a parent process that exports a
+    wayland activation token (notably JetBrains terminals, which export
+    XDG_ACTIVATION_TOKEN/DESKTOP_STARTUP_ID into every child shell),
+    Qt's wayland plugin forwards that stale token to mutter via
+    ``xdg_activation_v1.activate(<token>, <our first surface>)``. Mutter
+    then binds our surface to the parent's launch context, which
+    short-circuits the wayland-app-id → .desktop basename match and
+    leaves us with a generic gear icon + raw app_id in the dock and
+    force-quit dialog (BUG-08 symptom).
+
+    The freedesktop xdg-activation-v1 spec scopes a token to a single
+    launch event; carrying it across an unrelated process boundary is
+    already a misuse by the launcher. We refuse to forward a token we
+    did not earn. No-op on platforms that don't set these (Windows /
+    macOS / well-behaved Linux launchers).
+    """
+    import os
+    os.environ.pop("XDG_ACTIVATION_TOKEN", None)
+    os.environ.pop("DESKTOP_STARTUP_ID", None)
+
+
 def _run_gui(argv: list[str]) -> int:
     """Open the Qt GUI — QApplication + MainWindow."""
+    _strip_inherited_activation_tokens()  # Phase 61 Plan 05: BUG-08 follow-up
     _set_windows_aumid()  # Phase 43.1: before QApplication (binds on first window)
     Gst.init(None)
 
