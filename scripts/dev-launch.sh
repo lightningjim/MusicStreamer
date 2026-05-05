@@ -43,6 +43,15 @@ if ! command -v systemd-run >/dev/null 2>&1; then
   exit 1
 fi
 
+# Feature-probe: --collect was added in systemd v236 (Dec 2017). Older
+# releases (Debian 9 / RHEL 7) silently misinterpret the flag. Fail fast
+# with a clear message rather than letting systemd-run dump a generic
+# usage error. (Code review WR-04.)
+if ! systemd-run --user --scope --collect --help 2>&1 | grep -q -- '--collect'; then
+  echo "dev-launch: systemd-run lacks --collect (need systemd 236+)" >&2
+  exit 1
+fi
+
 # --user: place the scope under our user systemd instance (no root needed)
 # --scope: transient scope unit; process tree stays attached, no service unit
 # --quiet: suppress systemd's "Running as unit:" preamble
