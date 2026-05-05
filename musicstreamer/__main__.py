@@ -138,6 +138,13 @@ def _run_gui(argv: list[str]) -> int:
     _set_windows_aumid()  # Phase 43.1: before QApplication (binds on first window)
     Gst.init(None)
 
+    # Phase 61 / D-09: first-launch self-install of .desktop + icon for
+    # Linux WM display-name resolution (BUG-08). No-op on non-Linux.
+    # Runs BEFORE QApplication so the very first window emits a
+    # _GTK_APPLICATION_ID that has a matching .desktop in the XDG path.
+    from musicstreamer import desktop_install
+    desktop_install.ensure_installed()
+
     from musicstreamer import migration
     migration.run_migration()
 
