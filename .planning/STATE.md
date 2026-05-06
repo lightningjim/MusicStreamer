@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 60.1 UI-SPEC approved
-last_updated: "2026-05-06T13:37:22.568Z"
-last_activity: 2026-05-06 -- Phase 60.1 execution started
+stopped_at: Phase 60.1 Plan 02 complete
+last_updated: "2026-05-06T14:15:00.000Z"
+last_activity: 2026-05-06 -- Phase 60.1 Plan 02 (Wave 1 GREEN parser tier) complete
 progress:
   total_phases: 25
   completed_phases: 13
   total_plans: 55
-  completed_plans: 51
-  percent: 93
+  completed_plans: 52
+  percent: 95
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 60.1 (gbs-fm-search-artist-album-drill-down) — EXECUTING
-Plan: 1 of 4
+Plan: 2 of 4 (Wave 1 GREEN parser tier complete; Plan 03 dialog tier next)
 Status: Executing Phase 60.1
-Last activity: 2026-05-06 -- Phase 60.1 execution started
+Last activity: 2026-05-06 -- Phase 60.1 Plan 02 complete (parser tier GREEN, all 35 test_gbs_api.py tests pass)
 
 ## Performance Metrics
 
@@ -109,6 +109,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: Phase 59-01: TDD-RED contract for QColorDialog wrapper — 9 tests targeting self._inner / self._current_hex, all failing against current implementation. Plan 02 reads tests as locked spec.
 - [Phase 59-02]: Wrapper QDialog (Pattern b) hosts QColorDialog with NoButtons | DontUseNativeDialog | ShowAlphaChannel=False; ACCENT_PRESETS seeded into Custom Colors slots 0..7 BEFORE inner construction (Pitfall 1); Pitfall 6 _current_hex set in __init__ regardless of wire-order; Pitfall 3 _is_valid_hex guard before setCurrentColor (no #000000 flash); D-15.6 chose write-empty-string to QSS file on Reset; no QTimer throttle on currentColorChanged ships (UAT Plan 03 may revisit). 9/9 RED tests now GREEN; D-19 verified via empty git diff on accent_utils.py.
 - [Phase 61]: Phase 61 / Plan 02: APP_ID single-sourced via constants.APP_ID; bundled .desktop relocated to packaging/linux/; drift-guard test module added (tests/test_constants_drift.py) — Eliminates 5 drift sites; future renames are a one-line edit. Drift-guard tests catch silent regression. D-04 MPRIS bus name preserved.
+- [Phase 60.1-02]: D-04 multi-word triage closed as Hypothesis 1 REFUTED via direct fixture inspection (search_multiword_p1.html contains valid Artists/Albums panels with 5 artist + 3 album links for foo+fighters); existing _ArtistAlbumParser handles multi-word correctly, no parser change needed. Plan 04 UAT must re-confirm user's Issue A reproduces against live production. _ArtistPageParser gates on <table class="artist">, captures page-title artist once from <th class="album" colspan="3">. _AlbumPageParser uses D-02 belt-and-suspenders gate (rejects class="artist" AND class="songs" inside <div class="playlist"> via explicit reject-list + one-shot _table_locked). Both parsers emit identical {songid, artist, title, duration, add_url} dict shape so Plan 03's _render_results() works without surface-aware branching. Pitfall 7: _SongRowParser docstring corrected (D-08e ignore-of-artists/albums-blocks claim removed).
 
 ### Roadmap Evolution
 
@@ -172,6 +173,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-05T23:33:23.531Z
-Stopped at: Phase 60.1 UI-SPEC approved
-Resume file: .planning/phases/60.1-gbs-fm-search-artist-album-drill-down/60.1-UI-SPEC.md
+Last session: 2026-05-06T14:15:00.000Z
+Stopped at: Phase 60.1 Plan 02 complete (Wave 1 GREEN parser tier; Plan 03 dialog tier next)
+Resume file: .planning/phases/60.1-gbs-fm-search-artist-album-drill-down/60.1-03-PLAN.md
