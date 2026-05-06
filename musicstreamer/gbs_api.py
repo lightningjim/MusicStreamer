@@ -695,6 +695,137 @@ class _ArtistPageParser(HTMLParser):
             self._in_artist_table = False
 
 
+class _AlbumPageParser(HTMLParser):
+    """Phase 60.1 / GBS-01e drill-down: parse /album/<id> page.
+
+    D-02 belt-and-suspenders gate: locks onto the FIRST <table width="620">
+    inside <div class="playlist"> AND explicitly REJECTS class="artist" or
+    class="songs". Without these explicit rejections, a router bug feeding
+    an artist page or search response into _AlbumPageParser would silently
+    produce garbage rows.
+
+    Row shape (RESEARCH §Pitfall 6, 6 columns):
+      td 0: <a href="/artist/Y">{artist_name}</a>   — per-row artist
+      td 1: <a href="/song/X">{title}</a>           — per-row title + songid
+      td 2: codec (e.g., "mp3") — skipped
+      td 3: bitrate (e.g., "192") — skipped
+      td 4: duration "M:SS"
+      td 5: <a class="boxed add" href="/add/X">Add!</a>
+
+    Output dict shape matches _SongRowParser / _ArtistPageParser:
+      {"songid": int, "artist": str, "title": str, "duration": str, "add_url": str}
+
+    Defensive: HTML parse errors are caught by fetch_album_songs's wrapper.
+    """
+
+    _SONG_RE = re.compile(r"^/song/(\d+)$")
+    _ADD_RE = re.compile(r"^/add/(\d+)$")
+    _ARTIST_RE = re.compile(r"^/artist/(\d+)$")
+
+    def __init__(self):
+        super().__init__()
+        self.results: list = []
+        self._in_playlist_div: bool = False
+        self._in_album_table: bool = False
+        self._table_locked: bool = False
+        self._row: Optional[dict] = None
+        self._capture: Optional[str] = None  # "artist" | "title" | "duration" | None
+        self._tds_in_row: int = 0
+        self._skip_current: bool = False
+
+    def handle_starttag(self, tag, attrs):
+        ad = dict(attrs)
+        if tag == "div" and "playlist" in (ad.get("class") or ""):
+            self._in_playlist_div = True
+            return
+        if not self._in_playlist_div:
+            return
+        if not self._in_album_table:
+            if self._table_locked:
+                return
+            if tag == "table" and ad.get("width") == "620":
+                cls = ad.get("class") or ""
+                # D-02 belt-and-suspenders: explicitly reject artist-page and search-response
+                # tables. Both have width="620" inside <div class="playlist"> too.
+                if "artist" in cls or "songs" in cls:
+                    return
+                self._in_album_table = True
+                self._table_locked = True
+            return
+        # Inside album table:
+        if tag == "tr":
+            self._row = {"songid": None, "artist": "", "title": "", "duration": "", "add_url": ""}
+            self._tds_in_row = 0
+            self._capture = None
+            self._skip_current = False
+            return
+        if tag == "th":
+            # Header row — mark current row to skip
+            self._skip_current = True
+            return
+        if self._skip_current:
+            return
+        if tag == "td":
+            self._tds_in_row += 1
+            # Position-based capture pre-set: duration is td 5 (1-indexed)
+            if self._tds_in_row == 5:
+                self._capture = "duration"
+            else:
+                self._capture = None
+            return
+        if tag == "a" and self._row is not None:
+            href = ad.get("href", "")
+            m_artist = self._ARTIST_RE.match(href)
+            m_song = self._SONG_RE.match(href)
+            m_add = self._ADD_RE.match(href)
+            if m_artist and self._tds_in_row == 1:
+                self._capture = "artist"
+            elif m_song:
+                self._row["songid"] = int(m_song.group(1))
+                self._capture = "title"
+            elif m_add:
+                self._row["add_url"] = href
+                # No text capture — add_url is the entire payload from this anchor
+
+    def handle_data(self, data):
+        if not (self._in_album_table and self._row is not None and not self._skip_current):
+            return
+        if self._capture == "artist":
+            self._row["artist"] += data
+            return
+        if self._capture == "title":
+            self._row["title"] += data
+            return
+        if self._capture == "duration":
+            self._row["duration"] += data
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._capture in ("artist", "title"):
+            self._capture = None
+            return
+        if tag == "td" and self._capture == "duration":
+            self._capture = None
+            return
+        if tag == "tr":
+            if (self._row is not None
+                    and not self._skip_current
+                    and self._row.get("songid") is not None
+                    and self._tds_in_row >= 5):
+                self._row["artist"] = (self._row.get("artist") or "").strip()
+                self._row["title"] = (self._row.get("title") or "").strip()
+                self._row["duration"] = (self._row.get("duration") or "").strip()
+                if not self._row.get("add_url"):
+                    self._row["add_url"] = f"/add/{self._row['songid']}"
+                self.results.append(self._row)
+            self._row = None
+            self._tds_in_row = 0
+            self._skip_current = False
+            self._capture = None
+            return
+        if tag == "table" and self._in_album_table:
+            self._in_album_table = False
+
+
 _PAGE_OF_RE = re.compile(r"page\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
 
 
@@ -765,6 +896,30 @@ def fetch_artist_songs(artist_id: int,
         parser.close()
     except Exception as exc:
         _log.warning("artist HTML parse failed for id=%s: %s", artist_id, exc)
+        return {"results": []}
+    return {"results": parser.results}
+
+
+def fetch_album_songs(album_id: int,
+                      cookies: http.cookiejar.MozillaCookieJar) -> dict:
+    """Phase 60.1 / GBS-01e: GET /album/<id>; parse with _AlbumPageParser.
+
+    Defensive: parse failure → {"results": []}, never raises (except auth-expired).
+    """
+    url = f"{GBS_BASE}/album/{int(album_id)}"
+    try:
+        with _open_with_cookies(url, cookies, timeout=_TIMEOUT_READ) as resp:
+            html_str = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        if e.code in (301, 302) and "/accounts/login/" in (e.headers.get("Location") or ""):
+            raise GbsAuthExpiredError(f"Session expired (album 302→login from {url})") from e
+        raise
+    parser = _AlbumPageParser()
+    try:
+        parser.feed(html_str)
+        parser.close()
+    except Exception as exc:
+        _log.warning("album HTML parse failed for id=%s: %s", album_id, exc)
         return {"results": []}
     return {"results": parser.results}
 
