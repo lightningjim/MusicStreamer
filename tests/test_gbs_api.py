@@ -790,3 +790,138 @@ def test_fetch_album_songs_returns_results(gbs_fixtures_dir, fake_cookies_jar, m
     assert "results" in out
     assert isinstance(out["results"], list)
     assert len(out["results"]) >= 1, f"album_1488 fixture has at least 1 row; got {len(out['results'])}"
+
+
+# ---------- Phase 60.2 / GBS-01e (Wave 0 RED) ----------
+
+def test_artist_page_parses_emits_album_field(gbs_fixtures_dir):
+    """Phase 60.2 / GBS-01e (RED): _ArtistPageParser must emit per-row 'album' field
+    and group consecutive song rows by album (CONTEXT.md D-01..D-03 + D-10).
+
+    Pins:
+      - Every result row has 'album' as a str (possibly empty).
+      - Consecutive rows with the same album form a group (preserve fixture order).
+      - Brotherhood of the Snake appears in the album set (Testament fixture's first album).
+      - Transition count is 13 or 14 (14 albumTitle rows in fixture; 13 transitions if no
+        pre-first-albumTitle rows, 14 if pre-first rows exist with album=='').
+
+    FAILS BEFORE Wave 1 parser change lands: rows lack the 'album' field entirely
+    (current _ArtistPageParser at gbs_api.py:619 SKIPS albumTitle rows).
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "artist_4803.html").read_text(
+        encoding="utf-8", errors="replace",
+    )
+    parser = _gbs._ArtistPageParser()
+    parser.feed(payload)
+    parser.close()
+    rows = parser.results
+    assert len(rows) > 0, "must extract >=1 row"
+    # Every row has 'album' as a str
+    for row in rows:
+        assert "album" in row, f"row missing 'album' field: {row!r}"
+        assert isinstance(row["album"], str), (
+            f"album must be str; got {type(row['album'])} ({row!r})"
+        )
+    # At least one known album group is present (Brotherhood of the Snake — first album in fixture)
+    albums = {row["album"] for row in rows}
+    assert "Brotherhood of the Snake" in albums, (
+        f"expected 'Brotherhood of the Snake' album group; got albums {sorted(albums)}"
+    )
+    # Consecutive rows with same album form a contiguous group: count distinct
+    # album-transitions and assert it matches the # of <tr class='albumTitle'> in fixture.
+    transitions = sum(
+        1 for i in range(1, len(rows)) if rows[i]["album"] != rows[i - 1]["album"]
+    )
+    # 14 albumTitle rows in artist_4803.html [VERIFIED via grep 2026-05-06].
+    # Transitions = (number_of_groups - 1); groups = albumTitle_count if no pre-first rows,
+    # else albumTitle_count + 1. Assertion accommodates both cases.
+    assert transitions in (13, 14), (
+        f"expected 13 or 14 album transitions; got {transitions} "
+        f"(14 albumTitle rows in fixture; 13 transitions if no pre-first rows, "
+        f"14 if pre-first-albumTitle rows exist with album=='')"
+    )
+
+
+def test_artist_page_pre_first_albumTitle_rows_have_empty_album(gbs_fixtures_dir):
+    """Phase 60.2 / GBS-01e (RED): rows before the first <tr class='albumTitle'> must
+    carry album == '' per CONTEXT.md D-10.
+
+    For the Testament fixture specifically, there are no SONG rows in that gap, so the
+    first emitted row's album is the FIRST albumTitle's text ('Brotherhood of the Snake').
+    Defensive assertion: any row with album=='' must be at indices 0..N (contiguous prefix).
+
+    FAILS BEFORE Wave 1 parser change lands: 'album' key does not exist on rows.
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "artist_4803.html").read_text(
+        encoding="utf-8", errors="replace",
+    )
+    parser = _gbs._ArtistPageParser()
+    parser.feed(payload)
+    parser.close()
+    rows = parser.results
+    assert len(rows) > 0, "must extract >=1 row"
+    # First emitted row must have album == "Brotherhood of the Snake" (first albumTitle in fixture).
+    assert rows[0]["album"] == "Brotherhood of the Snake", (
+        f"first row's album must be the first albumTitle's text; got {rows[0]['album']!r}"
+    )
+    # Defensive: any row with album=='' must be at the start (contiguous prefix).
+    empty_album_indices = [i for i, r in enumerate(rows) if r["album"] == ""]
+    if empty_album_indices:
+        assert empty_album_indices == list(range(len(empty_album_indices))), (
+            f"empty-album rows must form a contiguous prefix (D-10); "
+            f"got indices {empty_album_indices}"
+        )
+
+
+@pytest.mark.parametrize(
+    "fixture, expected_artists_count, expected_albums_count, expected_songs_count",
+    [
+        # Per .planning/.../60.2-01-TRIAGE.md §"Test Parametrize Values":
+        # POST-FIX (D-06) expected counts. RED until Wave 1 parser fix lands at gbs_api.py:542-548.
+        ("search_bad_religion_p1.html", 1, 1, 8),
+        ("search_bad_company_p1.html", 2, 1, 11),
+        ("search_iron_maiden_p1.html", 1, 9, 20),
+        ("search_black_sabbath_p1.html", 1, 7, 47),
+        ("search_death_cab_for_cutie_p1.html", 1, 1, 3),
+    ],
+)
+def test_search_response_shape_pinned(
+    gbs_fixtures_dir,
+    fixture,
+    expected_artists_count,
+    expected_albums_count,
+    expected_songs_count,
+):
+    """Phase 60.2 / GBS-01e regression baseline: pin the captured shape of each probe fixture.
+
+    Triage (60.2-01-TRIAGE.md) confirmed H2: _ArtistAlbumParser drops singular-form
+    discriminator blocks ('Artist:'/'Album:') because the gate at gbs_api.py:542-548 keys
+    on plural startswith('artists')/'albums'. After Wave 1 fix, all 5 entries turn GREEN
+    simultaneously.
+
+    Currently RED for all 5 entries (parser returns 0 artists or 0 albums for any fixture
+    whose discriminator is singular).
+
+    Pitfall 8: ONE parametrized test, not 5 separate tests. The 4 probe fixtures are triage
+    evidence + permanent regression coverage, not separate defect-repro test functions.
+    """
+    from musicstreamer.gbs_api import _parse_artist_album_html, _SongRowParser
+
+    payload = (gbs_fixtures_dir / fixture).read_text(
+        encoding="utf-8", errors="replace",
+    )
+    artists, albums = _parse_artist_album_html(payload)
+    assert len(artists) == expected_artists_count, (
+        f"{fixture}: got {len(artists)} artists; expected {expected_artists_count}"
+    )
+    assert len(albums) == expected_albums_count, (
+        f"{fixture}: got {len(albums)} albums; expected {expected_albums_count}"
+    )
+    sp = _SongRowParser()
+    sp.feed(payload)
+    sp.close()
+    assert len(sp.results) == expected_songs_count, (
+        f"{fixture}: got {len(sp.results)} songs; expected {expected_songs_count}"
+    )
