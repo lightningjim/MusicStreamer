@@ -363,12 +363,12 @@ Plans:
   - Issue A — Multi-word click only surfaces song results. Likely cause: query encoding or the search worker dropping artist/album results when the input contains spaces. Verify against `tests/fixtures/gbs/search_test_p1.html` first.
   - Issue B — Click does base re-search instead of drilling into `/artist/<id>` or `/album/<id>`. Phase 60-11 locked D-11a=Shape 4 (free-text fallback) because the deterministic gate `<table class="songs">` count was 0 on both captured pages. The actual `/artist/4803` (44KB Testament) uses `<table class="artist">` and `/album/1488` (13KB) uses an unclassed `<table width="620">`. Phase 60.1 should add `_ArtistPageParser` for the artist-table shape and either an album parser or accept that the album surface is unstructured.
   - Captured fixtures already in repo: `tests/fixtures/gbs/artist_4803.html`, `tests/fixtures/gbs/album_1488.html` (committed in `7376b1a`).
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 60.1-01-PLAN.md — Wave 0 RED: capture multi-word fixture (D-03) + 13 RED tests (parser + dialog) + extend gbs_capture_fixtures.sh
 - [x] 60.1-02-PLAN.md — Wave 1 GREEN: D-04 multi-word fix + Pitfall 7 docstring + _ArtistPageParser + _AlbumPageParser (D-02 belt-and-suspenders) + fetch_artist_songs + fetch_album_songs
-- [ ] 60.1-03-PLAN.md — Wave 2 GREEN: _GbsArtistWorker + _GbsAlbumWorker + _back_btn + _breadcrumb_label + snapshot/restore + click handler rewrite + D-07 deletes
+- [x] 60.1-03-PLAN.md — Wave 2 GREEN: _GbsArtistWorker + _GbsAlbumWorker + _back_btn + _breadcrumb_label + snapshot/restore + click handler rewrite + D-07 deletes
 - [ ] 60.1-04-PLAN.md — Wave 3 verification: full test-suite gate + manual UAT on Linux Wayland (SC1-SC4 + UI-SPEC Deltas + Pitfalls 8/9/10 live)
 
 
