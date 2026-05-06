@@ -62,6 +62,19 @@ curl -sS -b "$COOKIES" "$BASE/album/1488" > "$OUT/album_1488.html"
 # 16. Phase 60.1 / GBS-01e (D-03) — multi-word search response (Issue A repro fixture)
 curl -sS -b "$COOKIES" "$BASE/search?query=foo+fighters&page=1" > "$OUT/search_multiword_p1.html"
 
+# 17-21. Phase 60.2 / GBS-01e (D-07/D-08/D-09) — bad-religion triage + 4 probe fixtures.
+# Per CONTEXT.md D-07: 5 fixtures characterize the failure class (single repro + 4 hypothesis probes).
+# bad_religion: primary defect repro (Phase 60.1 UAT SC1 FAIL).
+curl -sS -b "$COOKIES" "$BASE/search?query=bad+religion&page=1"        > "$OUT/search_bad_religion_p1.html"
+# bad_company: same first word — isolates "bad" prefix collision vs. "bad religion" specifically.
+curl -sS -b "$COOKIES" "$BASE/search?query=bad+company&page=1"         > "$OUT/search_bad_company_p1.html"
+# iron_maiden: popular two-word band, control case (multi-hit panel-rendering baseline).
+curl -sS -b "$COOKIES" "$BASE/search?query=iron+maiden&page=1"         > "$OUT/search_iron_maiden_p1.html"
+# black_sabbath: control + tests genre-tag fragment interaction ("black" appears in genre data).
+curl -sS -b "$COOKIES" "$BASE/search?query=black+sabbath&page=1"       > "$OUT/search_black_sabbath_p1.html"
+# death_cab_for_cutie: 4-word low-collision name — probes hypothesis H4 (single-result panel suppression).
+curl -sS -b "$COOKIES" "$BASE/search?query=death+cab+for+cutie&page=1" > "$OUT/search_death_cab_for_cutie_p1.html"
+
 echo "Done. Fixtures written to $OUT/"
 echo "REMEMBER: sanitize cookies_valid.txt manually — replace real sessionid/csrftoken values with PLACEHOLDERs."
 echo "REMEMBER: hand-create the 2 validator-rejection cookie fixtures (cookies_invalid_no_sessionid.txt, cookies_invalid_wrong_domain.txt) — these are NOT captured because they're hand-crafted error cases for GBS-01b."
