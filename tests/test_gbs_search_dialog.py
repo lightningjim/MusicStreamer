@@ -14,6 +14,8 @@ import pytest
 from musicstreamer import paths
 from musicstreamer.ui_qt.gbs_search_dialog import (
     GBSSearchDialog,
+    _GbsArtistWorker,
+    _GbsAlbumWorker,
     _GbsSearchWorker,
     _GbsSubmitWorker,
 )
@@ -47,6 +49,8 @@ def dialog_logged_in(qtbot, fake_repo, tmp_path, monkeypatch):
     # Stub worker .start() so no real network/threads spawn
     monkeypatch.setattr(_GbsSearchWorker, "start", lambda self: None)
     monkeypatch.setattr(_GbsSubmitWorker, "start", lambda self: None)
+    monkeypatch.setattr(_GbsArtistWorker, "start", lambda self: None)
+    monkeypatch.setattr(_GbsAlbumWorker, "start", lambda self: None)
     qtbot.addWidget(dlg)
     return dlg, captured
 
@@ -396,3 +400,256 @@ def test_album_click_kicks_free_text_search(dialog_logged_in, monkeypatch):
     assert len(start_search_calls) == 1, (
         f"_start_search must be called once after album click; called {len(start_search_calls)} times"
     )
+
+
+# ---------- Phase 60.1 / GBS-01e drill-down tests (Wave 0 RED) ----------
+# Plan 60.1-01 (this file): 7 RED tests for drill-down click → worker → render,
+# Back-button restore, snapshot guard (Pitfall 8), in-flight Back-disable (Pitfall 9),
+# new-search abandon (Pitfall 10), auth-expired path.
+# Plan 60.1-03 will delete the two D-07 Shape 4 tests above (test_artist_click_kicks_*,
+# test_album_click_kicks_*) in the SAME commit that lands the drill-down GREEN.
+
+
+def test_artist_click_drills_down_into_artist_page(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED): clicking an Artist entry dispatches _GbsArtistWorker.
+
+    Pins (UI-SPEC Layout Deltas + Interaction States + Copywriting):
+      - Snapshot is captured BEFORE worker dispatch (_pre_drill_state is not None)
+      - _GbsArtistWorker is constructed (visible as self._artist_drill_worker)
+      - On finished, results render into the table (_model.rowCount() == len(stub_results))
+      - _back_btn is visible after drill completes
+      - _page_label is hidden during drill-down (Delta 1)
+      - _breadcrumb_label is visible with copy "Viewing artist: {name}" (Copywriting Contract)
+      - _artist_list and _album_list panels remain visible (Delta 3 + Pitfall 3 mitigation)
+      - _prev_btn / _next_btn are hidden in drill-down mode (Delta 2)
+
+    FAILS BEFORE Plan 03 lands.
+    """
+    dlg, _ = dialog_logged_in
+    # Setup: populate Artist panel via _on_metadata_ready
+    dlg._on_metadata_ready([{"text": "Testament", "url": "/artist/4803"}], [])
+    assert not dlg._artist_list.isHidden(), "setup: artist list should be visible after metadata_ready"
+    # Click the artist entry (itemActivated is the bound signal in production)
+    item = dlg._artist_list.item(0)
+    dlg._artist_list.itemActivated.emit(item)
+    # Snapshot was taken
+    assert dlg._pre_drill_state is not None, "_pre_drill_state must be set after artist click"
+    # Worker was dispatched (start() is stubbed in fixture; instance is stored)
+    assert dlg._artist_drill_worker is not None, "_artist_drill_worker must be assigned after click"
+    # Now manually fire the worker's finished slot (worker.start() stubbed → no real run)
+    stub_results = [
+        {"songid": 563811, "artist": "Testament", "title": "Brotherhood of the Snake",
+         "duration": "4:14", "add_url": "/add/563811"},
+    ]
+    dlg._on_artist_drilled(stub_results)
+    # Table re-rendered
+    assert dlg._model.rowCount() == 1, f"table must show drilled songs; got {dlg._model.rowCount()} rows"
+    assert dlg._model.item(0, 0).text() == "Testament", "drilled row artist column"
+    # Back button visible + breadcrumb visible
+    assert not dlg._back_btn.isHidden(), "_back_btn must be visible after drill completes (Delta 2)"
+    assert not dlg._breadcrumb_label.isHidden(), "_breadcrumb_label must be visible (Delta 1)"
+    assert dlg._breadcrumb_label.text() == "Viewing artist: Testament", (
+        f"breadcrumb copy must be 'Viewing artist: Testament'; got {dlg._breadcrumb_label.text()!r}"
+    )
+    # _page_label hidden + prev/next hidden (Delta 1 + Delta 2)
+    assert dlg._page_label.isHidden(), "_page_label must be hidden during drill-down (Delta 1)"
+    assert dlg._prev_btn.isHidden(), "_prev_btn must be hidden during drill-down (Delta 2)"
+    assert dlg._next_btn.isHidden(), "_next_btn must be hidden during drill-down (Delta 2)"
+    # Artist/Album panels remain visible (Delta 3 + Pitfall 3 mitigation)
+    assert not dlg._artist_list.isHidden(), "_artist_list must remain visible during drill-down (Delta 3)"
+
+
+def test_album_click_drills_down_into_album_page(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED): clicking an Album entry dispatches _GbsAlbumWorker."""
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([], [{"text": "Sample Album", "url": "/album/1488"}])
+    assert not dlg._album_list.isHidden(), "setup: album list should be visible"
+    item = dlg._album_list.item(0)
+    dlg._album_list.itemActivated.emit(item)
+    assert dlg._pre_drill_state is not None
+    assert dlg._album_drill_worker is not None
+    stub_results = [
+        {"songid": 5406, "artist": "Ice Traigh & woodch",
+         "title": "The Ballad of JohnVonBunghole", "duration": "4:57", "add_url": "/add/5406"},
+    ]
+    dlg._on_album_drilled(stub_results)
+    assert dlg._model.rowCount() == 1
+    assert not dlg._back_btn.isHidden()
+    assert dlg._breadcrumb_label.text() == "Viewing album: Sample Album", (
+        f"breadcrumb copy must be 'Viewing album: Sample Album'; got {dlg._breadcrumb_label.text()!r}"
+    )
+
+
+def test_back_button_restores_search_state(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED): Back button restores ALL pre-drill state per UI-SPEC Delta 5.
+
+    State to restore (UI-SPEC Layout Deltas Delta 5):
+      - _results, _current_page, _total_pages, _current_query
+      - _artist_list / _album_list contents + visibility
+      - _prev_btn / _next_btn enabled flags (recomputed)
+      - _page_label visible, breadcrumb hidden, _back_btn hidden
+      - inline error hidden
+      - _pre_drill_state cleared to None
+
+    FAILS BEFORE Plan 03 lands (no _on_back_clicked slot, no _back_btn).
+    """
+    dlg, _ = dialog_logged_in
+    # Set up search state
+    search_results = [
+        {"songid": 100, "artist": "A1", "title": "T1", "duration": "3:00", "add_url": "/add/100"},
+        {"songid": 101, "artist": "A2", "title": "T2", "duration": "4:00", "add_url": "/add/101"},
+    ]
+    dlg._on_search_finished(search_results, 2, 5)
+    dlg._on_metadata_ready(
+        [{"text": "Testament", "url": "/artist/4803"}],
+        [{"text": "Some Album", "url": "/album/1488"}],
+    )
+    assert dlg._model.rowCount() == 2, "setup: search results rendered"
+    assert dlg._page_label.text() == "Page 2 of 5"
+    # Drill in
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    dlg._on_artist_drilled([{"songid": 999, "artist": "Testament", "title": "Drilled",
+                             "duration": "1:00", "add_url": "/add/999"}])
+    assert dlg._model.rowCount() == 1, "setup: drilled view replaced search results"
+    assert not dlg._back_btn.isHidden()
+    # Back!
+    dlg._on_back_clicked()
+    # Search results restored
+    assert dlg._model.rowCount() == 2, f"Back must restore 2 search rows; got {dlg._model.rowCount()}"
+    assert dlg._model.item(0, 0).text() == "A1", "first row artist must be A1 from search"
+    # Page label restored
+    assert dlg._page_label.text() == "Page 2 of 5", f"page label restored; got {dlg._page_label.text()!r}"
+    # Pagination buttons recomputed
+    assert dlg._prev_btn.isEnabled(), "prev enabled (page=2 > 1)"
+    assert dlg._next_btn.isEnabled(), "next enabled (page=2 < 5)"
+    # Drill chrome hidden, search chrome shown
+    assert dlg._back_btn.isHidden(), "_back_btn must be hidden after Back"
+    assert dlg._breadcrumb_label.isHidden(), "breadcrumb must be hidden after Back"
+    assert not dlg._page_label.isHidden(), "_page_label must be visible after Back"
+    assert not dlg._prev_btn.isHidden(), "_prev_btn must be visible after Back"
+    assert not dlg._next_btn.isHidden(), "_next_btn must be visible after Back"
+    # Panels restored from snapshot
+    assert dlg._artist_list.count() == 1
+    assert dlg._artist_list.item(0).text() == "Testament"
+    assert dlg._album_list.count() == 1
+    assert dlg._album_list.item(0).text() == "Some Album"
+    # Snapshot cleared
+    assert dlg._pre_drill_state is None, "_pre_drill_state must be cleared after Back"
+
+
+def test_pre_drill_snapshot_not_overwritten_on_second_drill(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED, Pitfall 8): drilling a second artist while already drilled must NOT overwrite snapshot.
+
+    Guard pattern: `if self._pre_drill_state is None: self._pre_drill_state = self._snapshot_pre_drill_state()`.
+    Without this, clicking artist B while drilled into artist A would overwrite snapshot with
+    the partial drilled state, and Back would return to A's drilled view (wrong).
+
+    FAILS BEFORE Plan 03 lands.
+    """
+    dlg, _ = dialog_logged_in
+    # Set up search state
+    dlg._on_search_finished(
+        [{"songid": 100, "artist": "A1", "title": "T1", "duration": "3:00", "add_url": "/add/100"}],
+        1, 1,
+    )
+    dlg._on_metadata_ready(
+        [{"text": "Testament", "url": "/artist/4803"},
+         {"text": "Pearl Jam", "url": "/artist/9999"}],
+        [],
+    )
+    # Drill artist A
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    snapshot_after_first_drill = dict(dlg._pre_drill_state)
+    # Capture: snapshot has the original search row 'T1'
+    assert any(r.get("title") == "T1" for r in snapshot_after_first_drill["results"]), (
+        "snapshot must contain original search results"
+    )
+    # Fire A's finished
+    dlg._on_artist_drilled([{"songid": 1, "artist": "Testament", "title": "Drilled-A",
+                             "duration": "1:00", "add_url": "/add/1"}])
+    # Drill artist B WITHOUT clicking Back
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(1))
+    # Snapshot MUST be preserved (NOT overwritten with the post-A drilled state)
+    assert dlg._pre_drill_state == snapshot_after_first_drill, (
+        "_pre_drill_state must NOT be overwritten when drilling a second artist (Pitfall 8). "
+        f"Got: {dlg._pre_drill_state!r}\nExpected: {snapshot_after_first_drill!r}"
+    )
+    # Fire B's finished, then Back — should restore the ORIGINAL search state, not A's drill
+    dlg._on_artist_drilled([{"songid": 2, "artist": "Pearl Jam", "title": "Drilled-B",
+                             "duration": "2:00", "add_url": "/add/2"}])
+    dlg._on_back_clicked()
+    assert dlg._model.rowCount() == 1
+    assert dlg._model.item(0, 1).text() == "T1", (
+        "Back must restore ORIGINAL search state, not the partial drill state of A or B"
+    )
+
+
+def test_drill_down_disables_back_button_during_fetch(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED, Pitfall 9): _back_btn is DISABLED while drill-down fetch is in flight.
+
+    Race mitigation: user clicks Back before worker fires `finished` → snapshot restored → fetch
+    completes and clobbers the restored search. Mitigation: disable _back_btn at dispatch,
+    re-enable on finished/error.
+
+    FAILS BEFORE Plan 03 lands.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([{"text": "Testament", "url": "/artist/4803"}], [])
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    # Worker.start() stubbed; no `finished` yet
+    # Per UI-SPEC Interaction States line 204, _back_btn must be DISABLED during fetch
+    assert dlg._back_btn.isEnabled() is False, (
+        "_back_btn must be disabled during drill-down fetch (Pitfall 9 race mitigation)"
+    )
+    # Fire finished — back button re-enables
+    dlg._on_artist_drilled([{"songid": 1, "artist": "Testament", "title": "X",
+                             "duration": "3:00", "add_url": "/add/1"}])
+    assert dlg._back_btn.isEnabled() is True, "_back_btn re-enables after drill completes"
+
+
+def test_new_search_while_drilling_abandons_snapshot(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED, Pitfall 10): typing a new query + Enter while in drill-down
+    mode abandons the snapshot and exits drill-down chrome.
+
+    FAILS BEFORE Plan 03 lands.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_search_finished(
+        [{"songid": 100, "artist": "A1", "title": "T1", "duration": "3:00", "add_url": "/add/100"}],
+        1, 1,
+    )
+    dlg._on_metadata_ready([{"text": "Testament", "url": "/artist/4803"}], [])
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    dlg._on_artist_drilled([{"songid": 1, "artist": "Testament", "title": "X",
+                             "duration": "3:00", "add_url": "/add/1"}])
+    assert dlg._pre_drill_state is not None, "setup: in drill-down mode"
+    # Type a new query and press Enter (calls _start_search; cookies present from fixture)
+    dlg._search_edit.setText("new query")
+    dlg._start_search()
+    # Snapshot abandoned + drill chrome reset
+    assert dlg._pre_drill_state is None, "_pre_drill_state must be None after new search"
+    assert dlg._back_btn.isHidden(), "_back_btn must be hidden after new search"
+    assert dlg._breadcrumb_label.isHidden(), "breadcrumb must be hidden after new search"
+    assert not dlg._page_label.isHidden(), "_page_label must be visible after new search"
+    assert not dlg._prev_btn.isHidden(), "_prev_btn must be visible after new search"
+    assert not dlg._next_btn.isHidden(), "_next_btn must be visible after new search"
+
+
+def test_drill_down_auth_expired_toasts(dialog_logged_in):
+    """Phase 60.1 / GBS-01e (RED): drill-down worker emits error('auth_expired') → toast + login gate.
+
+    Mirrors test_search_auth_expired_toasts_and_disables shape.
+    FAILS BEFORE Plan 03 lands.
+    """
+    dlg, captured = dialog_logged_in
+    dlg._on_metadata_ready([{"text": "Testament", "url": "/artist/4803"}], [])
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    # Simulate worker emitting error('auth_expired')
+    dlg._on_artist_drill_error("auth_expired")
+    # Toast emitted with "session expired" copy
+    assert any("session expired" in (msg or "").lower() for msg in captured), (
+        f"toast captured should mention 'session expired'; got {captured!r}"
+    )
+    # _back_btn re-enabled (cleanup)
+    # _artist_drill_worker reference cleared (Pattern S-4)
+    assert dlg._artist_drill_worker is None, "_artist_drill_worker must be cleared after error"
