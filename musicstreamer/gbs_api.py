@@ -303,14 +303,12 @@ def vote_now_playing(entryid: int, vote: int,
 # ---------- Capability 5: Search ----------
 
 class _SongRowParser(HTMLParser):
-    """Extracts songid + artist + title + duration + add_url from /search HTML.
+    """Anchors on <table class='songs'>; collects <tr> rows.
 
-    Anchors on:
-      - <a href='/song/X'>...</a>  → songid + title
-      - <a href='/artist/Y'>...</a> → artist
-      - <a href='/add/X'>           → add_url (per row)
-      - <td>3:08</td>                → duration (text-only td between artist and the add button)
-    Ignores <p class="artists"> / <p class="albums"> blocks (D-08e — only song results count).
+    Phase 60-11 added _ArtistAlbumParser to extract <p class="artists"> / <p class="albums">
+    blocks separately. _SongRowParser handles only the songs table; the artist/album panel
+    population happens via _parse_artist_album_html (separate pass over the same HTML).
+    Each row produces dict: {songid, artist, title, duration, add_url}.
     """
     _SONG_RE = re.compile(r"^/song/(\d+)$")
     _ADD_RE = re.compile(r"^/add/(\d+)$")
