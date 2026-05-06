@@ -23,6 +23,7 @@ Pitfalls covered:
 """
 from __future__ import annotations
 
+import re
 from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, QThread, Signal
@@ -50,6 +51,11 @@ _COL_ARTIST = 0
 _COL_TITLE = 1
 _COL_DURATION = 2
 _COL_ADD = 3
+
+# Phase 60.1 / GBS-01e drill-down: regex-validate hrefs from artist/album panel UserRole
+# data BEFORE constructing fetch URLs (T-60.1-09 URL injection mitigation).
+_ARTIST_HREF_RE = re.compile(r"^/artist/(\d+)$")
+_ALBUM_HREF_RE = re.compile(r"^/album/(\d+)$")
 
 
 class _GbsSearchWorker(QThread):
@@ -481,30 +487,52 @@ class GBSSearchDialog(QDialog):
     # Navigation: clicking an entry sets the search field to the item text and re-runs search.
 
     def _on_artist_link_activated(self, item) -> None:
-        """60-11 / T12 — D-11a Shape 4: free-text search fallback for artist navigation.
+        """Phase 60.1 / GBS-01e drill-down: navigate to /artist/<id>.
 
-        Sets the search input to the artist name and kicks a new search.
-        Uses item.text() (plain text, T-40-04) — NOT the href (Shape 4 ignores /artist/<id>
-        since that page has no parseable song table per Task 0 fixture inspection).
+        Reads href from item.data(Qt.ItemDataRole.UserRole) — NOT item.text().
+        Regex-validates the href shape (T-60.1-09 URL injection mitigation).
+
+        Snapshots pre-drill state ONCE per drill session (Pitfall 8 + UI-SPEC FLAG-03):
+        subsequent clicks while drilling REPLACE the drilled view but PRESERVE the
+        original snapshot — Back always returns to the original search.
+
+        Per D-07: this REPLACES the Phase 60-11 D-11a Shape 4 free-text-search fallback.
         """
-        artist_text = item.text()
-        if not artist_text:
+        href = item.data(Qt.ItemDataRole.UserRole) or ""
+        m = _ARTIST_HREF_RE.match(href)
+        if not m:
+            # Malformed entry — defensive; should not happen post-Phase 60-11
+            # since _on_metadata_ready stores hrefs from gbs_api.search() output.
             return
-        self._search_edit.setText(artist_text)
-        self._start_search()
+        artist_id = int(m.group(1))
+        artist_name = item.text()
+        cookies = gbs_api.load_auth_context()
+        if cookies is None:
+            self._refresh_login_gate()
+            return
+        # Pitfall 8: snapshot is single-shot per drill session.
+        if self._pre_drill_state is None:
+            self._pre_drill_state = self._snapshot_pre_drill_state()
+        self._kick_artist_drill_worker(artist_id, artist_name, cookies)
 
     def _on_album_link_activated(self, item) -> None:
-        """60-11 / T12 — D-11a Shape 4: free-text search fallback for album navigation.
+        """Phase 60.1 / GBS-01e drill-down: navigate to /album/<id>.
 
-        Sets the search input to the album name and kicks a new search.
-        Uses item.text() (plain text, T-40-04) — NOT the href (Shape 4 ignores /album/<id>
-        since that page has no parseable song table per Task 0 fixture inspection).
+        Mirrors _on_artist_link_activated. See that docstring for invariants.
         """
-        album_text = item.text()
-        if not album_text:
+        href = item.data(Qt.ItemDataRole.UserRole) or ""
+        m = _ALBUM_HREF_RE.match(href)
+        if not m:
             return
-        self._search_edit.setText(album_text)
-        self._start_search()
+        album_id = int(m.group(1))
+        album_name = item.text()
+        cookies = gbs_api.load_auth_context()
+        if cookies is None:
+            self._refresh_login_gate()
+            return
+        if self._pre_drill_state is None:
+            self._pre_drill_state = self._snapshot_pre_drill_state()
+        self._kick_album_drill_worker(album_id, album_name, cookies)
 
     # ---------- Pagination ----------
 
@@ -573,28 +601,160 @@ class GBSSearchDialog(QDialog):
         if hasattr(self, "_next_btn"):
             self._next_btn.setVisible(True)
 
-    def _on_back_clicked(self) -> None:
-        """Phase 60.1 — STUB filled in by Task 2."""
-        raise NotImplementedError("60.1 Task 2: implement _on_back_clicked")
+    def _snapshot_pre_drill_state(self) -> dict:
+        """Capture dialog state to restore on Back. Called once per drill-down session
+        (Pitfall 8 — second click while drilled preserves this snapshot).
+        """
+        return {
+            "results": list(self._results),
+            "current_page": self._current_page,
+            "total_pages": self._total_pages,
+            "current_query": self._current_query,
+            "search_version": self._search_version,
+            "artist_links": [
+                {"text": self._artist_list.item(i).text(),
+                 "url": self._artist_list.item(i).data(Qt.ItemDataRole.UserRole) or ""}
+                for i in range(self._artist_list.count())
+            ],
+            "album_links": [
+                {"text": self._album_list.item(i).text(),
+                 "url": self._album_list.item(i).data(Qt.ItemDataRole.UserRole) or ""}
+                for i in range(self._album_list.count())
+            ],
+            "artist_panel_visible": not self._artist_list.isHidden(),
+            "album_panel_visible": not self._album_list.isHidden(),
+            "prev_enabled": self._prev_btn.isEnabled(),
+            "next_enabled": self._next_btn.isEnabled(),
+        }
+
+    def _kick_artist_drill_worker(self, artist_id: int, artist_name: str, cookies) -> None:
+        """Dispatch a _GbsArtistWorker. Mirrors _kick_search_worker shape.
+
+        Does NOT call _clear_table() here — UI-SPEC Delta 4: table is swapped in
+        the finished slot (user keeps seeing search results during the fetch).
+        """
+        self._hide_inline_error()
+        self._progress.setVisible(True)
+        # Pitfall 9 mitigation Approach A: disable _back_btn during fetch.
+        self._back_btn.setEnabled(False)
+        self._artist_drill_worker = _GbsArtistWorker(
+            artist_id, artist_name, cookies, parent=self,
+        )
+        self._artist_drill_worker.finished.connect(self._on_artist_drilled)  # QA-05
+        self._artist_drill_worker.error.connect(self._on_artist_drill_error)  # QA-05
+        self._artist_drill_worker.start()
+
+    def _kick_album_drill_worker(self, album_id: int, album_name: str, cookies) -> None:
+        """Dispatch a _GbsAlbumWorker. Mirrors _kick_artist_drill_worker."""
+        self._hide_inline_error()
+        self._progress.setVisible(True)
+        self._back_btn.setEnabled(False)
+        self._album_drill_worker = _GbsAlbumWorker(
+            album_id, album_name, cookies, parent=self,
+        )
+        self._album_drill_worker.finished.connect(self._on_album_drilled)  # QA-05
+        self._album_drill_worker.error.connect(self._on_album_drill_error)  # QA-05
+        self._album_drill_worker.start()
 
     def _on_artist_drilled(self, results: list) -> None:
-        """Phase 60.1 — STUB filled in by Task 2."""
-        raise NotImplementedError("60.1 Task 2: implement _on_artist_drilled")
+        """Phase 60.1 / GBS-01e: artist drill-down fetch returned successfully.
+
+        Replaces the search-results table in place (UI-SPEC Delta 4) while keeping
+        the artist/album panels visible (Delta 3 + Pitfall 3). Switches the top row
+        (page_label → breadcrumb_label) and the bottom row (prev/next → back_btn).
+        """
+        self._progress.setVisible(False)
+        self._back_btn.setEnabled(True)
+        artist_name = (self._artist_drill_worker.artist_name
+                       if self._artist_drill_worker is not None
+                       else "")
+        self._results = list(results)
+        # UI-SPEC Delta 4 + Pitfall 3: keep panels visible during drill-down.
+        self._render_results(clear_panels=False)
+        # UI-SPEC Delta 1: page_label hidden, breadcrumb shown.
+        self._page_label.setVisible(False)
+        self._breadcrumb_label.setText(f"Viewing artist: {artist_name}")
+        self._breadcrumb_label.setVisible(True)
+        # UI-SPEC Delta 2: prev/next hidden, back shown.
+        self._prev_btn.setVisible(False)
+        self._next_btn.setVisible(False)
+        self._back_btn.setVisible(True)
+        # Pattern S-4: clear worker reference after settled.
+        self._artist_drill_worker = None
 
     def _on_album_drilled(self, results: list) -> None:
-        """Phase 60.1 — STUB filled in by Task 2."""
-        raise NotImplementedError("60.1 Task 2: implement _on_album_drilled")
+        """Phase 60.1 / GBS-01e: album drill-down fetch returned successfully."""
+        self._progress.setVisible(False)
+        self._back_btn.setEnabled(True)
+        album_name = (self._album_drill_worker.album_name
+                      if self._album_drill_worker is not None
+                      else "")
+        self._results = list(results)
+        self._render_results(clear_panels=False)
+        self._page_label.setVisible(False)
+        self._breadcrumb_label.setText(f"Viewing album: {album_name}")
+        self._breadcrumb_label.setVisible(True)
+        self._prev_btn.setVisible(False)
+        self._next_btn.setVisible(False)
+        self._back_btn.setVisible(True)
+        self._album_drill_worker = None
 
     def _on_artist_drill_error(self, msg: str) -> None:
-        """Phase 60.1 — STUB filled in by Task 2."""
-        raise NotImplementedError("60.1 Task 2: implement _on_artist_drill_error")
+        """Phase 60.1 / GBS-01e: artist drill-down fetch failed."""
+        self._progress.setVisible(False)
+        self._back_btn.setEnabled(True)
+        if msg == "auth_expired":
+            self._toast("GBS.FM session expired — reconnect via Accounts")
+            self._refresh_login_gate()
+            # User can click _back_btn (now re-enabled) to retreat to search state.
+        else:
+            truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+            self._show_inline_error(f"Failed to load artist page: {truncated}")
+        self._artist_drill_worker = None
 
     def _on_album_drill_error(self, msg: str) -> None:
-        """Phase 60.1 — STUB filled in by Task 2."""
-        raise NotImplementedError("60.1 Task 2: implement _on_album_drill_error")
+        """Phase 60.1 / GBS-01e: album drill-down fetch failed."""
+        self._progress.setVisible(False)
+        self._back_btn.setEnabled(True)
+        if msg == "auth_expired":
+            self._toast("GBS.FM session expired — reconnect via Accounts")
+            self._refresh_login_gate()
+        else:
+            truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+            self._show_inline_error(f"Failed to load album page: {truncated}")
+        self._album_drill_worker = None
 
-    def _render_results(self) -> None:
-        self._clear_table()
+    def _on_back_clicked(self) -> None:
+        """Phase 60.1 / GBS-01e: restore pre-drill state per UI-SPEC Delta 5."""
+        if self._pre_drill_state is None:
+            return  # defensive: not in drill mode
+        state = self._pre_drill_state
+        # Restore search state (results + pagination)
+        self._results = list(state["results"])
+        self._current_page = state["current_page"]
+        self._total_pages = state["total_pages"]
+        self._current_query = state["current_query"]
+        # Re-render the search results table (default clear_panels=True is fine — we
+        # re-populate panels next via _on_metadata_ready).
+        self._render_results()
+        # Re-populate panels via the same logic as _on_metadata_ready
+        self._on_metadata_ready(state["artist_links"], state["album_links"])
+        # Restore page label + button enabled flags
+        self._page_label.setText(f"Page {self._current_page} of {self._total_pages}")
+        self._prev_btn.setEnabled(state["prev_enabled"])
+        self._next_btn.setEnabled(state["next_enabled"])
+        # Hide drill chrome + show search chrome + clear snapshot
+        self._reset_drill_chrome()
+        self._hide_inline_error()
+
+    def _render_results(self, *, clear_panels: bool = True) -> None:
+        """Render self._results into the table model.
+
+        Phase 60.1: drill-down render slot calls this with clear_panels=False so
+        the artist/album panels remain visible during drill-down (UI-SPEC Delta 3).
+        Existing callers use the default clear_panels=True (no behavior change).
+        """
+        self._clear_table(clear_panels=clear_panels)
         if not self._results:
             self._show_inline_error("No results.")
             return
