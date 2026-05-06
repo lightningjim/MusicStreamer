@@ -136,6 +136,77 @@ class _GbsSubmitWorker(QThread):
                 self.error.emit(str(exc), self._row_idx)
 
 
+class _GbsArtistWorker(QThread):
+    """Phase 60.1 / GBS-01e drill-down: gbs_api.fetch_artist_songs on a worker thread.
+
+    Mirrors _GbsSubmitWorker's typed-signal shape — finished emits a single payload
+    (the drilled artist's songs as a list[dict] with keys
+    {songid, artist, title, duration, add_url} matching _SongRowParser output).
+
+    Per CONTEXT.md D-06: own typed `finished` signal, dedicated dialog slot
+    (_on_artist_drilled). NO multi-mode signal, NO metadata_ready (drilled pages
+    have no <p class="artists"> blocks per Pitfall 4).
+    """
+    # finished payload: list of result dicts
+    finished = Signal(list)
+    # error: 'auth_expired' sentinel OR raw msg
+    error = Signal(str)
+
+    def __init__(self, artist_id: int, artist_name: str, cookies, parent=None):
+        super().__init__(parent)
+        self._artist_id = artist_id
+        self._artist_name = artist_name  # carried for breadcrumb rendering
+        self._cookies = cookies
+
+    @property
+    def artist_name(self) -> str:
+        """Read-only artist name for the breadcrumb label."""
+        return self._artist_name
+
+    def run(self):
+        try:
+            out = gbs_api.fetch_artist_songs(self._artist_id, self._cookies)
+            self.finished.emit(list(out.get("results", [])))
+        except Exception as exc:
+            if isinstance(exc, gbs_api.GbsAuthExpiredError):
+                self.error.emit("auth_expired")
+            else:
+                self.error.emit(str(exc))
+
+
+class _GbsAlbumWorker(QThread):
+    """Phase 60.1 / GBS-01e drill-down: gbs_api.fetch_album_songs on a worker thread.
+
+    Mirrors _GbsArtistWorker exactly with album_id and fetch_album_songs.
+    Per RESEARCH §Pattern 2 + project minimum-diff convention: duplicate, do NOT factor
+    a base class.
+    """
+    # finished payload: list of result dicts
+    finished = Signal(list)
+    # error: 'auth_expired' sentinel OR raw msg
+    error = Signal(str)
+
+    def __init__(self, album_id: int, album_name: str, cookies, parent=None):
+        super().__init__(parent)
+        self._album_id = album_id
+        self._album_name = album_name
+        self._cookies = cookies
+
+    @property
+    def album_name(self) -> str:
+        return self._album_name
+
+    def run(self):
+        try:
+            out = gbs_api.fetch_album_songs(self._album_id, self._cookies)
+            self.finished.emit(list(out.get("results", [])))
+        except Exception as exc:
+            if isinstance(exc, gbs_api.GbsAuthExpiredError):
+                self.error.emit("auth_expired")
+            else:
+                self.error.emit(str(exc))
+
+
 class GBSSearchDialog(QDialog):
     """D-08: Search GBS.FM catalog + submit songs to the active playlist.
 
@@ -173,6 +244,13 @@ class GBSSearchDialog(QDialog):
         # search; submits from stale searches are discarded by version mismatch
         # in _on_submit_finished / _on_submit_error.
         self._search_version: int = 0
+        # Phase 60.1 / GBS-01e drill-down state
+        self._artist_drill_worker: Optional[_GbsArtistWorker] = None
+        self._album_drill_worker: Optional[_GbsAlbumWorker] = None
+        # Snapshot of pre-drill dialog state; None when not in drill-down mode.
+        # Single-shot per drill session (Pitfall 8 — second click while drilled
+        # must NOT overwrite this snapshot).
+        self._pre_drill_state: Optional[dict] = None
 
         self._build_ui()
         self._refresh_login_gate()
@@ -198,6 +276,12 @@ class GBSSearchDialog(QDialog):
         self._page_label = QLabel("", self)
         self._page_label.setTextFormat(Qt.TextFormat.PlainText)
         top_row.addWidget(self._page_label)
+        # Phase 60.1: breadcrumb replaces _page_label slot during drill-down (UI-SPEC Delta 1).
+        # PlainText (T-40-04); no font override (UI-SPEC Typography); no setStyleSheet.
+        self._breadcrumb_label = QLabel("", self)
+        self._breadcrumb_label.setTextFormat(Qt.TextFormat.PlainText)
+        self._breadcrumb_label.setVisible(False)
+        top_row.addWidget(self._breadcrumb_label)
         root.addLayout(top_row)
 
         # Progress bar (indeterminate during search)
@@ -263,6 +347,13 @@ class GBSSearchDialog(QDialog):
 
         # Pagination row (Prev / Next)
         page_row = QHBoxLayout()
+        # Phase 60.1: Back button replaces Prev/Next during drill-down (UI-SPEC Delta 2).
+        # Hidden by default; shown by drill-down render slots, hidden by _on_back_clicked
+        # and _reset_drill_chrome.
+        self._back_btn = QPushButton("← Back to search", self)
+        self._back_btn.setVisible(False)
+        self._back_btn.clicked.connect(self._on_back_clicked)  # QA-05
+        page_row.addWidget(self._back_btn)
         self._prev_btn = QPushButton("← Prev", self)
         self._prev_btn.setEnabled(False)
         self._prev_btn.clicked.connect(self._on_prev_clicked)  # QA-05
@@ -301,6 +392,8 @@ class GBSSearchDialog(QDialog):
     # ---------- Search ----------
 
     def _start_search(self) -> None:
+        # Phase 60.1 / Pitfall 10: new search abandons drill-down snapshot.
+        self._reset_drill_chrome()
         query = self._search_edit.text().strip()
         if not query:
             self._show_inline_error("Enter a search term.")
@@ -435,21 +528,70 @@ class GBSSearchDialog(QDialog):
 
     # ---------- Render ----------
 
-    def _clear_table(self) -> None:
+    def _clear_table(self, clear_panels: bool = True) -> None:
+        """Clear the results table model.
+
+        Phase 60.1: clear_panels=False is used by the drill-down render path so
+        the artist/album panels remain visible during drill-down (UI-SPEC Delta 3 /
+        RESEARCH §Pitfall 3). Existing call sites pass no kwarg → True → unchanged
+        behavior.
+
+        60-11 / T12: also hide artist/album panels — they re-show only when
+        the next search response includes non-empty links via _on_metadata_ready.
+        See ORDERING INVARIANT in _GbsSearchWorker.run(): metadata_ready emits
+        AFTER finished, so this hide is always followed by the correct re-show.
+        """
         self._model.removeRows(0, self._model.rowCount())
         self._submit_buttons = []
-        # 60-11 / T12: also hide artist/album panels — they re-show only when
-        # the next search response includes non-empty links via _on_metadata_ready.
-        # See ORDERING INVARIANT in _GbsSearchWorker.run(): metadata_ready emits
-        # AFTER finished, so this hide is always followed by the correct re-show.
-        if hasattr(self, "_artist_list"):
+        if clear_panels and hasattr(self, "_artist_list"):
             self._artist_list.clear()
             self._artist_label.setVisible(False)
             self._artist_list.setVisible(False)
-        if hasattr(self, "_album_list"):
+        if clear_panels and hasattr(self, "_album_list"):
             self._album_list.clear()
             self._album_label.setVisible(False)
             self._album_list.setVisible(False)
+
+    # ---------- Phase 60.1 drill-down helpers ----------
+
+    def _reset_drill_chrome(self) -> None:
+        """Reset all drill-down chrome to pre-drill state.
+
+        Called from _start_search (Pitfall 10 — new search abandons snapshot)
+        and from _on_back_clicked (after restoring search state).
+        """
+        self._pre_drill_state = None
+        if hasattr(self, "_back_btn"):
+            self._back_btn.setVisible(False)
+        if hasattr(self, "_breadcrumb_label"):
+            self._breadcrumb_label.setVisible(False)
+            self._breadcrumb_label.setText("")
+        if hasattr(self, "_page_label"):
+            self._page_label.setVisible(True)
+        if hasattr(self, "_prev_btn"):
+            self._prev_btn.setVisible(True)
+        if hasattr(self, "_next_btn"):
+            self._next_btn.setVisible(True)
+
+    def _on_back_clicked(self) -> None:
+        """Phase 60.1 — STUB filled in by Task 2."""
+        raise NotImplementedError("60.1 Task 2: implement _on_back_clicked")
+
+    def _on_artist_drilled(self, results: list) -> None:
+        """Phase 60.1 — STUB filled in by Task 2."""
+        raise NotImplementedError("60.1 Task 2: implement _on_artist_drilled")
+
+    def _on_album_drilled(self, results: list) -> None:
+        """Phase 60.1 — STUB filled in by Task 2."""
+        raise NotImplementedError("60.1 Task 2: implement _on_album_drilled")
+
+    def _on_artist_drill_error(self, msg: str) -> None:
+        """Phase 60.1 — STUB filled in by Task 2."""
+        raise NotImplementedError("60.1 Task 2: implement _on_artist_drill_error")
+
+    def _on_album_drill_error(self, msg: str) -> None:
+        """Phase 60.1 — STUB filled in by Task 2."""
+        raise NotImplementedError("60.1 Task 2: implement _on_album_drill_error")
 
     def _render_results(self) -> None:
         self._clear_table()
