@@ -371,6 +371,20 @@ Plans:
 - [x] 60.1-03-PLAN.md — Wave 2 GREEN: _GbsArtistWorker + _GbsAlbumWorker + _back_btn + _breadcrumb_label + snapshot/restore + click handler rewrite + D-07 deletes
 - [x] 60.1-04-PLAN.md — Wave 3 verification: full test-suite gate + manual UAT on Linux Wayland (SC1-SC4 + UI-SPEC Deltas + Pitfalls 8/9/10 live)
 
+### Phase 60.2: Address Phase 60.1 UAT gaps — capture bad-religion fixture and triage zero-panel response, plus add album grouping to artist drill-down (INSERTED)
+
+**Goal:** Close the two gaps surfaced by Phase 60.1's failed UAT (signed FAIL on 2026-05-06): (1) Capture `tests/fixtures/gbs/search_bad_religion_p1.html` plus 4 probe fixtures; triage the captured HTML to determine whether the zero-artist-/-zero-album-panel response is server-side or a client-side `_ArtistAlbumParser` edge case; ship the resulting code change in this phase (parser fix if client-side, documented limitation if server-side). (2) Modify `_ArtistPageParser` to carry album state across rows and emit a per-row `album` field; render album section-header span rows in the existing `QTableView` of the artist drill-down view of `gbs_search_dialog.py` (`f"{album} ({n} songs)"` text, bold, non-selectable, non-editable, spanning all 4 columns).
+**Requirements**: GBS-01e (refines)
+**Depends on:** Phase 60, Phase 60.1
+**Plans:** 4 plans
+
+Plans:
+- [ ] 60.2-01-PLAN.md — Wave 0 RED: capture 5 fixtures (bad_religion + 4 probes) + extend `gbs_capture_fixtures.sh` items 17-21 + triage report (D-05/D-06 routing) + 9 RED tests (3 parser + 6 dialog)
+- [ ] 60.2-02-PLAN.md — Wave 1 GREEN parser tier: `_ArtistPageParser` album-state-carry + per-row `album` field + (conditional) bad-religion fix per TRIAGE D-06 OR documented limitation per D-05
+- [ ] 60.2-03-PLAN.md — Wave 2 GREEN dialog tier: `_render_results` `group_by_album` kwarg + 3 helpers + `_clear_table` clearSpans-before-removeRows + `_on_artist_drilled` wire-up
+- [ ] 60.2-04-PLAN.md — Wave 3 verification: full test-suite gate + manual UAT on Linux Wayland (SC1 closure + SC2 album-grouping visual)
+
+
 
 ### Phase 61: Linux App Display Name in WM Dialogs
 **Goal:** Force-quit and other WM-level dialogs (and Activities/Alt-Tab where the same string is read) display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer". Linux parallel to the Windows AUMID work in Phase 56 (WIN-02).
