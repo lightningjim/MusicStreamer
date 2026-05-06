@@ -620,3 +620,173 @@ def test_search_page2_has_no_artist_album_links(gbs_fixtures_dir, fake_cookies_j
     assert out["album_links"] == [], (
         f"album_links must be [] on page 2 (no blocks in p2 fixture); got {out['album_links']!r}"
     )
+
+
+# ---------- Phase 60.1 / GBS-01e Wave 0 RED tests (drill-down + multi-word) ----------
+# Plan 60.1-01 RED: 6 new tests pinning multi-word search, _ArtistPageParser,
+# _AlbumPageParser (incl. D-02 belt-and-suspenders regression), and the two new
+# fetch helpers. Plan 60.1-02 turns these GREEN by adding the missing parsers /
+# helpers + the multi-word fix to musicstreamer/gbs_api.py.
+
+
+def test_search_returns_artist_links_multiword(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """Phase 60.1 / GBS-01e Issue A (RED): multi-word query must populate artist_links.
+
+    Per CONTEXT.md D-03, the multi-word fixture is captured first (foo+fighters) and this
+    RED test pins the contract: a multi-word /search response with matches must yield
+    non-empty artist_links from search().
+
+    FAILS BEFORE Plan 02 lands (root cause unconfirmed — RESEARCH §Pitfall 1 hypotheses
+    2 or 3 most likely; Plan 02 inspects the captured HTML and applies the minimal patch).
+
+    If after fixture inspection it turns out hypothesis 1 holds (server omits the panel
+    entirely for multi-word), Plan 02 relaxes this assertion to `len(...) == 0` and
+    documents the server-side limitation in CONTEXT.md.
+    """
+    from musicstreamer.gbs_api import search
+    payload = (gbs_fixtures_dir / "search_multiword_p1.html").read_bytes()
+    monkeypatch.setattr(
+        gbs_api, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+    )
+    out = search("foo fighters", 1, fake_cookies_jar)
+    assert "artist_links" in out, "search() must return 'artist_links' key"
+    links = out["artist_links"]
+    assert isinstance(links, list), f"artist_links must be a list; got {type(links)}"
+    assert len(links) >= 1, (
+        f"Multi-word query 'foo fighters' must yield at least one artist_links entry; "
+        f"got {links!r}. If the captured fixture has no Artists block (hypothesis 1), "
+        f"Plan 02 must relax this assertion AND document the server-side limitation."
+    )
+
+
+def test_artist_page_parses(gbs_fixtures_dir):
+    """Phase 60.1 / GBS-01e (RED): _ArtistPageParser extracts >=1 song from artist_4803.html.
+
+    Pins:
+      - Class is gated on <table width="620" class="artist"> (NOT class="songs")
+      - Rows tagged class="albumTitle" are skipped (Pitfall 5 — album-separator rows)
+      - <th>-only header row is skipped
+      - Each result has the same dict shape as _SongRowParser output:
+        {songid: int, artist: str, title: str, duration: str, add_url: str}
+      - artist field is the page-title artist ("Testament"), populated per-row
+
+    FAILS BEFORE Plan 02 lands: AttributeError: module 'musicstreamer.gbs_api' has no
+    attribute '_ArtistPageParser'.
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "artist_4803.html").read_text(encoding="utf-8", errors="replace")
+    parser = _gbs._ArtistPageParser()
+    parser.feed(payload)
+    parser.close()
+    results = parser.results
+    assert len(results) > 0, f"_ArtistPageParser must extract >=1 song from Testament fixture; got {len(results)} rows"
+    for row in results:
+        assert isinstance(row.get("songid"), int), f"songid must be int; got {row!r}"
+        assert row.get("artist") == "Testament", f"artist must be 'Testament' (page title); got {row.get('artist')!r}"
+        assert row.get("title"), f"title must be non-empty; got {row.get('title')!r}"
+        assert row.get("duration"), f"duration must be non-empty; got {row.get('duration')!r}"
+        add_url = row.get("add_url", "")
+        assert add_url.startswith("/add/"), f"add_url must start with /add/; got {add_url!r}"
+    # Spot-check one canonical row from the Brotherhood of the Snake album section
+    # (artist_4803.html lines 384-486 — songid 563811 is the album's title track)
+    songids = [r["songid"] for r in results]
+    assert 563811 in songids, (
+        f"Expected songid 563811 (Brotherhood of the Snake) in Testament catalog; got songids {songids[:10]}..."
+    )
+
+
+def test_album_page_parses(gbs_fixtures_dir):
+    """Phase 60.1 / GBS-01e (RED): _AlbumPageParser extracts the song row from album_1488.html.
+
+    Pins (per CONTEXT.md D-02 belt-and-suspenders + RESEARCH §Pitfall 6):
+      - Locks onto the FIRST <table width="620"> inside <div class="playlist">
+      - REJECTS class="artist" and class="songs" (D-02 belt-and-suspenders)
+      - Row shape is 6 columns: [artist_link, song_link, codec, bitrate, duration, add_link]
+      - Per-row artist comes from <a href="/artist/Y"> in column 0 (NOT a page-title)
+
+    FAILS BEFORE Plan 02 lands: AttributeError: module 'musicstreamer.gbs_api' has no
+    attribute '_AlbumPageParser'.
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "album_1488.html").read_text(encoding="utf-8", errors="replace")
+    parser = _gbs._AlbumPageParser()
+    parser.feed(payload)
+    parser.close()
+    results = parser.results
+    assert len(results) >= 1, f"_AlbumPageParser must extract >=1 song from album_1488 fixture; got {len(results)} rows"
+    # The album fixture is sparse (1 row per RESEARCH §Pitfall 6). Spot-check the canonical row.
+    first = results[0]
+    assert first.get("songid") == 5406, f"first row songid must be 5406; got {first.get('songid')!r}"
+    assert first.get("artist") == "Ice Traigh & woodch", (
+        f"first row artist must be 'Ice Traigh & woodch' (per-row artist from td 0); "
+        f"got {first.get('artist')!r}"
+    )
+    assert first.get("title") == "The Ballad of JohnVonBunghole", (
+        f"first row title must match album fixture; got {first.get('title')!r}"
+    )
+    assert first.get("duration") == "4:57", f"first row duration must be '4:57'; got {first.get('duration')!r}"
+    assert first.get("add_url") == "/add/5406", f"first row add_url must be '/add/5406'; got {first.get('add_url')!r}"
+
+
+def test_album_parser_rejects_artist_page_table(gbs_fixtures_dir):
+    """Phase 60.1 / GBS-01e (RED): _AlbumPageParser MUST return [] for an artist page.
+
+    D-02 belt-and-suspenders: explicitly reject class="artist" tables even when they
+    match the width="620" + <div class="playlist"> container gate. Without this guard,
+    a router bug or future markup change could feed _AlbumPageParser an artist page
+    and silently return garbage rows.
+
+    FAILS BEFORE Plan 02 lands: AttributeError on _AlbumPageParser.
+    After Plan 02 lands: must remain GREEN (regression guard).
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "artist_4803.html").read_text(encoding="utf-8", errors="replace")
+    parser = _gbs._AlbumPageParser()
+    parser.feed(payload)
+    parser.close()
+    assert parser.results == [], (
+        f"_AlbumPageParser MUST reject class='artist' tables (D-02 belt-and-suspenders); "
+        f"got {len(parser.results)} rows from artist fixture"
+    )
+
+
+def test_fetch_artist_songs_returns_results(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """Phase 60.1 / GBS-01e (RED): gbs_api.fetch_artist_songs(id, cookies) returns dict.
+
+    Pins:
+      - URL is f"{GBS_BASE}/artist/{artist_id}"
+      - Returns {"results": list[dict]} with same shape as search() results entries
+      - Reuses _open_with_cookies (auto-handles 302→login via GbsAuthExpiredError)
+
+    FAILS BEFORE Plan 02 lands: AttributeError: ...has no attribute 'fetch_artist_songs'.
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "artist_4803.html").read_bytes()
+    monkeypatch.setattr(
+        _gbs, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+    )
+    out = _gbs.fetch_artist_songs(4803, fake_cookies_jar)
+    assert isinstance(out, dict), f"fetch_artist_songs must return dict; got {type(out)}"
+    assert "results" in out, f"fetch_artist_songs must return 'results' key; got {list(out)}"
+    assert isinstance(out["results"], list), f"results must be list; got {type(out['results'])}"
+    assert len(out["results"]) > 0, f"results must be non-empty for Testament artist; got {len(out['results'])}"
+
+
+def test_fetch_album_songs_returns_results(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """Phase 60.1 / GBS-01e (RED): gbs_api.fetch_album_songs(id, cookies) returns dict.
+
+    FAILS BEFORE Plan 02 lands: AttributeError on fetch_album_songs.
+    """
+    from musicstreamer import gbs_api as _gbs
+    payload = (gbs_fixtures_dir / "album_1488.html").read_bytes()
+    monkeypatch.setattr(
+        _gbs, "_open_with_cookies",
+        lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+    )
+    out = _gbs.fetch_album_songs(1488, fake_cookies_jar)
+    assert isinstance(out, dict), f"fetch_album_songs must return dict; got {type(out)}"
+    assert "results" in out
+    assert isinstance(out["results"], list)
+    assert len(out["results"]) >= 1, f"album_1488 fixture has at least 1 row; got {len(out['results'])}"
