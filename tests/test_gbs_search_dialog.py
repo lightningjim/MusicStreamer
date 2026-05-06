@@ -568,3 +568,232 @@ def test_drill_down_auth_expired_toasts(dialog_logged_in):
     # _back_btn re-enabled (cleanup)
     # _artist_drill_worker reference cleared (Pattern S-4)
     assert dlg._artist_drill_worker is None, "_artist_drill_worker must be cleared after error"
+
+
+# ---------- Phase 60.2 / GBS-01e (Wave 0 RED) — album section headers + clearSpans guard ----------
+
+def test_artist_drill_inserts_album_section_headers(dialog_logged_in):
+    """Phase 60.2 / GBS-01e (RED): artist drill-view inserts span-row section headers
+    between album groups per CONTEXT.md D-01..D-03.
+
+    Setup: feed a stub result list with 5 rows across 2 albums:
+      [Album A: 3 songs] [Album B: 2 songs]
+
+    Expected table layout after _on_artist_drilled:
+      row 0:  span-row "Album A (3 songs)"  setSpan(0, 0, 1, 4)
+      row 1:  song 1
+      row 2:  song 2
+      row 3:  song 3
+      row 4:  span-row "Album B (2 songs)"  setSpan(4, 0, 1, 4)
+      row 5:  song 4
+      row 6:  song 5
+
+    Total rowCount = 7 (5 songs + 2 headers).
+    FAILS BEFORE Wave 2 dialog change lands: production _render_results does NOT insert
+    section headers; rowCount would be 5, no spans, no header text.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([{"text": "Some Artist", "url": "/artist/123"}], [])
+    item = dlg._artist_list.item(0)
+    dlg._artist_list.itemActivated.emit(item)
+    stub_results = [
+        {"songid": 1, "artist": "Some Artist", "title": "S1", "duration": "3:00",
+         "add_url": "/add/1", "album": "Album A"},
+        {"songid": 2, "artist": "Some Artist", "title": "S2", "duration": "3:30",
+         "add_url": "/add/2", "album": "Album A"},
+        {"songid": 3, "artist": "Some Artist", "title": "S3", "duration": "4:00",
+         "add_url": "/add/3", "album": "Album A"},
+        {"songid": 4, "artist": "Some Artist", "title": "S4", "duration": "3:15",
+         "add_url": "/add/4", "album": "Album B"},
+        {"songid": 5, "artist": "Some Artist", "title": "S5", "duration": "3:45",
+         "add_url": "/add/5", "album": "Album B"},
+    ]
+    dlg._on_artist_drilled(stub_results)
+
+    assert dlg._model.rowCount() == 7, (
+        f"expected 7 rows (5 songs + 2 headers); got {dlg._model.rowCount()}"
+    )
+    # Header at row 0 spans all 4 columns
+    assert dlg._results_table.columnSpan(0, 0) == dlg._model.columnCount(), (
+        f"row 0 header must span all columns; got columnSpan={dlg._results_table.columnSpan(0, 0)}"
+    )
+    assert dlg._model.item(0, 0).text() == "Album A (3 songs)", (
+        f"row 0 header text; got {dlg._model.item(0, 0).text()!r}"
+    )
+    # Header at row 4 spans all 4 columns
+    assert dlg._results_table.columnSpan(4, 0) == dlg._model.columnCount(), (
+        f"row 4 header must span all columns; got columnSpan={dlg._results_table.columnSpan(4, 0)}"
+    )
+    assert dlg._model.item(4, 0).text() == "Album B (2 songs)", (
+        f"row 4 header text; got {dlg._model.item(4, 0).text()!r}"
+    )
+    # Song row at row 1 has title cell populated
+    assert dlg._model.item(1, 1).text() == "S1"
+    assert dlg._model.item(2, 1).text() == "S2"
+    assert dlg._model.item(5, 1).text() == "S4"
+
+
+def test_artist_drill_skips_header_for_empty_album(dialog_logged_in):
+    """Phase 60.2 / GBS-01e (RED): rows with album == '' render WITHOUT a header per
+    CONTEXT.md D-11.
+
+    Setup: 4 rows — 2 with album='', 2 with album='Real Album'.
+    Expected layout:
+      row 0:  song 1 (album='')       <- no header above
+      row 1:  song 2 (album='')
+      row 2:  span-row "Real Album (2 songs)"
+      row 3:  song 3 (album='Real Album')
+      row 4:  song 4 (album='Real Album')
+
+    Total rowCount = 5 (4 songs + 1 header — NOT 2 headers).
+    FAILS BEFORE Wave 2 dialog change lands.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([{"text": "Some Artist", "url": "/artist/123"}], [])
+    item = dlg._artist_list.item(0)
+    dlg._artist_list.itemActivated.emit(item)
+    stub_results = [
+        {"songid": 1, "artist": "Some Artist", "title": "Pre-1", "duration": "3:00",
+         "add_url": "/add/1", "album": ""},
+        {"songid": 2, "artist": "Some Artist", "title": "Pre-2", "duration": "3:30",
+         "add_url": "/add/2", "album": ""},
+        {"songid": 3, "artist": "Some Artist", "title": "P-1", "duration": "4:00",
+         "add_url": "/add/3", "album": "Real Album"},
+        {"songid": 4, "artist": "Some Artist", "title": "P-2", "duration": "3:15",
+         "add_url": "/add/4", "album": "Real Album"},
+    ]
+    dlg._on_artist_drilled(stub_results)
+    assert dlg._model.rowCount() == 5, (
+        f"expected 5 rows (4 songs + 1 header — empty-album group has no header); "
+        f"got {dlg._model.rowCount()}"
+    )
+    # Row 0 is a song row, NOT a span row (column 0 is artist text)
+    assert dlg._results_table.columnSpan(0, 0) == 1, (
+        f"empty-album rows must NOT have a span (D-11); "
+        f"got columnSpan={dlg._results_table.columnSpan(0, 0)}"
+    )
+    assert dlg._model.item(0, 0).text() == "Some Artist"  # song row col 0 = artist
+    # Row 2 IS the section header for "Real Album"
+    assert dlg._results_table.columnSpan(2, 0) == dlg._model.columnCount(), (
+        f"row 2 must span all columns (Real Album header); "
+        f"got columnSpan={dlg._results_table.columnSpan(2, 0)}"
+    )
+    assert dlg._model.item(2, 0).text() == "Real Album (2 songs)"
+
+
+def test_artist_drill_section_header_non_selectable(dialog_logged_in):
+    """Phase 60.2 / GBS-01e (RED): section-header cells must not be selectable or
+    editable per CONTEXT.md D-02.
+
+    FAILS BEFORE Wave 2 dialog change lands: row 0 will be a song row with default flags.
+    """
+    from PySide6.QtCore import Qt
+
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([{"text": "X", "url": "/artist/1"}], [])
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    dlg._on_artist_drilled([
+        {"songid": 1, "artist": "X", "title": "T", "duration": "3:00",
+         "add_url": "/add/1", "album": "A"},
+    ])
+    # Header at row 0
+    flags = dlg._model.item(0, 0).flags()
+    assert not bool(flags & Qt.ItemFlag.ItemIsSelectable), (
+        f"header must not be selectable; got flags={flags}"
+    )
+    assert not bool(flags & Qt.ItemFlag.ItemIsEditable), (
+        f"header must not be editable; got flags={flags}"
+    )
+
+
+def test_artist_drill_no_add_button_on_section_header(dialog_logged_in):
+    """Phase 60.2 / GBS-01e (RED): section-header rows must NOT have an Add! button.
+
+    The per-row Add! button is rendered via setIndexWidget(row, _COL_ADD, btn). A header
+    row has no setIndexWidget call. Verify by checking the # of submit_buttons matches
+    the # of song rows (NOT total rowCount) — Pitfall 3.
+
+    FAILS BEFORE Wave 2 dialog change lands.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([{"text": "X", "url": "/artist/1"}], [])
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    stub_results = [
+        {"songid": 1, "artist": "X", "title": "T1", "duration": "3:00",
+         "add_url": "/add/1", "album": "A"},
+        {"songid": 2, "artist": "X", "title": "T2", "duration": "3:00",
+         "add_url": "/add/2", "album": "B"},
+    ]
+    dlg._on_artist_drilled(stub_results)
+    # 4 rows total (2 songs + 2 headers) but only 2 Add! buttons.
+    assert dlg._model.rowCount() == 4, (
+        f"expected 4 rows (2 songs + 2 headers); got {dlg._model.rowCount()}"
+    )
+    assert len(dlg._submit_buttons) == 2, (
+        f"expected 2 Add! buttons (one per song row, none on headers); "
+        f"got {len(dlg._submit_buttons)}"
+    )
+
+
+def test_clear_table_clears_spans(dialog_logged_in):
+    """Phase 60.2 / GBS-01e (RED): _clear_table must call clearSpans() so a
+    subsequent search render after a drill-view does not show stale spans
+    (Pitfall 1 + Pitfall 9 regression guard).
+
+    FAILS BEFORE Wave 2 dialog change lands: _clear_table does NOT call clearSpans()
+    today, so a span set by setSpan persists across removeRows() and re-renders.
+    """
+    from PySide6.QtGui import QStandardItem
+
+    dlg, _ = dialog_logged_in
+    # Get a row in the model first so setSpan has something to attach to.
+    dlg._on_metadata_ready([{"text": "X", "url": "/artist/1"}], [])
+    dlg._artist_list.itemActivated.emit(dlg._artist_list.item(0))
+    dlg._on_artist_drilled([
+        {"songid": 1, "artist": "X", "title": "T", "duration": "3:00",
+         "add_url": "/add/1", "album": "A"},
+    ])
+    # Manually set a span on row 0 (simulates the section-header span Wave 2 will create).
+    dlg._results_table.setSpan(0, 0, 1, dlg._model.columnCount())
+    assert dlg._results_table.columnSpan(0, 0) == dlg._model.columnCount(), (
+        "setup: span must be present before _clear_table()"
+    )
+    # Now call _clear_table — it MUST drop the span via clearSpans().
+    dlg._clear_table()
+    # After clearing, columnSpan must report 1 (no span). If model is empty,
+    # set a fresh row and check columnSpan(0, 0) == 1 for that fresh row.
+    dlg._model.appendRow([
+        QStandardItem(""), QStandardItem(""), QStandardItem(""), QStandardItem(""),
+    ])
+    assert dlg._results_table.columnSpan(0, 0) == 1, (
+        f"_clear_table must call clearSpans() to drop stale spans; "
+        f"got columnSpan={dlg._results_table.columnSpan(0, 0)}"
+    )
+
+
+def test_album_drill_is_flat(dialog_logged_in):
+    """Phase 60.2 / GBS-01e Pitfall 6: album drill view emits flat song rows;
+    NEVER apply album-grouping logic to album-drill (album-page rows do not
+    have an 'album' field — they have an 'artist' field per song).
+
+    Regression guard. GREEN today; pins the invariant against future changes.
+    """
+    dlg, _ = dialog_logged_in
+    dlg._on_metadata_ready([], [{"text": "Some Album", "url": "/album/456"}])
+    item = dlg._album_list.item(0)
+    dlg._album_list.itemActivated.emit(item)
+    stub_results = [
+        {"songid": 10, "artist": "X", "title": "T1", "duration": "3:00", "add_url": "/add/10"},
+        {"songid": 11, "artist": "Y", "title": "T2", "duration": "3:30", "add_url": "/add/11"},
+        {"songid": 12, "artist": "Z", "title": "T3", "duration": "4:00", "add_url": "/add/12"},
+    ]
+    dlg._on_album_drilled(stub_results)
+    assert dlg._model.rowCount() == 3, (
+        f"album drill must be flat (3 songs = 3 rows, no headers); "
+        f"got rowCount={dlg._model.rowCount()}"
+    )
+    for row in (0, 1, 2):
+        assert dlg._results_table.columnSpan(row, 0) == 1, (
+            f"album drill row {row} must NOT have a span (Pitfall 6); "
+            f"got columnSpan={dlg._results_table.columnSpan(row, 0)}"
+        )
