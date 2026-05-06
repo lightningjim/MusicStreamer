@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 60.1 UAT FAIL — SC1 unmet for `bad religion` + artist drill flat-rendering UX gap → routes to Phase 60.1.1
-last_updated: "2026-05-06T15:30:00.000Z"
-last_activity: 2026-05-06 -- Phase 60.1 Plan 04 (manual UAT) complete; outcome FAIL → Phase 60.1.1 gap-closure
+status: Phase 60.2 inserted as urgent gap-closure for Phase 60.1 UAT failures
+stopped_at: Phase 60.2 context gathered
+last_updated: "2026-05-06T21:44:59.823Z"
+last_activity: 2026-05-06 -- Phase 60.1 Plan 04 manual UAT signed by Kyle; outcome FAIL → 60.1.1 gap-closure
 progress:
-  total_phases: 25
-  completed_phases: 13
+  total_phases: 26
+  completed_phases: 14
   total_plans: 55
-  completed_plans: 54
-  percent: 98
+  completed_plans: 55
+  percent: 100
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.1 — gbs-fm-search-artist-album-drill-down
+**Current focus:** Phase 60.2 — address-phase-60-1-uat-gaps
 
 ## Current Position
 
-Phase: 60.1 (gbs-fm-search-artist-album-drill-down) — UAT FAIL (gaps_found)
+Phase: 60.2 (address-phase-60-1-uat-gaps...)
 Plan: 4 of 4 complete (Wave 3 UAT executed; outcome FAIL — SC1 unmet)
-Status: Phase 60.1 routes to Phase 60.1.1 gap-closure (capture `bad religion` fixture + artist drill album-grouping UX)
+Status: Phase 60.2 inserted as urgent gap-closure for Phase 60.1 UAT failures
 Last activity: 2026-05-06 -- Phase 60.1 Plan 04 manual UAT signed by Kyle; outcome FAIL → 60.1.1 gap-closure
 
 ## Performance Metrics
@@ -142,6 +142,7 @@ Key v2.0 decisions already settled:
 - Phase 60 edited: edited fields: goal, success_criteria (scope expanded to include active playlist, voting, and search-and-submit per user clarification; comments / chat mirror / song upload remain deferred)
 - Phase 60.1 added: GBS.FM Search Artist/Album Drill-Down — follow-up to Phase 60 round-2 UAT T12 (2026-05-04). Phase 60 gap-closure closed 5 of 6 round-1 issues; T12 panels render but (A) multi-word click only surfaces song results and (B) clicks fall back to free-text search instead of /artist/<id> drill-down. Locked D-11a=Shape 4 was driven by deterministic `<table class="songs">` grep on captured pages, but actual /artist/4803 uses `<table class="artist">` and /album/1488 uses unclassed `<table width="620">`. Captured fixtures already in repo (commit 7376b1a).
 - Phase 72 added: Fullscreen Mode — Hide Left Column for Compact Displays — toggleable mode that hides the left column so bottom-bar controls stop overlapping when window is moved to a small/secondary screen; quick enter/exit (shortcut + menu) so user can flip in and out as device moves between displays 2026-05-05
+- Phase 60.2 inserted after Phase 60: Address Phase 60.1 UAT gaps — capture bad-religion fixture and triage zero-panel response, plus add album grouping to artist drill-down (URGENT)
 
 ### Pending Todos
 
@@ -175,6 +176,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-06T15:00:00.000Z
-Stopped at: Phase 60.1 Plan 03 complete (Wave 2 GREEN dialog tier; Plan 04 manual UAT next)
-Resume file: .planning/phases/60.1-gbs-fm-search-artist-album-drill-down/60.1-04-PLAN.md
+Last session: 2026-05-06T21:44:59.807Z
+Stopped at: Phase 60.2 context gathered
+Resume file: .planning/phases/60.2-address-phase-60-1-uat-gaps-capture-bad-religion-fixture-and/60.2-CONTEXT.md
