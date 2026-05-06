@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 60.1 Plan 03 complete (Wave 2 GREEN dialog tier; Plan 04 UAT next)
-last_updated: "2026-05-06T15:00:00.000Z"
-last_activity: 2026-05-06 -- Phase 60.1 Plan 03 (Wave 2 GREEN dialog tier) complete
+stopped_at: Phase 60.1 UAT FAIL — SC1 unmet for `bad religion` + artist drill flat-rendering UX gap → routes to Phase 60.1.1
+last_updated: "2026-05-06T15:30:00.000Z"
+last_activity: 2026-05-06 -- Phase 60.1 Plan 04 (manual UAT) complete; outcome FAIL → Phase 60.1.1 gap-closure
 progress:
   total_phases: 25
   completed_phases: 13
   total_plans: 55
-  completed_plans: 53
-  percent: 96
+  completed_plans: 54
+  percent: 98
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 60.1 (gbs-fm-search-artist-album-drill-down) — EXECUTING
-Plan: 3 of 4 (Wave 2 GREEN dialog tier complete; Plan 04 manual UAT next)
-Status: Executing Phase 60.1
-Last activity: 2026-05-06 -- Phase 60.1 Plan 03 complete (dialog tier GREEN, all 25 test_gbs_search_dialog.py tests pass; 7 Plan 01 RED → GREEN; 2 D-07 Shape-4 tests deleted)
+Phase: 60.1 (gbs-fm-search-artist-album-drill-down) — UAT FAIL (gaps_found)
+Plan: 4 of 4 complete (Wave 3 UAT executed; outcome FAIL — SC1 unmet)
+Status: Phase 60.1 routes to Phase 60.1.1 gap-closure (capture `bad religion` fixture + artist drill album-grouping UX)
+Last activity: 2026-05-06 -- Phase 60.1 Plan 04 manual UAT signed by Kyle; outcome FAIL → 60.1.1 gap-closure
 
 ## Performance Metrics
 

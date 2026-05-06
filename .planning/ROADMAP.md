@@ -151,7 +151,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 58: PLS Auto-Resolve in Station Editor** — Paste a PLS URL and auto-import all entries as individual stream rows (completed 2026-05-01)
 - [x] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry (completed 2026-05-04)
 - [x] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer (completed 2026-05-04)
-- [ ] **Phase 60.1: GBS.FM Search Artist/Album Drill-Down** — Multi-word artist/album link clicks + drill-down navigation to /artist/&lt;id&gt; and /album/&lt;id&gt; pages (Phase 60 round-2 UAT T12 follow-up)
+- [ ] **Phase 60.1: GBS.FM Search Artist/Album Drill-Down** — Multi-word artist/album link clicks + drill-down navigation to /artist/&lt;id&gt; and /album/&lt;id&gt; pages (Phase 60 round-2 UAT T12 follow-up) (UAT 2026-05-06: SC1 FAIL on `bad religion` query + artist drill flat-rendering UX gap → routes to Phase 60.1.1)
 - [ ] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer"
 - [ ] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation
 - [ ] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close
@@ -363,13 +363,13 @@ Plans:
   - Issue A — Multi-word click only surfaces song results. Likely cause: query encoding or the search worker dropping artist/album results when the input contains spaces. Verify against `tests/fixtures/gbs/search_test_p1.html` first.
   - Issue B — Click does base re-search instead of drilling into `/artist/<id>` or `/album/<id>`. Phase 60-11 locked D-11a=Shape 4 (free-text fallback) because the deterministic gate `<table class="songs">` count was 0 on both captured pages. The actual `/artist/4803` (44KB Testament) uses `<table class="artist">` and `/album/1488` (13KB) uses an unclassed `<table width="620">`. Phase 60.1 should add `_ArtistPageParser` for the artist-table shape and either an album parser or accept that the album surface is unstructured.
   - Captured fixtures already in repo: `tests/fixtures/gbs/artist_4803.html`, `tests/fixtures/gbs/album_1488.html` (committed in `7376b1a`).
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 60.1-01-PLAN.md — Wave 0 RED: capture multi-word fixture (D-03) + 13 RED tests (parser + dialog) + extend gbs_capture_fixtures.sh
 - [x] 60.1-02-PLAN.md — Wave 1 GREEN: D-04 multi-word fix + Pitfall 7 docstring + _ArtistPageParser + _AlbumPageParser (D-02 belt-and-suspenders) + fetch_artist_songs + fetch_album_songs
 - [x] 60.1-03-PLAN.md — Wave 2 GREEN: _GbsArtistWorker + _GbsAlbumWorker + _back_btn + _breadcrumb_label + snapshot/restore + click handler rewrite + D-07 deletes
-- [ ] 60.1-04-PLAN.md — Wave 3 verification: full test-suite gate + manual UAT on Linux Wayland (SC1-SC4 + UI-SPEC Deltas + Pitfalls 8/9/10 live)
+- [x] 60.1-04-PLAN.md — Wave 3 verification: full test-suite gate + manual UAT on Linux Wayland (SC1-SC4 + UI-SPEC Deltas + Pitfalls 8/9/10 live)
 
 
 ### Phase 61: Linux App Display Name in WM Dialogs
