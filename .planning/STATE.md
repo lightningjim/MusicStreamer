@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: planning
-stopped_at: Phase 60.4 context gathered
-last_updated: "2026-05-07T21:05:57.384Z"
+stopped_at: Phase 60.4 Plan 03 complete (Plans 01 + 02 still pending)
+last_updated: "2026-05-07T23:00:00.000Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
-  completed_phases: 16
-  total_plans: 65
-  completed_plans: 65
+  completed_phases: 15
+  total_plans: 59
+  completed_plans: 61
   percent: 100
 ---
 
@@ -26,8 +26,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 60.4
-Plan: Not started
-Status: Ready to plan
+Plan: 03 complete (Plans 01 + 02 still pending — they are Wave 1 (01) + Wave 2 (02), independent of 03)
+Status: Plan 03 shipped (`feat(60.4-03)` — playlist summary row REVERSES Phase 60-10 D-10c per user discussion 2026-05-07)
 Last activity: 2026-05-07
 
 ## Performance Metrics

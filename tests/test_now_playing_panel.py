@@ -1064,8 +1064,12 @@ def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
     # 60-10 / T8: queue_rows enumerated per D-10b — was queue_summary "Playlist is 11:21" (REMOVED).
     assert any("1. Foo - Bar [3:00]" in t for t in items)
     assert any("2. Baz - Quux [4:30]" in t for t in items)
-    # 60-10 / T8: pllength summary line is NOT rendered (D-10c).
-    assert not any("Playlist is 11:21" in t for t in items)
+    # Phase 60.4 D-S2 / D-S3 — REVERSAL of Phase 60-10 D-10c per user
+    # discussion 2026-05-07: gbs.fm jargon ("dongs") preserved as part of
+    # site voice. Summary row renders at index 0 of _gbs_playlist_widget
+    # with U+00B7 prefix (D-S3). The 60-10 SUMMARY.md regret-loophole at
+    # line 113 anticipated this exact reversal.
+    assert any("· Playlist is 11:21" in t for t in items)
     # Score (unchanged)
     assert any("5.0 (1 vote)" in t for t in items)
     # Phase 60.3 Plan 06 / CR-04 coverage fix: post-CR-04 factory default
@@ -2374,4 +2378,177 @@ def test_gbs_playlist_caps_queue_at_10(qtbot, tmp_path, monkeypatch):
     # The 10th queue item (index 10) must start with '10.'
     assert panel._gbs_playlist_widget.item(10).text().startswith("10."), (
         f"item(10) should start with '10.'; got: {panel._gbs_playlist_widget.item(10).text()!r}"
+    )
+
+
+# ============================================================================
+# Phase 60.4 / GBS-01-followup-S1..S5: Playlist summary row tests
+# Reverses Phase 60-10 D-10c — gbs.fm jargon ("dongs") preserved verbatim.
+# ============================================================================
+
+def test_gbs_summary_row_renders_at_index_0(qtbot, tmp_path, monkeypatch):
+    """D-S1: summary row inserted as FIRST row of _gbs_playlist_widget,
+    ABOVE the ▶ {icy} now-playing line.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False  # BLOCKER #1 (Phase 60.3-02..06 carry-over)
+    panel.bind_station(gbs_station)
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    panel._gbs_poll_token = 5
+    state = {
+        "now_playing_entryid": 1810736,
+        "now_playing_songid": 782491,
+        "icy_title": "Some Artist - Some Song",
+        "queue_summary": "Playlist is 5:00 long with 2 dongs",
+        "queue_rows": [],
+        "score": "no votes",
+        "user_vote": 0,
+        "queue_html_snippets": [],
+        "removed_ids": [],
+    }
+    panel._on_gbs_playlist_ready(5, state)
+    item_count = panel._gbs_playlist_widget.count()
+    assert item_count >= 2
+    item_0 = panel._gbs_playlist_widget.item(0).text()
+    item_1 = panel._gbs_playlist_widget.item(1).text()
+    assert item_0.startswith("· "), (
+        f"D-S1: index 0 must be the summary row (starts with U+00B7 + space). got: {item_0!r}"
+    )
+    assert "Playlist is 5:00 long with 2 dongs" in item_0, (
+        f"D-S1: summary row must contain queue_summary verbatim. got: {item_0!r}"
+    )
+    assert "Some Artist - Some Song" in item_1, (
+        f"D-S1: index 1 must be the ▶ {{icy}} row. got: {item_1!r}"
+    )
+
+
+def test_gbs_summary_preserves_jargon_verbatim(qtbot, tmp_path, monkeypatch):
+    """D-S2: gbs.fm jargon ('dongs') is preserved verbatim — no sanitization.
+
+    Regression-lock against any future opt-in jargon-filter (which
+    CONTEXT Deferred Ideas surfaces but is OUT of scope for 60.4).
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    panel._gbs_poll_token = 7
+    state = {
+        "icy_title": "X - Y",
+        "queue_summary": "Playlist is 7:42 long with 4 dongs",
+        "queue_rows": [],
+    }
+    panel._on_gbs_playlist_ready(7, state)
+    items = [
+        panel._gbs_playlist_widget.item(i).text()
+        for i in range(panel._gbs_playlist_widget.count())
+    ]
+    assert any("dongs" in t for t in items), (
+        "D-S2: 'dongs' jargon must be preserved VERBATIM (no sanitization function ships)"
+    )
+
+
+def test_gbs_summary_row_has_middle_dot_prefix(qtbot, tmp_path, monkeypatch):
+    """D-S3: summary row text starts with U+00B7 + space ('· ')."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    panel._gbs_poll_token = 9
+    state = {
+        "icy_title": "A - B",
+        "queue_summary": "Playlist is 2:49 long with 1 dong",
+        "queue_rows": [],
+    }
+    panel._on_gbs_playlist_ready(9, state)
+    item_0 = panel._gbs_playlist_widget.item(0).text()
+    # U+00B7 middle-dot followed by ASCII space
+    assert item_0.startswith("· "), (
+        f"D-S3: summary row must start with U+00B7 + ASCII space. got bytes: {item_0.encode('utf-8')!r}"
+    )
+
+
+def test_gbs_summary_skipped_when_queue_summary_absent(qtbot, tmp_path, monkeypatch):
+    """D-S4: when state.get('queue_summary') is None or empty, NO summary row.
+
+    Honest-data principle (60.2 D-10): no fake 'loading…' placeholder.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    panel._gbs_poll_token = 11
+
+    # Case 1: queue_summary key absent
+    state_absent = {
+        "icy_title": "Foo - Bar",
+        "queue_rows": [],
+    }
+    panel._on_gbs_playlist_ready(11, state_absent)
+    items_absent = [
+        panel._gbs_playlist_widget.item(i).text()
+        for i in range(panel._gbs_playlist_widget.count())
+    ]
+    assert not any(t.startswith("· ") for t in items_absent), (
+        "D-S4: when queue_summary key is absent, NO summary row is rendered"
+    )
+    # The ▶ {icy} row should be at index 0 in this case
+    assert items_absent[0].startswith("▶ "), (
+        f"D-S4 corollary: with no summary, ▶ {{icy}} is the first row. got: {items_absent[0]!r}"
+    )
+
+    # Case 2: queue_summary key present but value empty (post-strip in gbs_api.py:280)
+    state_empty = {
+        "icy_title": "Foo - Bar",
+        "queue_summary": "",
+        "queue_rows": [],
+    }
+    panel._gbs_poll_token = 12
+    panel._on_gbs_playlist_ready(12, state_empty)
+    items_empty = [
+        panel._gbs_playlist_widget.item(i).text()
+        for i in range(panel._gbs_playlist_widget.count())
+    ]
+    assert not any(t.startswith("· ") for t in items_empty), (
+        "D-S4: when queue_summary is empty string, NO summary row is rendered"
     )
