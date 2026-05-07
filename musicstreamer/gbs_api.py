@@ -575,15 +575,21 @@ class _ArtistPageParser(HTMLParser):
     """Phase 60.1 / GBS-01e drill-down: parse /artist/<id> page.
 
     Anchors on <table class="artist"> inside the dialog's drill-down flow.
-    Skips <tr class="albumTitle"> separator rows (they group the artist's
-    catalog by album — RESEARCH §Pitfall 5) and <th>-only header rows.
+    Consumes <tr class="albumTitle"> separator rows for their inner
+    <a href="/album/X"> anchor text (Phase 60.2 D-01..D-03 + D-10 — album-
+    state carrying) and emits an "album" field on every committed song row
+    so the dialog can render album-grouped section headers downstream.
 
     Captures the page-title artist name from <th class='album' colspan='3'>
-    ONCE on first encounter, then re-emits per-row in the {songid, artist,
-    title, duration, add_url} shape so _render_results() works unchanged.
+    ONCE on first encounter, then re-emits per-row in the
+    {songid, artist, title, duration, add_url, album} shape so
+    _render_results() works unchanged for the existing keys; the "album"
+    field is the new addition (empty string for any song row that appears
+    before the first <tr class="albumTitle">, per D-10).
 
     Defensive: HTML parse errors are caught by fetch_artist_songs's wrapper
-    (Pitfall 6 idiom), NOT by this class.
+    (Pitfall 6 idiom), NOT by this class. _current_album is reset on
+    </table> so a fresh feed starts clean.
     """
 
     _SONG_RE = re.compile(r"^/song/(\d+)$")
@@ -596,11 +602,20 @@ class _ArtistPageParser(HTMLParser):
         self._page_title_seen: bool = False
         self._in_artist_table: bool = False
         self._row: Optional[dict] = None
-        self._capture: Optional[str] = None  # "page_title" | "title" | "duration" | None
+        self._capture: Optional[str] = None  # "page_title" | "title" | "duration" |
+                                              # "album_name" (Phase 60.2) | None
         self._td_text: str = ""
         self._tds_in_row: int = 0
         self._ths_in_row: int = 0
-        self._skip_current: bool = False
+        self._is_album_title_row: bool = False    # Phase 60.2 (renamed from the prior
+                                                  # skip-flag for semantic clarity — the
+                                                  # row is no longer skipped; its album
+                                                  # anchor is consumed for state-carry).
+        self._current_album: str = ""             # Phase 60.2: D-10 — empty string until
+                                                  # the first <tr class="albumTitle">
+                                                  # populates it. Carries across all
+                                                  # subsequent song rows until the next
+                                                  # albumTitle row resets it.
 
     def handle_starttag(self, tag, attrs):
         ad = dict(attrs)
@@ -610,16 +625,28 @@ class _ArtistPageParser(HTMLParser):
         if not self._in_artist_table:
             return
         if tag == "tr":
-            self._row = {"songid": None, "title": "", "duration": "", "add_url": ""}
+            self._row = {
+                "songid": None,
+                "title": "",
+                "duration": "",
+                "add_url": "",
+                "album": self._current_album,    # Phase 60.2 D-01..D-03/D-10:
+                                                  # propagate current album (or "") to row.
+            }
             self._tds_in_row = 0
             self._ths_in_row = 0
             self._capture = None
             self._td_text = ""
             row_class = ad.get("class") or ""
-            self._skip_current = "albumTitle" in row_class
+            self._is_album_title_row = "albumTitle" in row_class
             return
-        if self._skip_current:
-            # albumTitle rows are skipped entirely — no inner-tag handling.
+        if self._is_album_title_row:
+            # Phase 60.2: instead of skipping the row outright, capture the
+            # `<a href="/album/X">` anchor's text into self._current_album so
+            # subsequent song-row tr's reflect the new group.
+            if tag == "a" and ad.get("href", "").startswith("/album/"):
+                self._capture = "album_name"
+                self._current_album = ""    # reset accumulator for fresh capture
             return
         if tag == "th":
             self._ths_in_row += 1
@@ -655,8 +682,13 @@ class _ArtistPageParser(HTMLParser):
         if self._capture == "page_title" and not self._page_title_seen:
             self._artist_name += data
             return
-        if self._skip_current:
+        if self._capture == "album_name":
+            # Phase 60.2 / Pitfall 2: multi-chunk handle_data reassembly via +=.
+            # Strip ONLY at handle_endtag(a) — NOT per-chunk.
+            self._current_album += data
             return
+        if self._is_album_title_row:
+            return    # not capturing — skip other text inside album-title rows
         if self._capture == "title" and self._row is not None:
             self._row["title"] += data
             return
@@ -664,6 +696,11 @@ class _ArtistPageParser(HTMLParser):
             self._row["duration"] += data
 
     def handle_endtag(self, tag):
+        if tag == "a" and self._capture == "album_name":
+            # Phase 60.2 / Pitfall 2: strip ONCE on close after multi-chunk accumulation.
+            self._current_album = self._current_album.strip()
+            self._capture = None
+            return
         if tag == "th" and self._capture == "page_title":
             # Close the page-title capture window after the </th>
             self._artist_name = self._artist_name.strip()
@@ -677,22 +714,27 @@ class _ArtistPageParser(HTMLParser):
         if tag == "tr":
             # Commit the row if it looks like a real song row
             if (self._row is not None
-                    and not self._skip_current
+                    and not self._is_album_title_row
                     and self._row.get("songid") is not None
                     and self._tds_in_row >= 2):
                 self._row["artist"] = self._artist_name or "(unknown)"
                 self._row["title"] = (self._row.get("title") or "").strip()
                 self._row["duration"] = (self._row.get("duration") or "").strip()
                 self._row["add_url"] = self._row.get("add_url") or f"/add/{self._row['songid']}"
+                # row["album"] was already set in handle_starttag(tr) — already reflects
+                # current group (Phase 60.2 D-01..D-03/D-10).
                 self.results.append(self._row)
             self._row = None
-            self._skip_current = False
+            self._is_album_title_row = False
             self._tds_in_row = 0
             self._ths_in_row = 0
             self._capture = None
             return
         if tag == "table" and self._in_artist_table:
             self._in_artist_table = False
+            # Phase 60.2: defensive reset on table close so a fresh feed starts clean.
+            self._current_album = ""
+            self._is_album_title_row = False
 
 
 class _AlbumPageParser(HTMLParser):
