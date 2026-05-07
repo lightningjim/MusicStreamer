@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
+status: planning
 stopped_at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
-last_updated: "2026-05-07T00:19:02.380Z"
+last_updated: "2026-05-07T01:50:52.156Z"
 last_activity: 2026-05-07
 progress:
-  total_phases: 26
+  total_phases: 28
   completed_phases: 15
   total_plans: 59
-  completed_plans: 58
-  percent: 58
+  completed_plans: 59
+  percent: 100
 ---
 
 # Project State
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.2 — address-phase-60-1-uat-gaps-capture-bad-religion-fixture-and
+**Current focus:** Phase 60.4 — two-informationals-1-under-search-show-the-amount-of-tokens-
 
 ## Current Position
 
-Phase: 61
+Phase: 60.4
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-05-07
@@ -146,6 +146,8 @@ Key v2.0 decisions already settled:
 - Phase 60.1 added: GBS.FM Search Artist/Album Drill-Down — follow-up to Phase 60 round-2 UAT T12 (2026-05-04). Phase 60 gap-closure closed 5 of 6 round-1 issues; T12 panels render but (A) multi-word click only surfaces song results and (B) clicks fall back to free-text search instead of /artist/<id> drill-down. Locked D-11a=Shape 4 was driven by deterministic `<table class="songs">` grep on captured pages, but actual /artist/4803 uses `<table class="artist">` and /album/1488 uses unclassed `<table width="620">`. Captured fixtures already in repo (commit 7376b1a).
 - Phase 72 added: Fullscreen Mode — Hide Left Column for Compact Displays — toggleable mode that hides the left column so bottom-bar controls stop overlapping when window is moved to a small/secondary screen; quick enter/exit (shortcut + menu) so user can flip in and out as device moves between displays 2026-05-05
 - Phase 60.2 inserted after Phase 60: Address Phase 60.1 UAT gaps — capture bad-religion fixture and triage zero-panel response, plus add album grouping to artist drill-down (URGENT)
+- Phase 60.3 inserted after Phase 60: Fix for ICY label gap in 60.2 Context Deferred Ideas (URGENT)
+- Phase 60.4 inserted after Phase 60: Two GBS.FM Search dialog informationals: token-balance display (red at 0) + playlist-length-with-song-count surface (URGENT)
 
 ### Pending Todos
 

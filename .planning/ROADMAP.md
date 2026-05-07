@@ -350,6 +350,26 @@ Plans:
 - [x] 60-06-vote-PLAN.md — Wave 4 (parallel with 60-07): NowPlayingPanel 5 vote buttons (1-5) + _GbsVoteWorker + optimistic UI + server-truth confirmation + entryid-from-/ajax
 - [x] 60-07-search-submit-PLAN.md — Wave 4 (parallel with 60-06): musicstreamer/ui_qt/gbs_search_dialog.py + main_window "Search GBS.FM…" entry + login-gated UI + per-row Add + inline error vs toast (D-08d)
 
+### Phase 60.4: Two informationals. 1) Under search, show the amount of tokens I have left to determine if I have more than 0 left (red if 0). Identified by "You have 48 tokens, so you can add extra songs to the playlist!" 2) Seeing "Playlist is 2:49 long with 1 song" is still useful (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 60
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 60.4 to break down)
+
+### Phase 60.3: Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 60
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 60.3 to break down)
+
 ### Phase 60.1: GBS.FM Search Artist/Album Drill-Down
 **Goal:** The Artist:/Album: panels in `GBSSearchDialog` (added by Phase 60-11) handle multi-word names correctly and offer real drill-down navigation into the artist/album catalog page, instead of the current Shape 4 free-text-search fallback. Surface lives in `musicstreamer/gbs_api.py` (parsers) and `musicstreamer/ui_qt/gbs_search_dialog.py` (dialog).
 **Depends on:** Phase 60
