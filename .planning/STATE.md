@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: ready_to_plan
 stopped_at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
 last_updated: "2026-05-07T00:19:02.380Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 26
-  completed_phases: 14
+  completed_phases: 15
   total_plans: 59
   completed_plans: 58
-  percent: 98
+  percent: 58
 ---
 
 # Project State
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 60.2 (address-phase-60-1-uat-gaps-capture-bad-religion-fixture-and) — EXECUTING
-Plan: 4 of 4
-Status: Ready to execute
+Phase: 61
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-05-07
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 102 (v1.0–v1.5 combined)
+- Total plans completed: 106 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
