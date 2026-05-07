@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
-last_updated: "2026-05-07T00:10:39.988Z"
+last_updated: "2026-05-07T00:19:02.380Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 26
   completed_phases: 14
   total_plans: 59
-  completed_plans: 57
-  percent: 97
+  completed_plans: 58
+  percent: 98
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 60.2 (address-phase-60-1-uat-gaps-capture-bad-religion-fixture-and) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-05-07
 
@@ -113,6 +113,7 @@ Key v2.0 decisions already settled:
 - [Phase 60.1-03]: Wave 2 GREEN dialog tier — _GbsArtistWorker + _GbsAlbumWorker (D-06 per-drill workers, own typed Signal(list) finished + dedicated dialog slot; no multi-mode signal extension). _back_btn ('← Back to search', page_row index 0, hidden by default) + _breadcrumb_label (PlainText, top_row, hidden by default). _pre_drill_state single-shot snapshot guard (Pitfall 8 mitigation: `if self._pre_drill_state is None`). Pitfall 9 Approach A: _back_btn.setEnabled(False) at dispatch + re-enable in settled slot. Pitfall 10: _start_search calls _reset_drill_chrome at TOP. _clear_table and _render_results both refactored with clear_panels=True kwarg (drill-down passes False per UI-SPEC Delta 3). _on_artist_link_activated / _on_album_link_activated rewritten: regex-validate href via module-level _ARTIST_HREF_RE / _ALBUM_HREF_RE (T-60.1-09 URL injection mitigation), reject malformed, snapshot once, dispatch worker. D-07: deleted test_artist_click_kicks_free_text_search and test_album_click_kicks_free_text_search in same commit as dialog GREEN. Auth-expired during drill: toast + login gate + leave drill chrome with re-enabled _back_btn (no auto-pop, matches UI-SPEC Interaction States). All 7 Plan 01 RED dialog tests turn GREEN; QA-05 / T-40-04 invariants preserved.
 - [Phase ?]: 60.2-01: H2 (singular vs plural discriminator) confirmed via 5-fixture triage; routing D-06 (one-line parser fix at gbs_api.py:542-548 startswith('artist')/startswith('album')); all 5 captured fixtures have at least one singular-form block and produce simultaneous RED entries in test_search_response_shape_pinned (Pitfall 8: 1 parametrize, 5 tuples). test_clear_table_clears_spans GREEN-by-coincidence — Qt's removeRows drops spans implicitly when rowCount→0; documented as contract pin not defect repro.
 - [Phase ?]: 60.2-02: Task 1 mirrors _artist_name accumulator (Pattern S-1) — _ArtistPageParser now carries _current_album state across rows + emits per-row 'album' field; renamed _skip_current → _is_album_title_row for semantic clarity. Task 2 D-06 fix: relaxed _ArtistAlbumParser discriminator startswith('artists') → startswith('artist') (and same for albums). Pitfall 7 docstring update applied (Rule 1 auto-fix — prior 'Skips albumTitle rows' claim became inaccurate post-behavior-change).
+- [Phase ?]: Phase 60.2-03 Wave 2 GREEN dialog tier — _render_results gains group_by_album: bool = False kwarg; True branches into 3-helper pipeline (_group_rows_by_album / _insert_album_section_header / _render_song_rows). Section-header rows use QStandardItem(f'{album} ({n} songs)') + Qt.ItemFlag.ItemIsEnabled (D-02 — non-selectable, non-editable, visually present) + bold QFont; setSpan(row, 0, 1, columnCount()) merges visually; NO setStyleSheet/setBackground (UI-SPEC FLAG-01 / Pitfall 5). Empty-string album group renders WITHOUT a header (D-11). Pitfall 3 mitigation: dual-counter loop (next_row table-row idx + original_idx song-list idx). _on_artist_drilled wired group_by_album=True; _on_album_drilled UNCHANGED (Pitfall 6). _clear_table defense-in-depth clearSpans() BEFORE removeRows (Pitfall 1+9). 6 Plan 01 dialog RED tests GREEN; QA-05 + Phase 60.1 drill regression preserved; 73/73 phase tests pass.
 
 ### Roadmap Evolution
 
@@ -177,9 +178,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 60.1 P03 | 18 min | 2 tasks | 2 files |
 | Phase 60.2 P01 | 7min | 4 tasks | 9 files |
 | Phase 60.2 P02 | 7m | 2 tasks | 1 files |
+| Phase 60.2 P03 | 12 min | 2 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-05-07T00:10:39.977Z
+Last session: 2026-05-07T00:18:29.397Z
 Stopped at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
 Resume file: None
