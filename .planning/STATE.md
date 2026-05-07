@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: planning
-stopped_at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
-last_updated: "2026-05-07T01:53:54.882Z"
+stopped_at: Phase 60.3 context gathered
+last_updated: "2026-05-07T04:00:35.956Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
@@ -184,6 +184,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-07T00:18:29.397Z
-Stopped at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
-Resume file: None
+Last session: 2026-05-07T04:00:35.945Z
+Stopped at: Phase 60.3 context gathered
+Resume file: .planning/phases/60.3-fix-for-icy-label-gap-in-60-2-context-deferred-ideas/60.3-CONTEXT.md
