@@ -435,6 +435,15 @@ class NowPlayingPanel(QWidget):
         # 'icy'  = bare ICY tag owns the label (pre-/ajax bridge OR auth_expired fallback);
         # None   = no station bound, non-GBS, or bridge window awaiting first /ajax response.
         self._gbs_label_source: Optional[str] = None
+        # Phase 60.3 Plan 05 / CR-02: panel-local flag set when /ajax is
+        # known to be impossible (auth_expired received from a worker).
+        # Distinct from _is_gbs_logged_in() (which checks cookies file
+        # existence per Phase 60 D-04 ladder #3) — preserves that signal
+        # while encoding "session is dead even though file persists."
+        # Reset to False on bind_station (fresh station) and on leaving
+        # GBS context in _refresh_gbs_visibility. NOT reset on same-station
+        # re-entry (WR-02: preserve auth_expired state across rebinds).
+        self._gbs_ajax_disabled: bool = False
 
         # Pitfall 2 + cover_art precedent: stale-vote-response token guard
         self._gbs_vote_token: int = 0
@@ -508,6 +517,11 @@ class NowPlayingPanel(QWidget):
         self._last_cover_icy = None
         self._last_icy_title = ""
         self.star_btn.setChecked(False)
+        # Phase 60.3 Plan 05: fresh station gets a clean ajax-disabled flag.
+        # _refresh_gbs_visibility's should_show=False branch handles the
+        # leaving-GBS-context case; this handles the entering-GBS-context
+        # case for a NEW station (different from prior bind).
+        self._gbs_ajax_disabled = False
         self._update_star_enabled()
         self._show_station_logo()
         self._show_station_logo_in_cover_slot()
@@ -578,6 +592,7 @@ class NowPlayingPanel(QWidget):
             in_bridge_window = (
                 is_gbs
                 and self._is_gbs_logged_in()
+                and not self._gbs_ajax_disabled
                 and self._gbs_label_source != 'ajax'
             )
             if (
@@ -675,9 +690,15 @@ class NowPlayingPanel(QWidget):
         /ajax has not yet stamped the canonical Artist - Title), the star button is
         disabled — preventing the user from saving a partial title to favorites.
         Once /ajax stamps (`_gbs_label_source == 'ajax'`), the gate opens.
-        D-08 fallback: when not logged in to GBS, /ajax is impossible — the gate
-        is relaxed (logged_in conjunct is False, so the bridge-window check fails
-        and `has_track` survives).
+
+        D-08 fallback (Plan 05 / CR-02 fix): the gate also relaxes when /ajax is
+        impossible. Two paths to that state:
+        - Logged-out-from-start: `_is_gbs_logged_in()` returns False (cookie file
+          never existed). The logged_in conjunct fails -> has_track survives.
+        - Auth-expired-mid-runtime: `_gbs_ajax_disabled` is set True by
+          `_on_gbs_playlist_error('auth_expired')`. The `not _gbs_ajax_disabled`
+          conjunct fails -> has_track survives. The cookie file remains on disk
+          (Phase 60 D-04 invariant: cookie-file-existence as login signal).
         """
         has_track = self._station is not None and bool(self._last_icy_title)
         if (
@@ -685,6 +706,7 @@ class NowPlayingPanel(QWidget):
             and self._station is not None
             and self._station.provider_name == "GBS.FM"
             and self._is_gbs_logged_in()
+            and not self._gbs_ajax_disabled
             and self._gbs_label_source != 'ajax'
         ):
             has_track = False
@@ -978,6 +1000,11 @@ class NowPlayingPanel(QWidget):
             self._gbs_current_entryid = None
             # Phase 60.3: reset source flag when leaving GBS context.
             self._gbs_label_source = None
+            # Phase 60.3 Plan 05 / WR-02: also clear ajax-disabled flag
+            # when leaving GBS context. Same-station re-entry (where
+            # should_show stays True across the auth_expired event) is
+            # NOT covered here — that's WR-02's preservation invariant.
+            self._gbs_ajax_disabled = False
             self._apply_vote_buttons_enabled(False)  # 60-09 / T10: leaving GBS context, re-disable
 
     def _gbs_poll_in_flight(self) -> bool:
@@ -1099,6 +1126,14 @@ class NowPlayingPanel(QWidget):
             self._gbs_playlist_widget.clear()
             # Phase 60.3 D-08: /ajax is now impossible — let ICY take over.
             self._gbs_label_source = 'icy'
+            # Phase 60.3 Plan 05 / CR-02 fix: encode "session is dead"
+            # state separately from cookies-file existence so the bridge
+            # gate in _update_star_enabled and the cover-art bridge in
+            # on_title_changed both relax. Phase 60 D-04 (cookie-file as
+            # login signal) is preserved — _is_gbs_logged_in() still
+            # returns True until the user logs out, but ajax_possible
+            # becomes False.
+            self._gbs_ajax_disabled = True
         else:
             # Pitfall 5 + 7: don't retry; just log.
             _log.warning("GBS.FM playlist poll failed: %s", msg)
