@@ -362,13 +362,15 @@ Plans:
 
 ### Phase 60.3: Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** When a GBS.FM station is the bound provider, `now_playing_panel.icy_label` shows the full `Artist - Title` (sourced from the existing `/ajax` poll) — bringing GBS.FM to parity with SomaFM-style ICY streams. Bridge window: bare ICY title is shown briefly before `/ajax` stamps; star/cover-art are gated during the bridge to avoid partial-title favorites and redundant iTunes lookups. Auth-expired / not-logged-in falls back to bare-ICY-as-truth.
+**Requirements:** GBS-01 family follow-up (no fixed phase_req_ids — CONTEXT D-01..D-08 are the acceptance contract)
 **Depends on:** Phase 60
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 60.3 to break down)
+- [ ] 60.3-01-PLAN.md — Wave 1: Source-flag scaffolding (`_gbs_label_source` tri-state attribute + lifecycle reset in `_refresh_gbs_visibility` + `_gbs_poll_in_flight` predicate + 3 scaffolding tests). Pure additive — no behaviour change.
+- [ ] 60.3-02-PLAN.md — Wave 2: `/ajax` authoritative writer (D-01/D-06/D-07): `_apply_gbs_icy_label` helper + invocation from `_on_gbs_playlist_ready` + Open Question 1 lock (icy_disabled-on-GBS skips /ajax stamping) + 3 tests. **Visible defect fix.**
+- [ ] 60.3-03-PLAN.md — Wave 3: Kick + no-downgrade + auth-expired (D-03/D-04/D-05/D-08) + bridge-window gating (D-07): `on_title_changed` GBS branch + `_update_star_enabled` extension + `_on_gbs_playlist_error` flag flip + 6 tests. Closes all eight CONTEXT decisions.
 
 ### Phase 60.1: GBS.FM Search Artist/Album Drill-Down
 **Goal:** The Artist:/Album: panels in `GBSSearchDialog` (added by Phase 60-11) handle multi-word names correctly and offer real drill-down navigation into the artist/album catalog page, instead of the current Shape 4 free-text-search fallback. Surface lives in `musicstreamer/gbs_api.py` (parsers) and `musicstreamer/ui_qt/gbs_search_dialog.py` (dialog).
