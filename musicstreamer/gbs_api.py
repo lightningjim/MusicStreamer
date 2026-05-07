@@ -210,6 +210,13 @@ def fetch_station_metadata() -> dict:
 
 _LINKED_SONGID_RE = re.compile(r'href=[\'"]/song/(\d+)[\'"]', re.IGNORECASE)
 
+# Phase 60.4 D-T1 / Pitfall D: parse "<th class='plinfo'>You have N tokens, ..."
+# from the GBS.FM home page. Optional `s` quantifier matches BOTH plural
+# (`48 tokens`) and singular (`1 token`) prose. IGNORECASE is defensive against
+# any future capitalisation drift in the rendered template (current site
+# uses lowercase 'You have', but the regex is cheap to make tolerant).
+_TOKEN_RE = re.compile(r"You have (\d+) tokens?", re.IGNORECASE)
+
 
 def _extract_songid_from_linked(html_str: str) -> Optional[int]:
     m = _LINKED_SONGID_RE.search(html_str or "")
@@ -279,6 +286,58 @@ def _fold_ajax_events(events: list) -> dict:
         elif name == "pllength":
             state["queue_summary"] = (payload or "").strip()
     return state
+
+
+# ---------- Phase 60.4 / GBS-01-followup-T: User token count ----------
+
+def fetch_user_tokens(cookies: http.cookiejar.MozillaCookieJar) -> Optional[int]:
+    """Phase 60.4 D-T1: GET /; parse <th class="plinfo"> for token count.
+
+    Returns int on success.
+    Returns None on parse miss / network error / 5xx / malformed integer (D-T2).
+    Raises GbsAuthExpiredError on 302 → /accounts/login/ (mirrors search()).
+
+    The `_open_with_cookies` helper at lines 146-160 already converts 302→login
+    into `GbsAuthExpiredError`; this function does NOT re-handle that case.
+    The local `except urllib.error.HTTPError` block catches OTHER HTTP errors
+    only (5xx, 4xx-other) and degrades them to None per D-T2.
+
+    Pitfalls (60-RESEARCH + 60.4-RESEARCH §Common Pitfalls):
+      6 — HTML scrape fragility: regex anchors on stable English prose, not
+          on CSS class names that may evolve.
+      7 — GET-with-side-effects: NO retries (this fetch is idempotent, but
+          the project-wide convention is no-retry; the next user-driven
+          trigger — next dialog open or next submit — is the retry path).
+      D — singular/plural English: regex `tokens?` matches both `1 token`
+          and `48 tokens`. Locked by test_singular_one_token.
+    """
+    url = f"{GBS_BASE}/"
+    try:
+        with _open_with_cookies(url, cookies, timeout=_TIMEOUT_READ) as resp:
+            html_str = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        # _open_with_cookies already raises GbsAuthExpiredError on 302→login;
+        # this except catches OTHER HTTPErrors (5xx, 4xx-other) and degrades
+        # to None per D-T2 (silent log, no toast).
+        _log.warning("fetch_user_tokens HTTPError %s for %s", e.code, url)
+        return None
+    except (urllib.error.URLError, OSError) as e:
+        _log.warning("fetch_user_tokens network failure: %s", e)
+        return None
+
+    m = _TOKEN_RE.search(html_str)
+    if not m:
+        # Empty playlist / not-logged-in / template change → None (D-T2).
+        # Open Question 2 from RESEARCH: empty-playlist home page may render
+        # different HTML; current behavior is graceful degradation to '—'
+        # placeholder in the dialog (Plan 02).
+        _log.warning("fetch_user_tokens parse miss for %s", url)
+        return None
+    try:
+        return int(m.group(1))
+    except (TypeError, ValueError):
+        _log.warning("fetch_user_tokens malformed integer in match %r", m.group(0))
+        return None
 
 
 # ---------- Capability 4: Vote on now-playing ----------
