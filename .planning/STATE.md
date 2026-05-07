@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 60.2 context gathered
-last_updated: "2026-05-06T23:49:41.254Z"
-last_activity: 2026-05-06 -- Phase 60.2 execution started
+last_updated: "2026-05-07T00:02:27.131Z"
+last_activity: 2026-05-07
 progress:
   total_phases: 26
   completed_phases: 14
   total_plans: 59
-  completed_plans: 55
-  percent: 93
+  completed_plans: 56
+  percent: 95
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 60.2 (address-phase-60-1-uat-gaps-capture-bad-religion-fixture-and) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 60.2
-Last activity: 2026-05-06 -- Phase 60.2 execution started
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-05-07
 
 ## Performance Metrics
 
@@ -111,6 +111,7 @@ Key v2.0 decisions already settled:
 - [Phase 61]: Phase 61 / Plan 02: APP_ID single-sourced via constants.APP_ID; bundled .desktop relocated to packaging/linux/; drift-guard test module added (tests/test_constants_drift.py) — Eliminates 5 drift sites; future renames are a one-line edit. Drift-guard tests catch silent regression. D-04 MPRIS bus name preserved.
 - [Phase 60.1-02]: D-04 multi-word triage closed as Hypothesis 1 REFUTED via direct fixture inspection (search_multiword_p1.html contains valid Artists/Albums panels with 5 artist + 3 album links for foo+fighters); existing _ArtistAlbumParser handles multi-word correctly, no parser change needed. Plan 04 UAT must re-confirm user's Issue A reproduces against live production. _ArtistPageParser gates on <table class="artist">, captures page-title artist once from <th class="album" colspan="3">. _AlbumPageParser uses D-02 belt-and-suspenders gate (rejects class="artist" AND class="songs" inside <div class="playlist"> via explicit reject-list + one-shot _table_locked). Both parsers emit identical {songid, artist, title, duration, add_url} dict shape so Plan 03's _render_results() works without surface-aware branching. Pitfall 7: _SongRowParser docstring corrected (D-08e ignore-of-artists/albums-blocks claim removed).
 - [Phase 60.1-03]: Wave 2 GREEN dialog tier — _GbsArtistWorker + _GbsAlbumWorker (D-06 per-drill workers, own typed Signal(list) finished + dedicated dialog slot; no multi-mode signal extension). _back_btn ('← Back to search', page_row index 0, hidden by default) + _breadcrumb_label (PlainText, top_row, hidden by default). _pre_drill_state single-shot snapshot guard (Pitfall 8 mitigation: `if self._pre_drill_state is None`). Pitfall 9 Approach A: _back_btn.setEnabled(False) at dispatch + re-enable in settled slot. Pitfall 10: _start_search calls _reset_drill_chrome at TOP. _clear_table and _render_results both refactored with clear_panels=True kwarg (drill-down passes False per UI-SPEC Delta 3). _on_artist_link_activated / _on_album_link_activated rewritten: regex-validate href via module-level _ARTIST_HREF_RE / _ALBUM_HREF_RE (T-60.1-09 URL injection mitigation), reject malformed, snapshot once, dispatch worker. D-07: deleted test_artist_click_kicks_free_text_search and test_album_click_kicks_free_text_search in same commit as dialog GREEN. Auth-expired during drill: toast + login gate + leave drill chrome with re-enabled _back_btn (no auto-pop, matches UI-SPEC Interaction States). All 7 Plan 01 RED dialog tests turn GREEN; QA-05 / T-40-04 invariants preserved.
+- [Phase ?]: 60.2-01: H2 (singular vs plural discriminator) confirmed via 5-fixture triage; routing D-06 (one-line parser fix at gbs_api.py:542-548 startswith('artist')/startswith('album')); all 5 captured fixtures have at least one singular-form block and produce simultaneous RED entries in test_search_response_shape_pinned (Pitfall 8: 1 parametrize, 5 tuples). test_clear_table_clears_spans GREEN-by-coincidence — Qt's removeRows drops spans implicitly when rowCount→0; documented as contract pin not defect repro.
 
 ### Roadmap Evolution
 
@@ -173,9 +174,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 59 P02 | 9min | 1 tasks | 1 files |
 | Phase 61 P02 | 6 min | 2 tasks | 7 files |
 | Phase 60.1 P03 | 18 min | 2 tasks | 2 files |
+| Phase 60.2 P01 | 7min | 4 tasks | 9 files |
 
 ## Session Continuity
 
-Last session: 2026-05-06T21:44:59.807Z
+Last session: 2026-05-07T00:02:14.210Z
 Stopped at: Phase 60.2 context gathered
-Resume file: .planning/phases/60.2-address-phase-60-1-uat-gaps-capture-bad-religion-fixture-and/60.2-CONTEXT.md
+Resume file: None
