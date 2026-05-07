@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: planning
-stopped_at: Phase 60.4 Plan 03 complete (Plans 01 + 02 still pending)
-last_updated: "2026-05-07T23:00:00.000Z"
+status: Plan 03 shipped (`feat(60.4-03)` — playlist summary row REVERSES Phase 60-10 D-10c per user discussion 2026-05-07)
+stopped_at: Phase 60.4 Wave 1 complete (Plans 01 + 03 merged; 60.4-01 + 60.4-03 GREEN). Wave 2 (Plan 02) ready to execute.
+last_updated: "2026-05-07T22:08:31.782Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
-  completed_phases: 15
-  total_plans: 59
-  completed_plans: 61
-  percent: 100
+  completed_phases: 16
+  total_plans: 68
+  completed_plans: 67
+  percent: 99
 ---
 
 # Project State
@@ -192,6 +192,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-07T21:05:57.373Z
-Stopped at: Phase 60.4 context gathered
-Resume file: .planning/phases/60.4-two-informationals-1-under-search-show-the-amount-of-tokens-/60.4-CONTEXT.md
+Last session: 2026-05-07T22:08:31.767Z
+Stopped at: Phase 60.4 Wave 1 complete (Plans 01 + 03 merged; 60.4-01 + 60.4-03 GREEN). Wave 2 (Plan 02) ready to execute.
+Resume file: .planning/phases/60.4-two-informationals-1-under-search-show-the-amount-of-tokens-/60.4-02-PLAN.md
