@@ -539,11 +539,15 @@ class _ArtistAlbumParser(HTMLParser):
         if not txt:
             return
         # First non-empty data node decides the block category.
+        # Phase 60.2 / TRIAGE D-06: gbs.fm pluralises the discriminator label
+        # by result-cardinality — single result → "Artist:"/"Album:" (singular),
+        # multiple → "Artists:"/"Albums:" (plural). startswith("artist") accepts
+        # both forms because "artists" begins with "artist"; same for albums.
         if self._current_block is None:
             lower = txt.lower()
-            if lower.startswith("artists"):
+            if lower.startswith("artist"):
                 self._current_block = "artists"
-            elif lower.startswith("albums"):
+            elif lower.startswith("album"):
                 self._current_block = "albums"
             return
         # Inside an anchor: collect the text + href pair.
