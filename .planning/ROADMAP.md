@@ -369,7 +369,7 @@ Plans:
 
 Plans:
 - [x] 60.3-01-PLAN.md — Wave 1: Source-flag scaffolding (`_gbs_label_source` tri-state attribute + lifecycle reset in `_refresh_gbs_visibility` + `_gbs_poll_in_flight` predicate + 3 scaffolding tests). Pure additive — no behaviour change. **Complete 2026-05-07** (commits `eb70ec5` + `26ad7e2`; 79/79 panel tests green).
-- [ ] 60.3-02-PLAN.md — Wave 2: `/ajax` authoritative writer (D-01/D-06/D-07): `_apply_gbs_icy_label` helper + invocation from `_on_gbs_playlist_ready` + Open Question 1 lock (icy_disabled-on-GBS skips /ajax stamping) + 3 tests. **Visible defect fix.**
+- [x] 60.3-02-PLAN.md — Wave 2: `/ajax` authoritative writer (D-01/D-06/D-07): `_apply_gbs_icy_label` helper + invocation from `_on_gbs_playlist_ready` + Open Question 1 lock (icy_disabled-on-GBS skips /ajax stamping) + 3 tests. **Visible defect fix. Complete 2026-05-07** (commits `0448155` + `7a24b22` + `34726d1`; 82/82 panel tests green).
 - [ ] 60.3-03-PLAN.md — Wave 3: Kick + no-downgrade + auth-expired (D-03/D-04/D-05/D-08) + bridge-window gating (D-07): `on_title_changed` GBS branch + `_update_star_enabled` extension + `_on_gbs_playlist_error` flag flip + 6 tests. Closes all eight CONTEXT decisions.
 
 ### Phase 60.1: GBS.FM Search Artist/Album Drill-Down
