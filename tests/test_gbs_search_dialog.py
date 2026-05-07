@@ -19,6 +19,7 @@ from musicstreamer.ui_qt.gbs_search_dialog import (
     _GbsSearchWorker,
     _GbsSubmitWorker,
 )
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX, WARNING_COLOR_HEX
 
 
 def _ensure_cookies(tmp_path):
@@ -44,13 +45,17 @@ def dialog_logged_in(qtbot, fake_repo, tmp_path, monkeypatch):
     _ensure_cookies(tmp_path)
     fake_jar = MagicMock()
     monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: fake_jar)
-    captured = []
-    dlg = GBSSearchDialog(fake_repo, captured.append)
-    # Stub worker .start() so no real network/threads spawn
+    # Stub ALL worker .start() methods BEFORE constructing the dialog so the
+    # constructor-tail _refresh_login_gate() (which kicks _GbsTokenWorker per
+    # Phase 60.4 Plan 02) does NOT spawn a real network/thread.
+    from musicstreamer.ui_qt.gbs_search_dialog import _GbsTokenWorker  # Phase 60.4
     monkeypatch.setattr(_GbsSearchWorker, "start", lambda self: None)
     monkeypatch.setattr(_GbsSubmitWorker, "start", lambda self: None)
     monkeypatch.setattr(_GbsArtistWorker, "start", lambda self: None)
     monkeypatch.setattr(_GbsAlbumWorker, "start", lambda self: None)
+    monkeypatch.setattr(_GbsTokenWorker, "start", lambda self: None)  # Phase 60.4 Plan 02
+    captured = []
+    dlg = GBSSearchDialog(fake_repo, captured.append)
     qtbot.addWidget(dlg)
     return dlg, captured
 
@@ -797,3 +802,211 @@ def test_album_drill_is_flat(dialog_logged_in):
             f"album drill row {row} must NOT have a span (Pitfall 6); "
             f"got columnSpan={dlg._results_table.columnSpan(row, 0)}"
         )
+
+
+# ============================================================================
+# Phase 60.4 / GBS-01-followup-T1..T8: Token counter UI tests
+# ============================================================================
+
+def _stub_token_worker(monkeypatch):
+    """Helper: stub _GbsTokenWorker.start so .start() is a no-op.
+
+    Captures whether start() was invoked via a list returned from this helper.
+    Mirrors the existing _GbsSubmitWorker stub pattern but for tests that
+    need to *count* invocations (where the fixture-level no-op stub is
+    insufficient because it doesn't capture).
+
+    NOTE: this helper installs OVER the fixture-level stub. Tests using
+    `dialog_logged_in` should call this helper to obtain a `starts` list,
+    then call `starts.clear()` to discard the constructor-tail kick before
+    asserting on subsequent kicks.
+    """
+    from musicstreamer.ui_qt.gbs_search_dialog import _GbsTokenWorker
+    starts = []
+    def _record_start(self):
+        starts.append(self)
+    monkeypatch.setattr(_GbsTokenWorker, "start", _record_start)
+    return starts
+
+
+def test_token_label_placed_after_breadcrumb(dialog_logged_in, monkeypatch):
+    """D-T4: _token_label exists in top_row, AFTER _breadcrumb_label."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    assert hasattr(dlg, "_token_label"), "Plan 02: _token_label QLabel must be added in _build_ui"
+    breadcrumb_parent = dlg._breadcrumb_label.parentWidget()
+    token_parent = dlg._token_label.parentWidget()
+    assert breadcrumb_parent is token_parent, (
+        "D-T4: _token_label must share a parent with _breadcrumb_label (same top_row)"
+    )
+    from PySide6.QtCore import Qt
+    assert dlg._token_label.textFormat() == Qt.TextFormat.PlainText, (
+        "Pitfall H: _token_label must be PlainText (mirrors _breadcrumb_label at line 288)"
+    )
+
+
+def test_token_label_format_compact(dialog_logged_in, monkeypatch):
+    """D-T5: f'Tokens: {n}' compact format. Slot signature is (request_id, count)."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    rid = dlg._token_request_id
+    dlg._on_token_fetched(rid, 48)
+    assert dlg._token_label.text() == "Tokens: 48"
+
+
+def test_token_refetch_on_dialog_open(qtbot, fake_repo, tmp_path, monkeypatch):
+    """D-T1: dialog open with cookies kicks _GbsTokenWorker via _refresh_login_gate."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    _ensure_cookies(tmp_path)
+    fake_jar = MagicMock()
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: fake_jar)
+    starts = _stub_token_worker(monkeypatch)
+    from musicstreamer.ui_qt.gbs_search_dialog import (
+        _GbsSearchWorker, _GbsSubmitWorker, _GbsArtistWorker, _GbsAlbumWorker,
+    )
+    monkeypatch.setattr(_GbsSearchWorker, "start", lambda self: None)
+    monkeypatch.setattr(_GbsSubmitWorker, "start", lambda self: None)
+    monkeypatch.setattr(_GbsArtistWorker, "start", lambda self: None)
+    monkeypatch.setattr(_GbsAlbumWorker, "start", lambda self: None)
+    dlg = GBSSearchDialog(fake_repo, lambda msg: None)
+    qtbot.addWidget(dlg)
+    assert len(starts) >= 1, (
+        "D-T1: opening the dialog while logged in must kick _GbsTokenWorker (via _refresh_login_gate)"
+    )
+
+
+def test_token_refetch_after_submit_success(dialog_logged_in, monkeypatch):
+    """D-T1: _on_submit_finished success branch kicks a fresh _GbsTokenWorker."""
+    starts = _stub_token_worker(monkeypatch)
+    starts.clear()  # discard any kick from dialog construction (fixture-level stub)
+    dlg, _ = dialog_logged_in
+    dlg._results = [{"songid": 100, "artist": "A", "title": "T", "duration": "3:00", "add_url": "/add/100"}]
+    dlg._on_search_finished(dlg._results, 1, 1)
+    dlg._on_submit_finished("Track added successfully!", 0)
+    assert len(starts) >= 1, (
+        "D-T1: post-submit success must kick _GbsTokenWorker for server-confirm refetch"
+    )
+
+
+def test_token_fetch_parse_miss_shows_emdash(dialog_logged_in, monkeypatch):
+    """D-T2: _on_token_error(rid, 'parse_failed') → 'Tokens: —' + cleared style + NO toast."""
+    _stub_token_worker(monkeypatch)
+    dlg, captured = dialog_logged_in
+    rid = dlg._token_request_id
+    dlg._on_token_error(rid, "parse_failed")
+    assert dlg._token_label.text() == "Tokens: —"
+    assert dlg._token_label.styleSheet() == ""
+    assert not any("Tokens" in t for t in captured), (
+        "D-T2 / Pitfall 3: token-fetch failure must NOT toast"
+    )
+
+
+def test_token_optimistic_decrement_on_submit(dialog_logged_in, monkeypatch):
+    """D-T3: optimistic decrement runs synchronously BEFORE refetch worker spawn."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    dlg._last_known_tokens = 5
+    dlg._results = [{"songid": 100, "artist": "A", "title": "T", "duration": "3:00", "add_url": "/add/100"}]
+    dlg._on_search_finished(dlg._results, 1, 1)
+    dlg._on_submit_finished("Track added successfully!", 0)
+    assert dlg._last_known_tokens == 4
+    assert dlg._token_label.text() == "Tokens: 4"
+
+
+def test_token_color_tier_red_at_zero(dialog_logged_in, monkeypatch):
+    """D-T6: n == 0 → ERROR_COLOR_HEX. Slot is (request_id, count)."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    rid = dlg._token_request_id
+    dlg._on_token_fetched(rid, 0)
+    assert ERROR_COLOR_HEX in dlg._token_label.styleSheet(), (
+        f"D-T6: at 0 tokens, stylesheet must contain {ERROR_COLOR_HEX}"
+    )
+
+
+def test_token_color_tier_amber_1_to_3(dialog_logged_in, monkeypatch):
+    """D-T6: 1 <= n <= 3 → WARNING_COLOR_HEX."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    for n in (1, 2, 3):
+        rid = dlg._token_request_id
+        dlg._on_token_fetched(rid, n)
+        assert WARNING_COLOR_HEX in dlg._token_label.styleSheet(), (
+            f"D-T6: at {n} tokens, stylesheet must contain {WARNING_COLOR_HEX}"
+        )
+
+
+def test_token_color_tier_default_4plus(dialog_logged_in, monkeypatch):
+    """D-T6: n >= 4 → empty stylesheet (default theme color)."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    for n in (4, 5, 48):
+        rid = dlg._token_request_id
+        dlg._on_token_fetched(rid, n)
+        assert dlg._token_label.styleSheet() == "", (
+            f"D-T6: at {n} tokens, stylesheet must be empty (default theme color)"
+        )
+
+
+def test_token_color_tier_default_for_emdash(dialog_logged_in, monkeypatch):
+    """D-T6: '—' placeholder → empty stylesheet (clears prior red/amber)."""
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    rid = dlg._token_request_id
+    dlg._on_token_fetched(rid, 0)
+    assert ERROR_COLOR_HEX in dlg._token_label.styleSheet()
+    rid = dlg._token_request_id
+    dlg._on_token_error(rid, "parse_failed")
+    assert dlg._token_label.styleSheet() == "", (
+        "D-T6: '—' placeholder stylesheet must be empty (clears prior red/amber)"
+    )
+
+
+def test_token_label_hidden_when_logged_out(dialog_no_login, monkeypatch):
+    """D-T7: while login gate is in not-logged-in state, _token_label is hidden."""
+    dlg, _ = dialog_no_login
+    assert hasattr(dlg, "_token_label"), "Plan 02: _token_label must exist"
+    assert dlg._token_label.isHidden() is True, (
+        "D-T7: while not logged in, _token_label must be hidden (setVisible(False))"
+    )
+
+
+def test_token_label_flips_to_emdash_on_auth_expired(dialog_logged_in, monkeypatch):
+    """D-T8: _on_submit_error('auth_expired') flips label to '—' + clears style + nulls state."""
+    _stub_token_worker(monkeypatch)
+    dlg, captured = dialog_logged_in
+    dlg._last_known_tokens = 47
+    dlg._token_label.setText("Tokens: 47")
+    dlg._token_label.setStyleSheet("")
+    dlg._results = [{"songid": 100, "artist": "A", "title": "T", "duration": "3:00", "add_url": "/add/100"}]
+    dlg._on_search_finished(dlg._results, 1, 1)
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: None)
+    dlg._on_submit_error("auth_expired", 0)
+    assert dlg._token_label.text() == "Tokens: —"
+    assert dlg._token_label.styleSheet() == ""
+    assert dlg._last_known_tokens is None
+    assert any("session expired" in t.lower() and "Accounts" in t for t in captured)
+
+
+def test_token_stale_fetch_discarded(dialog_logged_in, monkeypatch):
+    """Pitfall A: rapid-submit race — stale callback (request_id mismatch) is discarded.
+
+    Slot signature is (request_id, count); the guard reads request_id POSITIONALLY
+    — no `self.sender()` use — so this direct-call test path matches the wired
+    Signal->slot path exactly.
+    """
+    _stub_token_worker(monkeypatch)
+    dlg, _ = dialog_logged_in
+    rid_current = dlg._token_request_id
+    dlg._on_token_fetched(rid_current, 48)
+    assert dlg._token_label.text() == "Tokens: 48"
+    # Simulate a rapid second kick: bump _token_request_id (as _kick_token_worker does)
+    dlg._token_request_id += 1
+    # Now an OLDER worker (with the prior rid) emits its result — must be discarded
+    dlg._on_token_fetched(rid_current, 999)
+    assert dlg._token_label.text() == "Tokens: 48", (
+        "Pitfall A: stale token fetch (rid mismatch) must NOT update label"
+    )
+    assert dlg._last_known_tokens == 48, (
+        "Pitfall A: stale token fetch must NOT update _last_known_tokens"
+    )
