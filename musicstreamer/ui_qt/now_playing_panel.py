@@ -430,6 +430,12 @@ class NowPlayingPanel(QWidget):
         # Pitfall 1: entryid stamps ONLY from /ajax now_playing event
         self._gbs_current_entryid: Optional[int] = None
 
+        # Phase 60.3 D-05/D-07/D-08: tri-state source flag for icy_label.
+        # 'ajax' = /ajax has stamped the canonical Artist - Title;
+        # 'icy'  = bare ICY tag owns the label (pre-/ajax bridge OR auth_expired fallback);
+        # None   = no station bound, non-GBS, or bridge window awaiting first /ajax response.
+        self._gbs_label_source: Optional[str] = None
+
         # Pitfall 2 + cover_art precedent: stale-vote-response token guard
         self._gbs_vote_token: int = 0
         self._gbs_vote_worker = None  # SYNC-05 retain
@@ -889,6 +895,8 @@ class NowPlayingPanel(QWidget):
         if should_show:
             # Reset cursor on station change — fresh start
             self._gbs_poll_cursor = {}
+            # Phase 60.3: reset source flag on entry — first writer (ICY tag or /ajax response) sets it.
+            self._gbs_label_source = None
             self._gbs_playlist_widget.clear()
             placeholder = QListWidgetItem("Loading playlist…")
             self._gbs_playlist_widget.addItem(placeholder)
@@ -908,6 +916,8 @@ class NowPlayingPanel(QWidget):
             for btn in self._gbs_vote_buttons:
                 btn.setChecked(False)
             self._gbs_current_entryid = None
+            # Phase 60.3: reset source flag when leaving GBS context.
+            self._gbs_label_source = None
             self._apply_vote_buttons_enabled(False)  # 60-09 / T10: leaving GBS context, re-disable
 
     def _on_gbs_poll_tick(self) -> None:
