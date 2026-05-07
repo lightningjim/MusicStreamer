@@ -920,6 +920,16 @@ class NowPlayingPanel(QWidget):
             self._gbs_label_source = None
             self._apply_vote_buttons_enabled(False)  # 60-09 / T10: leaving GBS context, re-disable
 
+    def _gbs_poll_in_flight(self) -> bool:
+        """Phase 60.3 D-04: True iff a _GbsPollWorker exists and is still running.
+
+        Reads the SYNC-05 retention slot (self._gbs_poll_worker, line ~404 + assigned at line ~928).
+        Pitfall 3 (60.3-RESEARCH): isRunning() has a tiny "finished but not yet collected"
+        window where this returns False but _on_gbs_playlist_ready hasn't fired yet.
+        Accept the duplicate-poll risk — token-discard at line 941 catches the older response.
+        """
+        return self._gbs_poll_worker is not None and self._gbs_poll_worker.isRunning()
+
     def _on_gbs_poll_tick(self) -> None:
         """Phase 60 D-06a: kick a worker that hits /ajax with the cursor."""
         from musicstreamer import gbs_api

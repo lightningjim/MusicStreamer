@@ -1167,6 +1167,60 @@ def test_gbs_playlist_resets_position_on_track_change(qtbot, tmp_path, monkeypat
 
 
 # ===========================================================================
+# Phase 60.3 Plan 01: scaffolding tests for _gbs_label_source + _gbs_poll_in_flight
+# ===========================================================================
+
+
+def test_gbs_label_source_default_none_outside_gbs(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 01: source flag is None after a non-GBS bind."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    # Non-GBS station bind
+    non_gbs = _make_gbs_station(provider_name="SomaFM", name="Drone Zone")
+    panel.bind_station(non_gbs)
+    assert panel._gbs_label_source is None
+
+
+def test_gbs_label_source_resets_on_leaving_gbs_context(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 01: _refresh_gbs_visibility resets source flag on context exit."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    panel.bind_station(_make_gbs_station())
+    # Simulate a writer having flipped the flag (Plans 02/03 do this for real)
+    panel._gbs_label_source = "ajax"
+    # Now bind a non-GBS station — _refresh_gbs_visibility should reset the flag
+    panel.bind_station(_make_gbs_station(provider_name="SomaFM", name="Drone Zone"))
+    assert panel._gbs_label_source is None
+
+
+def test_gbs_poll_in_flight_predicate_truth_table(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 01 / D-04: predicate truth table over the SYNC-05 slot."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    panel = _construct_gbs_panel(qtbot)
+    # State 1: worker is None
+    panel._gbs_poll_worker = None
+    assert panel._gbs_poll_in_flight() is False
+    # State 2: worker exists but isRunning() returns False
+    finished_worker = MagicMock()
+    finished_worker.isRunning.return_value = False
+    panel._gbs_poll_worker = finished_worker
+    assert panel._gbs_poll_in_flight() is False
+    # State 3: worker exists and isRunning() returns True
+    running_worker = MagicMock()
+    running_worker.isRunning.return_value = True
+    panel._gbs_poll_worker = running_worker
+    assert panel._gbs_poll_in_flight() is True
+
+
+# ===========================================================================
 # Phase 60 / GBS-01d: vote control on NowPlayingPanel
 # ===========================================================================
 
