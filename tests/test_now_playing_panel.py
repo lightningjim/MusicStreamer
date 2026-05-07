@@ -1402,6 +1402,117 @@ def test_gbs_icy_label_no_downgrade_after_ajax(qtbot, tmp_path, monkeypatch):
     assert panel._gbs_label_source == "ajax"
 
 
+def test_gbs_icy_label_new_track_after_ajax_resets_and_kicks(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 04 / CR-01 / VERIFICATION Gap 1 — D-05 over-fire fix.
+
+    Scenario: Track A is /ajax-stamped (label shows full Artist - Title; flag = 'ajax').
+    Server-side track change occurs; GStreamer parses the new ICY tag for Track B and
+    fires on_title_changed("Track B ICY") BEFORE the next /ajax tick.
+
+    Pre-fix (Plan 03 baseline): the no-downgrade guard at line 542-543 saw flag == 'ajax'
+    and early-returned. Track A's label persisted; _last_icy_title kept Track A; D-03 kick
+    never fired. User waited up to 15 s for the next periodic poll.
+
+    Post-fix (Plan 04): the no-downgrade guard suppresses only the local writes (it still
+    fires same-track late ICY); the D-03 kick at the bottom always runs in GBS context
+    when the worker is idle. Crucially, _on_gbs_playlist_ready's track_changed branch
+    resets _gbs_label_source = None when a new entryid arrives, so the NEXT ICY for the
+    new track is treated as a fresh write.
+
+    This test exercises the on_title_changed path BEFORE the next /ajax response, where
+    the kick split is the only mechanism that triggers the upgrade. The track-change
+    reset in _on_gbs_playlist_ready is verified by a follow-up scenario in the same test
+    (assertion #5 below).
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    # BLOCKER #1: explicit override defeats MagicMock truthy default.
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    # Mock cover-art fetch — defensive against bridge-window edge cases.
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    # Spy on the kick AFTER bind so the bind-time tick (from _refresh_gbs_visibility)
+    # doesn't pollute the count.
+    tick_spy = MagicMock(wraps=panel._on_gbs_poll_tick)
+    monkeypatch.setattr(panel, "_on_gbs_poll_tick", tick_spy)
+    # Ensure worker is idle so the kick path is reachable.
+    finished_worker = MagicMock()
+    finished_worker.isRunning.return_value = False
+    panel._gbs_poll_worker = finished_worker
+    # --- Step 1: Track A is /ajax-stamped ---
+    panel._gbs_poll_token = 5
+    panel._on_gbs_playlist_ready(5, {
+        "now_playing_entryid": 1810736,
+        "icy_title": "Artist A - Track A",
+        "queue_rows": [], "removed_ids": [], "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    assert panel._gbs_label_source == "ajax", "Track A: helper flips flag to 'ajax'"
+    assert panel.icy_label.text() == "Artist A - Track A"
+    assert panel._last_icy_title == "Artist A - Track A"
+    # Reset spy — only count kicks AFTER the /ajax stamp.
+    tick_spy.reset_mock()
+    # --- Step 2: GStreamer fires on_title_changed for Track B's ICY tag ---
+    # Pre-fix: this would early-return. Post-fix: local writes are suppressed
+    # (flag is still 'ajax' from Track A's stamp), but the kick at the bottom fires.
+    panel.on_title_changed("Track B ICY")
+    assert tick_spy.call_count == 1, (
+        "Plan 04 / CR-01 fix: kick MUST fire on new-track ICY arrival even when "
+        "_gbs_label_source == 'ajax' from the prior track (D-03 must not be blocked)."
+    )
+    # Local label/_last_icy_title writes were SUPPRESSED here because the
+    # same-track no-downgrade guard fires (flag still 'ajax'). The kick will
+    # /ajax-stamp Track B's canonical title; THAT is what upgrades the label.
+    # This is the correct behaviour: until the new entryid arrives, the panel
+    # cannot distinguish "same-track late ICY" from "new-track ICY" without
+    # entryid context. The kick supplies that context via /ajax round-trip.
+    assert panel.icy_label.text() == "Artist A - Track A", (
+        "Local writes suppressed when flag == 'ajax' (same-track guard); "
+        "kick will fetch new entryid via /ajax and call _apply_gbs_icy_label "
+        "which resets the flag in the track_changed branch."
+    )
+    # --- Step 3: simulate the kick's /ajax response with a NEW entryid ---
+    # The track_changed branch in _on_gbs_playlist_ready must reset
+    # _gbs_label_source = None BEFORE _apply_gbs_icy_label re-stamps it to 'ajax'.
+    # Note: the kick in Step 2 incremented _gbs_poll_token (real _on_gbs_poll_tick
+    # ran via the wrapped spy). Use the current token so the slot doesn't discard
+    # this response as stale.
+    current_token = panel._gbs_poll_token
+    panel._on_gbs_playlist_ready(current_token, {
+        "now_playing_entryid": 1810737,  # different entryid -> track_changed
+        "icy_title": "Artist B - Track B",
+        "queue_rows": [], "removed_ids": [], "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    assert panel._gbs_label_source == "ajax", "Track B: helper flips flag to 'ajax'"
+    assert panel.icy_label.text() == "Artist B - Track B"
+    assert panel._last_icy_title == "Artist B - Track B"
+    # --- Step 4: regression check — a SUBSEQUENT same-track late ICY for
+    #     Track B is still suppressed (the original D-05 contract, unchanged) ---
+    panel.on_title_changed("Track B")  # bare ICY for the same track
+    assert panel.icy_label.text() == "Artist B - Track B", (
+        "Same-track late ICY for the new track must still be suppressed by "
+        "the no-downgrade guard (original D-05 mechanism preserved)."
+    )
+    # --- Step 5: post-/ajax-Track-B, on_title_changed for a HYPOTHETICAL Track C ICY
+    #     (before the next /ajax) — kick should still fire even though flag == 'ajax' ---
+    tick_spy.reset_mock()
+    panel.on_title_changed("Track C ICY")
+    assert tick_spy.call_count == 1, (
+        "After Track B is /ajax-stamped, a Track C ICY arrival must STILL kick "
+        "the poll — the kick is independent of the no-downgrade guard."
+    )
+
+
 def test_gbs_on_title_changed_kicks_poll_when_idle(qtbot, tmp_path, monkeypatch):
     """Phase 60.3 T-60.3-03 / D-03: ICY tag in GBS context kicks _on_gbs_poll_tick when worker idle."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
