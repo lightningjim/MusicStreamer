@@ -1252,7 +1252,11 @@ def test_gbs_icy_label_upgrades_on_ajax_after_icy(qtbot, tmp_path, monkeypatch):
     # and on_title_changed does NOT early-return at line 524.
     gbs_station.icy_disabled = False
     panel.bind_station(gbs_station)
-    # Mock cover-art fetch — this test asserts on label text + source flag, not on cover-art.
+    # Mock cover-art fetch BEFORE on_title_changed — that slot also triggers
+    # _fetch_cover_art_async (line 555). Mocking only after bind_station but
+    # before any code path that hits _fetch_cover_art_async preserves the
+    # offline-CI invariant and prevents a daemon thread from emitting against
+    # the panel signal after the qtbot teardown.
     monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
     panel._gbs_poll_token = 5
     # 1) Bare ICY arrives first (pre-/ajax bridge — flows through on_title_changed unchanged in Plan 02)
