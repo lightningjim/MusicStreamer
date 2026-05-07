@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: "Phase 60.3 complete (gap-closure cycle: 04+05+06; 9 commits 3559b81..7dcdedc; 94/94 panel + 42/42 GBS-cluster tests green; verifier 8/8 D-NN PASSED; 4/4 human UAT PASSED; all 10 REVIEW findings + both prior gap blockers closed)"
-last_updated: "2026-05-07T16:28:24.394Z"
+status: planning
+stopped_at: Phase 60.4 context gathered
+last_updated: "2026-05-07T21:05:57.384Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
-  completed_phases: 17
+  completed_phases: 16
   total_plans: 65
   completed_plans: 65
-  percent: 61
+  percent: 100
 ---
 
 # Project State
@@ -192,6 +192,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-07T16:28:24.384Z
-Stopped at: Phase 60.3 Plan 05 complete (Wave 2 gap-closure: CR-02 + WR-02 + IN-01 + Verification Gap 2; commits 5928bfb + d923665; 92/92 panel tests green; D-08 auth_expired bridge gate now relaxes via _gbs_ajax_disabled flag)
-Resume file: None
+Last session: 2026-05-07T21:05:57.373Z
+Stopped at: Phase 60.4 context gathered
+Resume file: .planning/phases/60.4-two-informationals-1-under-search-show-the-amount-of-tokens-/60.4-CONTEXT.md
