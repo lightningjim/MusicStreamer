@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: verifying
-stopped_at: Phase 60.3 Plan 03 complete (Wave 3 race-tightening + bridge-window gating; commits 7cac8db + c7ec990; 88/88 panel tests green; all 8 CONTEXT decisions D-01..D-08 implemented; Phase 60.3 complete)
-last_updated: "2026-05-07T16:07:24.473Z"
+stopped_at: "Phase 60.3 Plan 05 complete (Wave 2 gap-closure: CR-02 + WR-02 + IN-01 + Verification Gap 2; commits 5928bfb + d923665; 92/92 panel tests green; D-08 auth_expired bridge gate now relaxes via _gbs_ajax_disabled flag)"
+last_updated: "2026-05-07T16:16:54.180Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
   completed_phases: 15
   total_plans: 65
-  completed_plans: 63
-  percent: 97
+  completed_plans: 64
+  percent: 98
 ---
 
 # Project State
@@ -117,6 +117,7 @@ Key v2.0 decisions already settled:
 - [Phase 60.3-01]: Wave 1 scaffolding for ICY label gap fix shipped pure-additive — `_gbs_label_source: Optional[str] = None` tri-state flag declared adjacent to `_gbs_current_entryid`, reset on BOTH branches of `_refresh_gbs_visibility` (Pitfall 4 — accept the redundant entry-branch reset for same-station rebind). `_gbs_poll_in_flight() -> bool` predicate placed adjacent to `_is_gbs_logged_in` reads SYNC-05 retention slot via `self._gbs_poll_worker is not None and self._gbs_poll_worker.isRunning()` (Pitfall 3 — accept tiny "finished but not yet collected" race; token-discard at line 941 catches duplicates). Tri-state Optional[str] over Enum — string literals match the project idiom (vote_value bare int, _gbs_poll_cursor bare-string keys). Method, not property, mirrors `_is_gbs_logged_in` shape. Zero behaviour change; 76 pre-existing tests green; 3 new scaffolding tests pin contract (default None, reset on context exit, predicate truth-table over None / not-running / running). PLAN's grep-baseline claim "1 only line 280" for setTextFormat/setHtml/RichText was stale — actual baseline is 4 (unchanged by this plan; T-40-04 invariant preserved).
 - [Phase 60.3-02]: Wave 2 /ajax stamping helper landed — `_apply_gbs_icy_label(self, icy_title: str)` placed adjacent to `_apply_vote_*` cluster (between `_current_highlighted_vote` line 1053 and `_on_gbs_vote_clicked` line 1100). Single coupling point per D-06: writes `icy_label.setText`, `_last_icy_title`, `_gbs_label_source = 'ajax'`, calls `_update_star_enabled()`, triggers `_fetch_cover_art_async` (junk + cache + station-bound guarded). Helper invocation lands as the LAST statement of `_on_gbs_playlist_ready` (line 1014-1016) — last-writer-wins per D-02. Open Question 1 LOCKED as 'consistent / icy_disabled-on-GBS skips /ajax stamping' — helper short-circuits on `self._station.icy_disabled` truthy, matching `on_title_changed` gate at line 530-534. Empty icy_title is a no-op (early-return) — guards /ajax cold-start race. Three new tests (D-01/D-06/D-07 happy-path + cold-stamp + icy_disabled lock); two non-disabled tests explicitly set `gbs_station.icy_disabled = False` after `_make_gbs_station()` (BLOCKER #1 fix; rises to ≥ 8 after Plan 03). Existing `test_gbs_playlist_populates_from_mock_state` regression-protected with `_fetch_cover_art_async` mock to preserve offline-CI invariant. Plain-text invariant T-40-04 unchanged (grep -c "setTextFormat|setHtml|RichText" stays at 4). Helper docstring describes invariant in prose to avoid bumping the grep baseline. 82/82 panel tests green; 30/30 GBS cluster green.
 - [Phase 60.3-03]: Wave 3 race-tightening + bridge-window gating complete — `on_title_changed` rewritten with load-bearing six-step ordering (D-05 no-downgrade guard before setText; `_gbs_label_source = 'icy'` flip after setText but before `_update_star_enabled`; bridge-window cover-art suppression using `_gbs_label_source != 'ajax'` post-flip check; D-03/D-04 idle-worker kick as LAST statement via direct `_on_gbs_poll_tick()` call). `_update_star_enabled` extended with D-07 bridge-window conjunct (star disabled when GBS + logged-in + flag != 'ajax'; relaxes when not-logged-in per D-08). `_on_gbs_playlist_error` auth_expired branch flips `_gbs_label_source = 'icy'` inside existing token-discard guard (D-08). Six new tests: D-03 kick, D-04 debounce, D-05 no-downgrade, D-07 bridge-window star/cover-art gate, D-08 auth-expired flag-flip + logged-out fallback. All six per-test `gbs_station.icy_disabled = False` overrides (BLOCKER #1; total 8). test_gbs_auth_expired_relaxes_bridge_gate omits star assertion (cookies still present → logged-in gate still active); D-08 star-enabled verified by logged-out variant instead. 88/88 panel tests green. All eight CONTEXT decisions D-01..D-08 now implemented.
+- [Phase ?]: Phase 60.3-05: Option (b) _gbs_ajax_disabled flag closes CR-02 / D-08 auth_expired bridge gate (92/92 panel tests green).
 
 ### Roadmap Evolution
 
@@ -185,9 +186,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 60.2 P02 | 7m | 2 tasks | 1 files |
 | Phase 60.2 P03 | 12 min | 2 tasks | 1 files |
 | Phase 60.3 P04 | 25min | 2 tasks | 2 files |
+| Phase 60.3 P05 | 5min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-05-07T16:06:49.946Z
-Stopped at: Phase 60.3 Plan 03 complete (Wave 3 race-tightening + bridge-window gating; commits 7cac8db + c7ec990; 88/88 panel tests green; all 8 CONTEXT decisions D-01..D-08 implemented; Phase 60.3 complete)
+Last session: 2026-05-07T16:16:30.864Z
+Stopped at: Phase 60.3 Plan 05 complete (Wave 2 gap-closure: CR-02 + WR-02 + IN-01 + Verification Gap 2; commits 5928bfb + d923665; 92/92 panel tests green; D-08 auth_expired bridge gate now relaxes via _gbs_ajax_disabled flag)
 Resume file: None
