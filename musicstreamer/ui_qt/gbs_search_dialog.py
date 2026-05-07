@@ -680,7 +680,8 @@ class GBSSearchDialog(QDialog):
                        else "")
         self._results = list(results)
         # UI-SPEC Delta 4 + Pitfall 3: keep panels visible during drill-down.
-        self._render_results(clear_panels=False)
+        # Phase 60.2 D-01..D-03: insert per-album section-header span rows.
+        self._render_results(clear_panels=False, group_by_album=True)
         # UI-SPEC Delta 1: page_label hidden, breadcrumb shown.
         self._page_label.setVisible(False)
         self._breadcrumb_label.setText(f"Viewing artist: {artist_name}")
@@ -757,28 +758,110 @@ class GBSSearchDialog(QDialog):
         self._reset_drill_chrome()
         self._hide_inline_error()
 
-    def _render_results(self, *, clear_panels: bool = True) -> None:
+    def _render_results(self, *, clear_panels: bool = True,
+                        group_by_album: bool = False) -> None:
         """Render self._results into the table model.
 
         Phase 60.1: drill-down render slot calls this with clear_panels=False so
         the artist/album panels remain visible during drill-down (UI-SPEC Delta 3).
         Existing callers use the default clear_panels=True (no behavior change).
+
+        Phase 60.2 / D-01..D-03/D-11: group_by_album=True (artist drill-down only,
+        per Pitfall 6) inserts span-row section headers between album groups.
+        Empty-string album group renders WITHOUT a header per D-11. Existing
+        callers pass the default group_by_album=False (no behavior change).
         """
         self._clear_table(clear_panels=clear_panels)
         if not self._results:
             self._show_inline_error("No results.")
             return
         self._hide_inline_error()
-        for idx, result in enumerate(self._results):
-            artist = QStandardItem(str(result.get("artist", "")))   # PlainText default (T-39-04)
+
+        if not group_by_album:
+            # Original Phase 60.1 path: every row is a song row. Behavior unchanged.
+            self._render_song_rows(self._results, base_idx=0, original_idx_offset=0)
+            return
+
+        # Phase 60.2 drill-view path: insert per-album section-header span rows
+        # (CONTEXT.md D-01..D-03). Empty-string albums render WITHOUT a header
+        # per D-11.
+        groups = self._group_rows_by_album(self._results)
+        next_row = 0
+        original_idx = 0
+        for album, rows_in_group in groups:
+            if album != "":
+                self._insert_album_section_header(next_row, album, len(rows_in_group))
+                next_row += 1
+            self._render_song_rows(
+                rows_in_group,
+                base_idx=next_row,
+                original_idx_offset=original_idx,
+            )
+            next_row += len(rows_in_group)
+            original_idx += len(rows_in_group)
+
+    def _group_rows_by_album(self, results: list) -> list:
+        """Phase 60.2 / D-01: group consecutive same-album rows; preserve order.
+
+        Returns list[tuple[str, list[dict]]]. Empty-string albums form their own
+        group (rendered without a header per D-11).
+        """
+        groups: list = []
+        for row in results:
+            album = str(row.get("album", ""))
+            if groups and groups[-1][0] == album:
+                groups[-1][1].append(row)
+            else:
+                groups.append((album, [row]))
+        return groups
+
+    def _insert_album_section_header(self, row: int, album: str, song_count: int) -> None:
+        """Phase 60.2 / D-02/D-03: insert a span-row section header at the given
+        table row index.
+
+        Header text: f"{album} ({song_count} songs)" (D-03 verbatim — plain UTF-8).
+        Bold font (Pattern S-4 — bold-only differentiation; UI-SPEC FLAG-01 binds —
+        do NOT call setStyleSheet or setBackground). Non-selectable + non-editable
+        but visually present (Qt.ItemFlag.ItemIsEnabled — D-02 contract).
+        """
+        header_text = f"{album} ({song_count} songs)"
+        item = QStandardItem(header_text)            # PlainText default (T-40-04)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)     # not selectable, not editable, but enabled
+        bold = QFont()
+        bold.setBold(True)
+        item.setFont(bold)
+        # Model row needs columnCount cells; populate cols 1..N-1 with empty placeholders
+        # so the model row has the correct shape; setSpan then visually merges them.
+        placeholders = [QStandardItem("") for _ in range(self._model.columnCount() - 1)]
+        for ph in placeholders:
+            ph.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        self._model.appendRow([item, *placeholders])
+        self._results_table.setSpan(row, 0, 1, self._model.columnCount())
+
+    def _render_song_rows(self, rows: list, *, base_idx: int,
+                          original_idx_offset: int = 0) -> None:
+        """Phase 60.2 / Pitfall 3: append `rows` as song rows starting at table-row
+        index `base_idx`.
+
+        Add! button slot uses song-list index `original_idx_offset + i` (NOT
+        table-row index) so _on_submit_row(idx) reads self._results[idx] correctly
+        when section-header span rows shift table rows.
+        """
+        for i, result in enumerate(rows):
+            artist = QStandardItem(str(result.get("artist", "")))   # PlainText (T-40-04)
             title = QStandardItem(str(result.get("title", "")))
             duration = QStandardItem(str(result.get("duration", "")))
             placeholder = QStandardItem("")
             self._model.appendRow([artist, title, duration, placeholder])
             btn = QPushButton("Add!", self._results_table)
-            btn.clicked.connect(self._make_submit_slot(idx))  # QA-05 (closure factory, not lambda)
+            # Pitfall 3: pass song-list index (original_idx_offset + i), NOT
+            # table-row index (base_idx + i). _on_submit_row reads self._results[idx]
+            # which remains song-list-indexed.
+            btn.clicked.connect(self._make_submit_slot(original_idx_offset + i))  # QA-05
             self._submit_buttons.append(btn)
-            self._results_table.setIndexWidget(self._model.index(idx, _COL_ADD), btn)
+            self._results_table.setIndexWidget(
+                self._model.index(base_idx + i, _COL_ADD), btn,
+            )
 
     def _make_submit_slot(self, row_idx: int):
         """Closure-factory for per-row Submit buttons (mirrors discovery_dialog.py:388-396)."""
