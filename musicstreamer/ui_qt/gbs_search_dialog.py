@@ -568,7 +568,17 @@ class GBSSearchDialog(QDialog):
         the next search response includes non-empty links via _on_metadata_ready.
         See ORDERING INVARIANT in _GbsSearchWorker.run(): metadata_ready emits
         AFTER finished, so this hide is always followed by the correct re-show.
+
+        Phase 60.2 / Pitfall 1+9: clearSpans() FIRST (BEFORE removeRows) drops any
+        stale section-header spans set during a prior artist drill-down so a
+        subsequent search render doesn't merge its first row's columns. Order
+        matters — clearSpans must reference rows the model still knows about.
+        Defense-in-depth: removeRows(0, rowCount) implicitly drops spans when
+        rowCount→0, but the explicit clearSpans is load-bearing when rowCount>0
+        (e.g., reset between drill→back→search transitions where rows persist
+        briefly).
         """
+        self._results_table.clearSpans()                       # Phase 60.2 Pitfall 1+9
         self._model.removeRows(0, self._model.rowCount())
         self._submit_buttons = []
         if clear_panels and hasattr(self, "_artist_list"):
