@@ -1640,19 +1640,18 @@ def test_gbs_auth_expired_relaxes_bridge_gate(qtbot, tmp_path, monkeypatch):
     panel.on_title_changed("Bare Title")
     assert panel.icy_label.text() == "Bare Title"
     assert panel._last_icy_title == "Bare Title"
-    # D-08 gate relaxation: star is enabled despite is_gbs + flag != 'ajax'
-    # because _is_gbs_logged_in() still returns True (cookies file is still present in this test;
-    # the relaxation comes from the /ajax-impossible state being signalled by the flag-flip
-    # plus the visible widget hide). The bridge-window check in _update_star_enabled
-    # gates on logged_in AND flag != 'ajax' — after the flip, flag == 'icy' which means
-    # the slot wrote to the label, and since _last_icy_title is now non-empty, has_track
-    # is True; the bridge condition (flag != 'ajax' AND logged_in) STILL gates it down.
-    # Per CONTEXT D-08: "star/cover-art remain enabled" when /ajax is impossible.
-    # The test for D-08 fallback is the logged-out variant below — there, _is_gbs_logged_in
-    # returns False so the gate passes. For auth_expired with cookies still present, the
-    # gate may still close. Document this nuance: this test asserts the FLAG flip + the
-    # ICY write succeeding; the star-enabled D-08 promise is verified by the next test.
-    # (No assertion on star_btn here — see test_gbs_logged_out_icy_writes_normally.)
+    # Phase 60.3 Plan 05 / CR-02 fix: D-08 gate relaxation now applies to the
+    # auth_expired path too. _on_gbs_playlist_error('auth_expired') sets
+    # _gbs_ajax_disabled = True; the bridge predicate in _update_star_enabled
+    # has the conjunct `not self._gbs_ajax_disabled`, so the gate relaxes
+    # even though the cookies file persists on disk (Phase 60 D-04 preserved).
+    assert panel._gbs_ajax_disabled is True, (
+        "auth_expired sets _gbs_ajax_disabled (Plan 05 / CR-02)"
+    )
+    assert panel.star_btn.isEnabled() is True, (
+        "D-08: star is enabled after auth_expired even though cookies persist "
+        "(bridge gate relaxes via _gbs_ajax_disabled, not cookie deletion)"
+    )
 
 
 def test_gbs_logged_out_icy_writes_normally(qtbot, tmp_path, monkeypatch):
@@ -1679,6 +1678,129 @@ def test_gbs_logged_out_icy_writes_normally(qtbot, tmp_path, monkeypatch):
     assert panel.star_btn.isEnabled() is True, "logged-out: star enabled (D-08 fallback)"
     # Cover-art lookup should fire normally — no bridge-window suppression when logged out
     fetch_mock.assert_called_once_with("Bare Title")
+
+
+def test_gbs_refresh_gbs_visibility_preserves_ajax_disabled_on_rebind(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 05 / WR-02: same-station rebind preserves _gbs_ajax_disabled.
+
+    Sequence:
+    1. Bind GBS station + cookie file present + auth_expired arrives -> _gbs_ajax_disabled = True.
+    2. User triggers a same-station rebind (e.g., _on_play_pause_clicked at line 634
+       calls bind_station(self._station) on stop/play cycle, OR another path
+       re-runs _refresh_gbs_visibility for the same station).
+    3. _refresh_gbs_visibility's `should_show=True` branch must NOT clobber
+       _gbs_ajax_disabled. The flag is panel-local session state — only fresh-bind
+       (different station) and leaving-GBS-context should reset it.
+
+    Pre-fix (Plan 03 baseline): _refresh_gbs_visibility unconditionally wrote
+    `_gbs_label_source = None` on entry, which silently hid the WR-02 issue —
+    but the auth_expired flag flip was wiped by ANY same-station re-entry.
+
+    Post-fix (Plan 05): only `should_show=False` resets the flag; same-station
+    re-entry preserves it. This test exercises the preservation invariant directly
+    by calling _refresh_gbs_visibility() a second time after auth_expired and
+    asserting the flag survives.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False  # BLOCKER #1 invariant
+    panel.bind_station(gbs_station)
+    # bind_station resets _gbs_ajax_disabled = False (Plan 05 Sub-change B).
+    assert panel._gbs_ajax_disabled is False, "fresh bind clears the flag"
+    # Auth expires server-side
+    panel._gbs_poll_token = 5
+    panel._on_gbs_playlist_error(5, "auth_expired")
+    assert panel._gbs_ajax_disabled is True, "auth_expired sets the flag"
+    # Same-station rebind path: _refresh_gbs_visibility() is called from
+    # bind_station (line 523) AND from _on_play_pause_clicked indirectly.
+    # Here we exercise the visibility refresh directly.
+    panel._refresh_gbs_visibility()
+    # WR-02 invariant: the flag survives the same-station re-entry.
+    assert panel._gbs_ajax_disabled is True, (
+        "WR-02: same-station _refresh_gbs_visibility(should_show=True) "
+        "must NOT clobber _gbs_ajax_disabled"
+    )
+    # Sanity check: bridge predicate still relaxes (star enabled, flag survives).
+    panel.on_title_changed("Bare Title")
+    assert panel.star_btn.isEnabled() is True, (
+        "After same-station rebind post-auth_expired, star is still enabled."
+    )
+
+
+def test_gbs_bind_station_clears_ajax_disabled_on_fresh_station(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 05 / WR-02 corollary: binding a DIFFERENT GBS station clears the flag.
+
+    After auth_expired sets _gbs_ajax_disabled=True for Station X, binding
+    Station Y (or rebinding Station X via bind_station() entry) must reset
+    the flag — because the new bind represents a fresh session attempt.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    # Station X
+    station_x = _make_gbs_station(name="Station X")
+    station_x.icy_disabled = False
+    panel.bind_station(station_x)
+    # Auth expires
+    panel._gbs_poll_token = 5
+    panel._on_gbs_playlist_error(5, "auth_expired")
+    assert panel._gbs_ajax_disabled is True
+    # Now bind a DIFFERENT GBS station — fresh session attempt
+    station_y = _make_gbs_station(name="Station Y")
+    station_y.icy_disabled = False
+    panel.bind_station(station_y)
+    assert panel._gbs_ajax_disabled is False, (
+        "bind_station resets _gbs_ajax_disabled (fresh session attempt)"
+    )
+
+
+def test_gbs_refresh_gbs_visibility_clears_ajax_disabled_on_leaving_gbs(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 05 / WR-02 corollary: leaving GBS context clears the flag.
+
+    After auth_expired sets _gbs_ajax_disabled=True on a GBS station, binding
+    a non-GBS station must reset the flag — the should_show=False branch in
+    _refresh_gbs_visibility owns the leaving-GBS-context cleanup.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    # GBS station + auth_expired
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    panel._gbs_poll_token = 5
+    panel._on_gbs_playlist_error(5, "auth_expired")
+    assert panel._gbs_ajax_disabled is True
+    # Bind a non-GBS station — _refresh_gbs_visibility hits the should_show=False branch
+    non_gbs_station = _make_gbs_station(provider_name="DI.fm", name="DI.fm Station")
+    non_gbs_station.icy_disabled = False
+    panel.bind_station(non_gbs_station)
+    assert panel._gbs_ajax_disabled is False, (
+        "Leaving GBS context (should_show=False) resets _gbs_ajax_disabled"
+    )
 
 
 # ===========================================================================
