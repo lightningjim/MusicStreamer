@@ -1224,6 +1224,137 @@ def test_gbs_poll_in_flight_predicate_truth_table(qtbot, tmp_path, monkeypatch):
 
 
 # ===========================================================================
+# Phase 60.3 Plan 02: D-01/D-06/D-07 /ajax-stamping + icy_disabled lock tests
+# ===========================================================================
+
+
+def test_gbs_icy_label_upgrades_on_ajax_after_icy(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 T-60.3-01 / D-01/D-06: bare ICY arrives first, /ajax upgrades to full Artist - Title.
+
+    After /ajax stamps:
+      - icy_label.text() == full "Artist - Title" string
+      - _last_icy_title == same full string (D-06 single coupling point)
+      - _gbs_label_source == 'ajax'
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    # Per checker BLOCKER #1: MagicMock auto-attribute icy_disabled is truthy by default.
+    # Explicit override required so bind_station does NOT take the icy_disabled fallback
+    # and on_title_changed does NOT early-return at line 524.
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    # Mock cover-art fetch — this test asserts on label text + source flag, not on cover-art.
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    panel._gbs_poll_token = 5
+    # 1) Bare ICY arrives first (pre-/ajax bridge — flows through on_title_changed unchanged in Plan 02)
+    panel.on_title_changed("La Frontière de la Nuit")
+    assert panel.icy_label.text() == "La Frontière de la Nuit"
+    assert panel._last_icy_title == "La Frontière de la Nuit"
+    # 2) /ajax arrives, upgrades to full Artist - Title via _apply_gbs_icy_label
+    panel._on_gbs_playlist_ready(5, {
+        "now_playing_entryid": 1810736,
+        "icy_title": "Cimerion & Oublieth (Arcanes) - La Frontière de la Nuit",
+        "queue_rows": [],
+        "removed_ids": [],
+        "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    assert panel.icy_label.text() == "Cimerion & Oublieth (Arcanes) - La Frontière de la Nuit"
+    assert panel._last_icy_title == "Cimerion & Oublieth (Arcanes) - La Frontière de la Nuit"
+    assert panel._gbs_label_source == "ajax"
+
+
+def test_gbs_ajax_stamps_label_first_no_prior_icy(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 D-01: cold /ajax response stamps icy_label even with no prior on_title_changed.
+
+    Scenario: user binds GBS station; /ajax response arrives BEFORE any
+    ICY tag (race possible if GStreamer takes longer to parse than /ajax round-trip).
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    # Per checker BLOCKER #1: explicit override (see preamble in test above).
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    # Mock cover-art fetch — this test asserts on label text + source flag, not on cover-art.
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    panel._gbs_poll_token = 5
+    # No prior on_title_changed — go straight to /ajax response
+    panel._on_gbs_playlist_ready(5, {
+        "now_playing_entryid": 1810736,
+        "icy_title": "Artist X - Track Y",
+        "queue_rows": [],
+        "removed_ids": [],
+        "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    assert panel.icy_label.text() == "Artist X - Track Y"
+    assert panel._last_icy_title == "Artist X - Track Y"
+    assert panel._gbs_label_source == "ajax"
+
+
+def test_gbs_icy_disabled_suppresses_ajax_stamp(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 T-60.3-09 / Open Question 1 lock: icy_disabled=True on a GBS station
+    suppresses /ajax label stamping (consistent with on_title_changed gate at line 524).
+
+    After /ajax response with icy_disabled=True:
+      - icy_label.text() == station name (the bind_station fallback)
+      - _last_icy_title == "" (the bind_station reset)
+      - _gbs_label_source != 'ajax' (helper early-returned before the flip)
+      - _fetch_cover_art_async NOT called
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    # Bind a GBS station with icy_disabled=True (explicit — testing the LOCK)
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = True
+    panel.bind_station(gbs_station)
+    # Spy on cover-art fetch to verify it is not called
+    fetch_mock = MagicMock()
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", fetch_mock)
+    panel._gbs_poll_token = 5
+    # /ajax response arrives — helper should early-return on icy_disabled
+    panel._on_gbs_playlist_ready(5, {
+        "now_playing_entryid": 1810736,
+        "icy_title": "Artist X - Track Y",
+        "queue_rows": [],
+        "removed_ids": [],
+        "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    # Label keeps the bind_station fallback (station name); _last_icy_title is "" from bind reset
+    assert panel.icy_label.text() == gbs_station.name
+    assert panel._last_icy_title == ""
+    assert panel._gbs_label_source != "ajax"
+    fetch_mock.assert_not_called()
+
+
+# ===========================================================================
 # Phase 60 / GBS-01d: vote control on NowPlayingPanel
 # ===========================================================================
 
