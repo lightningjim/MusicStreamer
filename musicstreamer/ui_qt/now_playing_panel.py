@@ -537,47 +537,62 @@ class NowPlayingPanel(QWidget):
             return
         is_gbs = (self._station is not None
                   and self._station.provider_name == "GBS.FM")
-        # Phase 60.3 D-05: no-downgrade — /ajax-stamped label wins over a
-        # later ICY arrival for the same track.
-        if is_gbs and self._gbs_label_source == 'ajax':
-            return
-        self.icy_label.setText(title or "")
-        self._last_icy_title = title or ""
-        # Phase 60.3 D-07/D-08: ICY tag now owns the label (bridge or fallback).
-        # Flag flips BEFORE _update_star_enabled so the star gate sees the new state.
-        if is_gbs:
-            self._gbs_label_source = 'icy'
-        self._update_star_enabled()
-        if self._station and title:
-            is_fav = self._repo.is_favorited(self._station.name, title)
-            self.star_btn.setChecked(is_fav)
-            icon_name = "starred-symbolic" if is_fav else "non-starred-symbolic"
-            self.star_btn.setIcon(
-                QIcon.fromTheme(icon_name, QIcon(f":/icons/{icon_name}.svg"))
+        # Phase 60.3 D-05 (Plan 04 / CR-01 fix): no-downgrade — when /ajax
+        # has stamped the canonical Artist - Title for the CURRENT track, a
+        # later same-track bare ICY arrival must not overwrite the label.
+        # The cross-track case is handled by the track-change reset in
+        # _on_gbs_playlist_ready (Sub-change B): when a new entryid arrives,
+        # _gbs_label_source flips back to None so the next ICY tag for the
+        # new track is treated as a fresh write here.
+        #
+        # CRITICAL (Plan 04 / CR-01 fix): the no-downgrade guard suppresses
+        # only the LOCAL label/star/cover-art writes below. The D-03 kick at
+        # the bottom of this slot MUST always fire in GBS context (when the
+        # worker is idle), so a track change that hasn't been seen by /ajax
+        # yet still triggers an immediate /ajax round-trip — closing the
+        # window between the new ICY tag and the canonical Artist - Title.
+        suppress_local_writes = is_gbs and self._gbs_label_source == 'ajax'
+        if not suppress_local_writes:
+            self.icy_label.setText(title or "")
+            self._last_icy_title = title or ""
+            # Phase 60.3 D-07/D-08: ICY tag now owns the label (bridge or
+            # fallback). Flag flips BEFORE _update_star_enabled so the star
+            # gate sees the new state.
+            if is_gbs:
+                self._gbs_label_source = 'icy'
+            self._update_star_enabled()
+            if self._station and title:
+                is_fav = self._repo.is_favorited(self._station.name, title)
+                self.star_btn.setChecked(is_fav)
+                icon_name = "starred-symbolic" if is_fav else "non-starred-symbolic"
+                self.star_btn.setIcon(
+                    QIcon.fromTheme(icon_name, QIcon(f":/icons/{icon_name}.svg"))
+                )
+                self.star_btn.setToolTip(
+                    "Remove track from favorites" if is_fav else "Save track to favorites"
+                )
+            # Phase 60.3 D-07: during the bridge window in GBS context
+            # (logged in, /ajax not yet stamped), suppress cover-art lookup.
+            # _apply_gbs_icy_label will fire the lookup with the full
+            # Artist - Title once /ajax stamps.
+            in_bridge_window = (
+                is_gbs
+                and self._is_gbs_logged_in()
+                and self._gbs_label_source != 'ajax'
             )
-            self.star_btn.setToolTip(
-                "Remove track from favorites" if is_fav else "Save track to favorites"
-            )
-        # Phase 60.3 D-07: during the bridge window in GBS context (logged in,
-        # /ajax not yet stamped), suppress cover-art lookup. _apply_gbs_icy_label
-        # will fire the lookup with the full Artist - Title once /ajax stamps.
-        in_bridge_window = (
-            is_gbs
-            and self._is_gbs_logged_in()
-            and self._gbs_label_source != 'ajax'
-        )
-        if (
-            title
-            and not is_junk_title(title)
-            and self._station is not None
-            and title != self._last_cover_icy
-            and not in_bridge_window
-        ):
-            self._last_cover_icy = title
-            self._fetch_cover_art_async(title)
-        # Phase 60.3 D-03/D-04: in GBS context, kick /ajax to upgrade the
-        # label from bare ICY to full Artist - Title. Skip when a worker
-        # is already in flight (D-04 debounce). Direct call — do NOT
+            if (
+                title
+                and not is_junk_title(title)
+                and self._station is not None
+                and title != self._last_cover_icy
+                and not in_bridge_window
+            ):
+                self._last_cover_icy = title
+                self._fetch_cover_art_async(title)
+        # Phase 60.3 D-03/D-04 (Plan 04 / CR-01 fix): the kick lives OUTSIDE
+        # the no-downgrade early-return so a stale 'ajax' flag from a prior
+        # track does NOT block the /ajax refresh. In GBS context, kick
+        # _on_gbs_poll_tick when the worker is idle. Direct call — do NOT
         # restart _gbs_poll_timer (would reset the 15s countdown).
         if is_gbs and not self._gbs_poll_in_flight():
             self._on_gbs_poll_tick()
@@ -1018,6 +1033,12 @@ class NowPlayingPanel(QWidget):
         if track_changed:
             # HIGH 4 fix: reset position cursor on track transition.
             self._gbs_poll_cursor["position"] = 0
+            # Phase 60.3 Plan 04 / CR-01 fix: the next ICY tag for the new
+            # track must be treated as a fresh write — clear the 'ajax' flag
+            # so on_title_changed's no-downgrade guard does not suppress it.
+            # The flag will flip back to 'ajax' when _apply_gbs_icy_label is
+            # called at the end of this slot (last statement; see line ~1061).
+            self._gbs_label_source = None
         elif state.get("song_position") is not None:
             try:
                 self._gbs_poll_cursor["position"] = int(state["song_position"])
