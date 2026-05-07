@@ -1011,6 +1011,9 @@ class NowPlayingPanel(QWidget):
         score = state.get("score")
         if score:
             self._gbs_playlist_widget.addItem(QListWidgetItem(f"Score: {score}"))
+        # Phase 60.3 D-01/D-06/D-07: /ajax is authoritative for icy_label.
+        # Helper handles empty-string + icy_disabled + plain-text + cover-art chain.
+        self._apply_gbs_icy_label(state.get("icy_title") or "")
 
     def _on_gbs_playlist_error(self, token: int, msg: str) -> None:
         """Auth expiry -> hide widget + stop timer; other errors -> silent log."""
@@ -1057,6 +1060,42 @@ class NowPlayingPanel(QWidget):
                 except (TypeError, ValueError):
                     return 0
         return 0
+
+    def _apply_gbs_icy_label(self, icy_title: str) -> None:
+        """Phase 60.3 D-01/D-06/D-07: /ajax stamps the canonical Artist - Title.
+
+        Single coupling point for icy_label, _last_icy_title, source flag,
+        and cover-art lookup string. After /ajax stamps, all three downstream
+        consumers (display, favorites key, cover-art query) read the same
+        full `Artist - Title` value (D-06).
+
+        Last-writer-wins (D-02). Empty `icy_title` is a no-op (the /ajax
+        cold-start can race the playlist-events stream — guarding empty here
+        prevents clobbering the pre-/ajax bridge ICY value).
+
+        Open Question 1 lock (icy_disabled-on-GBS = consistent): when the
+        station has `icy_disabled=True`, /ajax stamping is also suppressed
+        (matches the on_title_changed gate at line 524).
+
+        Plain-text invariant T-40-04: icy_label is plain-text-locked at
+        construction (line 280). setText() on a plain-text label keeps the
+        input as plain text.
+        """
+        if not icy_title:
+            return
+        if self._station is not None and self._station.icy_disabled:
+            return
+        self.icy_label.setText(icy_title)
+        self._last_icy_title = icy_title
+        self._gbs_label_source = 'ajax'
+        self._update_star_enabled()
+        if (
+            not is_junk_title(icy_title)
+            and self._station is not None
+            and icy_title != self._last_cover_icy
+        ):
+            self._last_cover_icy = icy_title
+            self._fetch_cover_art_async(icy_title)
 
     def _on_gbs_vote_clicked(self) -> None:
         """D-07 / D-07a: optimistic UI + worker-thread vote round-trip.

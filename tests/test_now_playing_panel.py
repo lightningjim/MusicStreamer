@@ -1022,6 +1022,9 @@ def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
     )
     monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
     panel.bind_station(_make_gbs_station())
+    # Phase 60.3 Plan 02 regression-protection: helper now fires cover-art lookup.
+    # Mock to preserve offline-CI invariant (existing test does not assert cover-art behaviour).
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
     panel._gbs_poll_token = 5  # set known token
     state = {
         "now_playing_entryid": 1810736,
