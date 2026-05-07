@@ -343,7 +343,7 @@ wheels = [
 
 [[package]]
 name = "musicstreamer"
-version = "2.1.59"
+version = "2.1.60"
 source = { editable = "." }
 dependencies = [
     { name = "chardet" },
