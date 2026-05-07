@@ -12,6 +12,11 @@ Tokens:
     ERROR_COLOR_QCOLOR — QColor("#c0392b") for QColor-consuming APIs such as
                          QTreeWidgetItem.setForeground(QColor). A raw hex
                          string cannot be passed to setForeground.
+    WARNING_COLOR_HEX  — hex string "#d4a017" for QSS stylesheet strings
+                         (Phase 60.4 D-T6 amber tier — tokens running low).
+                         No QCOLOR companion: single QSS-string consumer at
+                         _token_label in gbs_search_dialog.py. Add a QCOLOR
+                         only when a setForeground caller surfaces.
     STATION_ICON_SIZE  — station-row icon dimension in pixels (32). Consumed
                          by load_station_icon default and by every list/tree
                          that shows station rows (setIconSize(QSize(N, N))).
@@ -21,6 +26,12 @@ Phase 46 decisions:
            QColor repeatedly.
     D-06 — STATION_ICON_SIZE lives here (not in _art_paths.py) because it's
            a visual token, not a path-resolution concern.
+
+Phase 60.4 decisions:
+    D-T6 — three-tier color (ERROR / WARNING / default) for the GBS.FM
+           token counter in the search dialog. Single QSS-string consumer
+           is _token_label.setStyleSheet — empty string for the default
+           tier resets the foreground to the inherited theme palette.
 """
 from __future__ import annotations
 
@@ -31,6 +42,10 @@ from PySide6.QtGui import QColor
 # _QCOLOR for APIs that take a QColor (e.g. item.setForeground).
 ERROR_COLOR_HEX: str = "#c0392b"
 ERROR_COLOR_QCOLOR: QColor = QColor(ERROR_COLOR_HEX)
+
+# Phase 60.4 D-T6: warning/amber tier for the GBS.FM token counter.
+# QSS-string consumer only; no QCOLOR companion (no setForeground caller).
+WARNING_COLOR_HEX: str = "#d4a017"
 
 # Station-row icon dimension in pixels. Consumed by load_station_icon
 # default and by every list/tree that shows station rows.

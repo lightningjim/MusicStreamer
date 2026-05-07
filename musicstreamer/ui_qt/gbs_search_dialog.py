@@ -23,6 +23,7 @@ Pitfalls covered:
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Callable, Optional
 
@@ -45,7 +46,9 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer import gbs_api
-from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
+from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX, WARNING_COLOR_HEX
+
+_log = logging.getLogger(__name__)
 
 _COL_ARTIST = 0
 _COL_TITLE = 1
@@ -213,6 +216,50 @@ class _GbsAlbumWorker(QThread):
                 self.error.emit(str(exc))
 
 
+class _GbsTokenWorker(QThread):
+    """Phase 60.4 D-T1: gbs_api.fetch_user_tokens on a worker thread.
+
+    Mirrors _GbsSubmitWorker (lines 113-142) shape with one deliberate
+    deviation: signals carry the request_id as the LEADING positional
+    payload, not via the worker.attribute + sender() pattern. This makes
+    the consumer-side stale-discard guard a positional comparison
+    (`if request_id != self._token_request_id: return`) that works
+    correctly when the slot is called directly in tests (where
+    `self.sender()` returns None).
+
+    Pitfall 5+7 (60-RESEARCH): NO retry on transient failure. Caller's next
+    trigger (next submit, next dialog open) is the retry.
+
+    Pitfall A (60.4-RESEARCH): self.request_id stamped at construction AND
+    emitted in payload; consumer slots discard callbacks whose request_id
+    != current dialog id.
+    """
+    # finished payload: (request_id, count)
+    finished = Signal(int, int)
+    # error payload: (request_id, msg)
+    # msg: 'auth_expired' sentinel OR 'parse_failed' OR raw exception message
+    error = Signal(int, str)
+
+    def __init__(self, cookies, request_id: int, parent=None):
+        super().__init__(parent)
+        self._cookies = cookies
+        self.request_id = request_id  # public; mirrors _GbsSubmitWorker.search_version
+
+    def run(self):
+        try:
+            count = gbs_api.fetch_user_tokens(self._cookies)
+            if count is None:
+                # D-T2 path: parse miss / network / 5xx / malformed → '—' placeholder
+                self.error.emit(self.request_id, "parse_failed")
+            else:
+                self.finished.emit(self.request_id, int(count))
+        except Exception as exc:
+            if isinstance(exc, gbs_api.GbsAuthExpiredError):
+                self.error.emit(self.request_id, "auth_expired")
+            else:
+                self.error.emit(self.request_id, str(exc))
+
+
 class GBSSearchDialog(QDialog):
     """D-08: Search GBS.FM catalog + submit songs to the active playlist.
 
@@ -258,6 +305,20 @@ class GBSSearchDialog(QDialog):
         # must NOT overwrite this snapshot).
         self._pre_drill_state: Optional[dict] = None
 
+        # Phase 60.4 D-T1/D-T3: token-counter state. _last_known_tokens
+        # carries the optimistic-decrement integer between submit and refetch.
+        # _token_request_id is the monotonic id stamped on each kick AND emitted
+        # in the worker's finished/error payloads; slot-side discard guard
+        # (Pitfall A) drops stale callbacks via positional request_id arg.
+        # _was_logged_in tracks the prior login state so _refresh_login_gate
+        # only kicks _GbsTokenWorker on the False→True transition (avoids
+        # redundant fetches on showEvent re-fires).
+        # _token_worker is the SYNC retain ref (mirrors _submit_worker line 243).
+        self._last_known_tokens: Optional[int] = None
+        self._token_request_id: int = 0
+        self._was_logged_in: bool = False
+        self._token_worker: Optional[_GbsTokenWorker] = None
+
         self._build_ui()
         self._refresh_login_gate()
 
@@ -288,6 +349,13 @@ class GBSSearchDialog(QDialog):
         self._breadcrumb_label.setTextFormat(Qt.TextFormat.PlainText)
         self._breadcrumb_label.setVisible(False)
         top_row.addWidget(self._breadcrumb_label)
+        # Phase 60.4 D-T4/D-T5/D-T7: token counter label.
+        # Hidden by default; toggled by _refresh_login_gate.
+        # PlainText (T-40-04 / Pitfall H) — mirrors _breadcrumb_label at line 288.
+        self._token_label = QLabel("", self)
+        self._token_label.setTextFormat(Qt.TextFormat.PlainText)
+        self._token_label.setVisible(False)
+        top_row.addWidget(self._token_label)
         root.addLayout(top_row)
 
         # Progress bar (indeterminate during search)
@@ -379,15 +447,115 @@ class GBSSearchDialog(QDialog):
     # ---------- Login gate (D-08c) ----------
 
     def _refresh_login_gate(self) -> None:
-        """D-08c: disable search/submit until the user has imported cookies."""
+        """D-08c: disable search/submit until the user has imported cookies.
+
+        Phase 60.4 D-T7: also toggles _token_label visibility and, on the
+        False→True logged-in transition (tracked via self._was_logged_in),
+        kicks _GbsTokenWorker for the initial fetch. Repeated logged-in
+        calls (e.g., showEvent re-fires) do NOT spawn redundant workers —
+        only the actual logged-out → logged-in transition does.
+        """
         cookies = gbs_api.load_auth_context()
         logged_in = cookies is not None
+        prev_logged_in = self._was_logged_in
+        self._was_logged_in = logged_in
         self._search_edit.setEnabled(logged_in)
         self._search_btn.setEnabled(logged_in)
+        # D-T7: toggle _token_label visibility; the attribute may not yet
+        # exist if _refresh_login_gate is called from the constructor BEFORE
+        # _build_ui — guard accordingly (defense in depth; current code path
+        # always has _build_ui run first at line 261 before this call at 262).
+        # Note: we ONLY toggle visibility here — text and stylesheet are managed
+        # by _on_submit_error / _on_token_error / _on_token_fetched. Specifically,
+        # D-T8 stamps "Tokens: —" via _on_submit_error BEFORE the gate runs;
+        # clearing the text here would erase that stamp before the user sees it.
+        if hasattr(self, "_token_label"):
+            self._token_label.setVisible(logged_in)
         if not logged_in:
             self._show_inline_error("Log in via Accounts → GBS.FM to search and submit songs.")
         else:
             self._hide_inline_error()
+        # D-T1: kick initial token fetch ONLY on the False→True transition.
+        # Avoids redundant kicks on showEvent re-fires while already logged-in.
+        if logged_in and not prev_logged_in:
+            self._kick_token_worker(cookies)
+
+    # ------------------- Phase 60.4 token counter (D-T1..D-T8) -------------------
+
+    def _kick_token_worker(self, cookies) -> None:
+        """D-T1: spawn a fresh _GbsTokenWorker for fetch_user_tokens.
+
+        Pitfall A: monotonic _token_request_id stamped per kick AND emitted
+        as the leading positional payload in the worker's finished/error
+        signals. Slot-side guard discards callbacks whose request_id != the
+        current dialog id.
+        """
+        self._token_request_id += 1
+        rid = self._token_request_id
+        worker = _GbsTokenWorker(cookies, rid, parent=self)
+        worker.finished.connect(self._on_token_fetched)  # QA-05 bound-method
+        worker.error.connect(self._on_token_error)        # QA-05 bound-method
+        self._token_worker = worker  # SYNC retain (mirrors _submit_worker line 243)
+        worker.start()
+
+    def _on_token_fetched(self, request_id: int, count: int) -> None:
+        """D-T1 + D-T6: stamp _token_label with the fetched count + apply color tier.
+
+        Pitfall A: discard if request_id is stale (a newer kick is authoritative).
+        The guard is a POSITIONAL comparison — no self.sender() use — so it
+        works correctly both when wired via Signal (sender returns the
+        QThread) AND when called directly in tests (sender returns None).
+        """
+        if request_id != self._token_request_id:
+            return  # stale — newer kick is authoritative
+        self._last_known_tokens = int(count)
+        self._token_label.setText(f"Tokens: {int(count)}")
+        self._apply_token_color(int(count))
+        self._token_worker = None
+
+    def _on_token_error(self, request_id: int, msg: str) -> None:
+        """D-T2 + D-T8: '—' placeholder on parse miss / network; auth-expired
+        flips state to None + clears style + delegates to _refresh_login_gate.
+
+        Pitfall A: discard if request_id is stale.
+        Pitfall 3: silent log; NO toast.
+        """
+        if request_id != self._token_request_id:
+            return  # stale — discard
+        if msg == "auth_expired":
+            # Auth expired during in-flight fetch — flip the label, clear state,
+            # and let _refresh_login_gate take over visibility. The toast for
+            # auth-expired is owned by _on_submit_error (the canonical path);
+            # this branch is the rare race where the token fetch itself trips
+            # the auth-expired sentinel.
+            self._last_known_tokens = None
+            self._token_label.setText("Tokens: —")
+            self._token_label.setStyleSheet("")
+            self._refresh_login_gate()
+        else:
+            # parse_failed / network / 5xx / malformed → '—' placeholder
+            _log.warning("GBS.FM token fetch failed: %s", msg)
+            self._token_label.setText("Tokens: —")
+            self._token_label.setStyleSheet("")
+        self._token_worker = None
+
+    def _apply_token_color(self, n: Optional[int]) -> None:
+        """D-T6: 0 → red, 1-3 → amber, 4+ / None → default theme color.
+
+        setStyleSheet('') resets the foreground to the inherited theme
+        palette. Verified at the existing _error_label flow (lines 349,
+        956-958) which has shipped in production since Phase 60.
+        """
+        if n is None:
+            self._token_label.setStyleSheet("")
+        elif n == 0:
+            self._token_label.setStyleSheet(f"color: {ERROR_COLOR_HEX};")
+        elif 1 <= n <= 3:
+            self._token_label.setStyleSheet(f"color: {WARNING_COLOR_HEX};")
+        else:  # n >= 4
+            self._token_label.setStyleSheet("")
+
+    # ------------------- end Phase 60.4 token counter -------------------
 
     def showEvent(self, event):
         # Re-check login gate every time the dialog is shown (user may have
@@ -924,6 +1092,19 @@ class GBSSearchDialog(QDialog):
             self._toast(message or "Track added to GBS.FM playlist")
             self.submission_completed.emit()
             self._reenable_submit_button(row_idx, label="Added")
+            # === Phase 60.4 D-T1 + D-T3: optimistic decrement + server-confirm refetch ===
+            # Pitfall B: call BOTH setText AND _apply_token_color so color tier
+            # follows the displayed integer across the 4→3 (default→amber) and
+            # 1→0 (amber→red) boundaries. Pitfall A's request-id guard ensures
+            # the refetch result discards if a faster second submit kicks again.
+            if self._last_known_tokens is not None:
+                self._last_known_tokens = max(0, self._last_known_tokens - 1)
+                self._token_label.setText(f"Tokens: {self._last_known_tokens}")
+                self._apply_token_color(self._last_known_tokens)
+            cookies = gbs_api.load_auth_context()
+            if cookies is not None:
+                self._kick_token_worker(cookies)
+            # ============================================================================
         self._submit_worker = None
 
     def _on_submit_error(self, msg: str, row_idx: int) -> None:
@@ -934,6 +1115,14 @@ class GBSSearchDialog(QDialog):
         if worker is not None and getattr(worker, "search_version", -1) != self._search_version:
             return
         if msg == "auth_expired":
+            # === Phase 60.4 D-T8 + Pitfall C: flip token label BEFORE _refresh_login_gate ===
+            # Order is load-bearing: the label stamp + style clear + state nul
+            # MUST land before _refresh_login_gate because the gate's logged-out
+            # branch hides the label via setVisible(False) — pre-gate stamping
+            # gives a cleaner momentary "Tokens: —" before the hide.
+            self._last_known_tokens = None
+            self._token_label.setText("Tokens: —")
+            self._token_label.setStyleSheet("")
             self._toast("GBS.FM session expired — reconnect via Accounts")
             self._refresh_login_gate()
         else:
