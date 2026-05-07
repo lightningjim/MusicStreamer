@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 60.3 context gathered
-last_updated: "2026-05-07T13:47:23.471Z"
-last_activity: 2026-05-07 -- Phase 60.3 planning complete
+stopped_at: Phase 60.3 Plan 01 complete (Wave 1 scaffolding)
+last_updated: "2026-05-07T13:54:50Z"
+last_activity: 2026-05-07 -- Phase 60.3 Plan 01 complete (scaffolding green)
 progress:
   total_phases: 28
   completed_phases: 15
   total_plans: 62
-  completed_plans: 59
-  percent: 95
+  completed_plans: 60
+  percent: 96
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.3 — fix-for-icy-label-gap-in-60-2-context-deferred-ideas
+**Current focus:** Phase 60.3 — Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)
 
 ## Current Position
 
-Phase: 60.3
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-07 -- Phase 60.3 planning complete
+Phase: 60.3 (Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)) — EXECUTING
+Plan: 2 of 3 (Plan 01 complete; Wave 2 ready)
+Status: Executing Phase 60.3
+Last activity: 2026-05-07 -- Phase 60.3 Plan 01 complete (scaffolding green, 79/79 panel tests)
 
 ## Performance Metrics
 
@@ -114,6 +114,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: 60.2-01: H2 (singular vs plural discriminator) confirmed via 5-fixture triage; routing D-06 (one-line parser fix at gbs_api.py:542-548 startswith('artist')/startswith('album')); all 5 captured fixtures have at least one singular-form block and produce simultaneous RED entries in test_search_response_shape_pinned (Pitfall 8: 1 parametrize, 5 tuples). test_clear_table_clears_spans GREEN-by-coincidence — Qt's removeRows drops spans implicitly when rowCount→0; documented as contract pin not defect repro.
 - [Phase ?]: 60.2-02: Task 1 mirrors _artist_name accumulator (Pattern S-1) — _ArtistPageParser now carries _current_album state across rows + emits per-row 'album' field; renamed _skip_current → _is_album_title_row for semantic clarity. Task 2 D-06 fix: relaxed _ArtistAlbumParser discriminator startswith('artists') → startswith('artist') (and same for albums). Pitfall 7 docstring update applied (Rule 1 auto-fix — prior 'Skips albumTitle rows' claim became inaccurate post-behavior-change).
 - [Phase ?]: Phase 60.2-03 Wave 2 GREEN dialog tier — _render_results gains group_by_album: bool = False kwarg; True branches into 3-helper pipeline (_group_rows_by_album / _insert_album_section_header / _render_song_rows). Section-header rows use QStandardItem(f'{album} ({n} songs)') + Qt.ItemFlag.ItemIsEnabled (D-02 — non-selectable, non-editable, visually present) + bold QFont; setSpan(row, 0, 1, columnCount()) merges visually; NO setStyleSheet/setBackground (UI-SPEC FLAG-01 / Pitfall 5). Empty-string album group renders WITHOUT a header (D-11). Pitfall 3 mitigation: dual-counter loop (next_row table-row idx + original_idx song-list idx). _on_artist_drilled wired group_by_album=True; _on_album_drilled UNCHANGED (Pitfall 6). _clear_table defense-in-depth clearSpans() BEFORE removeRows (Pitfall 1+9). 6 Plan 01 dialog RED tests GREEN; QA-05 + Phase 60.1 drill regression preserved; 73/73 phase tests pass.
+- [Phase 60.3-01]: Wave 1 scaffolding for ICY label gap fix shipped pure-additive — `_gbs_label_source: Optional[str] = None` tri-state flag declared adjacent to `_gbs_current_entryid`, reset on BOTH branches of `_refresh_gbs_visibility` (Pitfall 4 — accept the redundant entry-branch reset for same-station rebind). `_gbs_poll_in_flight() -> bool` predicate placed adjacent to `_is_gbs_logged_in` reads SYNC-05 retention slot via `self._gbs_poll_worker is not None and self._gbs_poll_worker.isRunning()` (Pitfall 3 — accept tiny "finished but not yet collected" race; token-discard at line 941 catches duplicates). Tri-state Optional[str] over Enum — string literals match the project idiom (vote_value bare int, _gbs_poll_cursor bare-string keys). Method, not property, mirrors `_is_gbs_logged_in` shape. Zero behaviour change; 76 pre-existing tests green; 3 new scaffolding tests pin contract (default None, reset on context exit, predicate truth-table over None / not-running / running). PLAN's grep-baseline claim "1 only line 280" for setTextFormat/setHtml/RichText was stale — actual baseline is 4 (unchanged by this plan; T-40-04 invariant preserved).
 
 ### Roadmap Evolution
 
@@ -184,6 +185,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-07T04:00:35.945Z
-Stopped at: Phase 60.3 context gathered
-Resume file: .planning/phases/60.3-fix-for-icy-label-gap-in-60-2-context-deferred-ideas/60.3-CONTEXT.md
+Last session: 2026-05-07T13:54:50Z
+Stopped at: Phase 60.3 Plan 01 complete (Wave 1 scaffolding green; commits eb70ec5 + 26ad7e2)
+Resume file: .planning/phases/60.3-fix-for-icy-label-gap-in-60-2-context-deferred-ideas/60.3-02-PLAN.md
