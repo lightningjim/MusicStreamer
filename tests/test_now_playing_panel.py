@@ -948,13 +948,25 @@ from musicstreamer import paths
 
 
 def _make_gbs_station(provider_name: str = "GBS.FM", name: str = "GBS.FM"):
-    """Lightweight Station-shaped object for GBS bind_station tests."""
+    """Lightweight Station-shaped object for GBS bind_station tests.
+
+    Phase 60.3 Plan 06 / CR-04 fix: icy_disabled defaults to False (was a
+    truthy MagicMock auto-attribute by default). The previous behavior
+    caused _apply_gbs_icy_label to silently early-return at the icy_disabled
+    gate in tests that didn't explicitly override the attribute — invalidating
+    the test's coverage of the new D-01/D-06 stamping path.
+
+    Tests that intentionally exercise icy_disabled=True (the LOCK case) MUST
+    explicitly set `s.icy_disabled = True` after construction. See
+    `test_gbs_icy_disabled_suppresses_ajax_stamp` for that pattern.
+    """
     s = MagicMock()
     s.id = 99
     s.name = name
     s.provider_name = provider_name
     s.tags = ""
     s.streams = []
+    s.icy_disabled = False  # Plan 06 / CR-04 fix
     return s
 
 
@@ -1056,6 +1068,18 @@ def test_gbs_playlist_populates_from_mock_state(qtbot, tmp_path, monkeypatch):
     assert not any("Playlist is 11:21" in t for t in items)
     # Score (unchanged)
     assert any("5.0 (1 vote)" in t for t in items)
+    # Phase 60.3 Plan 06 / CR-04 coverage fix: post-CR-04 factory default
+    # (icy_disabled=False), _apply_gbs_icy_label now actually fires. Assert
+    # the D-01/D-06 stamping behaviour the test was modified to defend.
+    assert panel.icy_label.text() == "Crippling Alcoholism - Templeton", (
+        "Plan 06 / CR-04: _apply_gbs_icy_label stamps icy_label with state['icy_title']"
+    )
+    assert panel._gbs_label_source == "ajax", (
+        "Plan 06 / CR-04: _apply_gbs_icy_label flips source flag to 'ajax'"
+    )
+    assert panel._last_icy_title == "Crippling Alcoholism - Templeton", (
+        "Plan 06 / CR-04: _apply_gbs_icy_label updates _last_icy_title to canonical key"
+    )
 
 
 def test_gbs_poll_timer_pauses_when_widget_hidden(qtbot, tmp_path, monkeypatch):
@@ -1800,6 +1824,107 @@ def test_gbs_refresh_gbs_visibility_clears_ajax_disabled_on_leaving_gbs(qtbot, t
     panel.bind_station(non_gbs_station)
     assert panel._gbs_ajax_disabled is False, (
         "Leaving GBS context (should_show=False) resets _gbs_ajax_disabled"
+    )
+
+
+def test_gbs_apply_icy_label_refreshes_star_icon_when_favorited(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 06 / CR-03: _apply_gbs_icy_label refreshes star icon for a FAVOURITED canonical title.
+
+    Scenario: bare ICY arrives, then /ajax upgrades to canonical Artist - Title.
+    The canonical key IS in favourites; the bare key is NOT. Pre-fix, the star
+    icon reflected the bare-key query (non-starred). Post-fix, _refresh_star_display
+    re-queries with the canonical key and shows the starred icon.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    # Plan 06: factory default is icy_disabled=False; explicit override redundant
+    # but preserved per the BLOCKER #1 invariant convention.
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    # is_favorited returns False for bare title, True for canonical title.
+    # Use a side_effect dispatching on the second positional argument (track title).
+    def _is_fav_dispatcher(station_name, track_title):
+        return track_title == "Artist - Track"
+    # Patch the FakeRepo's is_favorited (the panel uses self._repo).
+    panel._repo.is_favorited = MagicMock(side_effect=_is_fav_dispatcher)
+    # --- Step 1: bare ICY arrives (bridge window) ---
+    panel.on_title_changed("Track")
+    # _refresh_star_display was called with the bare title; is_fav = False.
+    assert panel.star_btn.isChecked() is False, "bare-title is NOT favourited"
+    # --- Step 2: /ajax stamps the canonical title ---
+    panel._gbs_poll_token = 5
+    panel._on_gbs_playlist_ready(5, {
+        "now_playing_entryid": 1,
+        "icy_title": "Artist - Track",
+        "queue_rows": [], "removed_ids": [], "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    # CR-03 fix: _apply_gbs_icy_label calls _refresh_star_display(canonical_title).
+    # The canonical key IS in favourites -> star_btn is now checked.
+    assert panel.star_btn.isChecked() is True, (
+        "CR-03 fix: star_btn must be checked after /ajax upgrades to a favourited canonical title"
+    )
+    # is_favorited was queried with the canonical key (NOT the bare key).
+    # Filter calls to count those with the canonical title argument.
+    canonical_calls = [
+        call for call in panel._repo.is_favorited.call_args_list
+        if len(call.args) >= 2 and call.args[1] == "Artist - Track"
+    ]
+    assert len(canonical_calls) >= 1, (
+        "is_favorited must be queried with the canonical Artist - Title key"
+    )
+
+
+def test_gbs_apply_icy_label_refreshes_star_icon_when_not_favorited(qtbot, tmp_path, monkeypatch):
+    """Phase 60.3 Plan 06 / CR-03: _apply_gbs_icy_label refreshes star icon for an UN-FAVOURITED canonical title.
+
+    Inverse of the previous test: bare key IS favourited, canonical key is NOT.
+    Pre-fix, the star icon would stay starred after /ajax (stale state from
+    the bare-key query). Post-fix, _refresh_star_display re-queries and
+    unchecks the icon.
+    """
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    os.makedirs(str(tmp_path), exist_ok=True)
+    with open(paths.gbs_cookies_path(), "w") as f:
+        f.write("# fake")
+    panel = _construct_gbs_panel(qtbot)
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+        lambda self: None,
+    )
+    monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
+    gbs_station = _make_gbs_station()
+    gbs_station.icy_disabled = False
+    panel.bind_station(gbs_station)
+    monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
+    # Inverse: bare title IS favourited; canonical title is NOT.
+    def _is_fav_inverse(station_name, track_title):
+        return track_title == "Track"
+    panel._repo.is_favorited = MagicMock(side_effect=_is_fav_inverse)
+    panel.on_title_changed("Track")
+    # bare-title is favourited -> star is checked initially
+    assert panel.star_btn.isChecked() is True, "bare-title IS favourited (initial state)"
+    # /ajax upgrades to canonical title
+    panel._gbs_poll_token = 5
+    panel._on_gbs_playlist_ready(5, {
+        "now_playing_entryid": 1,
+        "icy_title": "Artist - Track",
+        "queue_rows": [], "removed_ids": [], "queue_html_snippets": [],
+        "user_vote": 0,
+    })
+    # CR-03 fix: canonical key is NOT favourited -> star_btn unchecked after refresh.
+    assert panel.star_btn.isChecked() is False, (
+        "CR-03 fix: star_btn must be unchecked after /ajax upgrades to a non-favourited canonical title"
     )
 
 
