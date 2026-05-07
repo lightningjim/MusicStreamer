@@ -360,7 +360,7 @@ Plans:
 Plans:
 - [ ] 60.4-01-PLAN.md — Wave 1 (independent): Add `gbs_api.fetch_user_tokens(cookies) -> Optional[int]` + `_TOKEN_RE` regex + 6 unit tests + extend `mock_gbs_api` fixture spec list (D-T1, D-T2, D-T8)
 - [ ] 60.4-02-PLAN.md — Wave 2 (depends on 60.4-01): Add `WARNING_COLOR_HEX` to `_theme.py` + `_GbsTokenWorker` + `_token_label` + 4 new methods (`_kick_token_worker`, `_on_token_fetched`, `_on_token_error`, `_apply_token_color`) + 4 wire-up extensions (`_refresh_login_gate`, `_on_submit_finished`, `_on_submit_error`, init state) + 13 UI tests covering D-T1..D-T8 + Pitfall A
-- [ ] 60.4-03-PLAN.md — Wave 1 (independent of 01/02): Single guarded `addItem` line in `_on_gbs_playlist_ready` between `clear()` and `▶ {icy}` + flip line-1068 negative assertion + 4 new tests covering D-S1/D-S2/D-S3/D-S4 (D-S5 inherited from existing test); cites Phase 60-10 D-10c reversal explicitly
+- [x] 60.4-03-PLAN.md — Wave 1 (independent of 01/02): Single guarded `addItem` line in `_on_gbs_playlist_ready` between `clear()` and `▶ {icy}` + flip line-1068 negative assertion + 4 new tests covering D-S1/D-S2/D-S3/D-S4 (D-S5 inherited from existing test); cites Phase 60-10 D-10c reversal explicitly **[COMPLETE 2026-05-07 — commits b97d572 (test) + 00519ce (feat); 171 quick-loop tests pass; SUMMARY at 60.4-03-SUMMARY.md]**
 
 ### Phase 60.3: Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)
 
