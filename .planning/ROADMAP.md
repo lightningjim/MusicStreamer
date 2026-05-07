@@ -355,11 +355,11 @@ Plans:
 **Goal:** Ship two GBS.FM informational displays — (1) token counter `Tokens: N` in the search dialog top row (red at 0, amber at 1-3, default at 4+ AND for `—` placeholder) fetched from the GBS home page on dialog open + after each successful submit; (2) playlist summary line `· Playlist is M:SS long with N dongs` (verbatim) at the top of the active-playlist widget, sourced from the existing `pllength` /ajax event. **Phase 60-10 D-10c is explicitly REVERSED** (per user discussion 2026-05-07; gbs.fm jargon preserved as part of site voice).
 **Requirements:** GBS-01 family follow-up (no fixed phase_req_ids — CONTEXT D-T1..D-T8 + D-S1..D-S5 are the acceptance contract)
 **Depends on:** Phase 60
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 60.4-01-PLAN.md — Wave 1 (independent): Add `gbs_api.fetch_user_tokens(cookies) -> Optional[int]` + `_TOKEN_RE` regex + 6 unit tests + extend `mock_gbs_api` fixture spec list (D-T1, D-T2, D-T8) **[COMPLETE 2026-05-07 — commits 400fce1 (test) + 54d7f06 (feat); 6 GREEN; SUMMARY at 60.4-01-SUMMARY.md]**
-- [ ] 60.4-02-PLAN.md — Wave 2 (depends on 60.4-01): Add `WARNING_COLOR_HEX` to `_theme.py` + `_GbsTokenWorker` + `_token_label` + 4 new methods (`_kick_token_worker`, `_on_token_fetched`, `_on_token_error`, `_apply_token_color`) + 4 wire-up extensions (`_refresh_login_gate`, `_on_submit_finished`, `_on_submit_error`, init state) + 13 UI tests covering D-T1..D-T8 + Pitfall A
+- [x] 60.4-02-PLAN.md — Wave 2 (depends on 60.4-01): Add `WARNING_COLOR_HEX` to `_theme.py` + `_GbsTokenWorker` + `_token_label` + 4 new methods (`_kick_token_worker`, `_on_token_fetched`, `_on_token_error`, `_apply_token_color`) + 4 wire-up extensions (`_refresh_login_gate`, `_on_submit_finished`, `_on_submit_error`, init state) + 13 UI tests covering D-T1..D-T8 + Pitfall A
 - [x] 60.4-03-PLAN.md — Wave 1 (independent of 01/02): Single guarded `addItem` line in `_on_gbs_playlist_ready` between `clear()` and `▶ {icy}` + flip line-1068 negative assertion + 4 new tests covering D-S1/D-S2/D-S3/D-S4 (D-S5 inherited from existing test); cites Phase 60-10 D-10c reversal explicitly **[COMPLETE 2026-05-07 — commits b97d572 (test) + 00519ce (feat); 171 quick-loop tests pass; SUMMARY at 60.4-03-SUMMARY.md]**
 
 ### Phase 60.3: Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)

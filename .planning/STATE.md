@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: Plan 03 shipped (`feat(60.4-03)` — playlist summary row REVERSES Phase 60-10 D-10c per user discussion 2026-05-07)
+status: verifying
 stopped_at: Phase 60.4 Wave 1 complete (Plans 01 + 03 merged; 60.4-01 + 60.4-03 GREEN). Wave 2 (Plan 02) ready to execute.
-last_updated: "2026-05-07T22:08:31.782Z"
+last_updated: "2026-05-07T22:23:58.224Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
   completed_phases: 16
-  total_plans: 68
-  completed_plans: 67
-  percent: 99
+  total_plans: 59
+  completed_plans: 63
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 60.4
 Plan: 03 complete (Plans 01 + 02 still pending — they are Wave 1 (01) + Wave 2 (02), independent of 03)
-Status: Plan 03 shipped (`feat(60.4-03)` — playlist summary row REVERSES Phase 60-10 D-10c per user discussion 2026-05-07)
+Status: Phase complete — ready for verification
 Last activity: 2026-05-07
 
 ## Performance Metrics
@@ -119,6 +119,9 @@ Key v2.0 decisions already settled:
 - [Phase 60.3-03]: Wave 3 race-tightening + bridge-window gating complete — `on_title_changed` rewritten with load-bearing six-step ordering (D-05 no-downgrade guard before setText; `_gbs_label_source = 'icy'` flip after setText but before `_update_star_enabled`; bridge-window cover-art suppression using `_gbs_label_source != 'ajax'` post-flip check; D-03/D-04 idle-worker kick as LAST statement via direct `_on_gbs_poll_tick()` call). `_update_star_enabled` extended with D-07 bridge-window conjunct (star disabled when GBS + logged-in + flag != 'ajax'; relaxes when not-logged-in per D-08). `_on_gbs_playlist_error` auth_expired branch flips `_gbs_label_source = 'icy'` inside existing token-discard guard (D-08). Six new tests: D-03 kick, D-04 debounce, D-05 no-downgrade, D-07 bridge-window star/cover-art gate, D-08 auth-expired flag-flip + logged-out fallback. All six per-test `gbs_station.icy_disabled = False` overrides (BLOCKER #1; total 8). test_gbs_auth_expired_relaxes_bridge_gate omits star assertion (cookies still present → logged-in gate still active); D-08 star-enabled verified by logged-out variant instead. 88/88 panel tests green. All eight CONTEXT decisions D-01..D-08 now implemented.
 - [Phase ?]: Phase 60.3-05: Option (b) _gbs_ajax_disabled flag closes CR-02 / D-08 auth_expired bridge gate (92/92 panel tests green).
 - [Phase ?]: Plan 06 closed CR-03 + CR-04 + WR-01 + WR-03 + WR-04 + IN-02 — extracted _refresh_star_display helper + factory icy_disabled default; all 10 REVIEW findings + 2 VERIFICATION blockers now closed.
+- [Phase ?]: [Phase 60.4-02]: WARNING_COLOR_HEX = '#d4a017' added to _theme.py as sibling of ERROR_COLOR_HEX (D-T6 amber tier); single QSS-string consumer at _token_label, no QCOLOR companion
+- [Phase ?]: [Phase 60.4-02]: _GbsTokenWorker signal arities are Signal(int,int) finished and Signal(int,str) error — request_id is leading positional payload; slots use positional guard (no self.sender) — Pitfall A
+- [Phase ?]: [Phase 60.4-02]: _refresh_login_gate transition-gated via self._was_logged_in (kicks _GbsTokenWorker only on False→True); logged-out branch toggles visibility ONLY (D-T8 'Tokens: —' stamp survives setVisible(False))
 
 ### Roadmap Evolution
 
@@ -189,9 +192,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 60.3 P04 | 25min | 2 tasks | 2 files |
 | Phase 60.3 P05 | 5min | 2 tasks | 2 files |
 | Phase 60.3 P06 | 12min | 2 tasks | 2 files |
+| Phase 60.4 P02 | 10 | 3 tasks | 3 files |
 
 ## Session Continuity
 
-Last session: 2026-05-07T22:08:31.767Z
+Last session: 2026-05-07T22:23:52.861Z
 Stopped at: Phase 60.4 Wave 1 complete (Plans 01 + 03 merged; 60.4-01 + 60.4-03 GREEN). Wave 2 (Plan 02) ready to execute.
-Resume file: .planning/phases/60.4-two-informationals-1-under-search-show-the-amount-of-tokens-/60.4-02-PLAN.md
+Resume file: None
