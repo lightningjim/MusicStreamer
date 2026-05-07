@@ -4,7 +4,7 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: planning
 stopped_at: Completed 60.2-02-PLAN.md (Wave 1 GREEN parser tier)
-last_updated: "2026-05-07T01:50:52.156Z"
+last_updated: "2026-05-07T01:53:54.882Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.4 — two-informationals-1-under-search-show-the-amount-of-tokens-
+**Current focus:** Phase 60.3 — fix-for-icy-label-gap-in-60-2-context-deferred-ideas
 
 ## Current Position
 
-Phase: 60.4
+Phase: 60.3
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-05-07
@@ -34,7 +34,7 @@ Last activity: 2026-05-07
 
 **Velocity:**
 
-- Total plans completed: 106 (v1.0–v1.5 combined)
+- Total plans completed: 111 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 

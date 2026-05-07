@@ -152,7 +152,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 59: Visual Accent Color Picker** — Add HSV/wheel color picker surface alongside existing presets and hex entry (completed 2026-05-04)
 - [x] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer (completed 2026-05-04)
 - [ ] **Phase 60.1: GBS.FM Search Artist/Album Drill-Down** — Multi-word artist/album link clicks + drill-down navigation to /artist/&lt;id&gt; and /album/&lt;id&gt; pages (Phase 60 round-2 UAT T12 follow-up) (UAT 2026-05-06: SC1 FAIL on `bad religion` query + artist drill flat-rendering UX gap → routes to Phase 60.1.1)
-- [ ] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer"
+- [x] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer" (completed 2026-05-07)
 - [ ] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation
 - [ ] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close
 - [x] **Phase 64: AudioAddict Siblings on Now Playing** — Surface AA siblings of the currently-playing station as one-click jumps in the Now Playing panel (continuation of Phase 51) (completed 2026-05-01)
@@ -415,7 +415,7 @@ Plans:
   2. Activities/Alt-Tab and other system surfaces that read the application name show the friendly name consistently
   3. The app ID is migrated from the placeholder org.example.MusicStreamer to org.lightningjim.MusicStreamer (matching the Phase 56 Windows AUMID); the MPRIS bus name (org.mpris.MediaPlayer2.musicstreamer) and D-Bus interface names (org.mpris.MediaPlayer2, org.mpris.MediaPlayer2.Player) are unchanged (amended by 61-CONTEXT.md D-01..D-04)
   4. The fix works on X11 (the deployment target per project memory); Wayland behavior is captured as side-effect note, not a UAT gate (out of scope per CONTEXT.md)
-**Plans:** 5/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 61-01-PLAN.md — Diagnostic: capture BEFORE state on Kyle's Wayland rig in 61-DIAGNOSTIC-LOG.md (D-14, human-driven, no code change)
@@ -463,7 +463,7 @@ Plans:
 | 58. PLS Auto-Resolve in Station Editor | 3/3 | Complete   | 2026-05-01 |
 | 59. Visual Accent Color Picker | 3/3 | Complete   | 2026-05-04 |
 | 60. GBS.FM Integration | 7/7 | Complete   | 2026-05-04 |
-| 61. Linux App Display Name in WM Dialogs | 2/4 | In Progress|  |
+| 61. Linux App Display Name in WM Dialogs | 5/5 | Complete    | 2026-05-07 |
 | 62. Audio Buffer Underrun Resilience | 0/? | Not started | - |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
