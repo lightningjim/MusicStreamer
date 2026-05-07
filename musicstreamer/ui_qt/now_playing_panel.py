@@ -544,7 +544,8 @@ class NowPlayingPanel(QWidget):
         # on_title_changed runs on the Qt main thread (auto-queued from
         # player.title_changed at player.py:446). Direct method calls to
         # _on_gbs_poll_tick are safe; no QTimer.singleShot needed.
-        if self._station is not None and self._station.icy_disabled:
+        # Plan 06 / WR-03: defensive getattr — slots-never-raise contract.
+        if self._station is not None and getattr(self._station, "icy_disabled", False):
             # Per-station ICY disable (D-15, D-16, D-17): do not display ICY
             # titles or trigger iTunes cover-art lookup. icy_label keeps the
             # station name fallback set by bind_station().
@@ -575,16 +576,10 @@ class NowPlayingPanel(QWidget):
             if is_gbs:
                 self._gbs_label_source = 'icy'
             self._update_star_enabled()
-            if self._station and title:
-                is_fav = self._repo.is_favorited(self._station.name, title)
-                self.star_btn.setChecked(is_fav)
-                icon_name = "starred-symbolic" if is_fav else "non-starred-symbolic"
-                self.star_btn.setIcon(
-                    QIcon.fromTheme(icon_name, QIcon(f":/icons/{icon_name}.svg"))
-                )
-                self.star_btn.setToolTip(
-                    "Remove track from favorites" if is_fav else "Save track to favorites"
-                )
+            # Phase 60.3 Plan 06 / CR-03: delegate favourites display to the
+            # shared helper so on_title_changed and _apply_gbs_icy_label keep
+            # the star surface in sync.
+            self._refresh_star_display(title)
             # Phase 60.3 D-07: during the bridge window in GBS context
             # (logged in, /ajax not yet stamped), suppress cover-art lookup.
             # _apply_gbs_icy_label will fire the lookup with the full
@@ -716,6 +711,33 @@ class NowPlayingPanel(QWidget):
                 self.star_btn.setToolTip("No track to favorite")
             else:
                 self.star_btn.setToolTip("No station selected")
+
+    def _refresh_star_display(self, title: str) -> None:
+        """Phase 60.3 Plan 06 / CR-03: refresh star icon, checked state, and tooltip.
+
+        Single source of truth for the favourites display surface — called from
+        both `on_title_changed` (initial bare-ICY write) and `_apply_gbs_icy_label`
+        (canonical /ajax-stamped write). Without a single helper, the two writers
+        could diverge — the original CR-03 defect was that `_apply_gbs_icy_label`
+        updated `_last_icy_title` to the canonical Artist - Title but never
+        re-queried `is_favorited`, leaving the star icon reflecting the bare-title
+        query result.
+
+        Empty `title` is a no-op (no station-name fallback — that's bind_station's
+        job at line 505). Caller is responsible for the `_station is not None`
+        check; this helper assumes a station is bound.
+        """
+        if self._station is None or not title:
+            return
+        is_fav = self._repo.is_favorited(self._station.name, title)
+        self.star_btn.setChecked(is_fav)
+        icon_name = "starred-symbolic" if is_fav else "non-starred-symbolic"
+        self.star_btn.setIcon(
+            QIcon.fromTheme(icon_name, QIcon(f":/icons/{icon_name}.svg"))
+        )
+        self.star_btn.setToolTip(
+            "Remove track from favorites" if is_fav else "Save track to favorites"
+        )
 
     def _on_star_clicked(self) -> None:
         if self._station is None or not self._last_icy_title:
@@ -1010,10 +1032,17 @@ class NowPlayingPanel(QWidget):
     def _gbs_poll_in_flight(self) -> bool:
         """Phase 60.3 D-04: True iff a _GbsPollWorker exists and is still running.
 
-        Reads the SYNC-05 retention slot (self._gbs_poll_worker, line ~404 + assigned at line ~928).
-        Pitfall 3 (60.3-RESEARCH): isRunning() has a tiny "finished but not yet collected"
-        window where this returns False but _on_gbs_playlist_ready hasn't fired yet.
-        Accept the duplicate-poll risk — token-discard at line 941 catches the older response.
+        Reads the SYNC-05 retention slot `self._gbs_poll_worker` (declared in
+        __init__, assigned in `_on_gbs_poll_tick`). Plan 06 / IN-02 fix: refer
+        to symbols, not line numbers — line refs rot when surrounding code
+        shifts.
+
+        Pitfall 3 (60.3-RESEARCH): `isRunning()` has a tiny "finished but not
+        yet collected" window where this returns False but
+        `_on_gbs_playlist_ready` has not yet fired. Accept the duplicate-poll
+        risk — the token-discard guard in `_on_gbs_playlist_ready` (the
+        `if token != self._gbs_poll_token: return` early-return) catches the
+        older response.
         """
         return self._gbs_poll_worker is not None and self._gbs_poll_worker.isRunning()
 
@@ -1175,9 +1204,33 @@ class NowPlayingPanel(QWidget):
         """Phase 60.3 D-01/D-06/D-07: /ajax stamps the canonical Artist - Title.
 
         Single coupling point for icy_label, _last_icy_title, source flag,
-        and cover-art lookup string. After /ajax stamps, all three downstream
-        consumers (display, favorites key, cover-art query) read the same
-        full `Artist - Title` value (D-06).
+        star display, and cover-art lookup string. After /ajax stamps, all
+        four downstream consumers (display, favorites key, cover-art query,
+        star-button display) read the same full `Artist - Title` value (D-06).
+
+        Plan 06 / CR-03 fix: `_refresh_star_display(icy_title)` is called
+        after `_update_star_enabled()` so the star icon, checked state, and
+        tooltip reflect the canonical key — not the bare-title query result
+        from `on_title_changed`. Without this call, a track that IS in
+        favourites under its full Artist - Title key would show as
+        non-starred (or vice versa) once /ajax upgrades the label.
+
+        Plan 06 / WR-01 fix: defensive provider guard. Helper is named
+        `_apply_gbs_*` and assumes GBS-only call sites; the early-return
+        on non-GBS station prevents state-machine poisoning if a future
+        site mistakenly reuses this helper outside GBS context.
+
+        Plan 06 / WR-03 fix: `getattr(self._station, "icy_disabled", False)`
+        instead of direct attribute access — slots-never-raise contract
+        (helper is reached via the queued `_on_gbs_playlist_ready` slot).
+
+        Plan 06 / WR-04 invariant note: bare-title and full-title favourites
+        are STORED AS DISTINCT ROWS in the favourites table. When /ajax
+        promotes `_last_icy_title` from bare ICY to canonical Artist - Title,
+        a prior favourite stored under the bare key remains in the database
+        but is invisible to the post-/ajax UI (the favourites query uses the
+        canonical key). Soft-migration of pre-60.3 bare-title favourites is
+        explicitly out of scope per CONTEXT.md Deferred Ideas.
 
         Last-writer-wins (D-02). Empty `icy_title` is a no-op (the /ajax
         cold-start can race the playlist-events stream — guarding empty here
@@ -1185,23 +1238,29 @@ class NowPlayingPanel(QWidget):
 
         Open Question 1 lock (icy_disabled-on-GBS = consistent): when the
         station has `icy_disabled=True`, /ajax stamping is also suppressed
-        (matches the on_title_changed gate at line 524).
+        (matches the on_title_changed gate).
 
         Plain-text invariant T-40-04: icy_label is plain-text-locked at
-        construction (line 280). setText() on a plain-text label keeps the
-        input as plain text.
+        construction. setText() on a plain-text label keeps the input as
+        plain text.
         """
         if not icy_title:
             return
-        if self._station is not None and self._station.icy_disabled:
+        # Plan 06 / WR-01: defensive — helper is GBS-only by name.
+        if self._station is None or self._station.provider_name != "GBS.FM":
+            return
+        # Plan 06 / WR-03: defensive consistency with bind_station's pattern.
+        if getattr(self._station, "icy_disabled", False):
             return
         self.icy_label.setText(icy_title)
         self._last_icy_title = icy_title
         self._gbs_label_source = 'ajax'
         self._update_star_enabled()
+        # Plan 06 / CR-03 fix: refresh star display against the canonical key
+        # so the icon reflects the post-/ajax favourites state.
+        self._refresh_star_display(icy_title)
         if (
             not is_junk_title(icy_title)
-            and self._station is not None
             and icy_title != self._last_cover_icy
         ):
             self._last_cover_icy = icy_title
