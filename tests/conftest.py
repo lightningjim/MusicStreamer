@@ -57,6 +57,7 @@ def mock_gbs_api():
         "search",
         "submit",
         "load_auth_context",
+        "fetch_user_tokens",  # Phase 60.4 D-T1: token-count scraper
     ])
     api.fetch_streams.return_value = [
         {"url": "https://gbs.fm/96", "quality": "96", "position": 60, "codec": "MP3", "bitrate_kbps": 96},

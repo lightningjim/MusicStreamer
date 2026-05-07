@@ -30,6 +30,7 @@ from musicstreamer.gbs_api import (
     fetch_active_playlist,
     fetch_station_metadata,
     fetch_streams,
+    fetch_user_tokens,
     import_station,
     search,
     submit,
@@ -925,3 +926,71 @@ def test_search_response_shape_pinned(
     assert len(sp.results) == expected_songs_count, (
         f"{fixture}: got {len(sp.results)} songs; expected {expected_songs_count}"
     )
+
+
+# ---------- Phase 60.4 / GBS-01-followup-T1..T8: fetch_user_tokens ----------
+
+
+class TestFetchUserTokens:
+    """Phase 60.4 D-T1/D-T2/D-T8: home-page token-count scraper.
+
+    Mirrors the existing TestFetchActivePlaylist patterns at lines 148-184:
+      - _urlopen_factory for happy-path / parse-miss
+      - monkeypatch _open_with_cookies → raises for network / auth-expired
+      - fake_cookies_jar for cookie-jar argument
+
+    Pitfall D (60.4-RESEARCH §Common Pitfalls): regex MUST tolerate both
+    plural ('48 tokens') and singular ('1 token'). Test 2 locks the singular
+    path against future regression.
+    """
+
+    def test_happy_path_parses_count(self, gbs_fixtures_dir, fake_cookies_jar, monkeypatch):
+        """D-T1: home_playlist_table.html line 510 reads 'You have 48 tokens'."""
+        payload = (gbs_fixtures_dir / "home_playlist_table.html").read_bytes()
+        monkeypatch.setattr(
+            gbs_api, "_open_with_cookies",
+            lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+        )
+        assert gbs_api.fetch_user_tokens(fake_cookies_jar) == 48
+
+    def test_singular_one_token(self, fake_cookies_jar, monkeypatch):
+        """Pitfall D: regex must match singular '1 token' (no trailing 's')."""
+        payload = b'<th class="plinfo">You have 1 token, so you can add extra dongs to the playlist!</th>'
+        monkeypatch.setattr(
+            gbs_api, "_open_with_cookies",
+            lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+        )
+        assert gbs_api.fetch_user_tokens(fake_cookies_jar) == 1
+
+    def test_zero_tokens(self, fake_cookies_jar, monkeypatch):
+        """D-T6: 0 tokens parses correctly (color-tier handled in dialog test, Plan 02)."""
+        payload = b'<th class="plinfo">You have 0 tokens, so you can add extra dongs to the playlist!</th>'
+        monkeypatch.setattr(
+            gbs_api, "_open_with_cookies",
+            lambda url, cookies, timeout=10: _urlopen_factory(payload, content_type="text/html"),
+        )
+        assert gbs_api.fetch_user_tokens(fake_cookies_jar) == 0
+
+    def test_parse_miss_returns_none(self, fake_cookies_jar, monkeypatch):
+        """D-T2: empty playlist / template change → None, no exception."""
+        monkeypatch.setattr(
+            gbs_api, "_open_with_cookies",
+            lambda url, cookies, timeout=10: _urlopen_factory(b"<html>no plinfo here</html>",
+                                                              content_type="text/html"),
+        )
+        assert gbs_api.fetch_user_tokens(fake_cookies_jar) is None
+
+    def test_network_error_returns_none(self, fake_cookies_jar, monkeypatch):
+        """D-T2: URLError / OSError on transport → None, silent log, no toast."""
+        def _raise(url, cookies, timeout=10):
+            raise urllib.error.URLError("connection refused")
+        monkeypatch.setattr(gbs_api, "_open_with_cookies", _raise)
+        assert gbs_api.fetch_user_tokens(fake_cookies_jar) is None
+
+    def test_auth_expired_raises(self, fake_cookies_jar, monkeypatch):
+        """D-T8: 302→login propagates as GbsAuthExpiredError (raised by _open_with_cookies)."""
+        def _raise(url, cookies, timeout=10):
+            raise GbsAuthExpiredError("Session expired (home 302→login)")
+        monkeypatch.setattr(gbs_api, "_open_with_cookies", _raise)
+        with pytest.raises(GbsAuthExpiredError):
+            gbs_api.fetch_user_tokens(fake_cookies_jar)
