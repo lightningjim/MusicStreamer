@@ -1113,6 +1113,26 @@ class NowPlayingPanel(QWidget):
         # Render: clear + add now-playing row + parsed queue rows.
         # Pitfall 11 — PlainText for everything; QListWidgetItem default is PlainText.
         self._gbs_playlist_widget.clear()
+        # === Phase 60.4 D-S1..D-S4: playlist summary row.
+        # REVERSES Phase 60-10 D-10c per user discussion 2026-05-07: gbs.fm
+        # jargon ("dongs") preserved as part of site voice. NO sanitization.
+        # The 60-10 SUMMARY.md regret-loophole at line 113 anticipated this
+        # exact reversal: "If the user wants the pllength summary back
+        # alongside enumeration... revise this plan with D-10c flipped to
+        # 'keep summary as additional row'."
+        # D-S3: U+00B7 middle-dot prefix distinguishes the summary from
+        #       track rows (▶ for now-playing, "{n}. " for queue, "Score:"
+        #       for score). Plain-text by QListWidgetItem default (T-40-04 /
+        #       Pitfall 11 — no setTextFormat needed).
+        # D-S4: skip when payload absent/empty (gbs_api.py:280 strips
+        #       whitespace; we treat empty string as falsy via truthiness).
+        # D-S5: inherits widget visibility — auth-expired hide path at
+        #       _on_gbs_playlist_error (line 1153) calls setVisible(False),
+        #       hiding the summary row along with everything else.
+        queue_summary = state.get("queue_summary")
+        if queue_summary:
+            self._gbs_playlist_widget.addItem(QListWidgetItem(f"· {queue_summary}"))
+        # === end Phase 60.4 D-S1..D-S4 ===
         icy = state.get("icy_title")
         if icy:
             # Pitfall 11: PlainText (QListWidgetItem default).
@@ -1129,7 +1149,7 @@ class NowPlayingPanel(QWidget):
             else:
                 label = f"{n}. {artist} - {title}"
             self._gbs_playlist_widget.addItem(QListWidgetItem(label))
-        # D-10c: pllength summary intentionally not rendered ('dongs' jargon).
+        # Phase 60-10 D-10c REVERSED by Phase 60.4 D-S2 — see summary block above.
         score = state.get("score")
         if score:
             self._gbs_playlist_widget.addItem(QListWidgetItem(f"Score: {score}"))
