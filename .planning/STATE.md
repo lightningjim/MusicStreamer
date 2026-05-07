@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: verifying
-stopped_at: "Phase 60.3 Plan 05 complete (Wave 2 gap-closure: CR-02 + WR-02 + IN-01 + Verification Gap 2; commits 5928bfb + d923665; 92/92 panel tests green; D-08 auth_expired bridge gate now relaxes via _gbs_ajax_disabled flag)"
+status: ready_to_plan
+stopped_at: "Phase 60.3 complete (gap-closure cycle: 04+05+06; 9 commits 3559b81..7dcdedc; 94/94 panel + 42/42 GBS-cluster tests green; verifier 8/8 D-NN PASSED; 4/4 human UAT PASSED; all 10 REVIEW findings + both prior gap blockers closed)"
 last_updated: "2026-05-07T16:28:24.394Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 28
-  completed_phases: 16
+  completed_phases: 17
   total_plans: 65
   completed_plans: 65
-  percent: 100
+  percent: 61
 ---
 
 # Project State
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.3 — fix-for-icy-label-gap-in-60-2-context-deferred-ideas
+**Current focus:** Phase 60.4 — two-informationals-1-under-search-show-the-amount-of-tokens-
 
 ## Current Position
 
-Phase: 60.3 (fix-for-icy-label-gap-in-60-2-context-deferred-ideas) — COMPLETE
-Plan: 3 of 3 (all plans complete)
-Status: Phase complete — ready for verification
+Phase: 60.4
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-05-07
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 111 (v1.0–v1.5 combined)
+- Total plans completed: 117 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 

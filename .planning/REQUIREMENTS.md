@@ -38,7 +38,7 @@ Small new capabilities harvested from backlog + dormant seeds.
 
 - [ ] **STR-15**: User can paste a PLS URL into a station's Streams section and have it auto-resolve into N individual stream entries (one per playlist row) *(backlog: 999.12 — deferred Phase 49 work)*
 - [x] **ACCENT-02**: User can pick a custom accent color via a visual color picker (HSV/wheel surface), in addition to the existing 8 presets and hex entry *(harvest: SEED-006)*
-- [ ] **GBS-01**: User can browse, save, and play GBS.FM streams from inside MusicStreamer (no browser bounce) *(harvest: SEED-008 — exact sub-capabilities to be refined at /gsd-discuss-phase time; may decompose into GBS-01..0N during planning)*
+- [x] **GBS-01**: User can browse, save, and play GBS.FM streams from inside MusicStreamer (no browser bounce) *(harvest: SEED-008 — exact sub-capabilities to be refined at /gsd-discuss-phase time; may decompose into GBS-01..0N during planning)*
 
 ### Versioning Convention (VER)
 
@@ -93,7 +93,7 @@ Which phases cover which requirements.
 | WIN-04 | Phase 57 | Complete |
 | STR-15 | Phase 58 | Pending |
 | ACCENT-02 | Phase 59 | Complete |
-| GBS-01 | Phase 60 | Pending |
+| GBS-01 | Phase 60 | Complete |
 | BUG-08 | Phase 61 | Complete |
 | BUG-09 | Phase 62 | Pending |
 | VER-01 | Phase 63 | Pending |
