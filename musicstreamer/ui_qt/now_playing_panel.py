@@ -527,13 +527,26 @@ class NowPlayingPanel(QWidget):
     # ----------------------------------------------------------------------
 
     def on_title_changed(self, title: str) -> None:
+        # on_title_changed runs on the Qt main thread (auto-queued from
+        # player.title_changed at player.py:446). Direct method calls to
+        # _on_gbs_poll_tick are safe; no QTimer.singleShot needed.
         if self._station is not None and self._station.icy_disabled:
             # Per-station ICY disable (D-15, D-16, D-17): do not display ICY
             # titles or trigger iTunes cover-art lookup. icy_label keeps the
             # station name fallback set by bind_station().
             return
+        is_gbs = (self._station is not None
+                  and self._station.provider_name == "GBS.FM")
+        # Phase 60.3 D-05: no-downgrade — /ajax-stamped label wins over a
+        # later ICY arrival for the same track.
+        if is_gbs and self._gbs_label_source == 'ajax':
+            return
         self.icy_label.setText(title or "")
         self._last_icy_title = title or ""
+        # Phase 60.3 D-07/D-08: ICY tag now owns the label (bridge or fallback).
+        # Flag flips BEFORE _update_star_enabled so the star gate sees the new state.
+        if is_gbs:
+            self._gbs_label_source = 'icy'
         self._update_star_enabled()
         if self._station and title:
             is_fav = self._repo.is_favorited(self._station.name, title)
@@ -545,14 +558,29 @@ class NowPlayingPanel(QWidget):
             self.star_btn.setToolTip(
                 "Remove track from favorites" if is_fav else "Save track to favorites"
             )
+        # Phase 60.3 D-07: during the bridge window in GBS context (logged in,
+        # /ajax not yet stamped), suppress cover-art lookup. _apply_gbs_icy_label
+        # will fire the lookup with the full Artist - Title once /ajax stamps.
+        in_bridge_window = (
+            is_gbs
+            and self._is_gbs_logged_in()
+            and self._gbs_label_source != 'ajax'
+        )
         if (
             title
             and not is_junk_title(title)
             and self._station is not None
             and title != self._last_cover_icy
+            and not in_bridge_window
         ):
             self._last_cover_icy = title
             self._fetch_cover_art_async(title)
+        # Phase 60.3 D-03/D-04: in GBS context, kick /ajax to upgrade the
+        # label from bare ICY to full Artist - Title. Skip when a worker
+        # is already in flight (D-04 debounce). Direct call — do NOT
+        # restart _gbs_poll_timer (would reset the 15s countdown).
+        if is_gbs and not self._gbs_poll_in_flight():
+            self._on_gbs_poll_tick()
 
     def on_elapsed_updated(self, seconds: int) -> None:
         if seconds < 3600:
@@ -626,8 +654,25 @@ class NowPlayingPanel(QWidget):
         self.cover_label.clear()
 
     def _update_star_enabled(self) -> None:
-        """Enable star_btn only when a station is playing and an ICY title is available."""
+        """Enable star_btn only when a station is playing and an ICY title is available.
+
+        Phase 60.3 D-07: during the bridge window in GBS context (logged in to GBS,
+        /ajax has not yet stamped the canonical Artist - Title), the star button is
+        disabled — preventing the user from saving a partial title to favorites.
+        Once /ajax stamps (`_gbs_label_source == 'ajax'`), the gate opens.
+        D-08 fallback: when not logged in to GBS, /ajax is impossible — the gate
+        is relaxed (logged_in conjunct is False, so the bridge-window check fails
+        and `has_track` survives).
+        """
         has_track = self._station is not None and bool(self._last_icy_title)
+        if (
+            has_track
+            and self._station is not None
+            and self._station.provider_name == "GBS.FM"
+            and self._is_gbs_logged_in()
+            and self._gbs_label_source != 'ajax'
+        ):
+            has_track = False
         self.star_btn.setEnabled(has_track)
         if not has_track:
             if self._station is not None:
@@ -1016,7 +1061,14 @@ class NowPlayingPanel(QWidget):
         self._apply_gbs_icy_label(state.get("icy_title") or "")
 
     def _on_gbs_playlist_error(self, token: int, msg: str) -> None:
-        """Auth expiry -> hide widget + stop timer; other errors -> silent log."""
+        """Auth expiry -> hide widget + stop timer + flip source flag; other errors -> silent log.
+
+        Phase 60.3 D-08: on auth_expired, /ajax is no longer possible — flip
+        the source flag to 'icy' so on_title_changed resumes writing the
+        label (and the bridge-window gate in _update_star_enabled relaxes,
+        letting star/cover-art come alive). The widget hide + timer stop
+        are unchanged from Phase 60 (Pitfall 3 — no toast spam).
+        """
         if token != self._gbs_poll_token:
             return
         if msg == "auth_expired":
@@ -1024,6 +1076,8 @@ class NowPlayingPanel(QWidget):
             self._gbs_playlist_widget.setVisible(False)
             self._gbs_poll_timer.stop()
             self._gbs_playlist_widget.clear()
+            # Phase 60.3 D-08: /ajax is now impossible — let ICY take over.
+            self._gbs_label_source = 'icy'
         else:
             # Pitfall 5 + 7: don't retry; just log.
             _log.warning("GBS.FM playlist poll failed: %s", msg)

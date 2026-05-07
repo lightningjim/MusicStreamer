@@ -1258,11 +1258,14 @@ def test_gbs_icy_label_upgrades_on_ajax_after_icy(qtbot, tmp_path, monkeypatch):
     # offline-CI invariant and prevents a daemon thread from emitting against
     # the panel signal after the qtbot teardown.
     monkeypatch.setattr(panel, "_fetch_cover_art_async", MagicMock())
-    panel._gbs_poll_token = 5
     # 1) Bare ICY arrives first (pre-/ajax bridge — flows through on_title_changed unchanged in Plan 02)
+    # Phase 60.3 fix-up: on_title_changed now kicks _on_gbs_poll_tick (D-03) which
+    # increments _gbs_poll_token. Set the token AFTER the bridge call so the
+    # /ajax response below matches the live token.
     panel.on_title_changed("La Frontière de la Nuit")
     assert panel.icy_label.text() == "La Frontière de la Nuit"
     assert panel._last_icy_title == "La Frontière de la Nuit"
+    panel._gbs_poll_token = 5
     # 2) /ajax arrives, upgrades to full Artist - Title via _apply_gbs_icy_label
     panel._on_gbs_playlist_ready(5, {
         "now_playing_entryid": 1810736,
