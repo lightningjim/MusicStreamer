@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 60.3 Plan 02 complete (Wave 2 /ajax stamping helper)
-last_updated: "2026-05-07T14:04:29Z"
-last_activity: 2026-05-07 -- Phase 60.3 Plan 02 complete (visible defect fix; 82/82 panel tests)
+stopped_at: Phase 60.3 Plan 03 complete (Wave 3 race-tightening + bridge-window gating; commits 7cac8db + c7ec990; 88/88 panel tests green; all 8 CONTEXT decisions D-01..D-08 implemented)
+last_updated: "2026-05-07T14:38:01.132Z"
+last_activity: 2026-05-07
 progress:
   total_phases: 28
-  completed_phases: 15
-  total_plans: 63
-  completed_plans: 61
-  percent: 97
+  completed_phases: 16
+  total_plans: 62
+  completed_plans: 62
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.3 — Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)
+**Current focus:** Phase 60.3 — fix-for-icy-label-gap-in-60-2-context-deferred-ideas
 
 ## Current Position
 
-Phase: 60.3 (Fix for ICY label gap in 60.2 Context Deferred Ideas (INSERTED)) — EXECUTING
-Plan: 3 of 3 (Plans 01 + 02 complete; Wave 3 ready — kick + no-downgrade + auth-expired)
-Status: Executing Phase 60.3
-Last activity: 2026-05-07 -- Phase 60.3 Plan 02 complete (/ajax stamping helper green, 82/82 panel tests)
+Phase: 60.3 (fix-for-icy-label-gap-in-60-2-context-deferred-ideas) — COMPLETE
+Plan: 3 of 3 (all plans complete)
+Status: Ready for verification (/gsd-verify-work)
+Last activity: 2026-05-07
 
 ## Performance Metrics
 
@@ -116,6 +116,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: Phase 60.2-03 Wave 2 GREEN dialog tier — _render_results gains group_by_album: bool = False kwarg; True branches into 3-helper pipeline (_group_rows_by_album / _insert_album_section_header / _render_song_rows). Section-header rows use QStandardItem(f'{album} ({n} songs)') + Qt.ItemFlag.ItemIsEnabled (D-02 — non-selectable, non-editable, visually present) + bold QFont; setSpan(row, 0, 1, columnCount()) merges visually; NO setStyleSheet/setBackground (UI-SPEC FLAG-01 / Pitfall 5). Empty-string album group renders WITHOUT a header (D-11). Pitfall 3 mitigation: dual-counter loop (next_row table-row idx + original_idx song-list idx). _on_artist_drilled wired group_by_album=True; _on_album_drilled UNCHANGED (Pitfall 6). _clear_table defense-in-depth clearSpans() BEFORE removeRows (Pitfall 1+9). 6 Plan 01 dialog RED tests GREEN; QA-05 + Phase 60.1 drill regression preserved; 73/73 phase tests pass.
 - [Phase 60.3-01]: Wave 1 scaffolding for ICY label gap fix shipped pure-additive — `_gbs_label_source: Optional[str] = None` tri-state flag declared adjacent to `_gbs_current_entryid`, reset on BOTH branches of `_refresh_gbs_visibility` (Pitfall 4 — accept the redundant entry-branch reset for same-station rebind). `_gbs_poll_in_flight() -> bool` predicate placed adjacent to `_is_gbs_logged_in` reads SYNC-05 retention slot via `self._gbs_poll_worker is not None and self._gbs_poll_worker.isRunning()` (Pitfall 3 — accept tiny "finished but not yet collected" race; token-discard at line 941 catches duplicates). Tri-state Optional[str] over Enum — string literals match the project idiom (vote_value bare int, _gbs_poll_cursor bare-string keys). Method, not property, mirrors `_is_gbs_logged_in` shape. Zero behaviour change; 76 pre-existing tests green; 3 new scaffolding tests pin contract (default None, reset on context exit, predicate truth-table over None / not-running / running). PLAN's grep-baseline claim "1 only line 280" for setTextFormat/setHtml/RichText was stale — actual baseline is 4 (unchanged by this plan; T-40-04 invariant preserved).
 - [Phase 60.3-02]: Wave 2 /ajax stamping helper landed — `_apply_gbs_icy_label(self, icy_title: str)` placed adjacent to `_apply_vote_*` cluster (between `_current_highlighted_vote` line 1053 and `_on_gbs_vote_clicked` line 1100). Single coupling point per D-06: writes `icy_label.setText`, `_last_icy_title`, `_gbs_label_source = 'ajax'`, calls `_update_star_enabled()`, triggers `_fetch_cover_art_async` (junk + cache + station-bound guarded). Helper invocation lands as the LAST statement of `_on_gbs_playlist_ready` (line 1014-1016) — last-writer-wins per D-02. Open Question 1 LOCKED as 'consistent / icy_disabled-on-GBS skips /ajax stamping' — helper short-circuits on `self._station.icy_disabled` truthy, matching `on_title_changed` gate at line 530-534. Empty icy_title is a no-op (early-return) — guards /ajax cold-start race. Three new tests (D-01/D-06/D-07 happy-path + cold-stamp + icy_disabled lock); two non-disabled tests explicitly set `gbs_station.icy_disabled = False` after `_make_gbs_station()` (BLOCKER #1 fix; rises to ≥ 8 after Plan 03). Existing `test_gbs_playlist_populates_from_mock_state` regression-protected with `_fetch_cover_art_async` mock to preserve offline-CI invariant. Plain-text invariant T-40-04 unchanged (grep -c "setTextFormat|setHtml|RichText" stays at 4). Helper docstring describes invariant in prose to avoid bumping the grep baseline. 82/82 panel tests green; 30/30 GBS cluster green.
+- [Phase 60.3-03]: Wave 3 race-tightening + bridge-window gating complete — `on_title_changed` rewritten with load-bearing six-step ordering (D-05 no-downgrade guard before setText; `_gbs_label_source = 'icy'` flip after setText but before `_update_star_enabled`; bridge-window cover-art suppression using `_gbs_label_source != 'ajax'` post-flip check; D-03/D-04 idle-worker kick as LAST statement via direct `_on_gbs_poll_tick()` call). `_update_star_enabled` extended with D-07 bridge-window conjunct (star disabled when GBS + logged-in + flag != 'ajax'; relaxes when not-logged-in per D-08). `_on_gbs_playlist_error` auth_expired branch flips `_gbs_label_source = 'icy'` inside existing token-discard guard (D-08). Six new tests: D-03 kick, D-04 debounce, D-05 no-downgrade, D-07 bridge-window star/cover-art gate, D-08 auth-expired flag-flip + logged-out fallback. All six per-test `gbs_station.icy_disabled = False` overrides (BLOCKER #1; total 8). test_gbs_auth_expired_relaxes_bridge_gate omits star assertion (cookies still present → logged-in gate still active); D-08 star-enabled verified by logged-out variant instead. 88/88 panel tests green. All eight CONTEXT decisions D-01..D-08 now implemented.
 
 ### Roadmap Evolution
 
@@ -186,6 +187,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-07T14:04:29Z
-Stopped at: Phase 60.3 Plan 02 complete (Wave 2 /ajax stamping helper green; commits 0448155 + 7a24b22 + 34726d1)
-Resume file: .planning/phases/60.3-fix-for-icy-label-gap-in-60-2-context-deferred-ideas/60.3-03-PLAN.md
+Last session: 2026-05-07T14:45:00Z
+Stopped at: Phase 60.3 Plan 03 complete (Wave 3 race-tightening + bridge-window gating; commits 7cac8db + c7ec990; 88/88 panel tests green; all 8 CONTEXT decisions D-01..D-08 implemented; Phase 60.3 complete)
+Resume file: None (Phase 60.3 complete — next: /gsd-verify-work for manual verification of live GBS.FM stream label upgrade)
