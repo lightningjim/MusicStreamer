@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: verifying
+status: ready_to_plan
 stopped_at: Phase 63 Plan 05 complete (last plan; ready for verification)
 last_updated: "2026-05-08T17:32:30.289Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 28
-  completed_phases: 19
+  completed_phases: 20
   total_plans: 77
   completed_plans: 77
-  percent: 100
+  percent: 71
 ---
 
 # Project State
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 63 (auto-bump-pyproject-toml-version-on-phase-completion-using-m) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
+Phase: 64
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-05-08
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 121 (v1.0–v1.5 combined)
+- Total plans completed: 126 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
