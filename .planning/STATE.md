@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Plan 62-00 complete (Wave 0 RED contract)
-last_updated: "2026-05-08T02:15:50.680Z"
+stopped_at: Phase 62 context gathered
+last_updated: "2026-05-08T02:25:27.945Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 28
   completed_phases: 17
   total_plans: 72
-  completed_plans: 69
-  percent: 96
+  completed_plans: 70
+  percent: 97
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 62 (audio-buffer-underrun-resilience-intermittent-dropouts-stutt) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-05-08
 
@@ -126,6 +126,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: [Phase 62-00]: T-62-01 STRIDE mitigation locked via single-quote canary (assert station_name='Test Station' in caplog msg) — fails the moment Plan 02 drifts %r→%s on log call
 - [Phase ?]: [Phase 62-00]: T-62-02 force-close ordering locked via close-record url assertion (must equal OLD url, not new) — proves _try_next_stream runs force_close BEFORE bind_url
 - [Phase ?]: [Phase 62-00]: Pitfall 5 enforced via file-level regex on __main__.py source — Plan 03 must add per-logger setLevel(INFO) and retain basicConfig(WARNING)
+- [Phase ?]: [Phase 62-01]: Wave 1 GREEN tracker tier — _BufferUnderrunTracker pure-Python state machine + _CycleClose @dataclass(frozen=True) + module-level _log = logging.getLogger(__name__) (first logger in player.py). One clock read per observe() call (Rule 1 fix; original frugal pattern produced duration_ms=1000 instead of 2000). Single _close_with_now(outcome, end_ts) helper. Reset cycle-level state on close but keep _armed=True (only bind_url clears arm). 7/7 tracker tests RED→GREEN; 25 existing player tests pass; D-09 invariant preserved (constants.py 0-line diff); class Player(QObject) body unchanged.
 
 ### Roadmap Evolution
 
@@ -198,9 +199,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 60.3 P06 | 12min | 2 tasks | 2 files |
 | Phase 60.4 P02 | 10 | 3 tasks | 3 files |
 | Phase 62 P00 | 5min | 4 tasks | 4 files |
+| Phase 62 P01 | 4min | 2 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-05-08T02:15:30.283Z
+Last session: 2026-05-08T02:25:02.750Z
 Stopped at: Phase 62 context gathered
 Resume file: None
