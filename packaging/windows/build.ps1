@@ -2,7 +2,8 @@
 # Phase 44 MusicStreamer Windows build driver. Idempotent, snapshot-safe.
 # Adapted from .planning/phases/43-gstreamer-windows-spike/build.ps1.
 # Exit codes: 0=ok, 1=env missing, 2=pyinstaller failed, 3=smoke test failed,
-#             4=PKG-03 guard fail, 5=version parse fail, 6=iscc fail, 7=spec entry guard fail
+#             4=PKG-03 guard fail, 5=version parse fail, 6=iscc fail, 7=spec entry guard fail,
+#             8=pre-bundle clean fail, 9=post-bundle dist-info assertion fail
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -115,6 +116,39 @@ try {
         Write-Error "BUILD_FAIL reason=spec_entry_guard hint='packaging/windows/MusicStreamer.spec is missing the canonical entry-point reference'"
         exit 7
     }
+
+    # --- 3c. Pre-bundle dist-info clean (VER-02-J defense) -------------
+    # PyInstaller's `copy_metadata("musicstreamer")` (MusicStreamer.spec
+    # line 41) picks up EVERY musicstreamer-*.dist-info directory it
+    # finds on sys.path. If the build env has both the current
+    # 2.1.{phase}.dist-info AND a stale older dist-info (e.g. from a
+    # previous v1.x or v2.0.x editable install that was never cleaned),
+    # BOTH ship into dist/MusicStreamer/_internal/, and at runtime
+    # importlib.metadata.version("musicstreamer") returns whichever
+    # appears first on sys.path -- typically the older one (e.g. 1.1.0
+    # observed on Kyle's Win11 VM during Phase 65 UAT, gap VER-02-J).
+    #
+    # Defense: uninstall + reinstall musicstreamer right before
+    # pyinstaller runs, guaranteeing exactly one fresh dist-info
+    # matching pyproject.toml [project].version exists when
+    # copy_metadata scans. Cheap (~3-5s); makes the build resilient to
+    # whatever historical state the build env happens to be in.
+    #
+    # DO NOT REMOVE without first updating both:
+    #   - tests/test_packaging_spec.py (drift-guard test)
+    #   - .planning/phases/65-.../65-04-PLAN.md (this plan's rationale)
+    Write-Host "=== PRE-BUNDLE CLEAN: uv pip uninstall + reinstall musicstreamer ==="
+    Invoke-Native { uv pip uninstall musicstreamer -y 2>&1 | Out-Host }
+    # Note: uninstall exit code is intentionally NOT checked -- uv pip
+    # uninstall returns non-zero if the package isn't installed, which
+    # is fine on a fresh build env. We only care about the install
+    # below succeeding.
+    Invoke-Native { uv pip install -e ..\.. 2>&1 | Out-Host }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "BUILD_FAIL reason=pre_bundle_clean_failed hint='uv pip install -e ..\..\\ failed; check uv install + pyproject.toml validity'"
+        exit 8
+    }
+    Write-Host "PRE-BUNDLE CLEAN OK -- fresh musicstreamer dist-info materialized in build env"
 
     # --- 4. PyInstaller -------------------------------------------------
     Write-Host "=== MUSICSTREAMER BUILD: pyinstaller ==="
