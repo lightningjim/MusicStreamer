@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 63 context gathered
-last_updated: "2026-05-08T17:09:04.061Z"
+last_updated: "2026-05-08T17:15:45.808Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 28
   completed_phases: 18
   total_plans: 77
-  completed_plans: 74
-  percent: 96
+  completed_plans: 75
+  percent: 97
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 63 (auto-bump-pyproject-toml-version-on-phase-completion-using-m) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-05-08
 
@@ -130,6 +130,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: [Phase 62-02]: Wave 1 GREEN Part 2 of 2 — _BufferUnderrunTracker wired into Player across 12 insertion sites in a single atomic commit. 8/8 RED Player integration tests RED→GREEN; 7/7 Plan 01 tracker tests still GREEN; 95/95 across regression suite. T-62-01 station_name=%r url=%r locked at BOTH log sites; T-62-02 force_close-before-bind ordering verified. D-09 invariant preserved (constants.py 0-line diff). Player line count 1167 → 1289 (+122).
 - [Phase ?]: [Phase 62-03]: Wave 2 GREEN closure — 6 insertion sites in main_window.py + 1 line in __main__.py; 5/5 RED MainWindow tests GREEN; closeEvent ordering shutdown_underrun_tracker BEFORE _media_keys.shutdown (Pitfall 4); cooldown via time.monotonic (first project use, wall-clock-jump immune); per-logger INFO for musicstreamer.player keeps GLOBAL WARNING (Pitfall 5); 20/20 Phase 62 RED tests now all GREEN; D-09 + D-05 invariants preserved.
 - [Phase ?]: 63-02: workflow.auto_version_bump opt-out flag - default-true seeded via direct JSON edit (Pitfall 3); is_auto_bump_enabled fails open on any non-zero gsd-sdk exit; only explicit false disables. Gate returns 3 with informational stderr.
+- [Phase ?]: 63-03: Claude Code PreToolUse hook wired (.claude/settings.json + .claude/hooks/bump-version-hook.sh, force-added with git add -f per Pitfall 8). PreToolUse-only block; Plan 04 will extend with PostToolUseFailure rollback. Per-task atomic commits required Task 1 to land the force-add (Task 3 became verification-only). 9 tests GREEN.
 
 ### Roadmap Evolution
 
@@ -207,9 +208,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 62 P03 | 6min | 2 tasks | 2 files |
 | Phase 63 P01 | 3min | 2 tasks | 2 files |
 | Phase 63 P02 | 4m3s | 2 tasks | 3 files |
+| Phase 63 P03 | 2m44s | 3 tasks | 3 files |
 
 ## Session Continuity
 
-Last session: 2026-05-08T17:08:59.217Z
+Last session: 2026-05-08T17:15:45.797Z
 Stopped at: Phase 63 context gathered
 Resume file: None

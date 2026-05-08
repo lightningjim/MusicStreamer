@@ -458,11 +458,11 @@ Plans:
   3. A config flag (e.g., `workflow.auto_version_bump`, default `true`) lets the user opt out per-project; when disabled, no bump occurs
   4. The convention is documented in PROJECT.md with the schema (`major.minor.phase`) and a worked example so future contributors / future Claude sessions know how to read the version
   5. Rollback safety: if the phase-completion commit fails (e.g., pre-commit hook), the version bump is reverted from the working tree (no half-state)
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 Plans:
 - [x] 63-01-PLAN.md — Bump helper + Wave 0 test scaffold (tools/bump_version.py + tests/test_bump_version.py)
 - [x] 63-02-PLAN.md — workflow.auto_version_bump config flag + gate in main()
-- [ ] 63-03-PLAN.md — Claude Code PreToolUse hook + settings.json + explicit `git add -f` step
+- [x] 63-03-PLAN.md — Claude Code PreToolUse hook + settings.json + explicit `git add -f` step
 - [ ] 63-04-PLAN.md — Rollback safety (PostToolUseFailure hook with `git checkout HEAD -- pyproject.toml`)
 - [ ] 63-05-PLAN.md — PROJECT.md ## Versioning section + drift-guard + SC #2 outcome gate
 
@@ -484,7 +484,7 @@ Plans:
 | 60. GBS.FM Integration | 7/7 | Complete   | 2026-05-04 |
 | 61. Linux App Display Name in WM Dialogs | 5/5 | Complete    | 2026-05-07 |
 | 62. Audio Buffer Underrun Resilience | 4/4 | Complete    | 2026-05-08 |
-| 63. Auto-Bump pyproject Version on Phase Completion | 2/5 | In Progress|  |
+| 63. Auto-Bump pyproject Version on Phase Completion | 3/5 | In Progress|  |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
 
 ### Phase 64: AudioAddict Siblings on Now Playing
