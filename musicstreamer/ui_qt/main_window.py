@@ -21,6 +21,7 @@ from __future__ import annotations
 import datetime
 import logging
 import os
+import time
 
 # Side-effect import: registers the :/icons/ resource prefix before any
 # QIcon lookup. Must live at module top so tests that construct MainWindow
@@ -128,6 +129,11 @@ class _GbsImportWorker(QThread):
 
 class MainWindow(QMainWindow):
     """Main application window — station list + now-playing + toast overlay."""
+
+    # Phase 62 / D-08 / BUG-09: cooldown for the `Buffering…` toast.
+    # 10 seconds, wall-clock-based via time.monotonic; persists across station
+    # changes so rapid hops don't spam the user.
+    _UNDERRUN_TOAST_COOLDOWN_S: float = 10.0
 
     def __init__(
         self,
@@ -254,6 +260,10 @@ class MainWindow(QMainWindow):
         # ------------------------------------------------------------------
         self._toast = ToastOverlay(self)
 
+        # Phase 62 / D-08 / BUG-09: cooldown bookkeeping for `Buffering…` toast.
+        # time.monotonic() is wall-clock-jump immune (NTP / DST safe).
+        self._last_underrun_toast_ts: float = 0.0
+
         # Phase 60 D-02: GBS.FM import worker retention (SYNC-05)
         self._gbs_import_worker = None
 
@@ -278,6 +288,12 @@ class MainWindow(QMainWindow):
         self._player.offline.connect(self._on_offline)
         self._player.playback_error.connect(self._on_playback_error)
         self._player.cookies_cleared.connect(self.show_toast)  # Phase 999.7
+        # Phase 62 / D-07-D-08 / BUG-09: dwell-elapsed → cooldown-gated toast.
+        # Queued connection per file convention (Player Signals are queued to
+        # MainWindow throughout this file). Bound method per QA-05 — no lambda.
+        self._player.underrun_recovery_started.connect(
+            self._on_underrun_recovery_started, Qt.ConnectionType.QueuedConnection
+        )
 
         # Track star → toast (D-10)
         self.now_playing.track_starred.connect(self._on_track_starred)
@@ -345,12 +361,40 @@ class MainWindow(QMainWindow):
         """Show a toast notification on the centralWidget bottom-centre."""
         self._toast.show_toast(text, duration_ms)
 
+    def _on_underrun_recovery_started(self) -> None:
+        """Phase 62 / D-06 + D-08 + BUG-09: cooldown-gated `Buffering…` toast.
+
+        Player emits underrun_recovery_started after a cycle exceeds the
+        1500ms dwell threshold (D-07). This slot:
+          - reads time.monotonic() (wall-clock-jump immune);
+          - if the previous toast was less than _UNDERRUN_TOAST_COOLDOWN_S
+            ago, suppresses (D-08); the cycle is still logged on the
+            Player side — only the user-facing toast is debounced;
+          - else updates the timestamp and calls show_toast('Buffering…')
+            (D-06 — U+2026 ellipsis, matches `Connecting…` style).
+        """
+        now = time.monotonic()
+        if now - self._last_underrun_toast_ts < self._UNDERRUN_TOAST_COOLDOWN_S:
+            return
+        self.show_toast("Buffering…")    # D-06 — U+2026 ellipsis
+        self._last_underrun_toast_ts = now
+
     # ----------------------------------------------------------------------
     # Slots (bound methods — no self-capturing lambdas, QA-05)
     # ----------------------------------------------------------------------
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Unregister the MPRIS2 service cleanly before the window closes (T-41-13)."""
+        """Unregister the MPRIS2 service cleanly before the window closes (T-41-13).
+
+        Phase 62 / D-03 + Pitfall 4 / BUG-09: also force-close any in-flight
+        underrun cycle as outcome=shutdown so its log line is written before
+        app exit. SYNCHRONOUS log write inside Player.shutdown_underrun_tracker;
+        queued slots may never run after closeEvent returns.
+        """
+        try:
+            self._player.shutdown_underrun_tracker()
+        except Exception as exc:
+            _log.warning("player shutdown_underrun_tracker failed: %s", exc)
         try:
             self._media_keys.shutdown()
         except Exception as exc:
