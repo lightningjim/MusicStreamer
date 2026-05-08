@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from importlib.metadata import version as _pkg_version
 
 import gi
 gi.require_version("Gst", "1.0")
@@ -184,6 +185,7 @@ def _run_gui(argv: list[str]) -> int:
     app = QApplication(argv)
     app.setApplicationName("MusicStreamer")              # D-07: keep
     app.setApplicationDisplayName("MusicStreamer")       # D-06: NEW (Phase 61)
+    app.setApplicationVersion(_pkg_version("musicstreamer"))  # Phase 65 D-07
     app.setDesktopFileName(constants.APP_ID)             # D-02: read from constants (no .desktop suffix per Qt convention)
     if sys.platform == "win32":
         app.setStyle("Fusion")          # D-14: BEFORE widget construction
