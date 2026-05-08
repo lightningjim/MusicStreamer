@@ -13,6 +13,10 @@ installed in the test environment, and they do NOT execute the .spec.
 Pattern: mirrors tests/test_main_run_gui_ordering.py's `read_text` +
 substring-assertion idiom (PATTERNS §8 — closer analog than
 test_pkg03_compliance.py, which is a multi-file glob over musicstreamer/*.py).
+
+Phase 65 Plan 04 extends this with two `build_ps1_source` tests covering
+UAT gap VER-02-J (stale dist-info bundling defense): pre-bundle clean
+step 3c + post-bundle dist-info assertion step 4a in build.ps1.
 """
 from __future__ import annotations
 
@@ -27,11 +31,24 @@ _SPEC = (
     / "MusicStreamer.spec"
 )
 
+_BUILD_PS1 = (
+    Path(__file__).resolve().parent.parent
+    / "packaging"
+    / "windows"
+    / "build.ps1"
+)
+
 
 @pytest.fixture(scope="module")
 def spec_source() -> str:
     assert _SPEC.is_file(), f"expected MusicStreamer.spec at {_SPEC}"
     return _SPEC.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def build_ps1_source() -> str:
+    assert _BUILD_PS1.is_file(), f"expected build.ps1 at {_BUILD_PS1}"
+    return _BUILD_PS1.read_text(encoding="utf-8")
 
 
 def test_spec_imports_copy_metadata(spec_source: str) -> None:
@@ -118,4 +135,123 @@ def test_spec_has_no_try_except_around_copy_metadata(spec_source: str) -> None:
     assert "PackageNotFoundError" not in nearby, (
         "Phase 65 D-08 explicit prohibition: NO PackageNotFoundError catch "
         "around copy_metadata. Hard fail at build time is the contract."
+    )
+
+
+def test_build_ps1_pre_bundle_clean_present(build_ps1_source: str) -> None:
+    """Phase 65 Plan 04 / VER-02-J defense: build.ps1 must contain a
+    pre-bundle clean step that uninstalls + reinstalls musicstreamer in
+    the build env BEFORE invoking pyinstaller. This guarantees exactly
+    one fresh musicstreamer-{version}.dist-info exists when
+    copy_metadata("musicstreamer") (MusicStreamer.spec line 41) runs,
+    closing UAT gap VER-02-J (Win11 VM bundle showed v1.1.0 from a
+    stale dist-info).
+
+    DRIFT-GUARD: catches accidental removal of step 3c. If a future
+    maintainer rewrites the clean step's commands (e.g. switches from
+    `uv pip uninstall + install` to `uv sync --reinstall-package
+    musicstreamer`), update the substring assertions below.
+    """
+    # Rationale tag — must cite the gap so the link to this regression
+    # is grep-discoverable from the build script.
+    assert "VER-02-J" in build_ps1_source, (
+        "build.ps1 must reference VER-02-J in the pre-bundle clean step "
+        "header so a future maintainer can trace the rationale. Without "
+        "this tag, the step looks like dead code and is at risk of "
+        "removal during script cleanup."
+    )
+
+    # Uninstall command — first half of the defense.
+    assert "uv pip uninstall musicstreamer" in build_ps1_source, (
+        "build.ps1 step 3c must call `uv pip uninstall musicstreamer` "
+        "before running PyInstaller, so any stale dist-info from a "
+        "prior install is removed from the build env."
+    )
+
+    # Reinstall command — second half. Accept either the explicit
+    # editable install (preferred) OR `uv sync --reinstall-package
+    # musicstreamer` form.
+    has_reinstall = (
+        "uv pip install -e" in build_ps1_source
+        or "uv sync --reinstall-package musicstreamer" in build_ps1_source
+    )
+    assert has_reinstall, (
+        "build.ps1 step 3c must reinstall musicstreamer after "
+        "uninstalling, via either `uv pip install -e ..\\..` (editable, "
+        "preferred) or `uv sync --reinstall-package musicstreamer`. "
+        "Without the reinstall, copy_metadata has no dist-info to ship."
+    )
+
+    # Failure branch — the step must HAVE an exit-on-failure check, not
+    # silently continue.
+    assert "exit 8" in build_ps1_source, (
+        "build.ps1 step 3c must exit 8 on reinstall failure (matching "
+        "the exit-codes header at line 5). Silent failure here would "
+        "let a wrong dist-info reach pyinstaller."
+    )
+
+
+def test_build_ps1_post_bundle_dist_info_assertion_present(build_ps1_source: str) -> None:
+    """Phase 65 Plan 04 / VER-02-J defense: build.ps1 must contain a
+    post-bundle assertion step that scans dist/MusicStreamer/_internal
+    for musicstreamer-*.dist-info, asserts exactly one exists, and
+    asserts its METADATA Version: matches pyproject.toml
+    [project].version. This catches any stale dist-info that survives
+    step 3c's pre-bundle clean (defense in depth).
+
+    DRIFT-GUARD: catches accidental removal of step 4a. The negative
+    failure-mode this defends against — a wrong bundle silently
+    shipping — is high-severity (production user sees wrong version),
+    so the assertion is locked here AND in the build script.
+    """
+    # Rationale tag — same shape as test_build_ps1_pre_bundle_clean_present.
+    # Note: a single 'VER-02-J' appearance covers both step 3c and 4a if
+    # they share a single VER-02-J rationale block, but typically each
+    # step has its own header. Allow either: just assert the tag is
+    # present at least twice (once per step) OR a `count >= 2` shape.
+    # We use a simple count check.
+    assert build_ps1_source.count("VER-02-J") >= 2, (
+        "build.ps1 must reference VER-02-J in BOTH step 3c (pre-bundle "
+        "clean) AND step 4a (post-bundle assertion) headers. Found "
+        f"{build_ps1_source.count('VER-02-J')} occurrence(s); expected "
+        "at least 2 (one per defensive step)."
+    )
+
+    # Get-ChildItem against the bundled _internal directory with the
+    # dist-info filter — the structural shape of the singleton check.
+    assert 'Get-ChildItem' in build_ps1_source, (
+        "build.ps1 step 4a must use Get-ChildItem to enumerate "
+        "musicstreamer-*.dist-info directories in the bundle."
+    )
+    assert 'musicstreamer-*.dist-info' in build_ps1_source, (
+        "build.ps1 step 4a must filter Get-ChildItem with "
+        "`musicstreamer-*.dist-info` to find the bundled dist-info(s)."
+    )
+
+    # The singleton check — count must be exactly 1, not 0, not 2+.
+    # PowerShell idiom: `$msDistInfos.Count -ne 1` or equivalent.
+    assert ".Count -ne 1" in build_ps1_source, (
+        "build.ps1 step 4a must assert exactly one musicstreamer-*.dist-info "
+        "exists in the bundle (count != 1 → fail). A 0-count means the "
+        "spec dropped copy_metadata; a 2+ count is the VER-02-J failure "
+        "mode (stale dist-info shipped alongside fresh one)."
+    )
+
+    # The version-match check — bundled METADATA Version: must equal
+    # pyproject.toml [project].version (i.e. $appVersion).
+    assert "$bundledVersion -ne $appVersion" in build_ps1_source, (
+        "build.ps1 step 4a must compare the bundled METADATA Version: "
+        "line to pyproject.toml [project].version (the `$appVersion` "
+        "variable already used by step 6 / iscc.exe). Without this "
+        "compare, a stale 1.1.0 dist-info that somehow becomes the "
+        "singleton (after pre-bundle clean removed the new one) would "
+        "still ship as a wrong-but-singleton bundle."
+    )
+
+    # Failure branch — exit 9 on any of the three failure modes.
+    assert "exit 9" in build_ps1_source, (
+        "build.ps1 step 4a must exit 9 on assertion failure (matching "
+        "the exit-codes header at line 5). The three failure modes "
+        "(no _internal dir, count != 1, version mismatch) all share "
+        "this exit code."
     )
