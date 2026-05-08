@@ -9,6 +9,7 @@ Runtime budget: <1s for the whole module per RESEARCH §Validation Architecture.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -159,4 +160,101 @@ def test_project_md_milestone_heading_present():
         f"a line in {project_md}. "
         f"Found these `## ...Milestone...` lines instead: "
         f"{[ln for ln in text.splitlines() if 'Milestone' in ln][:5]}"
+    )
+
+
+def test_bump_skipped_when_flag_disabled(tmp_path, monkeypatch):
+    """D-11: when workflow.auto_version_bump is "false", helper short-circuits.
+
+    Stub `gsd-sdk` on PATH so the helper's `is_auto_bump_enabled()` reads
+    "false" and the bump path never runs. Asserts:
+      - exit code 3 (D-11 short-circuit, informational not failure)
+      - stderr carries the "[bump] disabled via workflow.auto_version_bump" line
+      - pyproject.toml is byte-identical pre/post invocation (no write)
+    """
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\n'
+        'name = "test"\n'
+        'version = "0.0.0"\n',
+        encoding="utf-8",
+    )
+    project_md = tmp_path / "PROJECT.md"
+    project_md.write_text(
+        "# Test\n\n## Current Milestone: v3.7 Some Words\n\n",
+        encoding="utf-8",
+    )
+
+    fake_sdk = tmp_path / "gsd-sdk"
+    fake_sdk.write_text(
+        '#!/bin/sh\n'
+        'if [ "$1 $2 $3" = "query config-get workflow.auto_version_bump" ]; then\n'
+        '  echo false; exit 0\n'
+        'fi\n'
+        'exit 99\n',
+        encoding="utf-8",
+    )
+    fake_sdk.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+
+    pre_bytes = pyproject.read_bytes()
+    result = _invoke_bump(pyproject=pyproject, project_md=project_md, phase=42)
+
+    assert result.returncode == 3, (
+        f"expected exit 3 (D-11 short-circuit); got {result.returncode} "
+        f"with stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
+    assert "disabled via workflow.auto_version_bump" in result.stderr, (
+        f"expected the disabled-stderr marker; got stderr={result.stderr!r}"
+    )
+    # Strictest no-write assertion: byte-identical pre/post.
+    assert pyproject.read_bytes() == pre_bytes, (
+        "pyproject.toml was modified despite the flag being disabled"
+    )
+
+
+def test_bump_runs_when_flag_unset(tmp_path, monkeypatch):
+    """D-10: when the key is absent (gsd-sdk exit 1), bump fires (default-true).
+
+    Stub `gsd-sdk` to mimic the live SDK's "Error: Key not found:" exit-1
+    response. The helper MUST treat this as default-true and proceed with
+    the rewrite. Asserts:
+      - exit code 0
+      - pyproject.toml contains 'version = "3.7.42"' (bump fired)
+    """
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\n'
+        'name = "test"\n'
+        'version = "0.0.0"\n',
+        encoding="utf-8",
+    )
+    project_md = tmp_path / "PROJECT.md"
+    project_md.write_text(
+        "# Test\n\n## Current Milestone: v3.7 Some Words\n\n",
+        encoding="utf-8",
+    )
+
+    fake_sdk = tmp_path / "gsd-sdk"
+    fake_sdk.write_text(
+        '#!/bin/sh\n'
+        'if [ "$1 $2 $3" = "query config-get workflow.auto_version_bump" ]; then\n'
+        '  echo "Error: Key not found: workflow.auto_version_bump" 1>&2; exit 1\n'
+        'fi\n'
+        'exit 99\n',
+        encoding="utf-8",
+    )
+    fake_sdk.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+
+    result = _invoke_bump(pyproject=pyproject, project_md=project_md, phase=42)
+
+    assert result.returncode == 0, (
+        f"expected exit 0 (default-true on key-not-found); got "
+        f"{result.returncode} with stdout={result.stdout!r} "
+        f"stderr={result.stderr!r}"
+    )
+    body = pyproject.read_text(encoding="utf-8")
+    assert 'version = "3.7.42"' in body, (
+        f"expected bump to fire under default-true; got body={body!r}"
     )
