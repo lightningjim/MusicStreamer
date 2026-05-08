@@ -502,3 +502,73 @@ def test_rollback_on_simulated_commit_failure(tmp_path):
         "Pass-through path incorrectly cleared the staged bump; "
         "the hook should be a no-op for non-phase-completion commits."
     )
+
+
+def test_project_md_has_versioning_section():
+    """Phase 63 Plan 05 (SC #4 / D-12 / VALIDATION row 63-05-01): PROJECT.md
+    must document the `major.minor.phase` schema with a worked example.
+
+    Drift-guard: if a future edit reformats `## Versioning` away (or moves it
+    below `## Constraints`, or strips the worked-example anchors), this test
+    fails loud and tells you what to put back.
+
+    The four anchor strings (helper path, flag name, two worked-example
+    version values) ensure the section's CONTENT is intact — not just the
+    heading. Plan 05's source content is in CONTEXT.md §specifics line 112.
+    """
+    repo = Path(__file__).resolve().parent.parent
+    project_md = repo / ".planning" / "PROJECT.md"
+    assert project_md.exists(), (
+        f"Phase 63 drift: expected {project_md}; "
+        f"found in .planning/: "
+        f"{sorted(p.name for p in (repo / '.planning').iterdir())}"
+    )
+
+    text = project_md.read_text(encoding="utf-8")
+
+    # 1. ## Versioning H2 heading present, unique.
+    versioning_matches = re.findall(r'^## Versioning$', text, re.MULTILINE)
+    assert len(versioning_matches) == 1, (
+        f"Phase 63 Plan 05 drift: expected exactly one `## Versioning` H2 "
+        f"heading in {project_md}, found {len(versioning_matches)}. "
+        f"PATTERNS.md §`.planning/PROJECT.md` insertion target: "
+        f"immediately above `## Constraints`. "
+        f"Existing H2 headings nearby: "
+        f"{re.findall(r'^## .+$', text, re.MULTILINE)[:8]}"
+    )
+
+    # 2. Four content anchors — helper path, flag, two worked examples.
+    anchors = {
+        "helper path (tools/bump_version.py)": "tools/bump_version.py",
+        "config flag (workflow.auto_version_bump)": "workflow.auto_version_bump",
+        "worked example anchor 2.1.50": "2.1.50",
+        "worked example anchor 2.1.63": "2.1.63",
+    }
+    missing = [
+        label for label, needle in anchors.items() if needle not in text
+    ]
+    assert not missing, (
+        f"Phase 63 Plan 05 drift: PROJECT.md `## Versioning` section is "
+        f"missing required anchor(s): {missing}. "
+        f"Source-of-truth content lives in CONTEXT.md §specifics line 112. "
+        f"Re-add the section (Task 1 of Plan 05) to fix."
+    )
+
+    # 3. Section ordering — Versioning BEFORE Constraints.
+    ver_line = next(
+        (i for i, line in enumerate(text.splitlines(), 1)
+         if line.strip() == "## Versioning"),
+        None,
+    )
+    cons_line = next(
+        (i for i, line in enumerate(text.splitlines(), 1)
+         if line.strip() == "## Constraints"),
+        None,
+    )
+    assert ver_line is not None, "## Versioning heading not found by line scan"
+    assert cons_line is not None, "## Constraints heading not found by line scan"
+    assert ver_line < cons_line, (
+        f"Phase 63 Plan 05 drift: `## Versioning` (line {ver_line}) must "
+        f"appear BEFORE `## Constraints` (line {cons_line}) per "
+        f"PATTERNS.md §`.planning/PROJECT.md` insertion target."
+    )
