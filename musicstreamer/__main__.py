@@ -220,6 +220,10 @@ def _run_gui(argv: list[str]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.WARNING)
+    # Phase 62 / BUG-09 / Pitfall 5: per-logger INFO level for musicstreamer.player
+    # so buffer-underrun cycle close lines surface to stderr without bumping the
+    # GLOBAL level (which would surface chatter from aa_import / gbs_api / mpris2).
+    logging.getLogger("musicstreamer.player").setLevel(logging.INFO)
     argv = list(argv) if argv is not None else list(sys.argv)
 
     parser = argparse.ArgumentParser(
