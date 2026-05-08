@@ -31,8 +31,12 @@ amended Phase 999.9):
 """
 from __future__ import annotations
 
+import logging
 import os
 import threading
+import time
+from dataclasses import dataclass
+from typing import Callable, Optional
 
 import gi
 gi.require_version("Gst", "1.0")
@@ -66,6 +70,11 @@ def _fix_icy_encoding(s: str) -> str:
         return s.encode("latin-1").decode("utf-8")
     except (UnicodeDecodeError, UnicodeEncodeError):
         return s
+
+
+# Phase 62 / BUG-09: module logger (first logger in player.py).
+# Surfaced at INFO via __main__.py per-logger setLevel — see Plan 03.
+_log = logging.getLogger(__name__)
 
 
 class Player(QObject):
