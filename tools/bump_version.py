@@ -10,8 +10,7 @@ Exit codes:
     1 — parse error (PROJECT.md milestone heading not found OR
         pyproject.toml missing [project] table OR no parseable version line
         OR --phase arg is negative)
-    3 — config disabled (D-11 short-circuit; reserved for Plan 02 wiring;
-        this plan never returns 3)
+    3 — config disabled (D-11 short-circuit; informational, not a hard failure)
 
 Callable as ``python tools/bump_version.py --phase NN`` from the repo root.
 """
@@ -19,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -63,6 +63,25 @@ def rewrite_pyproject_version(content: str, new_version: str) -> str | None:
     return content[:section_start] + new_section + content[section_end:]
 
 
+def is_auto_bump_enabled(repo_root: Path) -> bool:
+    """Return True if workflow.auto_version_bump is "true" OR the key is absent.
+
+    D-10: missing key (gsd-sdk exit 1) → default-true. Any other non-zero
+    exit also returns True (fail open — better to bump than to silently skip
+    on a transient SDK error). The disabled state is reached ONLY by an
+    explicit ``"false"`` value present in ``.planning/config.json``.
+    """
+    result = subprocess.run(
+        ["gsd-sdk", "query", "config-get", "workflow.auto_version_bump", "--raw"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return True  # key not found → default true (D-10)
+    return result.stdout.strip() == "true"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--phase", type=int, required=True)
@@ -88,6 +107,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    # D-11: short-circuit when flag is explicitly false (default-true on absence).
+    if not is_auto_bump_enabled(_repo_root()):
+        print("[bump] disabled via workflow.auto_version_bump", file=sys.stderr)
+        return 3
 
     repo = _repo_root()
     pyproject_path = (
