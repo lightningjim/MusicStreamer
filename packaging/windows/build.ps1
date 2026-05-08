@@ -2,7 +2,8 @@
 # Phase 44 MusicStreamer Windows build driver. Idempotent, snapshot-safe.
 # Adapted from .planning/phases/43-gstreamer-windows-spike/build.ps1.
 # Exit codes: 0=ok, 1=env missing, 2=pyinstaller failed, 3=smoke test failed,
-#             4=PKG-03 guard fail, 5=version parse fail, 6=iscc fail, 7=spec entry guard fail
+#             4=PKG-03 guard fail, 5=version parse fail, 6=iscc fail, 7=spec entry guard fail,
+#             8=pre-bundle clean fail, 9=post-bundle dist-info assertion fail
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -116,6 +117,39 @@ try {
         exit 7
     }
 
+    # --- 3c. Pre-bundle dist-info clean (VER-02-J defense) -------------
+    # PyInstaller's `copy_metadata("musicstreamer")` (MusicStreamer.spec
+    # line 41) picks up EVERY musicstreamer-*.dist-info directory it
+    # finds on sys.path. If the build env has both the current
+    # 2.1.{phase}.dist-info AND a stale older dist-info (e.g. from a
+    # previous v1.x or v2.0.x editable install that was never cleaned),
+    # BOTH ship into dist/MusicStreamer/_internal/, and at runtime
+    # importlib.metadata.version("musicstreamer") returns whichever
+    # appears first on sys.path -- typically the older one (e.g. 1.1.0
+    # observed on Kyle's Win11 VM during Phase 65 UAT, gap VER-02-J).
+    #
+    # Defense: uninstall + reinstall musicstreamer right before
+    # pyinstaller runs, guaranteeing exactly one fresh dist-info
+    # matching pyproject.toml [project].version exists when
+    # copy_metadata scans. Cheap (~3-5s); makes the build resilient to
+    # whatever historical state the build env happens to be in.
+    #
+    # DO NOT REMOVE without first updating both:
+    #   - tests/test_packaging_spec.py (drift-guard test)
+    #   - .planning/phases/65-.../65-04-PLAN.md (this plan's rationale)
+    Write-Host "=== PRE-BUNDLE CLEAN: uv pip uninstall + reinstall musicstreamer ==="
+    Invoke-Native { uv pip uninstall musicstreamer -y 2>&1 | Out-Host }
+    # Note: uninstall exit code is intentionally NOT checked -- uv pip
+    # uninstall returns non-zero if the package isn't installed, which
+    # is fine on a fresh build env. We only care about the install
+    # below succeeding.
+    Invoke-Native { uv pip install -e ..\.. 2>&1 | Out-Host }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "BUILD_FAIL reason=pre_bundle_clean_failed hint='uv pip install -e ..\..\\ failed; check uv install + pyproject.toml validity'"
+        exit 8
+    }
+    Write-Host "PRE-BUNDLE CLEAN OK -- fresh musicstreamer dist-info materialized in build env"
+
     # --- 4. PyInstaller -------------------------------------------------
     Write-Host "=== MUSICSTREAMER BUILD: pyinstaller ==="
     Invoke-Native { python -m PyInstaller MusicStreamer.spec --noconfirm --log-level INFO --distpath ..\..\dist --workpath build *>&1 | Tee-Object -FilePath "artifacts\build.log" }
@@ -125,6 +159,90 @@ try {
     }
 
     Write-Host "BUILD_OK step=pyinstaller exe='$here\..\..\dist\MusicStreamer\MusicStreamer.exe'"
+
+    # --- 4a. Post-bundle dist-info assertion (VER-02-J defense) ---------
+    # Belt-and-braces guard: even with step 3c's pre-bundle clean, a
+    # build-env edge case could in theory leave a stale
+    # musicstreamer-*.dist-info in site-packages (e.g. uv pip uninstall
+    # missed an older virtualenv layer, or a parallel build dropped a
+    # rogue dist-info into the search path). PyInstaller's copy_metadata
+    # would then pick up BOTH and ship BOTH into the bundle, and at
+    # runtime importlib.metadata would resolve to whichever appears first
+    # on sys.path inside the bundle.
+    #
+    # This step inspects the produced bundle directly and fails the
+    # build if either:
+    #   (a) the bundle does not contain exactly ONE
+    #       musicstreamer-*.dist-info directory, OR
+    #   (b) that directory's METADATA `Version:` line does not equal
+    #       pyproject.toml [project].version.
+    #
+    # On failure, the offending state is dumped to the build log so a
+    # future maintainer can diagnose without re-running the build.
+    #
+    # DO NOT REMOVE without first updating both:
+    #   - tests/test_packaging_spec.py (drift-guard test)
+    #   - .planning/phases/65-.../65-04-PLAN.md (this plan's rationale)
+    Write-Host "=== POST-BUNDLE ASSERTION: musicstreamer dist-info singleton + version match ==="
+
+    # Read pyproject.toml [project].version (D-06) -- single source of
+    # truth shared with step 6 / iscc.exe. Lifted from the original step
+    # 6 location so step 4a can compare bundled METADATA Version: to it
+    # without duplicating the regex.
+    $pyproject = Get-Content "..\..\pyproject.toml" -Raw
+    if ($pyproject -match '(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"') {
+        $appVersion = $matches[1]
+    } else {
+        Write-Error "BUILD_FAIL reason=version_not_found_in_pyproject"
+        exit 5
+    }
+    Write-Host "AppVersion = $appVersion"
+
+    # Bundle layout: PyInstaller --distpath ..\..\dist + spec name 'MusicStreamer'
+    # produces dist/MusicStreamer/_internal/<dist-info>/.
+    $bundleInternal = "..\..\dist\MusicStreamer\_internal"
+    if (-not (Test-Path $bundleInternal)) {
+        Write-Error "BUILD_FAIL reason=bundle_internal_not_found path='$bundleInternal' hint='pyinstaller produced an unexpected layout; check build.log'"
+        exit 9
+    }
+
+    $msDistInfos = @(Get-ChildItem -Path $bundleInternal -Filter "musicstreamer-*.dist-info" -Directory -ErrorAction SilentlyContinue)
+    if ($msDistInfos.Count -ne 1) {
+        Write-Host "POST-BUNDLE ASSERTION FAIL: expected exactly one musicstreamer-*.dist-info, found $($msDistInfos.Count):"
+        $msDistInfos | ForEach-Object { Write-Host "  - $($_.Name)" }
+        Write-Error "BUILD_FAIL reason=post_bundle_distinfo_not_singleton found_count=$($msDistInfos.Count) hint='step 3c pre-bundle clean did not leave a single dist-info -- investigate build env site-packages'"
+        exit 9
+    }
+
+    $bundledDistInfo = $msDistInfos[0]
+    $bundledMetadata = Join-Path $bundledDistInfo.FullName "METADATA"
+    if (-not (Test-Path $bundledMetadata)) {
+        Write-Error "BUILD_FAIL reason=bundled_metadata_missing path='$bundledMetadata' hint='dist-info shipped without METADATA file -- corrupt install?'"
+        exit 9
+    }
+
+    $bundledVersion = $null
+    foreach ($line in (Get-Content $bundledMetadata)) {
+        if ($line -match '^Version:\s*(.+?)\s*$') {
+            $bundledVersion = $matches[1]
+            break
+        }
+    }
+    if (-not $bundledVersion) {
+        Write-Error "BUILD_FAIL reason=bundled_metadata_no_version_line path='$bundledMetadata' hint='METADATA file present but has no Version: line'"
+        exit 9
+    }
+
+    if ($bundledVersion -ne $appVersion) {
+        Write-Host "POST-BUNDLE ASSERTION FAIL: dist-info version drift detected"
+        Write-Host "  pyproject.toml [project].version : $appVersion"
+        Write-Host "  bundled METADATA Version:        : $bundledVersion"
+        Write-Host "  bundled dist-info dir name        : $($bundledDistInfo.Name)"
+        Write-Error "BUILD_FAIL reason=post_bundle_version_mismatch bundled='$bundledVersion' expected='$appVersion' hint='step 3c pre-bundle clean did not refresh dist-info -- investigate uv pip uninstall behavior'"
+        exit 9
+    }
+
+    Write-Host "POST-BUNDLE ASSERTION OK -- dist-info singleton: $($bundledDistInfo.Name) (version $bundledVersion matches pyproject)"
 
     # --- 5. Smoke test --------------------------------------------------
     if (-not $SkipSmoke) {
@@ -138,15 +256,9 @@ try {
     # --- 6. Inno Setup compile (D-01, D-07) -----------------------------
     Write-Host "=== INNO SETUP: compile installer ==="
 
-    # Read version from pyproject.toml (D-06) — passed to iscc.exe as /DAppVersion
-    $pyproject = Get-Content "..\..\pyproject.toml" -Raw
-    if ($pyproject -match '(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"') {
-        $appVersion = $matches[1]
-    } else {
-        Write-Error "BUILD_FAIL reason=version_not_found_in_pyproject"
-        exit 5
-    }
-    Write-Host "AppVersion = $appVersion"
+    # $appVersion was read from pyproject.toml at step 4a (single source
+    # of truth shared with the post-bundle dist-info assertion).
+    # /DAppVersion is the Inno Setup macro consumer (D-06).
 
     # Locate iscc.exe — default install path; allow override via env var.
     $isccPath = if ($env:INNO_SETUP_PATH) {
