@@ -572,3 +572,73 @@ def test_project_md_has_versioning_section():
         f"appear BEFORE `## Constraints` (line {cons_line}) per "
         f"PATTERNS.md §`.planning/PROJECT.md` insertion target."
     )
+
+
+def test_phase_63_self_completion_bundles_pyproject_with_planning():
+    """Phase 63 Plan 05 (SC #2 / Warning 4 Option A): when Phase 63's own
+    self-completion commit lands, the resulting commit object MUST contain
+    BOTH `pyproject.toml` (the bump) AND at least one `.planning/` file
+    (the phase-completion bookkeeping) — proving the bump is bundled into
+    the same commit, not landed in a separate orphan commit (D-02).
+
+    SKIPPED until Phase 63 self-completes: the trigger is the canonical
+    commit message `docs(phase-63): complete phase execution`. After the
+    first such commit lands in the repo, this test becomes a permanent
+    regression net for SC #2 across all future phases.
+    """
+    repo = Path(__file__).resolve().parent.parent
+
+    # Find the most-recent Phase 63 self-completion commit.
+    result = subprocess.run(
+        ["git", "-C", str(repo), "log",
+         "--grep=^docs(phase-63): complete phase execution",
+         "-1", "--format=%H"],
+        capture_output=True, text=True, timeout=10,
+    )
+    commit_hash = result.stdout.strip()
+    if not commit_hash:
+        pytest.skip(
+            "Phase 63 self-completion commit not yet present — "
+            "gate fires on next /gsd-execute-phase 63 close. "
+            "Searched: git log --grep='^docs(phase-63): complete phase execution' -1"
+        )
+
+    # List files in the commit's tree.
+    files_result = subprocess.run(
+        ["git", "-C", str(repo), "show", "--name-only", "--format=",
+         commit_hash],
+        capture_output=True, text=True, check=True, timeout=10,
+    )
+    files = [f for f in files_result.stdout.splitlines() if f.strip()]
+
+    # Assert pyproject.toml is in the commit (the bump landed).
+    assert "pyproject.toml" in files, (
+        f"SC #2 regression: Phase 63 self-completion commit {commit_hash} "
+        f"did NOT include pyproject.toml. The bump was either skipped or "
+        f"landed in a separate orphan commit (violating D-02). "
+        f"Files in commit: {files}"
+    )
+
+    # Assert at least one .planning/ path is in the commit (bookkeeping landed).
+    planning_files = [f for f in files if f.startswith(".planning/")]
+    assert planning_files, (
+        f"SC #2 regression: Phase 63 self-completion commit {commit_hash} "
+        f"did NOT include any .planning/ files alongside pyproject.toml. "
+        f"The phase-completion bookkeeping must land in the SAME commit "
+        f"object as the bump (SC #2: 'no orphaned uncommitted state'). "
+        f"Files in commit: {files}"
+    )
+
+    # Assert the bumped version value is 2.1.63 (the expected value for
+    # Phase 63 of v2.1).
+    show_result = subprocess.run(
+        ["git", "-C", str(repo), "show", f"{commit_hash}:pyproject.toml"],
+        capture_output=True, text=True, check=True, timeout=10,
+    )
+    assert 'version = "2.1.63"' in show_result.stdout, (
+        f"SC #2 regression: Phase 63 self-completion commit {commit_hash} "
+        f"contains pyproject.toml but the version value is not '2.1.63'. "
+        f"This indicates the bump helper either ran with the wrong --phase "
+        f"argument or computed the wrong milestone. Got pyproject.toml content: "
+        f"{show_result.stdout[:200]!r}..."
+    )
