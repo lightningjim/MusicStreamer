@@ -486,6 +486,7 @@ Plans:
 | 62. Audio Buffer Underrun Resilience | 4/4 | Complete    | 2026-05-08 |
 | 63. Auto-Bump pyproject Version on Phase Completion | 5/5 | Complete    | 2026-05-08 |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
+| 65. Show current version in app | 0/3 | In progress | — |
 
 ### Phase 64: AudioAddict Siblings on Now Playing
 **Goal:** When an AudioAddict station is currently playing, the Now Playing panel surfaces same-channel-key siblings on other AA networks as one-click jumps — playing DI.fm "Ambient" shows a "Also on: ZenRadio • JazzRadio" affordance that, when clicked, switches playback to the chosen sibling. Continuation of Phase 51, which scoped sibling visibility to EditStationDialog only.
@@ -505,15 +506,23 @@ Plans:
 - [x] 64-02-PLAN.md — Extend FakeRepo (list_stations + get_station) + add sibling_activated Signal + _sibling_label + _refresh_siblings + _on_sibling_link_activated to NowPlayingPanel + 11 panel-level tests (Wave 1)
 - [x] 64-03-PLAN.md — Connect sibling_activated to MainWindow._on_sibling_activated delegator + end-to-end click→play integration test (Wave 2, depends on 02)
 
-### Phase 65: Show current version in app (unsure yet if either in the hamburger menu or the right end of the bar the hamburger is on
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 64
-**Plans:** 0 plans
+### Phase 65: Show current version in app
+**Goal:** The running app shows its current version (e.g. `v2.1.65`) as a disabled informational entry at the bottom of the hamburger menu, sourced at runtime from `pyproject.toml` via `importlib.metadata.version("musicstreamer")`. The stale `musicstreamer/__version__.py` mirror is retired; the Windows PyInstaller bundle ships the package's `dist-info` so the bundled exe reads the same version dev sees. Phase 65 is a pure consumer of Phase 63's auto-bump — `pyproject.toml [project].version` remains the single write site.
+**Depends on:** Phase 63 (auto-bump produces the version Phase 65 reads)
+**Requirements:** VER-02
+**Success Criteria** (what must be TRUE):
+  1. Opening the hamburger menu shows a greyed-out `v{version}` entry as the literal last item (where `{version}` matches `^\d+\.\d+\.\d+$` and equals `pyproject.toml [project].version`)
+  2. `importlib.metadata.version("musicstreamer")` returns the same string as `pyproject.toml [project].version` (no drift between dist-info and source)
+  3. `app.setApplicationVersion(...)` is called in `_run_gui` after `QApplication(argv)` so Qt internals (QSettings, crash handlers) see the value
+  4. `musicstreamer/__version__.py` is deleted with zero remaining importers (D-06a grep gate clean)
+  5. The Windows PyInstaller spec includes `copy_metadata("musicstreamer")` so the bundled exe resolves `importlib.metadata.version` without `PackageNotFoundError`
+  6. No drift introduced — `pyproject.toml [project].version` remains the single literal write site (Phase 63 auto-bump untouched)
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 65 to break down)
+- [ ] 65-01-PLAN.md — Runtime read site (setApplicationVersion + menu footer) + REQUIREMENTS/ROADMAP backfill + version-read tests + menu/source-ordering test extensions (VER-02-A..VER-02-F)
+- [ ] 65-02-PLAN.md — PyInstaller spec edit (copy_metadata("musicstreamer")) + spec source-text test (VER-02-H)
+- [ ] 65-03-PLAN.md — Delete musicstreamer/__version__.py (D-06; depends on 01 + 02 to confirm grep gate stays clean)
 
 ### Phase 66: Color Themes — preset and custom color schemes (Vaporwave pastel, Overrun neon+black)
 

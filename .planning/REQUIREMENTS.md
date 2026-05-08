@@ -45,6 +45,7 @@ Small new capabilities harvested from backlog + dormant seeds.
 Project-level convention introduced 2026-04-28.
 
 - [x] **VER-01**: Adopt `milestone_major.milestone_minor.phase` versioning (e.g. `2.1.50` for Phase 50 of v2.1). The `pyproject.toml` `version` field is rewritten automatically on phase completion via a GSD-workflow hook, gated by a per-project config flag, and the convention is documented in PROJECT.md *(applies to all future phase completions starting Phase 51+; Phase 50 was bumped manually as the first instance)*
+- [ ] **VER-02**: The running app surfaces its current version (read from `pyproject.toml` via `importlib.metadata`) as a disabled informational entry at the bottom of the hamburger menu. The Windows PyInstaller bundle ships `musicstreamer.dist-info` so the bundled exe reads the same version dev sees. *(Phase 65 — consumes Phase 63's auto-bump output)*
 
 ## Future Requirements
 
@@ -97,14 +98,15 @@ Which phases cover which requirements.
 | BUG-08 | Phase 61 | Complete |
 | BUG-09 | Phase 62 | Complete |
 | VER-01 | Phase 63 | Complete |
+| VER-02 | Phase 65 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 17 total
-- Mapped to phases: 17 ✓
+- v2.1 requirements: 18 total
+- Mapped to phases: 18 ✓
 - Unmapped: 0 ✓
 - Complete: 2 (BUG-07 env-level; BUG-01 Phase 50)
-- Pending: 15
+- Pending: 16
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-04-28 — Phase 50 / BUG-01 complete (Recently Played live update). BUG-08 (Linux WM display name) + BUG-09 (audio buffer underrun resilience) + VER-01 (milestone.minor.phase versioning auto-bump) added post-Phase 50.*
+*Last updated: 2026-05-08 — VER-02 (in-app version display via importlib.metadata + hamburger-menu footer) added for Phase 65; consumes Phase 63 VER-01 auto-bump output.*

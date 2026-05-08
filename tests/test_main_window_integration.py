@@ -417,18 +417,53 @@ EXPECTED_ACTION_TEXTS = [
 
 
 def test_hamburger_menu_actions(window):
-    """Hamburger menu contains exactly 11 non-separator actions with correct text."""
+    """Phase 65 VER-02-C: hamburger menu has 11 named actions plus 1 version footer.
+
+    The first 11 entries are literal text; the 12th is the Phase 65 D-01 version
+    footer asserted via regex (text changes every phase via Phase 63 auto-bump,
+    so we cannot pin the literal here).
+    """
+    import re
     menu = window._menu
     actions = [a for a in menu.actions() if not a.isSeparator()]
     texts = [a.text() for a in actions]
-    assert texts == EXPECTED_ACTION_TEXTS
+    assert texts[:11] == EXPECTED_ACTION_TEXTS
+    assert len(actions) == 12, (
+        f"Expected 11 named actions + 1 version footer = 12 total, got {len(actions)}: {texts!r}"
+    )
+    assert re.match(r"^v\d+\.\d+\.\d+$", texts[11]), (
+        f"Last menu action must be Phase 65 version footer (D-01), got {texts[11]!r}"
+    )
 
 
 def test_hamburger_menu_separators(window):
-    """Hamburger menu has exactly 3 separators (4 groups; Phase 47.1 adds Stats group)."""
+    """Phase 65 D-02 / VER-02-E: hamburger menu has 4 separators (was 3).
+
+    Phase 47.1 brought the count to 3 (4 groups: New/Discovery/Import/GBS,
+    Settings, Stats, Export/Import-Settings). Phase 65 D-02 adds a 4th
+    separator immediately before the version footer.
+    """
     menu = window._menu
     separators = [a for a in menu.actions() if a.isSeparator()]
-    assert len(separators) == 3
+    assert len(separators) == 4
+
+
+def test_version_action_is_disabled_and_last(window):
+    """Phase 65 D-03/D-12 / VER-02-C/D: version footer is disabled and is the
+    literal last entry of the menu (regardless of Node-missing presence)."""
+    import re
+    menu = window._menu
+    actions = list(menu.actions())
+    assert actions[-1] is window._act_version, (
+        "self._act_version must be the literal last menu action "
+        "(after the optional Phase 44 Node-missing block)"
+    )
+    assert window._act_version.isEnabled() is False, (
+        "Phase 65 D-12: version footer must be disabled (no click target)"
+    )
+    assert re.match(r"^v\d+\.\d+\.\d+$", window._act_version.text()), (
+        f"Phase 65 D-10: label format must be 'v{{version}}' triple, got {window._act_version.text()!r}"
+    )
 
 
 def test_open_accounts_passes_toast(qtbot, window, monkeypatch):
