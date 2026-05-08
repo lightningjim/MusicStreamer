@@ -343,3 +343,162 @@ def test_bump_stages_pyproject(tmp_path):
     assert new_cmd.endswith(" pyproject.toml"), (
         f"Expected hook to append ' pyproject.toml' to the command; got: {new_cmd!r}"
     )
+
+
+def test_rollback_on_simulated_commit_failure(tmp_path):
+    """SC #5 / VALIDATION row 63-04-01: when a phase-completion commit fails,
+    the PostToolUseFailure rollback hook reverts pyproject.toml to HEAD —
+    both index and working tree — using the SINGLE-COMMAND form
+    `git checkout HEAD -- pyproject.toml` (RESEARCH §Pitfall 4: D-08's literal
+    `git checkout -- pyproject.toml` is a NO-OP against staged changes).
+
+    Negative case (same test): a non-phase-completion commit failure is a
+    no-op pass-through — the staged bump is preserved.
+    """
+    if shutil.which("jq") is None:
+        pytest.skip("jq not available — rollback hook integration cannot run")
+
+    # --- Build a fake repo with a known HEAD ----------------------------------
+    fake_repo = tmp_path / "fake_repo"
+    fake_repo.mkdir()
+    original_pyproject = '[project]\nname = "fake"\nversion = "0.0.0"\n'
+    (fake_repo / "pyproject.toml").write_text(original_pyproject, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=fake_repo, check=True)
+    subprocess.run(
+        ["git", "-C", str(fake_repo),
+         "-c", "user.email=t@t", "-c", "user.name=t",
+         "commit", "--allow-empty", "-q", "-m", "init-empty"],
+        check=True,
+    )  # establish HEAD before adding pyproject so we can git-checkout-HEAD-clean
+    subprocess.run(
+        ["git", "-C", str(fake_repo), "add", "pyproject.toml"], check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(fake_repo),
+         "-c", "user.email=t@t", "-c", "user.name=t",
+         "commit", "-q", "-m", "add pyproject"],
+        check=True,
+    )
+
+    # Sanity: HEAD now contains the original pyproject content.
+    head_show = subprocess.run(
+        ["git", "-C", str(fake_repo), "show", "HEAD:pyproject.toml"],
+        capture_output=True, text=True, check=True,
+    )
+    assert head_show.stdout == original_pyproject, (
+        f"Test setup error: HEAD's pyproject.toml is not the expected baseline. "
+        f"Got: {head_show.stdout!r}"
+    )
+
+    # --- Simulate the post-bump-pre-commit staged state -----------------------
+    bumped_pyproject = '[project]\nname = "fake"\nversion = "9.9.9"\n'
+    (fake_repo / "pyproject.toml").write_text(bumped_pyproject, encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(fake_repo), "add", "pyproject.toml"], check=True,
+    )
+    # Sanity: the bump is staged.
+    diff_cached_before = subprocess.run(
+        ["git", "-C", str(fake_repo), "diff", "--cached", "pyproject.toml"],
+        capture_output=True, text=True, check=True,
+    )
+    assert diff_cached_before.stdout, (
+        "Test setup error: expected staged change to pyproject.toml, "
+        "got empty diff --cached"
+    )
+
+    # --- Phase 1: phase-completion commit failure → rollback fires -----------
+    repo = Path(__file__).resolve().parent.parent
+    rollback_hook = repo / ".claude" / "hooks" / "bump-rollback-hook.sh"
+    assert rollback_hook.exists(), f"Plan 04 Task 1 must create {rollback_hook}"
+
+    phase_payload = json.dumps({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": (
+                'gsd-sdk query commit '
+                '"docs(phase-63): complete phase execution" '
+                '--files foo.md pyproject.toml'
+            )
+        },
+    })
+    result = subprocess.run(
+        ["bash", str(rollback_hook)],
+        input=phase_payload,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(fake_repo)},
+    )
+    assert result.returncode == 0, (
+        f"Rollback hook must exit 0 on success path; got {result.returncode}. "
+        f"stderr: {result.stderr!r}"
+    )
+    assert "reverted pyproject.toml" in result.stderr, (
+        f"Rollback hook must log its action to stderr; got: {result.stderr!r}"
+    )
+
+    # Index restored to HEAD (Pitfall 4: bare `git checkout -- file` would FAIL this).
+    diff_cached_after = subprocess.run(
+        ["git", "-C", str(fake_repo), "diff", "--cached", "pyproject.toml"],
+        capture_output=True, text=True, check=True,
+    )
+    assert diff_cached_after.stdout == "", (
+        f"Index NOT restored — D-08 literal bug regressed. "
+        f"Expected empty diff --cached after rollback; got: {diff_cached_after.stdout!r}. "
+        f"This is exactly the no-op behavior RESEARCH §Pitfall 4 documented."
+    )
+
+    # Working tree restored to HEAD.
+    diff_wt_after = subprocess.run(
+        ["git", "-C", str(fake_repo), "diff", "pyproject.toml"],
+        capture_output=True, text=True, check=True,
+    )
+    assert diff_wt_after.stdout == "", (
+        f"Working tree NOT restored; got: {diff_wt_after.stdout!r}"
+    )
+
+    # Bytes match HEAD's original.
+    post_rollback = (fake_repo / "pyproject.toml").read_text(encoding="utf-8")
+    assert post_rollback == original_pyproject, (
+        f"pyproject.toml content not reverted to HEAD. "
+        f"Expected: {original_pyproject!r}; got: {post_rollback!r}"
+    )
+
+    # --- Phase 2: non-phase-commit failure → pass-through (no-op) -------------
+    # Re-stage a bump so we can prove the hook leaves it alone.
+    (fake_repo / "pyproject.toml").write_text(bumped_pyproject, encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(fake_repo), "add", "pyproject.toml"], check=True,
+    )
+
+    unrelated_payload = json.dumps({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": 'gsd-sdk query commit "fix: unrelated bug"',
+        },
+    })
+    result_unrelated = subprocess.run(
+        ["bash", str(rollback_hook)],
+        input=unrelated_payload,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(fake_repo)},
+    )
+    assert result_unrelated.returncode == 0, (
+        f"Rollback hook must exit 0 on no-match pass-through; "
+        f"got {result_unrelated.returncode}, stderr: {result_unrelated.stderr!r}"
+    )
+    assert "reverted" not in result_unrelated.stderr, (
+        f"Rollback hook fired on a non-phase-completion command — regex gate broken. "
+        f"stderr: {result_unrelated.stderr!r}"
+    )
+    # Bump is STILL staged — pass-through did not touch it.
+    diff_cached_passthrough = subprocess.run(
+        ["git", "-C", str(fake_repo), "diff", "--cached", "pyproject.toml"],
+        capture_output=True, text=True, check=True,
+    )
+    assert diff_cached_passthrough.stdout, (
+        "Pass-through path incorrectly cleared the staged bump; "
+        "the hook should be a no-op for non-phase-completion commits."
+    )
