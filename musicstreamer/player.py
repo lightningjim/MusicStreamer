@@ -77,6 +77,161 @@ def _fix_icy_encoding(s: str) -> str:
 _log = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------- #
+# Phase 62 / BUG-09: buffer-underrun cycle state machine.
+#
+# Pure-Python helper class (no Qt, no GStreamer) so it is unit-testable
+# without instantiating Player. Player constructs one instance, drives
+# observe(percent) from _on_gst_buffering, drives force_close(outcome)
+# from terminator hooks (pause / stop / _try_next_stream / closeEvent).
+#
+# RESEARCH.md Architecture Pattern 1; PATTERNS.md §1i.
+# ---------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class _CycleClose:
+    """Record emitted when an underrun cycle closes (D-02).
+
+    Carries every field needed by the structured INFO log line in
+    Player._on_underrun_cycle_closed. Frozen so the record cannot be
+    mutated after the cycle's terminator decided the outcome.
+    """
+    start_ts: float
+    end_ts: float
+    duration_ms: int
+    min_percent: int
+    station_id: int
+    station_name: str
+    url: str
+    outcome: str           # recovered | failover | stop | pause | shutdown
+    cause_hint: str        # unknown | network
+
+
+class _BufferUnderrunTracker:
+    """Cycle state machine for buffer-underrun events (Phase 62 / BUG-09).
+
+    Pure: no Qt, no GStreamer. Returns sentinels / records; the caller
+    (Player) wires them to Signals and log writes.
+
+    Lifecycle (D-04 mirrors Phase 47.1 D-14 sentinel reset):
+      - bind_url() establishes per-URL context and clears all state.
+      - observe(percent) drives the cycle state machine:
+          - while unarmed, percent==100 flips arm to True (initial fill complete);
+          - while armed but no cycle open, percent<100 opens a cycle;
+          - while a cycle is open, percent<100 updates min_percent;
+          - while a cycle is open, percent==100 closes naturally (outcome='recovered').
+      - force_close(outcome) closes any open cycle on terminator events
+        (pause / stop / failover / shutdown).
+      - note_error_in_cycle() flips cause_hint to 'network' if a cycle is open
+        (D-02 Discretion: minimal cause attribution this phase).
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._clock = clock
+        self._reset_per_url()
+
+    def _reset_per_url(self) -> None:
+        """Called by bind_url; mirrors Phase 47.1 D-14 sentinel reset (Pitfall 3)."""
+        self._armed: bool = False
+        self._open: bool = False
+        self._start_ts: float = 0.0
+        self._min_percent: int = 100
+        self._station_id: int = 0
+        self._station_name: str = ""
+        self._url: str = ""
+        self._cause_hint: str = "unknown"
+
+    def bind_url(self, station_id: int, station_name: str, url: str) -> None:
+        """Bind tracker to a new URL — clears arm + cycle state (D-04 / Pitfall 3)."""
+        self._reset_per_url()
+        self._station_id = station_id
+        self._station_name = station_name
+        self._url = url
+
+    def observe(self, percent: int) -> Optional[object]:
+        """Drive the cycle state machine on a BUFFERING bus message.
+
+        Reads the clock on every call (one tick per observe). The clock is
+        the single source of truth for timestamps; consuming it uniformly
+        keeps duration_ms deterministic when callers inject a list-clock.
+
+        Returns:
+          - None: no transition (initial fill, in-cycle update, or no-op).
+          - "OPENED": a new cycle just opened (D-01 / D-04). Caller emits
+            _underrun_cycle_opened so the main thread arms the dwell timer.
+          - _CycleClose: a cycle just closed naturally at percent==100
+            (D-02). Caller emits _underrun_cycle_closed so the main thread
+            cancels the dwell timer and writes the structured log line.
+        """
+        now = self._clock()
+        if not self._armed:
+            if percent == 100:
+                self._armed = True
+            return None
+        if not self._open:
+            if percent < 100:
+                self._open = True
+                self._start_ts = now
+                self._min_percent = percent
+                return "OPENED"
+            return None
+        # Cycle is open.
+        if percent < 100:
+            if percent < self._min_percent:
+                self._min_percent = percent
+            return None
+        # percent == 100 → natural close
+        return self._close_with_now("recovered", now)
+
+    def force_close(self, outcome: str) -> Optional[_CycleClose]:
+        """Force-close any open cycle on a terminator event (D-03).
+
+        Returns the close record if a cycle was open; None if already closed
+        (idempotent guard — calling force_close twice is safe).
+        """
+        if not self._open:
+            return None
+        return self._close_with_now(outcome, self._clock())
+
+    def note_error_in_cycle(self) -> None:
+        """D-02 / Discretion: flip cause_hint to 'network' if a cycle is open.
+
+        Called from Player._on_gst_error before _error_recovery_requested.emit().
+        Bus-loop thread is fine — tracker has no Qt.
+        """
+        if self._open:
+            self._cause_hint = "network"
+
+    def _close_with_now(self, outcome: str, end_ts: float) -> _CycleClose:
+        """Build the close record using the supplied end_ts, then reset
+        cycle-level state. The caller is responsible for consuming the
+        clock exactly once (observe() does this at function entry,
+        force_close() does it inline) — keeps clock reads deterministic.
+
+        Keeps armed=True (still on the same URL — bind_url is the only path
+        that clears arm). After close, force_close on the same cycle returns
+        None until observe(<100) opens a new cycle.
+        """
+        record = _CycleClose(
+            start_ts=self._start_ts,
+            end_ts=end_ts,
+            duration_ms=int((end_ts - self._start_ts) * 1000),
+            min_percent=self._min_percent,
+            station_id=self._station_id,
+            station_name=self._station_name,
+            url=self._url,
+            outcome=outcome,
+            cause_hint=self._cause_hint,
+        )
+        # Reset cycle-level state but keep armed=True (still on the same URL).
+        self._open = False
+        self._start_ts = 0.0
+        self._min_percent = 100
+        self._cause_hint = "unknown"
+        return record
+
+
 class Player(QObject):
     # Class-level Signals (Pitfall 4 -- MUST be at class scope, not instance)
     title_changed              = Signal(str)     # ICY title (after encoding fix)
