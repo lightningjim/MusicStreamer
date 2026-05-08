@@ -856,27 +856,27 @@ logging.getLogger("musicstreamer.player").setLevel(logging.INFO)   # Phase 62 / 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `cause_hint` ever be populated from `Gst.BufferingMode` (live / stream / download / timeshift)?**
    - What we know: `parse_buffering_stats()` returns `(mode, avg_in, avg_out, buffering_left)` `[CITED: lazka.github.io/pgi-docs Gst-1.0 Message]`. The mode could in principle distinguish "live stream" (low-latency, no DOWNLOAD mode) from "download-and-play" (cached). Most internet radio streams are live-streaming with `BUFFERING_STREAM` mode.
    - What's unclear: Whether the mode varies across the streams MusicStreamer plays (SHOUTcast/Icecast/HLS-via-yt-dlp/Twitch-HLS) in a way that's diagnostically useful.
-   - Recommendation: **skip this phase**. CONTEXT.md Discretion says "Premature without observed root cause." Add `parse_buffering_stats()` only if the follow-up behavior-fix phase needs it.
+   - **Status:** RESOLVED — **skip this phase**. CONTEXT.md Discretion says "Premature without observed root cause." Add `parse_buffering_stats()` only if the follow-up behavior-fix phase needs it. Reflected in plans: no `parse_buffering_stats()` call anywhere in Plans 01/02/03.
 
 2. **Is a network-throttle repro fixture needed for Phase 62 verification, or only for the deferred behavior-fix phase?**
    - What we know: CONTEXT.md says "Test repro for criterion #3 ... is deferred to a follow-up phase." Criterion #3 is the BEHAVIOR FIX, not instrumentation. Criterion #1 (logging) and #2 (toast) are the only ones in scope here.
    - What's unclear: Whether SC #2 ("non-spammy visible indicator when buffering recovery is in progress") demands a live repro to demonstrate the toast actually appears under real-world stutter, or whether unit tests of the dwell-timer-fires-after-1500ms path are sufficient.
-   - Recommendation: **Unit tests are sufficient for SC #2 verification.** The toast wiring is a Signal connection — if the unit test for "MainWindow shows toast on first call" passes and the integration test for "dwell timer fires after 1500ms" passes, then a real underrun > 1500ms WILL produce a toast. UAT can be human-driven on the dev box (`tc qdisc add dev wlan0 root netem delay 500ms loss 5%` if the user wants a forced repro), but that's UAT theatre, not test-suite scope.
+   - **Status:** RESOLVED — **Unit tests are sufficient for SC #2 verification.** The toast wiring is a Signal connection — if the unit test for "MainWindow shows toast on first call" passes and the integration test for "dwell timer fires after 1500ms" passes, then a real underrun > 1500ms WILL produce a toast. UAT can be human-driven on the dev box (`tc qdisc add dev wlan0 root netem delay 500ms loss 5%` if the user wants a forced repro), but that's UAT theatre, not test-suite scope. Reflected in plans: Plan 00 authors `test_dwell_timer_fires_after_threshold` and `test_first_call_shows_toast` as the SC #2 verification surface.
 
 3. **Where exactly is the `closeEvent` shutdown hook (D-03 outcome=`shutdown`)?**
    - What we know: `MainWindow.closeEvent` at `main_window.py:352-358` exists and already calls `self._media_keys.shutdown()`. There's no `Player.shutdown()` method today.
    - What's unclear: Whether to add `Player.shutdown()` (mirroring `_media_keys.shutdown()`) or just call `self._player._tracker.force_close('shutdown')` directly from `closeEvent`. The latter pokes a private attribute; the former adds a public method.
-   - Recommendation: **Add `Player.shutdown_underrun_tracker(self)` public method** (or just `Player.shutdown()` — small API expansion is fine). Call from `closeEvent` BEFORE `super().closeEvent(event)`. Keeps test surface clean (`player.shutdown_underrun_tracker()` is asserted, not `player._tracker.force_close('shutdown')`).
+   - **Status:** RESOLVED — **Add `Player.shutdown_underrun_tracker(self)` public method** (or just `Player.shutdown()` — small API expansion is fine). Call from `closeEvent` BEFORE `super().closeEvent(event)`. Keeps test surface clean (`player.shutdown_underrun_tracker()` is asserted, not `player._tracker.force_close('shutdown')`). Reflected in plans: Plan 02 Insertion Site 8 adds the public method; Plan 03 Insertion Site 6 wires it into `closeEvent` BEFORE `_media_keys.shutdown()`.
 
 4. **Does the `cause_hint='network'` heuristic require the `_handle_gst_error_recovery` guard to ALSO call `tracker.note_error_in_cycle()`?**
    - What we know: `_on_gst_error` runs on bus-loop thread (`player.py:399-404`), emits `_error_recovery_requested` queued Signal. `_handle_gst_error_recovery` runs on main thread (`player.py:406-428`), calls `_try_next_stream` which fires the failover terminator force-close.
    - What's unclear: At which point should the cause_hint flip happen? Before `force_close('failover')` is called, the cycle would close as `outcome='failover' cause_hint='unknown'`. We want `cause_hint='network'` for these cases.
-   - Recommendation: **call `self._tracker.note_error_in_cycle()` from `_on_gst_error` directly** (bus-loop thread is fine; tracker has no Qt). Sets the flag BEFORE the queued recovery hop reaches `_try_next_stream`. The `force_close('failover')` then reads `cause_hint='network'`.
+   - **Status:** RESOLVED — **call `self._tracker.note_error_in_cycle()` from `_on_gst_error` directly** (bus-loop thread is fine; tracker has no Qt). Sets the flag BEFORE the queued recovery hop reaches `_try_next_stream`. The `force_close('failover')` then reads `cause_hint='network'`. Reflected in plans: Plan 02 Insertion Site 9a adds the `note_error_in_cycle()` call inside `_on_gst_error` BEFORE `_error_recovery_requested.emit()`.
 
 ---
 
