@@ -50,3 +50,31 @@ def test_ensure_installed_runs_after_gst_init(main_source: str) -> None:
         "GStreamer is initialized before any other startup work. "
         f"Got Gst.init @ byte {gst}, ensure_installed @ byte {ensure}."
     )
+
+
+def test_set_application_version_in_run_gui(main_source: str) -> None:
+    """Phase 65 / VER-02-F (D-07): app.setApplicationVersion(...) is called in
+    _run_gui AFTER QApplication(argv) construction (so the singleton exists),
+    and reads via importlib.metadata (not a hardcoded literal) — single source
+    of truth in pyproject.toml."""
+    qapp = _index(main_source, "QApplication(argv)")
+    setver = _index(main_source, "setApplicationVersion(")
+    assert setver > qapp, (
+        "app.setApplicationVersion(...) must run AFTER QApplication(argv) "
+        "construction so the application singleton exists. "
+        f"Got QApplication(argv) @ byte {qapp}, setApplicationVersion @ byte {setver}."
+    )
+    # D-07 contract: the setter argument must be sourced from importlib.metadata,
+    # not a hardcoded literal. Check the file imports importlib.metadata AND the
+    # setter site references the imported name (allow either `_pkg_version(`
+    # or `version(` since the helper alias is up to the implementer).
+    assert "from importlib.metadata import" in main_source, (
+        "musicstreamer/__main__.py must import from importlib.metadata "
+        "(single source of truth = pyproject.toml [project].version)."
+    )
+    nearby = main_source[setver : setver + 200]
+    assert "_pkg_version(" in nearby or "version(" in nearby, (
+        "setApplicationVersion(...) must read via importlib.metadata.version "
+        "(not a literal string). Got setter context: "
+        f"{nearby!r}"
+    )
