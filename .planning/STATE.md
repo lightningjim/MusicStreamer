@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: verifying
 stopped_at: Phase 62 context gathered
-last_updated: "2026-05-08T02:34:23.085Z"
+last_updated: "2026-05-08T02:45:52.255Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 28
-  completed_phases: 17
+  completed_phases: 18
   total_plans: 72
-  completed_plans: 71
-  percent: 99
+  completed_plans: 72
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 62 (audio-buffer-underrun-resilience-intermittent-dropouts-stutt) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-08
 
 ## Performance Metrics
@@ -128,6 +128,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: [Phase 62-00]: Pitfall 5 enforced via file-level regex on __main__.py source — Plan 03 must add per-logger setLevel(INFO) and retain basicConfig(WARNING)
 - [Phase ?]: [Phase 62-01]: Wave 1 GREEN tracker tier — _BufferUnderrunTracker pure-Python state machine + _CycleClose @dataclass(frozen=True) + module-level _log = logging.getLogger(__name__) (first logger in player.py). One clock read per observe() call (Rule 1 fix; original frugal pattern produced duration_ms=1000 instead of 2000). Single _close_with_now(outcome, end_ts) helper. Reset cycle-level state on close but keep _armed=True (only bind_url clears arm). 7/7 tracker tests RED→GREEN; 25 existing player tests pass; D-09 invariant preserved (constants.py 0-line diff); class Player(QObject) body unchanged.
 - [Phase ?]: [Phase 62-02]: Wave 1 GREEN Part 2 of 2 — _BufferUnderrunTracker wired into Player across 12 insertion sites in a single atomic commit. 8/8 RED Player integration tests RED→GREEN; 7/7 Plan 01 tracker tests still GREEN; 95/95 across regression suite. T-62-01 station_name=%r url=%r locked at BOTH log sites; T-62-02 force_close-before-bind ordering verified. D-09 invariant preserved (constants.py 0-line diff). Player line count 1167 → 1289 (+122).
+- [Phase ?]: [Phase 62-03]: Wave 2 GREEN closure — 6 insertion sites in main_window.py + 1 line in __main__.py; 5/5 RED MainWindow tests GREEN; closeEvent ordering shutdown_underrun_tracker BEFORE _media_keys.shutdown (Pitfall 4); cooldown via time.monotonic (first project use, wall-clock-jump immune); per-logger INFO for musicstreamer.player keeps GLOBAL WARNING (Pitfall 5); 20/20 Phase 62 RED tests now all GREEN; D-09 + D-05 invariants preserved.
 
 ### Roadmap Evolution
 
@@ -202,9 +203,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 62 P00 | 5min | 4 tasks | 4 files |
 | Phase 62 P01 | 4min | 2 tasks | 1 files |
 | Phase 62 P02 | 4min | 1 tasks | 1 files |
+| Phase 62 P03 | 6min | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-05-08T02:34:16.962Z
+Last session: 2026-05-08T02:45:23.148Z
 Stopped at: Phase 62 context gathered
 Resume file: None

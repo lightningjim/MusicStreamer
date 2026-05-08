@@ -153,7 +153,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [x] **Phase 60: GBS.FM Integration** — Browse, save, and play GBS.FM streams from inside MusicStreamer (completed 2026-05-04)
 - [ ] **Phase 60.1: GBS.FM Search Artist/Album Drill-Down** — Multi-word artist/album link clicks + drill-down navigation to /artist/&lt;id&gt; and /album/&lt;id&gt; pages (Phase 60 round-2 UAT T12 follow-up) (UAT 2026-05-06: SC1 FAIL on `bad religion` query + artist drill flat-rendering UX gap → routes to Phase 60.1.1)
 - [x] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer" (completed 2026-05-07)
-- [ ] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation
+- [x] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation (completed 2026-05-08)
 - [ ] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close
 - [x] **Phase 64: AudioAddict Siblings on Now Playing** — Surface AA siblings of the currently-playing station as one-click jumps in the Now Playing panel (continuation of Phase 51) (completed 2026-05-01)
 
@@ -440,13 +440,13 @@ Plans:
   2. The user gets a non-spammy visible indicator when buffering recovery is in progress (toast or buffer-fill indicator update — exact UX decided at /gsd-discuss-phase time)
   3. Once the root cause is identified from the instrumentation, the phase ships a behavior fix (e.g., adjusted buffer-duration/buffer-size, smarter underrun recovery, reconnect logic) that demonstrably reduces dropout count under repro conditions
   4. The instrumentation does not regress existing buffer constants (Phase 16: 10s / 10MB) without an explicit decision logged in CONTEXT.md
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 62-00-PLAN.md — Wave 0 RED: 20 failing tests across test_player_underrun_tracker.py (7) + test_player_underrun.py (8) + test_main_window_underrun.py (5); FakePlayer extension for Phase 62 scaffolding (D-01..D-09 + T-62-01 + T-62-02 contracts locked)
 - [x] 62-01-PLAN.md — Wave 1 GREEN (pure-logic): _BufferUnderrunTracker state machine + _CycleClose dataclass + module logger _log in musicstreamer/player.py (turns 7/7 unit tests GREEN; D-01..D-04 + Pitfall 3 + Discretion network hint)
 - [x] 62-02-PLAN.md — Wave 1 GREEN (Player wiring): 3 Signals + dwell QTimer + tracker instance + _current_station_id + queued connections + bus-handler extensions + force-closes + main-thread slots + shutdown_underrun_tracker public method (turns 8/8 integration tests GREEN; T-62-01 %r mitigation + T-62-02 ordering invariant live)
-- [ ] 62-03-PLAN.md — Wave 2 GREEN (MainWindow + __main__): time import + cooldown class const + cooldown bookkeeping + queued Signal connection + _on_underrun_recovery_started slot + closeEvent shutdown hook in main_window.py; per-logger INFO for musicstreamer.player in __main__.py (turns 5/5 MainWindow tests GREEN; D-06 + D-08 + Pitfall 4 + Pitfall 5)
+- [x] 62-03-PLAN.md — Wave 2 GREEN (MainWindow + __main__): time import + cooldown class const + cooldown bookkeeping + queued Signal connection + _on_underrun_recovery_started slot + closeEvent shutdown hook in main_window.py; per-logger INFO for musicstreamer.player in __main__.py (turns 5/5 MainWindow tests GREEN; D-06 + D-08 + Pitfall 4 + Pitfall 5)
 
 ### Phase 63: Auto-Bump pyproject Version on Phase Completion
 **Goal:** Adopt the `milestone.minor.phase` versioning scheme (e.g. `2.1.50` after Phase 50) and automate it. A hook in `phase.complete` (or an equivalent post-completion step in the GSD workflow) rewrites the `version` field in `pyproject.toml` to `{milestone_major}.{milestone_minor}.{phase_number}` whenever a phase finishes. The scheme is documented in PROJECT.md and gated by a config flag so it can be toggled per-project.
@@ -477,7 +477,7 @@ Plans:
 | 59. Visual Accent Color Picker | 3/3 | Complete   | 2026-05-04 |
 | 60. GBS.FM Integration | 7/7 | Complete   | 2026-05-04 |
 | 61. Linux App Display Name in WM Dialogs | 5/5 | Complete    | 2026-05-07 |
-| 62. Audio Buffer Underrun Resilience | 3/4 | In Progress|  |
+| 62. Audio Buffer Underrun Resilience | 4/4 | Complete   | 2026-05-08 |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
 
