@@ -9,12 +9,16 @@ Runtime budget: <1s for the whole module per RESEARCH §Validation Architecture.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
+
+import pytest
 
 
 def _repo_root() -> Path:
@@ -257,4 +261,85 @@ def test_bump_runs_when_flag_unset(tmp_path, monkeypatch):
     body = pyproject.read_text(encoding="utf-8")
     assert 'version = "3.7.42"' in body, (
         f"expected bump to fire under default-true; got body={body!r}"
+    )
+
+
+def test_hook_files_committed():
+    """Phase 63 Plan 03: .claude/settings.json + .claude/hooks/bump-version-hook.sh
+
+    must exist and be tracked. Top-level .claude/ is gitignored so a careless
+    `git add` would silently miss them — drift-guard fails loud (Pitfall 8).
+    """
+    repo = _repo_root()
+    settings = repo / ".claude" / "settings.json"
+    hook = repo / ".claude" / "hooks" / "bump-version-hook.sh"
+    assert settings.exists(), (
+        f"Phase 63 drift: expected {settings}; "
+        f"found in .claude/: "
+        f"{sorted(p.name for p in (repo / '.claude').iterdir())}"
+    )
+    assert hook.exists(), (
+        f"Phase 63 drift: expected {hook}; "
+        f"found in .claude/hooks/: "
+        f"{sorted(p.name for p in (repo / '.claude' / 'hooks').iterdir()) if (repo / '.claude' / 'hooks').exists() else 'directory missing'}"
+    )
+    assert os.access(hook, os.X_OK), f"{hook} must be executable (chmod 0755)"
+
+
+def test_bump_stages_pyproject(tmp_path):
+    """SC #2 (integration, mechanism): the PreToolUse hook script appends
+
+    pyproject.toml to the upcoming `gsd-sdk query commit` --files list, so
+    the bumped file lands in the same commit object as the .planning/ files.
+
+    This test proves the hook MECHANISM. Plan 05's final task adds a
+    complementary outcome-level gate (`test_phase_63_self_completion_*`)
+    that runs against the live Phase 63 commit object once it exists —
+    Warning 4 Option A.
+    """
+    if shutil.which("jq") is None:
+        pytest.skip("jq not available — hook integration cannot run")
+
+    # Build a fake repo so `git add pyproject.toml` doesn't touch the real one.
+    fake_repo = tmp_path / "fake_repo"
+    fake_repo.mkdir()
+    (fake_repo / "pyproject.toml").write_text(
+        '[project]\nname = "fake"\nversion = "0.0.0"\n', encoding="utf-8"
+    )
+    # Stub bump_version.py: do nothing, exit 0 (we're testing the hook, not the helper).
+    (fake_repo / "tools").mkdir()
+    (fake_repo / "tools" / "bump_version.py").write_text(
+        "#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "init", "-q"], cwd=fake_repo, check=True)
+    subprocess.run(["git", "-C", str(fake_repo), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(fake_repo), "-c", "user.email=t@t", "-c", "user.name=t",
+         "commit", "-q", "-m", "init"],
+        check=True,
+    )
+
+    repo = _repo_root()
+    hook = repo / ".claude" / "hooks" / "bump-version-hook.sh"
+
+    payload = json.dumps({
+        "tool_name": "Bash",
+        "tool_input": {
+            "command": 'gsd-sdk query commit "docs(phase-63): complete phase execution" --files foo.md'
+        },
+    })
+    result = subprocess.run(
+        ["bash", str(hook)],
+        input=payload,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(fake_repo)},
+    )
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    assert data["hookSpecificOutput"]["permissionDecision"] == "allow"
+    new_cmd = data["hookSpecificOutput"]["updatedInput"]["command"]
+    assert new_cmd.endswith(" pyproject.toml"), (
+        f"Expected hook to append ' pyproject.toml' to the command; got: {new_cmd!r}"
     )
