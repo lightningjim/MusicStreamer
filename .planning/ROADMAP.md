@@ -154,7 +154,7 @@ Rolling polish milestone. Additional phases added via `/gsd-add-phase` as new is
 - [ ] **Phase 60.1: GBS.FM Search Artist/Album Drill-Down** — Multi-word artist/album link clicks + drill-down navigation to /artist/&lt;id&gt; and /album/&lt;id&gt; pages (Phase 60 round-2 UAT T12 follow-up) (UAT 2026-05-06: SC1 FAIL on `bad religion` query + artist drill flat-rendering UX gap → routes to Phase 60.1.1)
 - [x] **Phase 61: Linux App Display Name in WM Dialogs** — Force-quit and other WM-level dialogs show "MusicStreamer" instead of "org.example.MusicStreamer" (completed 2026-05-07)
 - [x] **Phase 62: Audio Buffer Underrun Resilience** — Diagnose intermittent GStreamer underrun stutters; ship instrumentation first, then mitigation (completed 2026-05-08)
-- [ ] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close
+- [x] **Phase 63: Auto-Bump pyproject Version on Phase Completion** — GSD-workflow hook rewrites pyproject.toml version on phase close (completed 2026-05-08)
 - [x] **Phase 64: AudioAddict Siblings on Now Playing** — Surface AA siblings of the currently-playing station as one-click jumps in the Now Playing panel (continuation of Phase 51) (completed 2026-05-01)
 
 ## Phase Details
@@ -458,13 +458,13 @@ Plans:
   3. A config flag (e.g., `workflow.auto_version_bump`, default `true`) lets the user opt out per-project; when disabled, no bump occurs
   4. The convention is documented in PROJECT.md with the schema (`major.minor.phase`) and a worked example so future contributors / future Claude sessions know how to read the version
   5. Rollback safety: if the phase-completion commit fails (e.g., pre-commit hook), the version bump is reverted from the working tree (no half-state)
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 Plans:
 - [x] 63-01-PLAN.md — Bump helper + Wave 0 test scaffold (tools/bump_version.py + tests/test_bump_version.py)
 - [x] 63-02-PLAN.md — workflow.auto_version_bump config flag + gate in main()
 - [x] 63-03-PLAN.md — Claude Code PreToolUse hook + settings.json + explicit `git add -f` step
 - [x] 63-04-PLAN.md — Rollback safety (PostToolUseFailure hook with `git checkout HEAD -- pyproject.toml`)
-- [ ] 63-05-PLAN.md — PROJECT.md ## Versioning section + drift-guard + SC #2 outcome gate
+- [x] 63-05-PLAN.md — PROJECT.md ## Versioning section + drift-guard + SC #2 outcome gate
 
 ## Progress Table
 
@@ -484,7 +484,7 @@ Plans:
 | 60. GBS.FM Integration | 7/7 | Complete   | 2026-05-04 |
 | 61. Linux App Display Name in WM Dialogs | 5/5 | Complete    | 2026-05-07 |
 | 62. Audio Buffer Underrun Resilience | 4/4 | Complete    | 2026-05-08 |
-| 63. Auto-Bump pyproject Version on Phase Completion | 4/5 | In Progress|  |
+| 63. Auto-Bump pyproject Version on Phase Completion | 5/5 | Complete   | 2026-05-08 |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
 
 ### Phase 64: AudioAddict Siblings on Now Playing

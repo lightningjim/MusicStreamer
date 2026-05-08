@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 63 context gathered
-last_updated: "2026-05-08T17:23:44.555Z"
+status: verifying
+stopped_at: Phase 63 Plan 05 complete (last plan; ready for verification)
+last_updated: "2026-05-08T17:32:30.289Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 28
-  completed_phases: 18
+  completed_phases: 19
   total_plans: 77
-  completed_plans: 76
-  percent: 99
+  completed_plans: 77
+  percent: 100
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 63 (auto-bump-pyproject-toml-version-on-phase-completion-using-m) — EXECUTING
 Plan: 5 of 5
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-08
 
 ## Performance Metrics
@@ -133,6 +133,8 @@ Key v2.0 decisions already settled:
 - [Phase ?]: 63-03: Claude Code PreToolUse hook wired (.claude/settings.json + .claude/hooks/bump-version-hook.sh, force-added with git add -f per Pitfall 8). PreToolUse-only block; Plan 04 will extend with PostToolUseFailure rollback. Per-task atomic commits required Task 1 to land the force-add (Task 3 became verification-only). 9 tests GREEN.
 - [Phase ?]: 63-04: Used 'git checkout HEAD -- pyproject.toml' (single-command form per RESEARCH §Pitfall 4) instead of D-08's literal bare form. D-08's intent is honored; the bare form is a live-verified no-op against staged changes. Negative-grep gate in tests bans regression to bare form.
 - [Phase ?]: 63-04: PostToolUseFailure timeout=10s (vs PreToolUse 30s); rollback is a single 'git checkout' completing in <100ms. Both hook entries share the same Bash(gsd-sdk query commit *) glob for symmetric registration; PostToolUseFailure event (NOT PostToolUse) per Pitfall 5 — only it fires on Bash failure.
+- [Phase 63]: 63-05: Inserted ## Versioning section ABOVE ## Constraints (PATTERNS+RESEARCH OQ3) — pure additive 6-insertion diff. Worked-example prose verbatim from CONTEXT.md §specifics line 112 (anchors 2.1.50 + 2.1.63). 5-anchor drift-guard test landed (test_constants_drift idiom).
+- [Phase 63]: 63-05: Warning 4 Option A — SC #2 outcome gate test_phase_63_self_completion_bundles_pyproject_with_planning SKIPS pre-self-completion, becomes permanent regression net once phase commit lands. Independent of Plan 03 mechanism test (synthetic fake_repo) — outcome layer asserts pyproject.toml + .planning/* + version=2.1.63 co-occurrence on the real commit object.
 
 ### Roadmap Evolution
 
@@ -212,9 +214,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 63 P02 | 4m3s | 2 tasks | 3 files |
 | Phase 63 P03 | 2m44s | 3 tasks | 3 files |
 | Phase 63 PP04 | 3m37s | 2 tasks tasks | 3 files files |
+| Phase 63 P05 | 2m27s | 3 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-05-08T17:23:28.275Z
-Stopped at: Phase 63 context gathered
+Last session: 2026-05-08T17:32:30.279Z
+Stopped at: Phase 63 Plan 05 complete (last plan; ready for verification)
 Resume file: None
