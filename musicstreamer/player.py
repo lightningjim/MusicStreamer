@@ -264,6 +264,14 @@ class Player(QObject):
     # property write target is self._pipeline only.
     _playbin_playing_state_reached = Signal()    # bus-loop -> main: re-apply volume on PLAYING
 
+    # Phase 62 / BUG-09: buffer-underrun cycle Signals.
+    # _underrun_cycle_opened / _underrun_cycle_closed are bus-loop → main
+    # queued (Pitfall 2 — bus handlers may only emit Signals).
+    # underrun_recovery_started is main → MainWindow (D-07 dwell elapsed).
+    _underrun_cycle_opened    = Signal()         # bus-loop → main: arm dwell timer
+    _underrun_cycle_closed    = Signal(object)   # bus-loop → main: log + cancel dwell (object = _CycleClose)
+    underrun_recovery_started = Signal()         # main → MainWindow: show_toast (D-07)
+
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
 
@@ -343,6 +351,14 @@ class Player(QObject):
         self._pause_volume_ramp_timer.timeout.connect(self._on_pause_volume_ramp_tick)
         self._pause_volume_ramp_state: dict | None = None
 
+        # Phase 62 / D-07: 1500ms dwell timer.
+        # Pitfall 2: parented to self → main thread.
+        # QA-05: bound-method timeout, no lambda.
+        self._underrun_dwell_timer = QTimer(self)
+        self._underrun_dwell_timer.setSingleShot(True)
+        self._underrun_dwell_timer.setInterval(1500)
+        self._underrun_dwell_timer.timeout.connect(self._on_underrun_dwell_elapsed)
+
         # Internal: twitch_resolved / youtube_resolved / youtube_resolution_failed
         # are emitted from worker threads; queued connections marshal the slot
         # calls to this (main) thread.
@@ -370,6 +386,13 @@ class Player(QObject):
         self._playbin_playing_state_reached.connect(
             self._on_playbin_state_changed, Qt.ConnectionType.QueuedConnection
         )
+        # Phase 62 / Pitfall 2: queue bus-loop → main for cycle-opened/closed.
+        self._underrun_cycle_opened.connect(
+            self._on_underrun_cycle_opened, Qt.ConnectionType.QueuedConnection
+        )
+        self._underrun_cycle_closed.connect(
+            self._on_underrun_cycle_closed, Qt.ConnectionType.QueuedConnection
+        )
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
         # current GTK main_window.py works unchanged this phase.
@@ -386,6 +409,13 @@ class Player(QObject):
         self._twitch_resolve_attempts: int = 0
         self._recovery_in_flight: bool = False  # gap-05: coalesce cascading bus errors per URL
         self._last_buffer_percent: int = -1  # 47.1 D-14: sentinel so first real 0-100 always emits
+
+        # Phase 62 / BUG-09: cycle-tracker instance + station_id field.
+        # Tracker mirrors Phase 47.1 D-14 sentinel reset lifecycle (Pitfall 3 —
+        # bind_url is called from _try_next_stream alongside _last_buffer_percent reset).
+        # _current_station_id mirrors _current_station_name for log-line context.
+        self._tracker = _BufferUnderrunTracker()
+        self._current_station_id: int = 0
 
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
@@ -446,6 +476,7 @@ class Player(QObject):
         self._recovery_in_flight = False
         self._install_legacy_callbacks(on_title, on_failover, on_offline)
         self._current_station_name = station.name
+        self._current_station_id = station.id   # Phase 62: log-line context
         self._is_first_attempt = True
         self._twitch_resolve_attempts = 0
 
@@ -476,6 +507,7 @@ class Player(QObject):
         self._cancel_timers()
         self._install_legacy_callbacks(on_title, on_failover, on_offline)
         self._current_station_name = ""
+        self._current_station_id = 0   # Phase 62 / W2: mirror the empty/zero sentinel of _current_station_name
         self._streams_queue = [stream]
         self._recovery_in_flight = False
         self._is_first_attempt = True
@@ -502,6 +534,11 @@ class Player(QObject):
         self._eq_ramp_state = None
         self._streams_queue = []
         self._recovery_in_flight = False
+        # Phase 62 / D-03: force-close any open underrun cycle as outcome=pause.
+        prior_close = self._tracker.force_close("pause")
+        if prior_close is not None:
+            self._underrun_cycle_closed.emit(prior_close)
+        self._underrun_dwell_timer.stop()
         # Phase 57 / WIN-03 D-15: arm the volume fade-down ramp; the final
         # tick performs set_state(NULL) + get_state(CLOCK_TIME_NONE).
         self._start_pause_volume_ramp()
@@ -518,8 +555,35 @@ class Player(QObject):
         self._elapsed_seconds = 0
         self._streams_queue = []
         self._recovery_in_flight = False
+        # Phase 62 / D-03: force-close any open underrun cycle as outcome=stop.
+        prior_close = self._tracker.force_close("stop")
+        if prior_close is not None:
+            self._underrun_cycle_closed.emit(prior_close)
+        self._underrun_dwell_timer.stop()
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+
+    def shutdown_underrun_tracker(self) -> None:
+        """Phase 62 / D-03 + Pitfall 4: force-close any open underrun cycle as
+        outcome=shutdown. Called from MainWindow.closeEvent BEFORE
+        super().closeEvent(event) so in-flight cycles still write their log line.
+
+        SYNCHRONOUS log write (not via _underrun_cycle_closed queued Signal):
+        closeEvent is followed by QApplication.quit(); queued slots may never
+        run. Same instinct as MediaKeysBackend.shutdown() at main_window.py:355.
+        """
+        prior_close = self._tracker.force_close("shutdown")
+        if prior_close is not None:
+            _log.info(
+                "buffer_underrun "
+                "start_ts=%.3f end_ts=%.3f duration_ms=%d min_percent=%d "
+                "station_id=%d station_name=%r url=%r outcome=%s cause_hint=%s",
+                prior_close.start_ts, prior_close.end_ts,
+                prior_close.duration_ms, prior_close.min_percent,
+                prior_close.station_id, prior_close.station_name,
+                prior_close.url, prior_close.outcome, prior_close.cause_hint,
+            )
+        self._underrun_dwell_timer.stop()
 
     # ------------------------------------------------------------------ #
     # Legacy callback shim -- lets main_window.py keep its old signature
@@ -563,6 +627,9 @@ class Player(QObject):
     def _on_gst_error(self, bus, msg) -> None:
         err, debug = msg.parse_error()
         self.playback_error.emit(f"{err} | {debug}")
+        # Phase 62 / D-02 Discretion: cause_hint flips to 'network' if a cycle
+        # is open. Bus-loop thread is fine — tracker has no Qt.
+        self._tracker.note_error_in_cycle()
         # Marshal recovery onto the main thread via queued signal. Bus-loop
         # thread has no Qt event loop, so QTimer.singleShot from here vanishes.
         self._error_recovery_requested.emit()
@@ -615,6 +682,9 @@ class Player(QObject):
         Runs on GstBusLoopThread (not main thread). May only emit signals,
         never touch Qt widgets directly (Pitfall 2). De-dups on unchanged
         percent (47.1 D-14) to avoid UI churn.
+
+        Phase 62 / BUG-09: extended with cycle state machine. Tracker output
+        dispatched via queued Signals (Pitfall 2 — bus-loop has no Qt event loop).
         """
         result = msg.parse_buffering()
         # PyGObject may flatten single-out-param to bare int OR return tuple (Pitfall 1)
@@ -623,6 +693,12 @@ class Player(QObject):
             return
         self._last_buffer_percent = percent
         self.buffer_percent.emit(percent)  # auto-queued cross-thread to main
+        # Phase 62 / D-01..D-04: cycle state machine.
+        transition = self._tracker.observe(percent)
+        if transition == "OPENED":
+            self._underrun_cycle_opened.emit()              # queued → main: arm dwell timer
+        elif transition is not None:                         # closed naturally (recovered)
+            self._underrun_cycle_closed.emit(transition)    # queued → main: log + cancel dwell
 
     def _on_gst_state_changed(self, bus, msg) -> None:
         """Bus-loop-thread handler (Phase 57 / WIN-03 D-12).
@@ -686,6 +762,39 @@ class Player(QObject):
         self._elapsed_seconds += 1
         self.elapsed_updated.emit(self._elapsed_seconds)
 
+    def _on_underrun_cycle_opened(self) -> None:
+        """Main-thread slot (Phase 62 / D-07). Arms the 1500ms dwell QTimer.
+
+        Idempotent — start() on a running timer resets the interval, which
+        is the right behavior if a cycle re-opens before the previous one
+        completed (rare but possible on rapid station churn).
+        """
+        self._underrun_dwell_timer.start()
+
+    def _on_underrun_cycle_closed(self, record) -> None:
+        """Main-thread slot (Phase 62 / D-02). Cancels in-flight dwell timer
+        (silent recovery, D-07) and writes the structured log line at INFO.
+
+        T-62-01 mitigation: station_name and url are %r-quoted, so embedded
+        newlines / control chars / quotes from library data cannot inject
+        spurious log lines or break grep-based diagnosis.
+        """
+        self._underrun_dwell_timer.stop()    # idempotent
+        _log.info(
+            "buffer_underrun "
+            "start_ts=%.3f end_ts=%.3f duration_ms=%d min_percent=%d "
+            "station_id=%d station_name=%r url=%r outcome=%s cause_hint=%s",
+            record.start_ts, record.end_ts, record.duration_ms, record.min_percent,
+            record.station_id, record.station_name, record.url,
+            record.outcome, record.cause_hint,
+        )
+
+    def _on_underrun_dwell_elapsed(self) -> None:
+        """Main-thread QTimer.timeout slot (Phase 62 / D-07). Cycle has been
+        open ≥ 1500ms; notify MainWindow to consider showing the toast
+        (cooldown gated there, D-08)."""
+        self.underrun_recovery_started.emit()
+
     # ------------------------------------------------------------------ #
     # Failover queue
     # ------------------------------------------------------------------ #
@@ -707,6 +816,19 @@ class Player(QObject):
         stream = self._streams_queue.pop(0)
         self._current_stream = stream
         self._last_buffer_percent = -1  # 47.1 D-14: reset so new URL's first buffer emits (Pitfall 3)
+        # Phase 62 / D-03 + T-62-02: force-close any cycle on the OUTGOING URL
+        # with outcome=failover BEFORE binding the tracker to the NEW URL.
+        # Ordering is load-bearing: the close record must carry the OLD url.
+        prior_close = self._tracker.force_close("failover")
+        if prior_close is not None:
+            self._underrun_cycle_closed.emit(prior_close)   # queued → main: log + cancel dwell
+        # Phase 62 / D-04: bind tracker to NEW URL (mirror of D-14 sentinel reset, Pitfall 3).
+        self._tracker.bind_url(
+            station_id=self._current_station_id,
+            station_name=self._current_station_name,
+            url=stream.url,
+        )
+        self._underrun_dwell_timer.stop()
         # Notify about failover attempt (not on first play)
         if not self._is_first_attempt:
             self.failover.emit(stream)
