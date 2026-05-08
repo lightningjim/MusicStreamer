@@ -477,7 +477,7 @@ Plans:
 | 59. Visual Accent Color Picker | 3/3 | Complete   | 2026-05-04 |
 | 60. GBS.FM Integration | 7/7 | Complete   | 2026-05-04 |
 | 61. Linux App Display Name in WM Dialogs | 5/5 | Complete    | 2026-05-07 |
-| 62. Audio Buffer Underrun Resilience | 4/4 | Complete   | 2026-05-08 |
+| 62. Audio Buffer Underrun Resilience | 4/4 | Complete    | 2026-05-08 |
 | 63. Auto-Bump pyproject Version on Phase Completion | 0/? | Not started | - |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
 
