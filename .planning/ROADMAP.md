@@ -458,7 +458,13 @@ Plans:
   3. A config flag (e.g., `workflow.auto_version_bump`, default `true`) lets the user opt out per-project; when disabled, no bump occurs
   4. The convention is documented in PROJECT.md with the schema (`major.minor.phase`) and a worked example so future contributors / future Claude sessions know how to read the version
   5. Rollback safety: if the phase-completion commit fails (e.g., pre-commit hook), the version bump is reverted from the working tree (no half-state)
-**Plans:** TBD
+**Plans:** 5 plans
+Plans:
+- [ ] 63-01-PLAN.md — Bump helper + Wave 0 test scaffold (tools/bump_version.py + tests/test_bump_version.py)
+- [ ] 63-02-PLAN.md — workflow.auto_version_bump config flag + gate in main()
+- [ ] 63-03-PLAN.md — Claude Code PreToolUse hook + settings.json + explicit `git add -f` step
+- [ ] 63-04-PLAN.md — Rollback safety (PostToolUseFailure hook with `git checkout HEAD -- pyproject.toml`)
+- [ ] 63-05-PLAN.md — PROJECT.md ## Versioning section + drift-guard + SC #2 outcome gate
 
 ## Progress Table
 
