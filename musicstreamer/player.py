@@ -287,6 +287,12 @@ class Player(QObject):
             self._pipeline.set_property("audio-sink", audio_sink)
         self._pipeline.set_property("buffer-duration", BUFFER_DURATION_S * Gst.SECOND)
         self._pipeline.set_property("buffer-size", BUFFER_SIZE_BYTES)
+        # Without GST_PLAY_FLAG_BUFFERING (0x100), playbin3 bypasses queue2 on live
+        # HTTP audio sources — buffer-duration/buffer-size above are silently ignored
+        # and decodebin3's internal multiqueue (~1s/100KB per pad) handles jitter
+        # instead, pinning the buffer-fill indicator near its low-watermark (~10%).
+        flags = self._pipeline.get_property("flags")
+        self._pipeline.set_property("flags", flags | 0x100)
 
         # Phase 47.2 D-01: equalizer-nbands in playbin3.audio-filter slot.
         # Constructed once; bands mutated live via GstChildProxy (D-05).
