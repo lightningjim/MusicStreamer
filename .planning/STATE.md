@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 63 — auto-bump-pyproject-toml-version-on-phase-completion-using-m
+**Current focus:** Phase 65 — show-current-version-in-app
 
 ## Current Position
 
-Phase: 64
+Phase: 65
 Plan: Not started
-Status: Ready to plan
+Status: Ready to discuss
 Last activity: 2026-05-08
 
 ## Performance Metrics
