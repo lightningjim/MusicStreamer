@@ -44,7 +44,7 @@ Small new capabilities harvested from backlog + dormant seeds.
 
 Project-level convention introduced 2026-04-28.
 
-- [ ] **VER-01**: Adopt `milestone_major.milestone_minor.phase` versioning (e.g. `2.1.50` for Phase 50 of v2.1). The `pyproject.toml` `version` field is rewritten automatically on phase completion via a GSD-workflow hook, gated by a per-project config flag, and the convention is documented in PROJECT.md *(applies to all future phase completions starting Phase 51+; Phase 50 was bumped manually as the first instance)*
+- [x] **VER-01**: Adopt `milestone_major.milestone_minor.phase` versioning (e.g. `2.1.50` for Phase 50 of v2.1). The `pyproject.toml` `version` field is rewritten automatically on phase completion via a GSD-workflow hook, gated by a per-project config flag, and the convention is documented in PROJECT.md *(applies to all future phase completions starting Phase 51+; Phase 50 was bumped manually as the first instance)*
 
 ## Future Requirements
 
@@ -96,7 +96,7 @@ Which phases cover which requirements.
 | GBS-01 | Phase 60 | Complete |
 | BUG-08 | Phase 61 | Complete |
 | BUG-09 | Phase 62 | Complete |
-| VER-01 | Phase 63 | Pending |
+| VER-01 | Phase 63 | Complete |
 
 **Coverage:**
 - v2.1 requirements: 17 total
