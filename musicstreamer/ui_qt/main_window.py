@@ -22,6 +22,7 @@ import datetime
 import logging
 import os
 import time
+from importlib.metadata import version as _pkg_version
 
 # Side-effect import: registers the :/icons/ resource prefix before any
 # QIcon lookup. Must live at module top so tests that construct MainWindow
@@ -227,6 +228,15 @@ class MainWindow(QMainWindow):
                 "⚠ Node.js: Missing (click to install)"
             )
             self._act_node_missing.triggered.connect(self._on_node_install_clicked)
+
+        # Phase 65 D-01/D-02/D-03/D-12 (VER-02): version footer. Always last, always
+        # disabled. Read via importlib.metadata so this works without _run_gui having
+        # been called (test fixtures construct MainWindow without going through
+        # __main__._run_gui, so QCoreApplication.applicationVersion() returns "" in
+        # tests on Linux — RESEARCH Landmine 1).
+        self._menu.addSeparator()
+        self._act_version = self._menu.addAction(f"v{_pkg_version('musicstreamer')}")
+        self._act_version.setEnabled(False)
 
         # D-12: apply saved accent color on startup (UI-11)
         _saved_accent = self._repo.get_setting("accent_color", "")
