@@ -38,6 +38,7 @@ class FakePlayer(QObject):
     cookies_cleared = Signal(str)  # Phase 999.7
     elapsed_updated = Signal(int)
     buffer_percent = Signal(int)  # Phase 47.1 D-12
+    underrun_recovery_started = Signal()  # Phase 62 / D-07 — main→MainWindow toast trigger
 
     def __init__(self):
         super().__init__()
@@ -71,6 +72,14 @@ class FakePlayer(QObject):
         pass
 
     def set_eq_preamp(self, db: float) -> None:
+        pass
+
+    def shutdown_underrun_tracker(self) -> None:
+        """Phase 62 / D-03: no-op stub — real Player force-closes any open cycle.
+
+        FakePlayer has no tracker so the call is a no-op; MainWindow.closeEvent
+        calls this in a try/except, but having it defined avoids the warning log.
+        """
         pass
 
 
