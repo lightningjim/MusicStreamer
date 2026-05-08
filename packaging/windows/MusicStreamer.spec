@@ -14,7 +14,7 @@ import os
 import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 # Phase 44 UAT fix: PyInstaller hooks-contrib hook for charset_normalizer
 # misses its mypyc-compiled .pyd modules (md__mypyc.cpXX-win_amd64.pyd),
@@ -31,6 +31,14 @@ _cn_datas, _cn_binaries, _cn_hiddenimports = collect_all("charset_normalizer")
 # pulls every submodule + plugin data file into the bundle.
 _sl_datas, _sl_binaries, _sl_hiddenimports = collect_all("streamlink")
 _yt_datas, _yt_binaries, _yt_hiddenimports = collect_all("yt_dlp")
+
+# Phase 65 D-08 (VER-02): ship musicstreamer's dist-info so
+# importlib.metadata.version("musicstreamer") resolves inside the bundle.
+# No try/except fallback — bundle build must fail loudly with
+# PackageNotFoundError if metadata is missing rather than ship a silent
+# placeholder version. RESEARCH Q1 confirms copy_metadata returns
+# list[(src, dst)] — same shape as collect_all's _datas tuples.
+_ms_datas = copy_metadata("musicstreamer")
 
 # --------------------------------------------------------------------------
 # Paths — the user sets GSTREAMER_ROOT env var before invoking pyinstaller.
@@ -100,7 +108,7 @@ a = Analysis(
     datas=[
         ("../../musicstreamer/ui_qt/icons", "musicstreamer/ui_qt/icons"),  # SVG source
         ("icons/MusicStreamer.ico", "icons"),                              # installed icon
-    ] + _cn_datas + _sl_datas + _yt_datas,
+    ] + _cn_datas + _sl_datas + _yt_datas + _ms_datas,
     hiddenimports=[
         "gi",
         "gi.repository.Gst",
