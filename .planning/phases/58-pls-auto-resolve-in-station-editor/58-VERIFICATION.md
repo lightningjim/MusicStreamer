@@ -1,9 +1,10 @@
 ---
 phase: 58-pls-auto-resolve-in-station-editor
 verified: 2026-05-01T00:00:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified
 overrides_applied: 0
+human_verification_signed_off: 2026-05-01
 human_verification:
   - test: "Open EditStationDialog, click 'Add from PLS…' (5th button after Move Down), paste http://somafm.com/groovesalad.pls (or any real PLS URL), click OK"
     expected: "Wait cursor appears, button is disabled, after fetch rows appear in Streams table with URL, Quality, Codec, and Bitrate columns populated. If Quality column is blank that is normal for PLS entries without a TitleN= line."
@@ -20,7 +21,7 @@ human_verification:
 
 **Phase Goal:** A user can paste a PLS playlist URL into the Streams section of a station and have it automatically expand into individual stream entries — one row per PLS entry, with bitrate/codec resolved where possible.
 **Verified:** 2026-05-01T00:00:00Z
-**Status:** human_needed
+**Status:** passed (human UAT signed off 2026-05-01)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
