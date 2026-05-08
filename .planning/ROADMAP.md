@@ -486,7 +486,7 @@ Plans:
 | 62. Audio Buffer Underrun Resilience | 4/4 | Complete    | 2026-05-08 |
 | 63. Auto-Bump pyproject Version on Phase Completion | 5/5 | Complete    | 2026-05-08 |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
-| 65. Show current version in app | 0/3 | In progress | — |
+| 65. Show current version in app | 3/3 | Complete   | 2026-05-08 |
 
 ### Phase 64: AudioAddict Siblings on Now Playing
 **Goal:** When an AudioAddict station is currently playing, the Now Playing panel surfaces same-channel-key siblings on other AA networks as one-click jumps — playing DI.fm "Ambient" shows a "Also on: ZenRadio • JazzRadio" affordance that, when clicked, switches playback to the chosen sibling. Continuation of Phase 51, which scoped sibling visibility to EditStationDialog only.
@@ -517,12 +517,12 @@ Plans:
   4. `musicstreamer/__version__.py` is deleted with zero remaining importers (D-06a grep gate clean)
   5. The Windows PyInstaller spec includes `copy_metadata("musicstreamer")` so the bundled exe resolves `importlib.metadata.version` without `PackageNotFoundError`
   6. No drift introduced — `pyproject.toml [project].version` remains the single literal write site (Phase 63 auto-bump untouched)
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 65-01-PLAN.md — Runtime read site (setApplicationVersion + menu footer) + REQUIREMENTS/ROADMAP backfill + version-read tests + menu/source-ordering test extensions (VER-02-A..VER-02-F)
-- [ ] 65-02-PLAN.md — PyInstaller spec edit (copy_metadata("musicstreamer")) + spec source-text test (VER-02-H)
-- [ ] 65-03-PLAN.md — Delete musicstreamer/__version__.py (D-06; depends on 01 + 02 to confirm grep gate stays clean)
+- [x] 65-01-PLAN.md — Runtime read site (setApplicationVersion + menu footer) + REQUIREMENTS/ROADMAP backfill + version-read tests + menu/source-ordering test extensions (VER-02-A..VER-02-F)
+- [x] 65-02-PLAN.md — PyInstaller spec edit (copy_metadata("musicstreamer")) + spec source-text test (VER-02-H)
+- [x] 65-03-PLAN.md — Delete musicstreamer/__version__.py (D-06; depends on 01 + 02 to confirm grep gate stays clean)
 
 ### Phase 66: Color Themes — preset and custom color schemes (Vaporwave pastel, Overrun neon+black)
 
