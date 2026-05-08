@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: ready_to_plan
 stopped_at: Phase 65 context gathered
 last_updated: "2026-05-08T19:36:36.070Z"
 last_activity: 2026-05-08 -- Phase 65 execution started
 progress:
   total_phases: 28
-  completed_phases: 19
+  completed_phases: 20
   total_plans: 80
   completed_plans: 77
-  percent: 96
+  percent: 71
 ---
 
 # Project State
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 65 (Show current version in app) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 65
-Last activity: 2026-05-08 -- Phase 65 execution started
+Phase: 66
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-08
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 126 (v1.0–v1.5 combined)
+- Total plans completed: 129 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 

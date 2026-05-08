@@ -486,7 +486,7 @@ Plans:
 | 62. Audio Buffer Underrun Resilience | 4/4 | Complete    | 2026-05-08 |
 | 63. Auto-Bump pyproject Version on Phase Completion | 5/5 | Complete    | 2026-05-08 |
 | 64. AudioAddict Siblings on Now Playing | 3/3 | Complete    | 2026-05-01 |
-| 65. Show current version in app | 3/3 | Complete   | 2026-05-08 |
+| 65. Show current version in app | 3/3 | Complete    | 2026-05-08 |
 
 ### Phase 64: AudioAddict Siblings on Now Playing
 **Goal:** When an AudioAddict station is currently playing, the Now Playing panel surfaces same-channel-key siblings on other AA networks as one-click jumps — playing DI.fm "Ambient" shows a "Also on: ZenRadio • JazzRadio" affordance that, when clicked, switches playback to the chosen sibling. Continuation of Phase 51, which scoped sibling visibility to EditStationDialog only.
