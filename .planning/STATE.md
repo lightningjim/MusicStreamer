@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 63 context gathered
-last_updated: "2026-05-08T17:15:45.808Z"
+last_updated: "2026-05-08T17:23:44.555Z"
 last_activity: 2026-05-08
 progress:
   total_phases: 28
   completed_phases: 18
   total_plans: 77
-  completed_plans: 75
-  percent: 97
+  completed_plans: 76
+  percent: 99
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 63 (auto-bump-pyproject-toml-version-on-phase-completion-using-m) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-05-08
 
@@ -131,6 +131,8 @@ Key v2.0 decisions already settled:
 - [Phase ?]: [Phase 62-03]: Wave 2 GREEN closure — 6 insertion sites in main_window.py + 1 line in __main__.py; 5/5 RED MainWindow tests GREEN; closeEvent ordering shutdown_underrun_tracker BEFORE _media_keys.shutdown (Pitfall 4); cooldown via time.monotonic (first project use, wall-clock-jump immune); per-logger INFO for musicstreamer.player keeps GLOBAL WARNING (Pitfall 5); 20/20 Phase 62 RED tests now all GREEN; D-09 + D-05 invariants preserved.
 - [Phase ?]: 63-02: workflow.auto_version_bump opt-out flag - default-true seeded via direct JSON edit (Pitfall 3); is_auto_bump_enabled fails open on any non-zero gsd-sdk exit; only explicit false disables. Gate returns 3 with informational stderr.
 - [Phase ?]: 63-03: Claude Code PreToolUse hook wired (.claude/settings.json + .claude/hooks/bump-version-hook.sh, force-added with git add -f per Pitfall 8). PreToolUse-only block; Plan 04 will extend with PostToolUseFailure rollback. Per-task atomic commits required Task 1 to land the force-add (Task 3 became verification-only). 9 tests GREEN.
+- [Phase ?]: 63-04: Used 'git checkout HEAD -- pyproject.toml' (single-command form per RESEARCH §Pitfall 4) instead of D-08's literal bare form. D-08's intent is honored; the bare form is a live-verified no-op against staged changes. Negative-grep gate in tests bans regression to bare form.
+- [Phase ?]: 63-04: PostToolUseFailure timeout=10s (vs PreToolUse 30s); rollback is a single 'git checkout' completing in <100ms. Both hook entries share the same Bash(gsd-sdk query commit *) glob for symmetric registration; PostToolUseFailure event (NOT PostToolUse) per Pitfall 5 — only it fires on Bash failure.
 
 ### Roadmap Evolution
 
@@ -209,9 +211,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 63 P01 | 3min | 2 tasks | 2 files |
 | Phase 63 P02 | 4m3s | 2 tasks | 3 files |
 | Phase 63 P03 | 2m44s | 3 tasks | 3 files |
+| Phase 63 PP04 | 3m37s | 2 tasks tasks | 3 files files |
 
 ## Session Continuity
 
-Last session: 2026-05-08T17:15:45.797Z
+Last session: 2026-05-08T17:23:28.275Z
 Stopped at: Phase 63 context gathered
 Resume file: None
