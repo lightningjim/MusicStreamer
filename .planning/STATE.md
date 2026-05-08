@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 62 context gathered
-last_updated: "2026-05-08T02:05:09.984Z"
-last_activity: 2026-05-08 -- Phase 62 planning complete
+stopped_at: Plan 62-00 complete (Wave 0 RED contract)
+last_updated: "2026-05-08T02:15:50.680Z"
+last_activity: 2026-05-08
 progress:
   total_phases: 28
   completed_phases: 17
   total_plans: 72
-  completed_plans: 68
-  percent: 94
+  completed_plans: 69
+  percent: 96
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 60.4 — two-informationals-1-under-search-show-the-amount-of-tokens-
+**Current focus:** Phase 62 — audio-buffer-underrun-resilience-intermittent-dropouts-stutt
 
 ## Current Position
 
-Phase: 60.4
-Plan: 03 complete (Plans 01 + 02 still pending — they are Wave 1 (01) + Wave 2 (02), independent of 03)
+Phase: 62 (audio-buffer-underrun-resilience-intermittent-dropouts-stutt) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-05-08 -- Phase 62 planning complete
+Last activity: 2026-05-08
 
 ## Performance Metrics
 
@@ -122,6 +122,10 @@ Key v2.0 decisions already settled:
 - [Phase ?]: [Phase 60.4-02]: WARNING_COLOR_HEX = '#d4a017' added to _theme.py as sibling of ERROR_COLOR_HEX (D-T6 amber tier); single QSS-string consumer at _token_label, no QCOLOR companion
 - [Phase ?]: [Phase 60.4-02]: _GbsTokenWorker signal arities are Signal(int,int) finished and Signal(int,str) error — request_id is leading positional payload; slots use positional guard (no self.sender) — Pitfall A
 - [Phase ?]: [Phase 60.4-02]: _refresh_login_gate transition-gated via self._was_logged_in (kicks _GbsTokenWorker only on False→True); logged-out branch toggles visibility ONLY (D-T8 'Tokens: —' stamp survives setVisible(False))
+- [Phase ?]: [Phase 62-00]: Wave 0 RED contract — 20 tests across 3 new files (7 tracker + 8 Player + 5 MainWindow); ImportError/AttributeError IS the RED state, no pytest.fail placeholders
+- [Phase ?]: [Phase 62-00]: T-62-01 STRIDE mitigation locked via single-quote canary (assert station_name='Test Station' in caplog msg) — fails the moment Plan 02 drifts %r→%s on log call
+- [Phase ?]: [Phase 62-00]: T-62-02 force-close ordering locked via close-record url assertion (must equal OLD url, not new) — proves _try_next_stream runs force_close BEFORE bind_url
+- [Phase ?]: [Phase 62-00]: Pitfall 5 enforced via file-level regex on __main__.py source — Plan 03 must add per-logger setLevel(INFO) and retain basicConfig(WARNING)
 
 ### Roadmap Evolution
 
@@ -193,9 +197,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 60.3 P05 | 5min | 2 tasks | 2 files |
 | Phase 60.3 P06 | 12min | 2 tasks | 2 files |
 | Phase 60.4 P02 | 10 | 3 tasks | 3 files |
+| Phase 62 P00 | 5min | 4 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-05-08T01:13:53.142Z
+Last session: 2026-05-08T02:15:30.283Z
 Stopped at: Phase 62 context gathered
-Resume file: .planning/phases/62-audio-buffer-underrun-resilience-intermittent-dropouts-stutt/62-CONTEXT.md
+Resume file: None
