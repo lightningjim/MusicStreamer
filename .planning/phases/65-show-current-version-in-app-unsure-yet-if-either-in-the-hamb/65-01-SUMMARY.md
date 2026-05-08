@@ -158,3 +158,22 @@ None - no external service configuration required.
 ---
 *Phase: 65-show-current-version-in-app*
 *Completed: 2026-05-08*
+
+## Self-Check: PASSED
+
+All claimed files present:
+- `.planning/phases/65-show-current-version-in-app-unsure-yet-if-either-in-the-hamb/65-01-SUMMARY.md`
+- `.planning/phases/65-show-current-version-in-app-unsure-yet-if-either-in-the-hamb/deferred-items.md`
+- `tests/test_version.py`
+- `musicstreamer/__main__.py`, `musicstreamer/ui_qt/main_window.py`
+- `.planning/REQUIREMENTS.md`, `.planning/ROADMAP.md`
+- `tests/test_main_window_integration.py`, `tests/test_main_run_gui_ordering.py`
+
+All claimed commits present in git log:
+- `0d30213` docs(65-01): backfill VER-02 in REQUIREMENTS.md + Phase 65 in ROADMAP.md
+- `364974a` test(65-01): add RED tests for setApplicationVersion + version read
+- `4202782` feat(65-01): wire setApplicationVersion via importlib.metadata in _run_gui
+- `9745685` test(65-01): add RED tests for hamburger menu version footer
+- `b52b9f5` feat(65-01): add disabled v{version} footer to hamburger menu
+- `823a5cd` docs(65-01): complete plan — SUMMARY.md + deferred-items.md
+
