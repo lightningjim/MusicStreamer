@@ -185,6 +185,10 @@ class MainWindow(QMainWindow):
         self._menu.addSeparator()
 
         # Group 2: Settings dialogs (D-16, D-17, D-18)
+        # Phase 66 D-15 / THEME-01: Theme picker — peer above Accent Color.
+        act_theme = self._menu.addAction("Theme")
+        act_theme.triggered.connect(self._open_theme_dialog)  # QA-05 bound method
+
         act_accent = self._menu.addAction("Accent Color")
         act_accent.triggered.connect(self._open_accent_dialog)
 
@@ -771,6 +775,18 @@ class MainWindow(QMainWindow):
         """D-15: Open ImportDialog from hamburger menu."""
         dlg = ImportDialog(self.show_toast, self._repo, parent=self)
         dlg.import_complete.connect(self._refresh_station_list)
+        dlg.exec()
+
+    def _open_theme_dialog(self) -> None:
+        """Phase 66 D-15 / THEME-01: Open ThemePickerDialog from hamburger menu.
+
+        Lazy import matches _open_equalizer_dialog precedent (line 793).
+        The dialog handles its own snapshot/restore on Cancel; Apply persists
+        `theme` setting. The existing accent_color restore at line 241-245
+        continues to layer on top (Phase 59 D-02 contract preserved).
+        """
+        from musicstreamer.ui_qt.theme_picker_dialog import ThemePickerDialog
+        dlg = ThemePickerDialog(self._repo, parent=self)
         dlg.exec()
 
     def _open_accent_dialog(self) -> None:

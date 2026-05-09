@@ -37,3 +37,36 @@ fixes: per-test `qtbot.addWidget(...)` discipline; explicit `widget.deleteLater(
 PLAN explicitly calls out (`pytest tests/test_theme.py -x -q`,
 `pytest tests/test_accent_color_dialog.py tests/test_accent_provider.py -x -q`).
 Both pass cleanly.
+
+## Pre-existing flake: tests/test_main_window_*.py — `_FakePlayer` missing `underrun_recovery_started`
+
+**Discovered:** Plan 66-04 Task 1 verification (2026-05-09)
+
+**Symptom:** Running any of `tests/test_main_window_gbs.py`, `tests/test_main_window_integration.py`, etc. errors immediately with:
+
+```
+AttributeError: '_FakePlayer' object has no attribute 'underrun_recovery_started'
+musicstreamer/ui_qt/main_window.py:308: AttributeError
+```
+
+**Reproduction (verified pre-existing):**
+- Stash Plan 66-04 menu wiring → `pytest tests/test_main_window_gbs.py::test_add_gbs_menu_entry_exists` → SAME error.
+- Re-apply Plan 66-04 changes → SAME error.
+
+**Why deferred:** Out of scope per SCOPE BOUNDARY rule. The `_FakePlayer`
+test fixtures across `tests/test_main_window_*.py` were never updated to
+include the `underrun_recovery_started` Signal that Phase 62 added to
+`musicstreamer.player`. Plan 66-04 only adds a menu action + slot — it
+neither modifies the fixture nor the Phase 62 Signal wiring.
+
+**Recommended owner:** A future Phase 62-cleanup or test-infra phase that
+audits the `_FakePlayer` fakes for completeness against the real
+`Player` Signal surface.
+
+**Not blocking:** Plan 66-04 Task 1 verification uses the targeted theme
++ accent suites (`tests/test_theme.py tests/test_theme_picker_dialog.py
+tests/test_theme_editor_dialog.py tests/test_accent_color_dialog.py
+tests/test_accent_provider.py` — 75/75 green) plus AST parse +
+load-bearing greps. The hamburger-menu wire is verified end-to-end at
+the import boundary (`from musicstreamer.ui_qt.main_window import
+MainWindow` succeeds).
