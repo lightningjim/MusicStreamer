@@ -99,13 +99,24 @@ def test_set_application_version_in_run_gui(main_source: str) -> None:
         f"Got QApplication(argv) @ char {qapp}, setApplicationVersion @ char "
         f"{setver} (offsets are within _run_gui body)."
     )
-    # D-07 contract: the setter argument must be sourced from importlib.metadata,
-    # not a hardcoded literal. Check the file imports importlib.metadata AND the
-    # setter site references the imported name (allow either `_pkg_version(`
-    # or `version(` since the helper alias is up to the implementer).
-    assert "from importlib.metadata import" in main_source, (
-        "musicstreamer/__main__.py must import from importlib.metadata "
-        "(single source of truth = pyproject.toml [project].version)."
+    # D-07 contract (Phase 65 WR-03 tightened): pin the import to the
+    # specific `version` symbol we use, and require the setter site to
+    # call via the importlib helper — not just any symbol named
+    # ``version``. The previous looser check (`from importlib.metadata
+    # import` + `version(`) accepted any import from the module (e.g.
+    # `from importlib.metadata import distributions`) and any `version(`
+    # call at the setter site (e.g. `packaging.version.version("1.0")`),
+    # so a regression that swapped the source of truth could slip
+    # through.
+    assert (
+        "from importlib.metadata import version" in main_source
+        or "from importlib.metadata import version as _pkg_version" in main_source
+    ), (
+        "musicstreamer/__main__.py must import the specific `version` "
+        "symbol (or `version as _pkg_version`) from importlib.metadata "
+        "— single source of truth = pyproject.toml [project].version. "
+        "A bare `from importlib.metadata import ...` of any other name "
+        "(e.g. `distributions`) is not sufficient."
     )
     # Window the proximity check against the _run_gui body slice (NOT the
     # whole file): `setver` is an offset into `body`, so indexing
@@ -113,8 +124,9 @@ def test_set_application_version_in_run_gui(main_source: str) -> None:
     # `Gst.init` block — exactly the cross-function bug BLK-01 fixed for
     # the ordering checks.
     nearby = body[setver : setver + 200]
-    assert "_pkg_version(" in nearby or "version(" in nearby, (
+    assert "_pkg_version(" in nearby or "metadata.version(" in nearby, (
         "setApplicationVersion(...) must read via importlib.metadata.version "
-        "(not a literal string). Got setter context: "
+        "(not a literal string and not a different `version` symbol such "
+        "as `packaging.version.version`). Got setter context: "
         f"{nearby!r}"
     )
