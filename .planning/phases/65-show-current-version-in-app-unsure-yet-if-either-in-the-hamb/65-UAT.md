@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 65-show-current-version-in-app
 source:
   - 65-01-SUMMARY.md
@@ -7,12 +7,12 @@ source:
   - 65-03-SUMMARY.md
   - 65-04-SUMMARY.md
 started: 2026-05-08T20:00:00Z
-updated: 2026-05-08T23:55:00Z
+updated: 2026-05-09T00:05:00Z
 ---
 
 ## Current Test
 
-[VER-02-J defense shipped via Plan 65-04 — awaiting Win11 VM rebuild + retest]
+[testing complete]
 
 ## Tests
 
@@ -32,22 +32,22 @@ expected: |
   singleton: musicstreamer-2.1.65.dist-info (version 2.1.65 matches pyproject)`.
   Then run the installer, launch MusicStreamer.exe, click hamburger (≡).
   Last entry shows `v2.1.65` (NOT v1.1.0), greyed out, non-clickable.
-result: pending
+result: issue
 reported: |
-  Original failure (2026-05-08): "No, I see v1.1.0"
-  Defense shipped in Plan 65-04 + review fixes (commits 8bcb56f..a5a69ca):
-    - build.ps1 step 3c: pre-bundle uv pip uninstall+reinstall musicstreamer
-    - build.ps1 step 4a: post-bundle dist-info singleton + Version: assertion (exit 9 on mismatch)
-    - tests/test_packaging_spec.py: drift-guards lock both new build steps
-severity: major
+  2026-05-09 retest on Win11 VM (conda env: spike):
+  build.ps1 crashed at step 3c "PRE-BUNDLE CLEAN: uv pip uninstall + reinstall musicstreamer".
+  Verbatim error: "uv : The term 'uv' is not recognized as the name of a cmdlet, function, script file, or operable program."
+  Build did NOT reach PRE-BUNDLE CLEAN OK or POST-BUNDLE ASSERTION OK; no dist/ produced.
+  Prior context (2026-05-08): original failure "No, I see v1.1.0".
+severity: blocker
 validation_id: VER-02-J
 
 ## Summary
 
 total: 2
 passed: 1
-issues: 0
-pending: 1
+issues: 1
+pending: 0
 skipped: 0
 
 ## Gaps
@@ -64,3 +64,16 @@ skipped: 0
     - h1: "Old installer still on disk — Win11 VM has a pre-Phase-65 (or pre-2.0) MusicStreamer installation; user hasn't rebuilt today's bundle yet. v1.1.0 is suspicious because it predates the menu footer code, so this would mean the user is seeing the version somewhere OTHER than the new hamburger footer (or the build is not what we think)."
     - h2: "PyInstaller copy_metadata picked up wrong dist-info — if the build environment had a stale `musicstreamer-1.1.0.dist-info` from an editable install made during v1.1, copy_metadata could have shipped that one. Bundle would then show v1.1.0 even on a today-built exe."
     - h3: "build.ps1 staged version drift — build.ps1 reads pyproject.toml at build time. If the user built before today's 2.1.65 bump, the installer's /DAppVersion (Inno Setup) and the package metadata could disagree from the running pyproject."
+
+- truth: "build.ps1 PRE-BUNDLE CLEAN step (Plan 65-04 step 3c) runs successfully and emits PRE-BUNDLE CLEAN OK on Win11 VM"
+  status: failed
+  reason: "User reported: build.ps1 crashed at PRE-BUNDLE CLEAN step on Win11 VM (conda env spike). Verbatim: \"uv : The term 'uv' is not recognized as the name of a cmdlet, function, script file, or operable program.\" Build aborted before reaching POST-BUNDLE ASSERTION; no dist/ produced; bundle version cannot be verified."
+  severity: blocker
+  test: 2
+  validation_id: VER-02-J
+  artifacts: []
+  missing: []
+  hypotheses:
+    - h1: "uv not installed in spike conda env on Win11 VM — Plan 65-04 step 3c hard-codes the `uv` CLI. On Linux dev `uv` is on PATH (project tooling), but the Win11 spike env was provisioned without it. The fix needs to either install uv into spike (conda or pip), invoke it via `python -m uv`, or replace the uv calls with `python -m pip uninstall/install` which IS guaranteed to be on PATH inside any conda env."
+    - h2: "PATH not refreshed in this shell — `uv` was just installed in another shell and PowerShell hasn't picked up the new PATH. Less likely given the user is on a clean `conda activate spike` session, but cheap to rule out by running `where.exe uv` or `python -m pip show uv`."
+    - h3: "build.ps1 design assumption mismatch — the script may have been written assuming the project's top-level uv venv on Linux dev rather than a conda env on Windows. The pre-bundle clean was added in Plan 65-04 specifically to remove a stale `musicstreamer-1.1.0.dist-info`; the same intent can be expressed with `python -m pip uninstall musicstreamer -y` followed by `python -m pip install -e ../..` (or `--no-deps`), which works in any conda env without extra tooling."
