@@ -15,6 +15,17 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+# Phase 65 WR-01: BUILD_FAIL paths use `Write-Host ... -ForegroundColor Red`
+# (NOT `Write-Error`) followed by `exit N`. With $ErrorActionPreference =
+# "Stop", `Write-Error` is escalated to a TERMINATING error -- the script
+# unwinds through the surrounding try/finally as an unhandled exception and
+# PowerShell emits its default exit code 1, never reaching the documented
+# `exit N` line that follows. CI / wrapper scripts that branch on
+# $LASTEXITCODE (e.g. exit 8 -> uv install fail, exit 9 -> dist-info drift)
+# would all see 1 instead of the codes documented at the top of this
+# script. Using Write-Host emits the diagnostic to the host stream without
+# terminating, so the explicit `exit N` actually fires.
+#
 # Windows PowerShell 5.1 treats native-command stderr writes as terminating errors
 # when $ErrorActionPreference = "Stop". PyInstaller, pip, and MusicStreamer.exe all log
 # INFO/DEBUG to stderr. Invoke-Native wraps a native call with Continue semantics
@@ -48,22 +59,22 @@ Write-Host "SkipPipInstall = $SkipPipInstall"
 # --- 0. Pre-flight checks -------------------------------------------------
 Write-Host "=== MUSICSTREAMER BUILD: pre-flight ==="
 if (-not (Test-Path "$GstRoot\bin\gstreamer-1.0-0.dll")) {
-    Write-Error "BUILD_FAIL reason=gst_runtime_missing path='$GstRoot'"
+    Write-Host "BUILD_FAIL reason=gst_runtime_missing path='$GstRoot'" -ForegroundColor Red
     exit 1
 }
 if (-not (Test-Path "$GstRoot\bin\gst-inspect-1.0.exe")) {
-    Write-Error "BUILD_FAIL reason=gst_inspect_missing hint='reinstall with Complete feature set'"
+    Write-Host "BUILD_FAIL reason=gst_inspect_missing hint='reinstall with Complete feature set'" -ForegroundColor Red
     exit 1
 }
 # 1.28.x ships OpenSSL-backed TLS on Windows (gioopenssl.dll); 1.24/1.26 shipped GnuTLS (libgiognutls.dll).
 $tlsDll = "$GstRoot\lib\gio\modules\gioopenssl.dll"
 $legacyTlsDll = "$GstRoot\lib\gio\modules\libgiognutls.dll"
 if (-not ((Test-Path $tlsDll) -or (Test-Path $legacyTlsDll))) {
-    Write-Error "BUILD_FAIL reason=gio_tls_module_missing hint='reinstall with Complete feature set; expected gioopenssl.dll (1.28+) or libgiognutls.dll (1.26-)'"
+    Write-Host "BUILD_FAIL reason=gio_tls_module_missing hint='reinstall with Complete feature set; expected gioopenssl.dll (1.28+) or libgiognutls.dll (1.26-)'" -ForegroundColor Red
     exit 1
 }
 if (-not (Test-Path "$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe")) {
-    Write-Error "BUILD_FAIL reason=gst_plugin_scanner_missing path='$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe'"
+    Write-Host "BUILD_FAIL reason=gst_plugin_scanner_missing path='$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe'" -ForegroundColor Red
     exit 1
 }
 
@@ -104,7 +115,7 @@ try {
     Write-Host "=== PKG-03 GUARD: subprocess.* usage scan (python tools/check_subprocess_guard.py) ==="
     Invoke-Native { python ..\..\tools\check_subprocess_guard.py 2>&1 | Out-Host }
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "BUILD_FAIL reason=pkg03_guard hint='bare subprocess.* call detected; route through musicstreamer/subprocess_utils.py'"
+        Write-Host "BUILD_FAIL reason=pkg03_guard hint='bare subprocess.* call detected; route through musicstreamer/subprocess_utils.py'" -ForegroundColor Red
         exit 4
     }
     Write-Host "PKG-03 OK"
@@ -113,7 +124,7 @@ try {
     Write-Host "=== SPEC ENTRY GUARD: python tools/check_spec_entry.py ==="
     Invoke-Native { python ..\..\tools\check_spec_entry.py 2>&1 | Out-Host }
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "BUILD_FAIL reason=spec_entry_guard hint='packaging/windows/MusicStreamer.spec is missing the canonical entry-point reference'"
+        Write-Host "BUILD_FAIL reason=spec_entry_guard hint='packaging/windows/MusicStreamer.spec is missing the canonical entry-point reference'" -ForegroundColor Red
         exit 7
     }
 
@@ -145,7 +156,7 @@ try {
     # below succeeding.
     Invoke-Native { uv pip install -e ..\.. 2>&1 | Out-Host }
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "BUILD_FAIL reason=pre_bundle_clean_failed hint='uv pip install -e ..\..\\ failed; check uv install + pyproject.toml validity'"
+        Write-Host "BUILD_FAIL reason=pre_bundle_clean_failed hint='uv pip install -e ..\..\\ failed; check uv install + pyproject.toml validity'" -ForegroundColor Red
         exit 8
     }
     Write-Host "PRE-BUNDLE CLEAN OK -- fresh musicstreamer dist-info materialized in build env"
@@ -154,7 +165,7 @@ try {
     Write-Host "=== MUSICSTREAMER BUILD: pyinstaller ==="
     Invoke-Native { python -m PyInstaller MusicStreamer.spec --noconfirm --log-level INFO --distpath ..\..\dist --workpath build *>&1 | Tee-Object -FilePath "artifacts\build.log" }
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "BUILD_FAIL reason=pyinstaller_nonzero exitcode=$LASTEXITCODE"
+        Write-Host "BUILD_FAIL reason=pyinstaller_nonzero exitcode=$LASTEXITCODE" -ForegroundColor Red
         exit 2
     }
 
@@ -193,7 +204,7 @@ try {
     if ($pyproject -match '(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"') {
         $appVersion = $matches[1]
     } else {
-        Write-Error "BUILD_FAIL reason=version_not_found_in_pyproject"
+        Write-Host "BUILD_FAIL reason=version_not_found_in_pyproject" -ForegroundColor Red
         exit 5
     }
     Write-Host "AppVersion = $appVersion"
@@ -202,22 +213,22 @@ try {
     # produces dist/MusicStreamer/_internal/<dist-info>/.
     $bundleInternal = "..\..\dist\MusicStreamer\_internal"
     if (-not (Test-Path $bundleInternal)) {
-        Write-Error "BUILD_FAIL reason=bundle_internal_not_found path='$bundleInternal' hint='pyinstaller produced an unexpected layout; check build.log'"
+        Write-Host "BUILD_FAIL reason=bundle_internal_not_found path='$bundleInternal' hint='pyinstaller produced an unexpected layout; check build.log'" -ForegroundColor Red
         exit 9
     }
 
     $msDistInfos = @(Get-ChildItem -Path $bundleInternal -Filter "musicstreamer-*.dist-info" -Directory -ErrorAction SilentlyContinue)
     if ($msDistInfos.Count -ne 1) {
-        Write-Host "POST-BUNDLE ASSERTION FAIL: expected exactly one musicstreamer-*.dist-info, found $($msDistInfos.Count):"
+        Write-Host "POST-BUNDLE ASSERTION FAIL: expected exactly one musicstreamer-*.dist-info, found $($msDistInfos.Count):" -ForegroundColor Red
         $msDistInfos | ForEach-Object { Write-Host "  - $($_.Name)" }
-        Write-Error "BUILD_FAIL reason=post_bundle_distinfo_not_singleton found_count=$($msDistInfos.Count) hint='step 3c pre-bundle clean did not leave a single dist-info -- investigate build env site-packages'"
+        Write-Host "BUILD_FAIL reason=post_bundle_distinfo_not_singleton found_count=$($msDistInfos.Count) hint='step 3c pre-bundle clean did not leave a single dist-info -- investigate build env site-packages'" -ForegroundColor Red
         exit 9
     }
 
     $bundledDistInfo = $msDistInfos[0]
     $bundledMetadata = Join-Path $bundledDistInfo.FullName "METADATA"
     if (-not (Test-Path $bundledMetadata)) {
-        Write-Error "BUILD_FAIL reason=bundled_metadata_missing path='$bundledMetadata' hint='dist-info shipped without METADATA file -- corrupt install?'"
+        Write-Host "BUILD_FAIL reason=bundled_metadata_missing path='$bundledMetadata' hint='dist-info shipped without METADATA file -- corrupt install?'" -ForegroundColor Red
         exit 9
     }
 
@@ -229,16 +240,16 @@ try {
         }
     }
     if (-not $bundledVersion) {
-        Write-Error "BUILD_FAIL reason=bundled_metadata_no_version_line path='$bundledMetadata' hint='METADATA file present but has no Version: line'"
+        Write-Host "BUILD_FAIL reason=bundled_metadata_no_version_line path='$bundledMetadata' hint='METADATA file present but has no Version: line'" -ForegroundColor Red
         exit 9
     }
 
     if ($bundledVersion -ne $appVersion) {
-        Write-Host "POST-BUNDLE ASSERTION FAIL: dist-info version drift detected"
+        Write-Host "POST-BUNDLE ASSERTION FAIL: dist-info version drift detected" -ForegroundColor Red
         Write-Host "  pyproject.toml [project].version : $appVersion"
         Write-Host "  bundled METADATA Version:        : $bundledVersion"
         Write-Host "  bundled dist-info dir name        : $($bundledDistInfo.Name)"
-        Write-Error "BUILD_FAIL reason=post_bundle_version_mismatch bundled='$bundledVersion' expected='$appVersion' hint='step 3c pre-bundle clean did not refresh dist-info -- investigate uv pip uninstall behavior'"
+        Write-Host "BUILD_FAIL reason=post_bundle_version_mismatch bundled='$bundledVersion' expected='$appVersion' hint='step 3c pre-bundle clean did not refresh dist-info -- investigate uv pip uninstall behavior'" -ForegroundColor Red
         exit 9
     }
 
@@ -267,7 +278,7 @@ try {
         "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
     }
     if (-not (Test-Path $isccPath)) {
-        Write-Error "BUILD_FAIL reason=iscc_not_found path='$isccPath' hint='install Inno Setup 6 from jrsoftware.org or set INNO_SETUP_PATH env var'"
+        Write-Host "BUILD_FAIL reason=iscc_not_found path='$isccPath' hint='install Inno Setup 6 from jrsoftware.org or set INNO_SETUP_PATH env var'" -ForegroundColor Red
         exit 6
     }
 
@@ -275,7 +286,7 @@ try {
         & $isccPath "/DAppVersion=$appVersion" "MusicStreamer.iss" 2>&1 | Tee-Object -FilePath "artifacts\iscc.log"
     }
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "BUILD_FAIL reason=iscc_nonzero exitcode=$LASTEXITCODE"
+        Write-Host "BUILD_FAIL reason=iscc_nonzero exitcode=$LASTEXITCODE" -ForegroundColor Red
         exit 6
     }
 
