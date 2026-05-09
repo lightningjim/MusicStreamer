@@ -148,15 +148,21 @@ try {
     # DO NOT REMOVE without first updating both:
     #   - tests/test_packaging_spec.py (drift-guard test)
     #   - .planning/phases/65-.../65-04-PLAN.md (this plan's rationale)
-    Write-Host "=== PRE-BUNDLE CLEAN: uv pip uninstall + reinstall musicstreamer ==="
-    Invoke-Native { uv pip uninstall musicstreamer -y 2>&1 | Out-Host }
-    # Note: uninstall exit code is intentionally NOT checked -- uv pip
+    # NOTE (Plan 65-05): commands use `python -m pip` rather than `uv pip`
+    # because the validated Win11 build env is conda-forge spike (per
+    # .claude/skills/spike-findings-musicstreamer/), which does NOT
+    # provision the uv CLI. `python -m pip` works in any conda env AND
+    # any uv-managed venv on Linux dev. Drift-guard test in
+    # tests/test_packaging_spec.py asserts the `python -m pip` literal.
+    Write-Host "=== PRE-BUNDLE CLEAN: python -m pip uninstall + reinstall musicstreamer ==="
+    Invoke-Native { python -m pip uninstall musicstreamer -y 2>&1 | Out-Host }
+    # Note: uninstall exit code is intentionally NOT checked -- python -m pip
     # uninstall returns non-zero if the package isn't installed, which
     # is fine on a fresh build env. We only care about the install
     # below succeeding.
-    Invoke-Native { uv pip install -e ..\.. 2>&1 | Out-Host }
+    Invoke-Native { python -m pip install -e ..\.. 2>&1 | Out-Host }
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "BUILD_FAIL reason=pre_bundle_clean_failed hint='uv pip install -e ..\..\\ failed; check uv install + pyproject.toml validity'" -ForegroundColor Red
+        Write-Host "BUILD_FAIL reason=pre_bundle_clean_failed hint='python -m pip install -e ..\..\\ failed; check pip install + pyproject.toml validity'" -ForegroundColor Red
         exit 8
     }
     Write-Host "PRE-BUNDLE CLEAN OK -- fresh musicstreamer dist-info materialized in build env"
