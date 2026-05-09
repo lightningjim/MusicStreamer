@@ -201,10 +201,16 @@ try {
     # 6 location so step 4a can compare bundled METADATA Version: to it
     # without duplicating the regex.
     $pyproject = Get-Content "..\..\pyproject.toml" -Raw
-    if ($pyproject -match '(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"') {
+    # Phase 65 WR-02: anchor the version match to the contiguous [project]
+    # block (no `[` between the table header and the matched line) so a
+    # future edit that introduces a sibling table with its own `version`
+    # key (e.g. `[tool.foo] version = "x"`) cannot win the lazy `.*?`
+    # match. `[^\[]*?` is non-greedy AND forbids opening another table,
+    # confining the match to the [project] section.
+    if ($pyproject -match '(?ms)^\[project\][^\[]*?^version\s*=\s*"([^"]+)"') {
         $appVersion = $matches[1]
     } else {
-        Write-Host "BUILD_FAIL reason=version_not_found_in_pyproject" -ForegroundColor Red
+        Write-Host "BUILD_FAIL reason=version_not_found_in_pyproject hint='expected ^version = `"...`" inside the [project] table before any subsequent table header'" -ForegroundColor Red
         exit 5
     }
     Write-Host "AppVersion = $appVersion"
