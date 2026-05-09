@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
+status: executing
 stopped_at: Phase 65 context gathered
-last_updated: "2026-05-08T23:47:12.723Z"
-last_activity: 2026-05-08 -- Phase 65 execution started
+last_updated: "2026-05-09T13:51:38.644Z"
+last_activity: 2026-05-09 -- Phase 65 execution started
 progress:
   total_phases: 28
-  completed_phases: 20
-  total_plans: 81
-  completed_plans: 80
-  percent: 71
+  completed_phases: 19
+  total_plans: 82
+  completed_plans: 81
+  percent: 99
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 66
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-09
+Phase: 65 (show-current-version-in-app-unsure-yet-if-either-in-the-hamb) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 65
+Last activity: 2026-05-09 -- Phase 65 execution started
 
 ## Performance Metrics
 
