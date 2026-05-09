@@ -1,13 +1,14 @@
 ---
-status: complete
+status: resolved
 phase: 65-show-current-version-in-app
 source:
   - 65-01-SUMMARY.md
   - 65-02-SUMMARY.md
   - 65-03-SUMMARY.md
   - 65-04-SUMMARY.md
+  - 65-05-SUMMARY.md
 started: 2026-05-08T20:00:00Z
-updated: 2026-05-09T00:05:00Z
+updated: 2026-05-09T02:00:00Z
 ---
 
 ## Current Test
@@ -53,7 +54,8 @@ skipped: 0
 ## Gaps
 
 - truth: "Bundled Windows exe shows v2.1.65 (matching pyproject.toml [project].version) in the hamburger menu footer"
-  status: failed
+  status: resolved
+  resolved_by: "Plans 65-04 (PRE-BUNDLE CLEAN + POST-BUNDLE ASSERTION) and 65-05 (uv pip -> python -m pip swap for spike conda env). Confirmed end-to-end on Win11 VM 2026-05-09: hamburger shows v2.1.65."
   reason: "User reported: No, I see v1.1.0"
   severity: major
   test: 2
@@ -66,7 +68,8 @@ skipped: 0
     - h3: "build.ps1 staged version drift — build.ps1 reads pyproject.toml at build time. If the user built before today's 2.1.65 bump, the installer's /DAppVersion (Inno Setup) and the package metadata could disagree from the running pyproject."
 
 - truth: "build.ps1 PRE-BUNDLE CLEAN step (Plan 65-04 step 3c) runs successfully and emits PRE-BUNDLE CLEAN OK on Win11 VM"
-  status: failed
+  status: resolved
+  resolved_by: "Plan 65-05: swapped uv pip uninstall|install -e for python -m pip uninstall|install -e (conda env always provides python+pip). Confirmed on Win11 VM 2026-05-09: build progressed past pre-bundle clean to BUILD_OK step=pyinstaller and POST-BUNDLE ASSERTION OK."
   reason: "User reported: build.ps1 crashed at PRE-BUNDLE CLEAN step on Win11 VM (conda env spike). Verbatim: \"uv : The term 'uv' is not recognized as the name of a cmdlet, function, script file, or operable program.\" Build aborted before reaching POST-BUNDLE ASSERTION; no dist/ produced; bundle version cannot be verified."
   severity: blocker
   test: 2
