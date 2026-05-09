@@ -187,9 +187,18 @@ def _run_gui(argv: list[str]) -> int:
     app.setApplicationDisplayName("MusicStreamer")       # D-06: NEW (Phase 61)
     app.setApplicationVersion(_pkg_version("musicstreamer"))  # Phase 65 D-07
     app.setDesktopFileName(constants.APP_ID)             # D-02: read from constants (no .desktop suffix per Qt convention)
-    if sys.platform == "win32":
-        app.setStyle("Fusion")          # D-14: BEFORE widget construction
-        _apply_windows_palette(app)     # D-15: dark-mode palette if applicable
+
+    # Phase 66 / THEME-01: theme palette FIRST, before MainWindow construction.
+    # The existing accent_color restore in main_window.py:241-245 layers on top.
+    # Pitfall 5 (RESEARCH): db_connect must be hoisted from below to here so the
+    # same repo instance is reused for theme + MainWindow (single connection).
+    # The win32 setStyle("Fusion") + _apply_windows_palette branch is now
+    # invoked from inside theme.apply_theme_palette when theme=='system' on Windows.
+    con = db_connect()
+    db_init(con)
+    repo = Repo(con)
+    from musicstreamer import theme
+    theme.apply_theme_palette(app, repo)
 
     # D-10: single-instance BEFORE MainWindow construction (after QApplication).
     # ORDER REQUIRED — QLocalServer needs the event loop; MainWindow must not be
@@ -207,10 +216,8 @@ def _run_gui(argv: list[str]) -> int:
     if not node_runtime.available:
         runtime_check.show_missing_node_dialog(parent=None)
 
-    con = db_connect()
-    db_init(con)
+    # con / db_init / repo already constructed above (Phase 66 hoist for theme).
     player = Player()
-    repo = Repo(con)
 
     window = MainWindow(player, repo, node_runtime=node_runtime)
     server.activate_requested.connect(  # parameter-only lambda — captures `window`, not self
