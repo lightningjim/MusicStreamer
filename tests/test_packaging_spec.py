@@ -16,7 +16,11 @@ test_pkg03_compliance.py, which is a multi-file glob over musicstreamer/*.py).
 
 Phase 65 Plan 04 extends this with two `build_ps1_source` tests covering
 UAT gap VER-02-J (stale dist-info bundling defense): pre-bundle clean
-step 3c + post-bundle dist-info assertion step 4a in build.ps1.
+step 3c + post-bundle dist-info assertion step 4a in build.ps1. Phase 65
+Plan 05 amends the step 3c drift-guard to lock the `python -m pip`
+command literals (replacing the original `uv pip` literals) after the
+2026-05-09 retest revealed `uv` is not on PATH in the Win11 spike conda
+env; the step 4a drift-guard is unchanged.
 """
 from __future__ import annotations
 
@@ -151,6 +155,19 @@ def test_build_ps1_pre_bundle_clean_present(build_ps1_source: str) -> None:
     maintainer rewrites the clean step's commands (e.g. switches from
     `uv pip uninstall + install` to `uv sync --reinstall-package
     musicstreamer`), update the substring assertions below.
+
+    Phase 65 Plan 05 amendment: the original Plan 65-04 commands were
+    `uv pip uninstall musicstreamer -y` + `uv pip install -e ..\\..`,
+    but Win11 VM UAT (2026-05-09) surfaced that `uv` is not on PATH in
+    the validated conda-forge spike env (per
+    .claude/skills/spike-findings-musicstreamer/). Plan 65-05 swapped
+    both calls to `python -m pip ...` (which IS on PATH in any conda
+    env AND any uv-managed venv on Linux dev). The substring
+    assertions below now lock the `python -m pip` literal as the
+    primary; the legacy `uv pip install -e` / `uv sync
+    --reinstall-package musicstreamer` shapes stay accepted in the
+    reinstall set purely for forward-compat (in case a future
+    maintainer reintroduces a uv-managed env on Windows).
     """
     # Rationale tag — must cite the gap so the link to this regression
     # is grep-discoverable from the build script.
@@ -162,24 +179,41 @@ def test_build_ps1_pre_bundle_clean_present(build_ps1_source: str) -> None:
     )
 
     # Uninstall command — first half of the defense.
-    assert "uv pip uninstall musicstreamer" in build_ps1_source, (
-        "build.ps1 step 3c must call `uv pip uninstall musicstreamer` "
+    # Plan 65-05: swapped from `uv pip` to `python -m pip` because
+    # `uv` is not provisioned in the Win11 spike conda env. The
+    # `python -m pip` literal is now the authoritative substring;
+    # `uv pip uninstall musicstreamer` must NOT be present on
+    # executable lines (the negative check at the bottom of this
+    # function enforces that).
+    assert "python -m pip uninstall musicstreamer" in build_ps1_source, (
+        "build.ps1 step 3c must call `python -m pip uninstall musicstreamer` "
         "before running PyInstaller, so any stale dist-info from a "
-        "prior install is removed from the build env."
+        "prior install is removed from the build env. (Plan 65-05 swap: "
+        "was `uv pip uninstall musicstreamer` in Plan 65-04; switched "
+        "to `python -m pip` so the step runs in the conda-forge spike "
+        "env on the Win11 VM where `uv` is not on PATH.)"
     )
 
-    # Reinstall command — second half. Accept either the explicit
-    # editable install (preferred) OR `uv sync --reinstall-package
-    # musicstreamer` form.
+    # Reinstall command — second half. Accept the new Plan 65-05
+    # `python -m pip install -e` form as the primary, with the legacy
+    # `uv pip install -e` and `uv sync --reinstall-package
+    # musicstreamer` shapes still accepted for forward-compat (in
+    # case a future maintainer reintroduces a uv-managed env on
+    # Windows). The CURRENT build.ps1 must contain the `python -m
+    # pip install -e` form; the others are tolerated, not required.
     has_reinstall = (
-        "uv pip install -e" in build_ps1_source
+        "python -m pip install -e" in build_ps1_source
+        or "uv pip install -e" in build_ps1_source
         or "uv sync --reinstall-package musicstreamer" in build_ps1_source
     )
     assert has_reinstall, (
         "build.ps1 step 3c must reinstall musicstreamer after "
-        "uninstalling, via either `uv pip install -e ..\\..` (editable, "
-        "preferred) or `uv sync --reinstall-package musicstreamer`. "
-        "Without the reinstall, copy_metadata has no dist-info to ship."
+        "uninstalling, via one of: `python -m pip install -e ..\\..` "
+        "(Plan 65-05 default; works in any conda env), `uv pip install "
+        "-e ..\\..` (legacy Plan 65-04 form; only works on hosts with "
+        "uv), or `uv sync --reinstall-package musicstreamer` (legacy "
+        "alternative). Without the reinstall, copy_metadata has no "
+        "dist-info to ship."
     )
 
     # Failure branch — the step must HAVE an exit-on-failure check, not
@@ -223,6 +257,38 @@ def test_build_ps1_pre_bundle_clean_present(build_ps1_source: str) -> None:
         "diagnostic Write-Host), not orphaned elsewhere. Otherwise the "
         "exit code documented at line 5 would not actually fire on "
         "reinstall failure."
+    )
+
+    # Plan 65-05 negative drift-guard: `uv pip uninstall musicstreamer`
+    # and `uv pip install -e` MUST NOT appear on EXECUTABLE lines after
+    # the swap. They may still appear in comment lines (the rationale
+    # block legitimately discusses the pre-Plan-65-05 history), so we
+    # split build.ps1 by line, drop comment-only lines (lines whose
+    # first non-whitespace char is `#`), and assert the `uv pip` tokens
+    # are absent from what remains. This catches the partial-revert
+    # failure mode where a maintainer leaves the old `uv pip` calls in
+    # place "as a fallback" — on the Win11 VM, the first `uv pip` call
+    # crashes the script before any `python -m pip` line can execute,
+    # so partial-revert is functionally equivalent to no-fix.
+    executable_lines = "\n".join(
+        line for line in build_ps1_source.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    assert "uv pip uninstall musicstreamer" not in executable_lines, (
+        "build.ps1 step 3c must NOT call `uv pip uninstall "
+        "musicstreamer` on an executable (non-comment) line. Plan "
+        "65-05 swapped this to `python -m pip uninstall musicstreamer` "
+        "because `uv` is not on PATH in the Win11 spike conda env. If "
+        "this assertion fires, a maintainer has either reverted the "
+        "swap or left both forms in place; on Win11 the `uv pip` line "
+        "crashes the script before the `python -m pip` line runs, so "
+        "partial-revert is functionally equivalent to full-revert."
+    )
+    assert "uv pip install -e" not in executable_lines, (
+        "build.ps1 step 3c must NOT call `uv pip install -e` on an "
+        "executable (non-comment) line. Same rationale as above — Plan "
+        "65-05 requires `python -m pip install -e ..\\..` for "
+        "Win11-VM compatibility."
     )
 
 
