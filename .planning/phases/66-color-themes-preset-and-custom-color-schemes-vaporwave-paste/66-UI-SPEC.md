@@ -1,7 +1,8 @@
 ---
 phase: 66
 slug: color-themes-preset-and-custom-color-schemes-vaporwave-paste
-status: draft
+status: approved
+reviewed_at: 2026-05-09
 shadcn_initialized: false
 preset: not applicable
 created: 2026-05-09
