@@ -190,6 +190,41 @@ def test_build_ps1_pre_bundle_clean_present(build_ps1_source: str) -> None:
         "let a wrong dist-info reach pyinstaller."
     )
 
+    # Phase 65 WR-01 follow-up: `exit 8` must be reachable. With
+    # `$ErrorActionPreference = "Stop"`, `Write-Error ... ; exit 8`
+    # short-circuits at Write-Error (escalated to a terminating error)
+    # and the `exit 8` line never executes — the script falls through
+    # the surrounding try/finally and PowerShell emits its default
+    # exit code 1. Drift-guard against accidental Write-Error
+    # reintroduction by requiring the BUILD_FAIL diagnostic for the
+    # pre-bundle clean failure path to ship via Write-Host (which does
+    # not terminate under Stop).
+    assert "BUILD_FAIL reason=pre_bundle_clean_failed" in build_ps1_source, (
+        "build.ps1 step 3c must emit a `BUILD_FAIL "
+        "reason=pre_bundle_clean_failed` diagnostic on the failure "
+        "path so CI / wrapper scripts can grep the cause from build.log."
+    )
+    # Locate the failure-path block and verify `exit 8` immediately
+    # follows a Write-Host (not a Write-Error which would terminate).
+    fail_idx = build_ps1_source.find("BUILD_FAIL reason=pre_bundle_clean_failed")
+    assert fail_idx != -1
+    fail_block = build_ps1_source[fail_idx : fail_idx + 400]
+    assert "Write-Host" in build_ps1_source[max(0, fail_idx - 80) : fail_idx + 60], (
+        "build.ps1 step 3c BUILD_FAIL diagnostic must be emitted via "
+        "`Write-Host ... -ForegroundColor Red` (NOT `Write-Error`). "
+        "Write-Error escalates to a terminating error under "
+        "$ErrorActionPreference = \"Stop\" and the documented `exit 8` "
+        "below it never executes — the script returns 1 instead. See "
+        "Phase 65 WR-01 for the full rationale."
+    )
+    assert "exit 8" in fail_block, (
+        "build.ps1 step 3c `exit 8` must appear within the BUILD_FAIL "
+        "pre_bundle_clean_failed block (i.e. immediately after the "
+        "diagnostic Write-Host), not orphaned elsewhere. Otherwise the "
+        "exit code documented at line 5 would not actually fire on "
+        "reinstall failure."
+    )
+
 
 def test_build_ps1_post_bundle_dist_info_assertion_present(build_ps1_source: str) -> None:
     """Phase 65 Plan 04 / VER-02-J defense: build.ps1 must contain a
@@ -255,3 +290,46 @@ def test_build_ps1_post_bundle_dist_info_assertion_present(build_ps1_source: str
         "(no _internal dir, count != 1, version mismatch) all share "
         "this exit code."
     )
+
+    # Phase 65 WR-01 follow-up: each of the three step-4a failure paths
+    # must be reachable. Drift-guard against accidental Write-Error
+    # reintroduction by requiring each BUILD_FAIL reason string is
+    # paired with `Write-Host` (not `Write-Error`) within ~120 chars
+    # AND followed by `exit 9` within ~400 chars. With
+    # `$ErrorActionPreference = "Stop"`, Write-Error escalates to a
+    # terminating error and the `exit 9` line never executes — the
+    # script returns 1 instead, breaking CI branching on $LASTEXITCODE.
+    fail_reasons = (
+        "BUILD_FAIL reason=bundle_internal_not_found",
+        "BUILD_FAIL reason=post_bundle_distinfo_not_singleton",
+        "BUILD_FAIL reason=bundled_metadata_missing",
+        "BUILD_FAIL reason=bundled_metadata_no_version_line",
+        "BUILD_FAIL reason=post_bundle_version_mismatch",
+    )
+    for reason in fail_reasons:
+        assert reason in build_ps1_source, (
+            f"build.ps1 step 4a must emit `{reason}` diagnostic so "
+            "CI / wrapper scripts can grep the cause from build.log."
+        )
+        idx = build_ps1_source.find(reason)
+        assert idx != -1
+        # Look 120 chars BEFORE the BUILD_FAIL token for the diagnostic
+        # emitter (Write-Host vs Write-Error). Write-Error here would
+        # silently regress WR-01.
+        before = build_ps1_source[max(0, idx - 120) : idx + 50]
+        assert "Write-Host" in before, (
+            f"build.ps1 step 4a `{reason}` must be emitted via "
+            "`Write-Host ... -ForegroundColor Red` (NOT `Write-Error`). "
+            "Write-Error escalates to a terminating error under "
+            "$ErrorActionPreference = \"Stop\" and the documented "
+            "`exit 9` below it never executes — the script returns 1 "
+            "instead. See Phase 65 WR-01 for the full rationale."
+        )
+        # The matching `exit 9` should appear within the next ~400 chars
+        # (allowing for multi-line diagnostic dumps before the exit).
+        after = build_ps1_source[idx : idx + 400]
+        assert "exit 9" in after, (
+            f"build.ps1 step 4a `{reason}` must be followed by `exit 9` "
+            "within the same failure block. Otherwise the documented "
+            "exit code at line 5 would not actually fire."
+        )
