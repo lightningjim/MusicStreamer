@@ -1010,27 +1010,27 @@ palette = build_palette_from_dict(role_hex)
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the picker dialog disable the "Accent Color" hamburger entry while open?**
    - What we know: modality already prevents the user from clicking another menu entry.
    - What's unclear: whether to grey out the accent menu visually as a UX hint.
-   - Recommendation: NO — modality is sufficient. Don't add visual coupling.
+   - RESOLVED: NO — modality is sufficient. Don't add visual coupling.
 
 2. **Should ToolTipBase / ToolTipText / BrightText / Mid be set per theme?**
    - What we know: locked decisions specify only the 9 primary roles + Highlight baseline.
    - What's unclear: whether tooltip backgrounds look correct on Vaporwave/Overrun without explicit setting.
-   - Recommendation: leave at Qt defaults for v1. If UAT surfaces unreadable tooltips on dark themes, add ToolTip roles in v1.1.
+   - RESOLVED: leave at Qt defaults for v1. If UAT surfaces unreadable tooltips on dark themes, add ToolTip roles in v1.1.
 
 3. **Should the editor warn before destructive Reset?**
    - What we know: Reset reverts unsaved edits to the source preset.
    - What's unclear: whether a confirm dialog is warranted (Phase 59 has no Reset confirm).
-   - Recommendation: NO — match Phase 59 idiom. Reset is reversible by re-opening the editor and re-editing; not destructive in the data sense.
+   - RESOLVED: NO — match Phase 59 idiom. Reset is reversible by re-opening the editor and re-editing; not destructive in the data sense.
 
 4. **What happens if the user has `theme='custom'` and `theme_custom` is unset (JSON empty)?**
    - What we know: `apply_theme_palette` returns default palette in this case.
    - What's unclear: whether picker should show Custom tile as enabled or disabled when this state somehow occurs.
-   - Recommendation: planner adds defensive code — if `theme=='custom'` and `theme_custom` is empty, treat Custom tile as disabled AND fall back to `theme='system'` on next save. Or: never let `theme='custom'` be set without `theme_custom` being non-empty (editor's Save sets both atomically).
+   - RESOLVED: planner adds defensive code — if `theme=='custom'` and `theme_custom` is empty, treat Custom tile as disabled AND fall back to `theme='system'` on next save. Or: never let `theme='custom'` be set without `theme_custom` being non-empty (editor's Save sets both atomically).
 
 ---
 
