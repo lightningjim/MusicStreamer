@@ -39,7 +39,7 @@ Small new capabilities harvested from backlog + dormant seeds.
 - [ ] **STR-15**: User can paste a PLS URL into a station's Streams section and have it auto-resolve into N individual stream entries (one per playlist row) *(backlog: 999.12 — deferred Phase 49 work)*
 - [x] **ACCENT-02**: User can pick a custom accent color via a visual color picker (HSV/wheel surface), in addition to the existing 8 presets and hex entry *(harvest: SEED-006)*
 - [x] **GBS-01**: User can browse, save, and play GBS.FM streams from inside MusicStreamer (no browser bounce) *(harvest: SEED-008 — exact sub-capabilities to be refined at /gsd-discuss-phase time; may decompose into GBS-01..0N during planning)*
-- [ ] **THEME-01**: User can switch between preset color themes (System default, Vaporwave, Overrun, GBS.FM, GBS.FM After Dark, Dark, Light) and one user-editable Custom palette via a Theme picker in the hamburger menu. The chosen theme drives the application QPalette's 9 primary roles (Window, WindowText, Base, AlternateBase, Text, Button, ButtonText, HighlightedText, Link). The accent_color override (Phase 59 / ACCENT-02) continues to layer on top of the theme's Highlight baseline; selecting a theme does NOT mutate `accent_color`. The Custom slot is duplicate-and-edit only with snapshot-restore-on-Cancel.
+- [x] **THEME-01**: User can switch between preset color themes (System default, Vaporwave, Overrun, GBS.FM, GBS.FM After Dark, Dark, Light) and one user-editable Custom palette via a Theme picker in the hamburger menu. The chosen theme drives the application QPalette's 9 primary roles (Window, WindowText, Base, AlternateBase, Text, Button, ButtonText, HighlightedText, Link). The accent_color override (Phase 59 / ACCENT-02) continues to layer on top of the theme's Highlight baseline; selecting a theme does NOT mutate `accent_color`. The Custom slot is duplicate-and-edit only with snapshot-restore-on-Cancel.
 
 ### Versioning Convention (VER)
 
@@ -100,7 +100,7 @@ Which phases cover which requirements.
 | BUG-09 | Phase 62 | Complete |
 | VER-01 | Phase 63 | Complete |
 | VER-02 | Phase 65 | Complete |
-| THEME-01 | Phase 66 | Pending |
+| THEME-01 | Phase 66 | Complete |
 
 **Coverage:**
 - v2.1 requirements: 19 total
