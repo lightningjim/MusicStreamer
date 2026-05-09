@@ -5,13 +5,14 @@ source:
   - 65-01-SUMMARY.md
   - 65-02-SUMMARY.md
   - 65-03-SUMMARY.md
+  - 65-04-SUMMARY.md
 started: 2026-05-08T20:00:00Z
-updated: 2026-05-08T20:00:00Z
+updated: 2026-05-08T23:55:00Z
 ---
 
 ## Current Test
 
-[testing complete — issues found, diagnosis in progress]
+[VER-02-J defense shipped via Plan 65-04 — awaiting Win11 VM rebuild + retest]
 
 ## Tests
 
@@ -24,14 +25,20 @@ expected: |
 result: pass
 validation_id: VER-02-I
 
-### 2. Windows bundled exe shows version (Win11 VM)
+### 2. Windows bundled exe shows version (Win11 VM) — RETEST after Plan 65-04
 expected: |
-  Build the Windows installer via `packaging/windows/build.ps1` from the
-  Win11 VM. Run the installer. Launch MusicStreamer.exe from Start Menu.
-  Click the hamburger menu (≡). The last entry shows `v2.1.65` (same as
-  dev), greyed out, non-clickable. No PackageNotFoundError on launch.
-result: issue
-reported: "No, I see v1.1.0"
+  Re-run `packaging/windows/build.ps1` on the Win11 VM. Build log MUST contain
+  both `PRE-BUNDLE CLEAN OK` and `POST-BUNDLE ASSERTION OK -- dist-info
+  singleton: musicstreamer-2.1.65.dist-info (version 2.1.65 matches pyproject)`.
+  Then run the installer, launch MusicStreamer.exe, click hamburger (≡).
+  Last entry shows `v2.1.65` (NOT v1.1.0), greyed out, non-clickable.
+result: pending
+reported: |
+  Original failure (2026-05-08): "No, I see v1.1.0"
+  Defense shipped in Plan 65-04 + review fixes (commits 8bcb56f..a5a69ca):
+    - build.ps1 step 3c: pre-bundle uv pip uninstall+reinstall musicstreamer
+    - build.ps1 step 4a: post-bundle dist-info singleton + Version: assertion (exit 9 on mismatch)
+    - tests/test_packaging_spec.py: drift-guards lock both new build steps
 severity: major
 validation_id: VER-02-J
 
@@ -39,8 +46,8 @@ validation_id: VER-02-J
 
 total: 2
 passed: 1
-issues: 1
-pending: 0
+issues: 0
+pending: 1
 skipped: 0
 
 ## Gaps
