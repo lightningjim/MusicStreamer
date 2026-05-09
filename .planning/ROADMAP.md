@@ -531,12 +531,12 @@ Plans:
 **Goal:** Add a "Theme" entry to the hamburger menu (immediately above "Accent Color") that opens a modal picker with 8 tiles: System default, Vaporwave (light pastel), Overrun (dark neon), GBS.FM (light, brand-sampled), GBS.FM After Dark (dark, brand-derived), Dark, Light, and a single user-editable Custom slot. Picking a theme retints the entire app palette (9 primary QPalette roles); the existing `accent_color` setting (Phase 59) continues to override Highlight on top whenever non-empty. Custom palette is duplicate-and-edit only via a "Customize…" button on the picker, persisted as JSON in a new `theme_custom` SQLite key. No new dependencies; pure PySide6 QPalette + QColorDialog. The hardcoded QSS tokens (`ERROR_COLOR_HEX`, `WARNING_COLOR_HEX`, `STATION_ICON_SIZE`) survive across all themes — they are theme-independent UI tokens.
 **Requirements**: THEME-01
 **Depends on:** Phase 65
-**Plans:** 1/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 66-01-PLAN.md — `theme.py` core + startup wire (apply_theme_palette before MainWindow) + THEME-01 in REQUIREMENTS.md
-- [ ] 66-02-PLAN.md — `theme_picker_dialog.py` (4×2 tile grid, Customize…/Apply/Cancel, _save_committed flag for editor stacking)
-- [ ] 66-03-PLAN.md — `theme_editor_dialog.py` (9-row Custom palette editor, per-row QColorDialog, Save/Reset/Cancel)
+- [x] 66-02-PLAN.md — `theme_picker_dialog.py` (4×2 tile grid, Customize…/Apply/Cancel, _save_committed flag for editor stacking)
+- [x] 66-03-PLAN.md — `theme_editor_dialog.py` (9-row Custom palette editor, per-row QColorDialog, Save/Reset/Cancel)
 - [ ] 66-04-PLAN.md — Hamburger menu wire (above Accent Color) + ROADMAP update + manual UAT (mood validation, layered Highlight, Custom persistence, export/import round-trip)
 
 ### Phase 67: Show similar stations below now playing for switching - From same Provider and Same Tag, random 5 from each with refresh, hideable and not shown by default
