@@ -223,11 +223,26 @@ try {
         exit 9
     }
 
-    $msDistInfos = @(Get-ChildItem -Path $bundleInternal -Filter "musicstreamer-*.dist-info" -Directory -ErrorAction SilentlyContinue)
+    # Phase 65 WR-04: the bare `musicstreamer-*.dist-info` wildcard
+    # over-matches sibling distributions like `musicstreamer-extras-*.dist-info`
+    # or `musicstreamer-cli-*.dist-info` (PEP 503 normalizes underscores
+    # to dashes, so `musicstreamer_extras` would normalize to
+    # `musicstreamer-extras` for its dist-info dir name). To future-proof
+    # against a hypothetical sibling tripping a false-positive `exit 9`
+    # ("not_singleton"), enumerate broadly first (so we can dump
+    # discovered siblings into the failure log for diagnostics) but then
+    # restrict to entries matching `musicstreamer-<X.Y.Z>.dist-info`
+    # exactly — the only shape PyInstaller produces for OUR package.
+    $msDistInfosBroad = @(Get-ChildItem -Path $bundleInternal -Filter "musicstreamer-*.dist-info" -Directory -ErrorAction SilentlyContinue)
+    $msDistInfos = @($msDistInfosBroad | Where-Object { $_.Name -match '^musicstreamer-\d+\.\d+\.\d+\.dist-info$' })
     if ($msDistInfos.Count -ne 1) {
-        Write-Host "POST-BUNDLE ASSERTION FAIL: expected exactly one musicstreamer-*.dist-info, found $($msDistInfos.Count):" -ForegroundColor Red
-        $msDistInfos | ForEach-Object { Write-Host "  - $($_.Name)" }
-        Write-Host "BUILD_FAIL reason=post_bundle_distinfo_not_singleton found_count=$($msDistInfos.Count) hint='step 3c pre-bundle clean did not leave a single dist-info -- investigate build env site-packages'" -ForegroundColor Red
+        Write-Host "POST-BUNDLE ASSERTION FAIL: expected exactly one musicstreamer-<X.Y.Z>.dist-info, found $($msDistInfos.Count) matching:" -ForegroundColor Red
+        $msDistInfos | ForEach-Object { Write-Host "  match  - $($_.Name)" }
+        if ($msDistInfosBroad.Count -ne $msDistInfos.Count) {
+            Write-Host "  (broad enumeration also saw $($msDistInfosBroad.Count) musicstreamer-*.dist-info entries; non-matching siblings excluded:)"
+            $msDistInfosBroad | Where-Object { $_.Name -notmatch '^musicstreamer-\d+\.\d+\.\d+\.dist-info$' } | ForEach-Object { Write-Host "  reject - $($_.Name)" }
+        }
+        Write-Host "BUILD_FAIL reason=post_bundle_distinfo_not_singleton found_count=$($msDistInfos.Count) broad_count=$($msDistInfosBroad.Count) hint='step 3c pre-bundle clean did not leave a single musicstreamer-X.Y.Z.dist-info -- investigate build env site-packages'" -ForegroundColor Red
         exit 9
     }
 
