@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import html
 import logging
+import random
 import urllib.parse
 
 from musicstreamer.aa_import import NETWORKS
+from musicstreamer.filter_utils import normalize_tags
+from musicstreamer.models import Station
 
 _log = logging.getLogger(__name__)
 
@@ -261,3 +264,128 @@ def render_sibling_html(
             link_text = f"{network_display} — {safe_name}"  # U+2014 EM DASH
         parts.append(f'<a href="sibling://{station_id}">{link_text}</a>')
     return "Also on: " + " • ".join(parts)  # U+2022 BULLET
+
+
+def pick_similar_stations(
+    stations: list[Station],
+    current_station: Station,
+    *,
+    sample_size: int = 5,
+    rng: random.Random | None = None,
+) -> tuple[list[Station], list[Station]]:
+    """Phase 67 / T-01..T-04, R-05, R-06: derive and sample two pools.
+
+    Returns (same_provider_sample, same_tag_sample). Both lists are up to
+    sample_size long; pools < sample_size return all candidates (no
+    padding, no placeholder).
+
+    Pool exclusions (both pools):
+      - (a) self id (T-04a — mirrors find_aa_siblings self-exclusion).
+      - (b) AA-sibling ids returned by find_aa_siblings (T-04b — avoids
+            triple-listing across Phase 64's "Also on:" line and the
+            Phase 67 sub-sections).
+      - (c) Same-tag pool only: candidates whose normalize_tags(tags)
+            returns an empty list (T-04c).
+      - (d) Same-provider pool only: candidates whose provider_id is None
+            when current's provider_id is set (T-04d).
+
+    Cross-pool dedup is intentionally NOT performed (T-03) — a station
+    qualifying under both pools appears in BOTH lists.
+
+    Sampling primitive: random.sample (distinct picks within each pool).
+    Empty current.streams: skip AA exclusion silently (RESEARCH Pitfall
+    11 — friendlier than hiding the section just because the bound
+    station happens to have no streams).
+
+    rng: pass random.Random(seed) for deterministic tests. Defaults to
+    the module-level random instance for production.
+
+    Pure function — no Qt, no DB access, no logging. Mirrors
+    find_aa_siblings placement convention.
+    """
+    rng = rng or random
+    excluded_ids: set[int] = {current_station.id}
+
+    # T-04b: exclude AA siblings already shown by Phase 64's "Also on:" line.
+    # Skip silently when current has no streams (Pitfall 11 — defensive
+    # against test doubles; production Repo always populates streams).
+    if current_station.streams:
+        aa = find_aa_siblings(
+            stations,
+            current_station_id=current_station.id,
+            current_first_url=current_station.streams[0].url,
+        )
+        # find_aa_siblings returns list[tuple[network_slug, station_id, station_name]]
+        excluded_ids.update(sid for _, sid, _ in aa)
+
+    # Same-provider pool (T-04a/b/d).
+    same_provider_pool: list[Station] = []
+    if current_station.provider_id is not None:
+        for s in stations:
+            if s.id in excluded_ids:
+                continue
+            if s.provider_id is None:  # T-04d
+                continue
+            if s.provider_id == current_station.provider_id:
+                same_provider_pool.append(s)
+
+    # Same-tag pool (T-01 union semantics, T-04a/b/c).
+    current_tags = set(t.casefold() for t in normalize_tags(current_station.tags))
+    same_tag_pool: list[Station] = []
+    if current_tags:
+        for s in stations:
+            if s.id in excluded_ids:
+                continue
+            cand_tags = set(t.casefold() for t in normalize_tags(s.tags))
+            if not cand_tags:  # T-04c
+                continue
+            if current_tags & cand_tags:  # T-01 union
+                same_tag_pool.append(s)
+
+    # R-05/R-06: distinct picks; clamp k to avoid Pitfall 1 ValueError.
+    same_provider_sample = rng.sample(
+        same_provider_pool, k=min(sample_size, len(same_provider_pool))
+    )
+    same_tag_sample = rng.sample(
+        same_tag_pool, k=min(sample_size, len(same_tag_pool))
+    )
+    return same_provider_sample, same_tag_sample
+
+
+def render_similar_html(
+    stations: list[Station],
+    *,
+    show_provider: bool,
+    href_prefix: str = "similar://",
+) -> str:
+    """Phase 67 / D-03 / D-04: render a vertical link list with one <a> per row.
+
+    show_provider=False (Same provider section)  -> rows render '{Name}'.
+    show_provider=True  (Same tag section)       -> rows render '{Name} ({Provider})'.
+
+    Rows joined with literal '<br>' (vertical, per D-03 — distinct from
+    Phase 64 render_sibling_html which uses ' • ' bullet inline).
+
+    Security (T-39-01 deviation mitigation, Pitfall 7):
+      - Station.name AND Station.provider_name are user-controlled and
+        pass through html.escape(..., quote=True). Phase 64's
+        render_sibling_html only ever escapes name (network names come
+        from compile-time NETWORKS); Phase 67 is the FIRST renderer to
+        also escape provider_name.
+      - href payload is integer-only ({prefix}{int_id}) — Station.id is
+        int from SQLite. No string interpolation possible into href.
+
+    Empty stations list returns "" (no leading/trailing <br>).
+
+    Pure function — no Qt, no DB access, no logging.
+    """
+    parts: list[str] = []
+    for s in stations:
+        safe_name = html.escape(s.name, quote=True)
+        if show_provider:
+            safe_prov = html.escape(s.provider_name or "", quote=True)
+            link_text = f"{safe_name} ({safe_prov})"
+        else:
+            link_text = safe_name
+        parts.append(f'<a href="{href_prefix}{s.id}">{link_text}</a>')
+    return "<br>".join(parts)
