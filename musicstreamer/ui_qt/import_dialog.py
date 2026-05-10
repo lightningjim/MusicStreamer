@@ -39,7 +39,6 @@ from PySide6.QtWidgets import (
     QToolButton,
     QVBoxLayout,
     QWidget,
-    QComboBox,
 )
 
 from musicstreamer import yt_import, aa_import
@@ -285,10 +284,6 @@ class ImportDialog(QDialog):
         aa_key_row.addWidget(self._aa_show_btn)
 
         form.addRow("API Key:", aa_key_container)
-
-        self._aa_quality = QComboBox()
-        self._aa_quality.addItems(["hi", "med", "low"])
-        form.addRow("Quality:", self._aa_quality)
         layout.addLayout(form)
 
         # Progress bar (hidden initially)
@@ -521,5 +516,4 @@ class ImportDialog(QDialog):
 
     def _set_aa_busy(self, busy: bool):
         self._aa_key.setEnabled(not busy)
-        self._aa_quality.setEnabled(not busy)
         self._aa_import_btn.setEnabled(not busy)

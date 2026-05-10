@@ -1,8 +1,8 @@
 """AudioAddict network import backend.
 
 Public API:
-  fetch_channels(listen_key, quality) -> list[dict]
-  import_stations(channels, repo, on_progress=None, on_logo_progress=None) -> (imported, skipped)
+  fetch_channels_multi(listen_key) -> list[dict]
+  import_stations_multi(channels, repo, on_progress=None, on_logo_progress=None) -> (imported, skipped)
 """
 
 import json
@@ -126,41 +126,6 @@ _BITRATE_MAP = {"hi": 320, "med": 128, "low": 64}  # D-10: DI.fm tier -> kbps
 # Supersedes the previous inline 'AAC' if tier == 'premium_high' else 'MP3' ternary
 # which produced the inverted mapping hi=AAC, med=MP3, low=MP3.
 _CODEC_MAP = {"hi": "MP3", "med": "AAC", "low": "AAC"}
-
-
-def fetch_channels(listen_key: str, quality: str) -> list[dict]:
-    """Fetch all channels across all 6 AudioAddict networks.
-
-    Returns a list of dicts with keys: "title", "url", "provider".
-    Raises ValueError("invalid_key") on 401/403.
-    Raises ValueError("no_channels") when zero channels returned across all networks.
-    Skips networks that return other HTTP errors (non-auth failures).
-    """
-    tier = QUALITY_TIERS[quality]
-    results = []
-    for net in NETWORKS:
-        url = f"https://{net['domain']}/{tier}?listen_key={listen_key}"
-        try:
-            with urllib.request.urlopen(url, timeout=15) as resp:
-                data = json.loads(resp.read())
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                raise ValueError("invalid_key")
-            continue  # skip this network on other HTTP errors (Pitfall 6)
-        img_map = _fetch_image_map(net["slug"])
-        for ch in data:
-            pls_url = f"https://{net['domain']}/{tier}/{ch['key']}.pls?listen_key={listen_key}"
-            urls = _resolve_pls(pls_url)  # gap-06: list, not str
-            stream_url = urls[0] if urls else pls_url
-            results.append({
-                "title": ch["name"],
-                "url": stream_url,
-                "provider": net["name"],
-                "image_url": img_map.get(ch["key"]),
-            })
-    if not results:
-        raise ValueError("no_channels")
-    return results
 
 
 def fetch_channels_multi(listen_key: str) -> list[dict]:

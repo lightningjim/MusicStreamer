@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from musicstreamer.aa_import import _resolve_pls, fetch_channels, import_stations
+from musicstreamer.aa_import import _resolve_pls, import_stations
 from musicstreamer.aa_import import fetch_channels_multi, import_stations_multi
 
 
@@ -35,77 +35,8 @@ def _make_http_error(code: int):
 
 
 # ---------------------------------------------------------------------------
-# fetch_channels tests
+# _resolve_pls tests
 # ---------------------------------------------------------------------------
-
-def test_fetch_channels_returns_list():
-    """fetch_channels returns list of dicts with title, url, provider for all 6 networks."""
-    channel_data = _mock_channel_json("Ambient", "ambient")
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen",
-               side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
-        result = fetch_channels("testkey123", "hi")
-
-    assert isinstance(result, list)
-    assert len(result) == 6
-    for item in result:
-        assert "title" in item
-        assert "url" in item
-        assert "provider" in item
-        assert "premium_high" in item["url"]
-        assert ".pls?listen_key=" in item["url"]
-
-
-def test_fetch_channels_invalid_key():
-    """fetch_channels raises ValueError('invalid_key') on 401 or 403."""
-    with patch("musicstreamer.aa_import.urllib.request.urlopen",
-               side_effect=_make_http_error(403)):
-        with pytest.raises(ValueError, match="invalid_key"):
-            fetch_channels("badkey", "hi")
-
-
-def test_fetch_channels_no_channels():
-    """fetch_channels raises ValueError('no_channels') when all networks return empty arrays."""
-    empty_data = json.dumps([]).encode()
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen",
-               side_effect=lambda url, timeout=None: _urlopen_factory(empty_data)):
-        with pytest.raises(ValueError, match="no_channels"):
-            fetch_channels("testkey123", "hi")
-
-
-def test_fetch_channels_skips_failed_network():
-    """fetch_channels continues on non-auth HTTP errors; returns channels from successful networks."""
-    channel_data = _mock_channel_json("Ambient", "ambient")
-    call_count = [0]
-
-    def side_effect(url, timeout=None):
-        call_count[0] += 1
-        if call_count[0] == 1:
-            raise _make_http_error(500)
-        return _urlopen_factory(channel_data)
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=side_effect), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
-        result = fetch_channels("testkey123", "hi")
-
-    # First network failed (500), 5 remaining should succeed
-    assert len(result) == 5
-
-
-def test_quality_tier_mapping():
-    """Quality hi->premium_high, med->premium, low->premium_medium in URLs."""
-    channel_data = _mock_channel_json("Jazz", "jazz")
-
-    for quality, expected_tier in [("hi", "premium_high"), ("med", "premium"), ("low", "premium_medium")]:
-        with patch("musicstreamer.aa_import.urllib.request.urlopen",
-                   side_effect=lambda url, timeout=None: _urlopen_factory(channel_data)), \
-             patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
-            result = fetch_channels("testkey123", quality)
-        for item in result:
-            assert expected_tier in item["url"], f"quality={quality!r}: expected {expected_tier!r} in {item['url']!r}"
-
 
 def test_resolve_pls():
     """_resolve_pls fetches a PLS URL and returns ALL File= stream URLs (gap-06)."""
@@ -306,66 +237,6 @@ def test_fetch_image_map_no_warning_when_unique(caplog):
 
     collision_records = [r for r in caplog.records if "collision" in r.getMessage()]
     assert collision_records == []
-
-
-# ---------------------------------------------------------------------------
-# fetch_channels image_url tests
-# ---------------------------------------------------------------------------
-
-def _mock_channel_with_image_json(name: str, key: str, image_url: str) -> bytes:
-    return json.dumps([{
-        "name": name,
-        "key": key,
-        "images": {"square": image_url},
-    }]).encode()
-
-
-def _api_channels_json(name: str, key: str, image_url: str) -> bytes:
-    return json.dumps([{
-        "name": name,
-        "key": key,
-        "images": {"square": image_url},
-    }]).encode()
-
-
-def test_fetch_channels_includes_image_url():
-    """fetch_channels returns image_url per channel from AA API."""
-    raw_img = "//cdn-images.audioaddict.com/abc/file.png{?size}"
-    listen_data = _mock_channel_json("Ambient", "ambient")
-    api_data = _api_channels_json("Ambient", "ambient", raw_img)
-
-    def urlopen_side_effect(url, timeout=None):
-        if "api.audioaddict.com" in url:
-            return _urlopen_factory(api_data)
-        return _urlopen_factory(listen_data)
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side_effect), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
-        result = fetch_channels("testkey123", "hi")
-
-    assert len(result) == 6
-    for item in result:
-        assert "image_url" in item
-        assert item["image_url"] == "https://cdn-images.audioaddict.com/abc/file.png"
-
-
-def test_fetch_channels_image_url_none_on_failure():
-    """When _fetch_image_map returns empty, channel dicts have image_url=None."""
-    listen_data = _mock_channel_json("Ambient", "ambient")
-
-    def urlopen_side_effect(url, timeout=None):
-        if "api.audioaddict.com" in url:
-            raise Exception("network error")
-        return _urlopen_factory(listen_data)
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=urlopen_side_effect), \
-         patch("musicstreamer.aa_import._resolve_pls", side_effect=lambda url: [url]):
-        result = fetch_channels("testkey123", "hi")
-
-    assert len(result) == 6
-    for item in result:
-        assert "image_url" in item
-        assert item["image_url"] is None
 
 
 # ---------------------------------------------------------------------------
