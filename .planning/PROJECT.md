@@ -56,7 +56,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (Phase 67 complete — 2026-05-10)
+## Current State (Phase 68 complete — 2026-05-10)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
 - **LOC:** ~13,000 Python total (source + tests) | **Tests:** 399 passing, 1 pre-existing failure
@@ -291,4 +291,6 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-10 — Phase 67 (Show Similar Stations) complete. NowPlayingPanel grew a master-toggle "Similar Stations" container at the bottom of the center column with two pools (Same provider name-only + Same tag Name (Provider)), 5 random each via `pick_similar_stations`, refresh ↻ pops cache, ▾/▸ collapse persisted, click emits `similar_activated(Station)` to MainWindow `_on_similar_activated` → `_on_station_activated`. Off by default (SQLite key `show_similar_stations`). Phase 64 "Also on:" sibling line untouched and AA siblings excluded from both pools. Two pure helpers added to `url_helpers.py` (`pick_similar_stations`, `render_similar_html`). 188 Phase 67 tests pass; verification 9/9 must-haves.*
+*Last updated: 2026-05-10 — Phase 68 (Live performance stream detection — DI.fm) complete. New pure-Python module `musicstreamer/aa_live.py` with `fetch_live_map`, `_parse_live_map` (UTC-coerced ISO 8601 with Z-suffix defense), `detect_live_from_icy` (LIVE: / LIVE - prefix only, no false positives), `get_di_channel_key`. NowPlayingPanel grew an inline `LIVE` badge next to the ICY title plus an `_AaLiveWorker` (QThread) polling `https://api.audioaddict.com/v1/di/events` (no-auth) on adaptive cadence — 60s while playing DI.fm, 5min otherwise. Three transition toasts (bind-to-already-live, off→on, on→off) via new `live_status_toast` signal wired to ToastOverlay (QA-05 bound method). StationListPanel grew a "Live now" filter chip (hidden when no `audioaddict_listen_key`) backed by StationFilterProxyModel `set_live_map`/`set_live_only` with Pitfall 7 invalidate guard. MainWindow lifecycle wires poll start in __init__, stop+wait(16s) in closeEvent, and `_check_and_start_aa_poll` reactive hook on AccountsDialog/ImportDialog close (B-04). Code review surfaced 4 blockers — all fixed inline (Z-suffix normalization, worker.wait on close, try/except in reschedule, idempotent start). 254 Phase 68 tests pass; verification 12/12 must-haves.*
+
+*Phase 67 (Show Similar Stations) — complete. NowPlayingPanel master-toggle "Similar Stations" container with Same-provider + Same-tag pools (5 random each), refresh ↻, ▾/▸ collapse, click→play. SQLite key `show_similar_stations` (default off). Phase 64 sibling line untouched. Pure helpers `pick_similar_stations` + `render_similar_html` in `url_helpers.py`. 188 tests; 9/9 must-haves.*
