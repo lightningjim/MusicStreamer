@@ -340,6 +340,15 @@ class MainWindow(QMainWindow):
         self.now_playing.similar_activated.connect(self._on_similar_activated)  # QA-05
         # Phase 60 D-07a: forward vote-error toasts from NowPlayingPanel to show_toast (QA-05).
         self.now_playing.gbs_vote_error_toast.connect(self.show_toast)
+        # Phase 68 / T-01: forward live-status transition toasts (T-01a/b/c)
+        # from NowPlayingPanel to show_toast (QA-05 — bound method).
+        self.now_playing.live_status_toast.connect(self.show_toast)
+        # Phase 68 / B-02 fan-out: route poll-cycle live_map updates from
+        # NowPlayingPanel into StationListPanel's filter proxy (so the
+        # "Live now" chip's predicate stays fresh). Distinct slot rather
+        # than a direct connect to station_panel.update_live_map so the
+        # signal payload type is validated (must be dict).
+        self.now_playing.live_map_changed.connect(self._on_live_map_changed)
         # Right-click edit from station list
         self.station_panel.edit_requested.connect(self._on_edit_requested)
         # Phase 999.1 D-02: "+" button in panel header shares MainWindow slot
@@ -357,6 +366,18 @@ class MainWindow(QMainWindow):
         # invariant as Phase 47.1 WR-02 — locked by
         # test_show_similar_toggle_persists_and_toggles_panel (Pitfall 4).
         self.now_playing.set_similar_visible(self._act_show_similar.isChecked())
+
+        # ------------------------------------------------------------------
+        # Phase 68 / B-03 / F-07: live-detection startup. start_aa_poll_loop
+        # is a silent no-op when no audioaddict_listen_key is saved
+        # (Plan 03 guard). set_live_chip_visible drives the chip's initial
+        # visibility from the same key check (F-07 — chip hidden until key
+        # is added; N-03 — _check_and_start_aa_poll re-evaluates after
+        # AccountsDialog/ImportDialog close).
+        # ------------------------------------------------------------------
+        self.now_playing.start_aa_poll_loop()
+        _aa_key_initial = bool(self._repo.get_setting("audioaddict_listen_key", ""))
+        self.station_panel.set_live_chip_visible(_aa_key_initial)
 
         # ------------------------------------------------------------------
         # Phase 41: MediaKeysBackend wiring (D-02, D-05, D-06)
@@ -415,6 +436,45 @@ class MainWindow(QMainWindow):
         self._last_underrun_toast_ts = now
 
     # ----------------------------------------------------------------------
+    # Phase 68 / B-02 / B-04: live-detection fan-out + reactivity hook
+    # ----------------------------------------------------------------------
+
+    def _on_live_map_changed(self, live_map: object) -> None:
+        """Phase 68 / B-02: forward poll-cycle live_map to StationListPanel.
+
+        Payload type-check (dict isinstance) is defensive — Signal(object)
+        does not enforce the dict contract at the Qt boundary. Non-dict
+        payloads are silently ignored.
+        """
+        if not isinstance(live_map, dict):
+            return
+        self.station_panel.update_live_map(live_map)
+
+    def _check_and_start_aa_poll(self) -> None:
+        """Phase 68 / B-04 / F-07 / N-03: reactive lifecycle hook after
+        AccountsDialog/ImportDialog close.
+
+        Lazy-poll-cycle approach (RESEARCH §Pattern 7 option 2) — avoids
+        modifying AccountsDialog/ImportDialog with a new signal. Reads
+        audioaddict_listen_key fresh from the repo on each call.
+
+        - Key newly present: start the poll loop if not already running;
+          show the chip.
+        - Key newly absent: stop the poll loop; hide the chip (which also
+          uncheck the chip if it's currently checked, per
+          StationListPanel.set_live_chip_visible behaviour).
+
+        Idempotent — safe to call multiple times in a row.
+        """
+        has_key = bool(self._repo.get_setting("audioaddict_listen_key", ""))
+        if has_key:
+            if not self.now_playing.is_aa_poll_active():
+                self.now_playing.start_aa_poll_loop()
+        else:
+            self.now_playing.stop_aa_poll_loop()
+        self.station_panel.set_live_chip_visible(has_key)
+
+    # ----------------------------------------------------------------------
     # Slots (bound methods — no self-capturing lambdas, QA-05)
     # ----------------------------------------------------------------------
 
@@ -434,6 +494,14 @@ class MainWindow(QMainWindow):
             self._media_keys.shutdown()
         except Exception as exc:
             _log.warning("media_keys shutdown failed: %s", exc)
+        # Phase 68 / B-03 closeEvent: stop the AA events poll timer so
+        # no further worker spawns occur after the window closes.
+        # Idempotent — Plan 03's stop_aa_poll_loop is safe to call when
+        # the timer was never started (no key saved at startup).
+        try:
+            self.now_playing.stop_aa_poll_loop()
+        except Exception as exc:
+            _log.warning("stop_aa_poll_loop failed: %s", exc)
         super().closeEvent(event)
 
     def _on_station_activated(self, station: Station) -> None:
@@ -821,6 +889,9 @@ class MainWindow(QMainWindow):
         dlg = ImportDialog(self.show_toast, self._repo, parent=self)
         dlg.import_complete.connect(self._refresh_station_list)
         dlg.exec()
+        # Phase 68 / B-04: re-evaluate AA listen-key state after the
+        # dialog closes (the import flow may have written a new key).
+        self._check_and_start_aa_poll()
 
     def _open_theme_dialog(self) -> None:
         """Phase 66 D-15 / THEME-01: Open ThemePickerDialog from hamburger menu.
@@ -849,6 +920,9 @@ class MainWindow(QMainWindow):
         """
         dlg = AccountsDialog(self._repo, toast_callback=self.show_toast, parent=self)
         dlg.exec()
+        # Phase 68 / B-04: re-evaluate AA listen-key state after the
+        # dialog closes. Lazy approach — AccountsDialog is unmodified.
+        self._check_and_start_aa_poll()
 
     def _open_equalizer_dialog(self) -> None:
         """Phase 47.2 D-07: Open EqualizerDialog from hamburger menu."""

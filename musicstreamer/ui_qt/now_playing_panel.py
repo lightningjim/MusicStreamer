@@ -255,6 +255,16 @@ class NowPlayingPanel(QWidget):
     #   T-01c: on  -> off mid-listen   -> "Live show ended on {station}"
     live_status_toast = Signal(str)
 
+    # Phase 68 / B-02 fan-out: emitted by _on_aa_live_ready after the
+    # in-panel _live_map cache updates. MainWindow connects to forward the
+    # latest live_map to StationListPanel.update_live_map (which forwards
+    # into the proxy — Pitfall 7 invalidate-only-when-active inside the
+    # proxy means this fan-out is cheap when the chip is off). Payload type
+    # is dict[str, str] (channel_key -> show_name); declared as Signal(object)
+    # to match the project's pattern for dict payloads (mirrors
+    # similar_activated payload-shape convention).
+    live_map_changed = Signal(object)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -1537,12 +1547,15 @@ class NowPlayingPanel(QWidget):
         """Phase 68 / B-02 / B-04: receive new live_map from poll worker.
 
         Updates the in-memory cache, refreshes the bound station's badge,
-        and reschedules the next poll. Forwards live_map to the StationListPanel
-        (Plan 04 wires update_live_map at MainWindow level — the panel itself
-        does not know about the proxy).
+        forwards the live_map to MainWindow (which fans out to
+        StationListPanel for the filter chip), and reschedules the next poll.
         """
         self._live_map = live_map if isinstance(live_map, dict) else {}
         self._refresh_live_status()  # transition toast may fire (T-01b/c)
+        # B-02 fan-out — MainWindow connects this to forward to
+        # StationListPanel.update_live_map. Emit AFTER refresh_live_status
+        # so the panel's own state is settled before MainWindow processes.
+        self.live_map_changed.emit(self._live_map)
         self._reschedule_aa_poll()
 
     def _on_aa_live_error(self, msg: str) -> None:
