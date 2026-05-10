@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: planning
+status: executing
 stopped_at: Phase 68 context gathered
-last_updated: "2026-05-10T15:17:21.708Z"
-last_activity: 2026-05-10
+last_updated: "2026-05-10T16:09:55.075Z"
+last_activity: 2026-05-10 -- Phase 68 execution started
 progress:
-  total_phases: 30
+  total_phases: 31
   completed_phases: 22
-  total_plans: 90
+  total_plans: 95
   completed_plans: 90
-  percent: 100
+  percent: 95
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 67 — show-similar-stations-below-now-playing-for-switching-from-s
+**Current focus:** Phase 68 — add-feature-for-detecting-live-performance-streams-di-fm-and
 
 ## Current Position
 
-Phase: 68
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-10
+Phase: 68 (add-feature-for-detecting-live-performance-streams-di-fm-and) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 68
+Last activity: 2026-05-10 -- Phase 68 execution started
 
 ## Performance Metrics
 
@@ -170,6 +170,8 @@ Key v2.0 decisions already settled:
 - Phase 60.3 inserted after Phase 60: Fix for ICY label gap in 60.2 Context Deferred Ideas (URGENT)
 - Phase 60.4 inserted after Phase 60: Two GBS.FM Search dialog informationals: token-balance display (red at 0) + playlist-length-with-song-count surface (URGENT)
 - Phase 73 added: MusicBrainz album-cover lookup — complement existing iTunes lookup (`musicstreamer/cover_art.py`) with smart routing (use MB as fallback when iTunes returns empty, or as primary when iTunes is off via the Phase 40.1 ICY toggle). Must respect MB's strict matching, 1 req/sec rate limit, and required custom User-Agent — capture these constraints during /gsd-discuss-phase 2026-05-09
+- Phase 74 added: SomaFM full station catalog + art — pull all SomaFM streams and station art (parity with GBS.FM and AudioAddict). somafm.com already exposes the catalog; decide during /gsd-discuss-phase between live-poll-to-install vs in-memory bundled catalog (new stations are rare but do happen) 2026-05-10
+- Phase 75 added: Extend theme coloring to include toast colors — follow-up to Phase 66 (Color Themes) which left toast notifications on hardcoded colors; bring toasts under the active theme so presets/custom schemes drive their palette too 2026-05-10
 
 ### Pending Todos
 
