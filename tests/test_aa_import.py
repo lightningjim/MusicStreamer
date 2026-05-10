@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from musicstreamer.aa_import import _resolve_pls, import_stations
+from musicstreamer.aa_import import _resolve_pls
 from musicstreamer.aa_import import fetch_channels_multi, import_stations_multi
 
 
@@ -62,58 +62,6 @@ def test_resolve_pls_fallback_on_error():
 
     # gap-06: list-form fallback preserves prior behavior for callers that take [0].
     assert result == [pls_url]
-
-
-# ---------------------------------------------------------------------------
-# import_stations tests
-# ---------------------------------------------------------------------------
-
-def test_import_creates_station():
-    """import_stations inserts new station when URL is not already in library."""
-    mock_repo = MagicMock()
-    mock_repo.station_exists_by_url.return_value = False
-
-    channels = [{"title": "Ambient", "url": "https://listen.di.fm/premium_high/ambient.pls?listen_key=x", "provider": "DI.fm"}]
-    imported, skipped = import_stations(channels, mock_repo)
-
-    mock_repo.insert_station.assert_called_once_with(
-        name="Ambient",
-        url="https://listen.di.fm/premium_high/ambient.pls?listen_key=x",
-        provider_name="DI.fm",
-        tags="",
-    )
-    assert imported == 1
-    assert skipped == 0
-
-
-def test_import_skips_duplicate():
-    """import_stations skips stations whose URL already exists; returns (0, 1)."""
-    mock_repo = MagicMock()
-    mock_repo.station_exists_by_url.return_value = True
-
-    channels = [{"title": "Ambient", "url": "https://listen.di.fm/premium_high/ambient.pls?listen_key=x", "provider": "DI.fm"}]
-    imported, skipped = import_stations(channels, mock_repo)
-
-    mock_repo.insert_station.assert_not_called()
-    assert imported == 0
-    assert skipped == 1
-
-
-def test_import_calls_on_progress():
-    """on_progress is called after each entry with running (imported, skipped) counts."""
-    mock_repo = MagicMock()
-    # First entry: new, second entry: duplicate
-    mock_repo.station_exists_by_url.side_effect = [False, True]
-
-    channels = [
-        {"title": "Ambient", "url": "https://listen.di.fm/premium_high/ambient.pls?listen_key=x", "provider": "DI.fm"},
-        {"title": "Jazz", "url": "https://listen.jazzradio.com/premium_high/jazz.pls?listen_key=x", "provider": "JazzRadio"},
-    ]
-
-    progress_calls = []
-    import_stations(channels, mock_repo, on_progress=lambda imp, skip: progress_calls.append((imp, skip)))
-
-    assert progress_calls == [(1, 0), (1, 1)]
 
 
 # ---------------------------------------------------------------------------
@@ -237,78 +185,6 @@ def test_fetch_image_map_no_warning_when_unique(caplog):
 
     collision_records = [r for r in caplog.records if "collision" in r.getMessage()]
     assert collision_records == []
-
-
-# ---------------------------------------------------------------------------
-# import_stations logo download tests
-# ---------------------------------------------------------------------------
-
-def test_import_stations_calls_update_art():
-    """When channel has image_url and download succeeds, update_station_art is called."""
-    mock_repo = MagicMock()
-    mock_repo.station_exists_by_url.return_value = False
-    mock_repo.insert_station.return_value = 42
-
-    channels = [{
-        "title": "Ambient",
-        "url": "https://listen.di.fm/premium_high/ambient?listen_key=x",
-        "provider": "DI.fm",
-        "image_url": "https://cdn-images.audioaddict.com/abc/file.png",
-    }]
-
-    logo_progress_calls = []
-    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
-
-    mock_resp = MagicMock()
-    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    mock_resp.read = MagicMock(return_value=png_bytes)
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen", return_value=mock_resp), \
-         patch("musicstreamer.aa_import.copy_asset_for_station", return_value="assets/42/station_art.png") as mock_copy, \
-         patch("musicstreamer.aa_import.db_connect") as mock_db_connect:
-        mock_thread_repo = MagicMock()
-        mock_db_repo_instance = MagicMock()
-        mock_db_repo_instance.__enter__ = MagicMock(return_value=mock_db_repo_instance)
-        from musicstreamer.repo import Repo as RealRepo
-        with patch("musicstreamer.aa_import.Repo") as mock_repo_cls:
-            mock_repo_cls.return_value = mock_thread_repo
-            imported, skipped = import_stations(
-                channels, mock_repo,
-                on_logo_progress=lambda done, total: logo_progress_calls.append((done, total))
-            )
-
-    assert imported == 1
-    assert skipped == 0
-    mock_thread_repo.update_station_art.assert_called_once()
-    # (0, total) is emitted before downloads start, then (1, 1) after first completes
-    assert (0, 1) in logo_progress_calls
-    assert (1, 1) in logo_progress_calls
-
-
-def test_import_stations_logo_failure_silent():
-    """When logo download fails, station is still imported, no exception, update_station_art not called."""
-    mock_repo = MagicMock()
-    mock_repo.station_exists_by_url.return_value = False
-    mock_repo.insert_station.return_value = 99
-
-    channels = [{
-        "title": "Ambient",
-        "url": "https://listen.di.fm/premium_high/ambient?listen_key=x",
-        "provider": "DI.fm",
-        "image_url": "https://cdn-images.audioaddict.com/abc/file.png",
-    }]
-
-    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=Exception("network error")), \
-         patch("musicstreamer.aa_import.db_connect") as mock_db_connect, \
-         patch("musicstreamer.aa_import.Repo") as mock_repo_cls:
-        mock_thread_repo = MagicMock()
-        mock_repo_cls.return_value = mock_thread_repo
-        imported, skipped = import_stations(channels, mock_repo)
-
-    assert imported == 1
-    assert skipped == 0
-    mock_thread_repo.update_station_art.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
