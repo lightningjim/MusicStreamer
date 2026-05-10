@@ -924,7 +924,12 @@ def test_panel_does_not_reimplement_aa_detection():
     of AA detection -- no parallel detection logic."""
     import musicstreamer.ui_qt.now_playing_panel as panel_mod
     src = open(panel_mod.__file__, encoding="utf-8").read()
-    assert "from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html" in src
+    # Phase 64 check: both AA detection functions still imported from url_helpers.
+    # (Import line extended in Phase 67 to also include pick_similar_stations +
+    # render_similar_html; checking for individual names rather than exact line.)
+    assert "find_aa_siblings" in src
+    assert "render_sibling_html" in src
+    assert "musicstreamer.url_helpers" in src
     # Negative spy: forbidden symbols MUST NOT be imported in the panel module.
     forbidden = [
         "from musicstreamer.url_helpers import _is_aa_url",
