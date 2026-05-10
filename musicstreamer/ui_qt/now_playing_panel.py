@@ -58,6 +58,7 @@ from musicstreamer.url_helpers import (
     render_sibling_html,
     render_similar_html,
 )
+from musicstreamer.aa_live import fetch_live_map, detect_live_from_icy, get_di_channel_key
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -97,6 +98,34 @@ class _GbsPollWorker(QThread):
                 self.playlist_error.emit(self._token, "auth_expired")
             else:
                 self.playlist_error.emit(self._token, str(exc))
+
+
+class _AaLiveWorker(QThread):
+    """Phase 68 / B-05 / D-06a: poll AudioAddict events endpoint on a worker thread.
+
+    Mirrors _GbsPollWorker shape: typed signals, single-attempt run(), no
+    retries (A-04 / A-05 — caller re-attempts on next poll cycle).
+
+    Cross-thread contract: results emit via Signal with QueuedConnection; the
+    worker NEVER calls QTimer.singleShot or touches Qt event-loop objects
+    (Anti-pattern §1 / spike-findings qt-glib-bus-threading).
+    """
+    finished = Signal(object)  # dict[str, str] — {channel_key: show_name}
+    error = Signal(str)
+
+    def __init__(self, network_slug: str = "di", parent=None):
+        super().__init__(parent)
+        self._slug = network_slug
+
+    def run(self):
+        try:
+            # Local import keeps the module test-importable without Qt:
+            # tests of _AaLiveWorker mock fetch_live_map at this resolution path.
+            from musicstreamer.aa_live import fetch_live_map as _fetch
+            live_map = _fetch(self._slug)
+            self.finished.emit(live_map)
+        except Exception as exc:
+            self.error.emit(str(exc))
 
 
 class _GbsVoteWorker(QThread):
@@ -218,6 +247,14 @@ class NowPlayingPanel(QWidget):
     # method connection (QA-05).
     gbs_vote_error_toast = Signal(str)
 
+    # Phase 68 / T-01: emitted on live-status transitions for the bound station.
+    # MainWindow connects to show_toast (QA-05 bound method, no lambda).
+    # Three transition triggers per CONTEXT T-01a/b/c:
+    #   T-01a: bind to already-live    -> "Now live: {show} on {station}"
+    #   T-01b: off -> on mid-listen    -> "Live show starting: {show}"
+    #   T-01c: on  -> off mid-listen   -> "Live show ended on {station}"
+    live_status_toast = Signal(str)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -235,6 +272,27 @@ class NowPlayingPanel(QWidget):
         # for explicit re-roll (R-03). Stale-OK on library mutations (R-04 --
         # click-time defense in _on_similar_link_activated handles deleted ids).
         self._similar_cache: dict[int, tuple[list, list]] = {}
+
+        # Phase 68 / B-02 / B-05 / Pitfall 5: Live-show detection state.
+        #   _live_map: keys are AA channel slugs (e.g. "house"); values are
+        #     show.name strings. Populated by _on_aa_live_ready from poll.
+        #   _live_show_active: prior-cycle live state for the bound station,
+        #     used to detect off->on / on->off transitions (T-01b/c).
+        #   _first_bind_check: True after bind_station, cleared after the
+        #     first _refresh_live_status fires its toast. Distinguishes the
+        #     bind-to-already-live path (T-01a) from off->on mid-listen (T-01b).
+        #     Pitfall 5 mitigation against duplicate toast on first
+        #     title_changed-driven re-evaluation.
+        #   _aa_poll_timer: single-shot QTimer; rescheduled each cycle with
+        #     the adaptive cadence (60s if currently playing DI.fm, else 5min).
+        #   _aa_live_worker: SYNC-05 retention slot (mirrors _gbs_poll_worker
+        #     at line 425) — keeps the running worker alive across the
+        #     timeout slot exit until run() completes.
+        self._live_map: dict[str, str] = {}
+        self._live_show_active: bool = False
+        self._first_bind_check: bool = False
+        self._aa_poll_timer: Optional[QTimer] = None
+        self._aa_live_worker: Optional[QThread] = None
 
         self.setMinimumWidth(560)
 
@@ -298,7 +356,33 @@ class NowPlayingPanel(QWidget):
         self.icy_label.setFont(icy_font)
         # Security lock-down: never interpret ICY strings as rich text.
         self.icy_label.setTextFormat(Qt.PlainText)
-        center.addWidget(self.icy_label)
+        # Phase 68 / U-01 / U-02 / U-04: live-show indicator badge to the LEFT
+        # of icy_label. Hidden by default; visibility driven by
+        # _refresh_live_status (cache lookup for DI.fm, ICY pattern else).
+        # Reuses the chip QSS pattern from station_list_panel.py:60-67 —
+        # palette(highlight) bg + palette(highlighted-text) fg keeps the
+        # badge in sync with the active Phase 66 theme without introducing
+        # a new global token (U-03 — "use what's closest to attention/accent").
+        # Qt.PlainText security lock matches icy_label (V5 ASVS — show names
+        # from the AA API could contain HTML metacharacters).
+        icy_row = QHBoxLayout()
+        icy_row.setContentsMargins(0, 0, 0, 0)
+        icy_row.setSpacing(6)
+        self._live_badge = QLabel("LIVE", self)
+        self._live_badge.setTextFormat(Qt.PlainText)
+        self._live_badge.setVisible(False)
+        self._live_badge.setStyleSheet(
+            "QLabel {"
+            " background-color: palette(highlight);"
+            " color: palette(highlighted-text);"
+            " border-radius: 8px;"
+            " padding: 2px 6px;"
+            " font-weight: bold;"
+            "}"
+        )
+        icy_row.addWidget(self._live_badge)
+        icy_row.addWidget(self.icy_label, 1)   # stretch=1 so icy_label fills
+        center.addLayout(icy_row)
 
         # Elapsed timer (UI-SPEC Body role 10pt, TypeWriter hint for tabular digits)
         self.elapsed_label = QLabel("0:00", self)
