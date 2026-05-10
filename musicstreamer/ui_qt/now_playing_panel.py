@@ -52,7 +52,12 @@ from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.models import Station
-from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
+from musicstreamer.url_helpers import (
+    find_aa_siblings,
+    pick_similar_stations,
+    render_sibling_html,
+    render_similar_html,
+)
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -199,6 +204,15 @@ class NowPlayingPanel(QWidget):
     # Signal(object)).
     sibling_activated = Signal(object)
 
+    # Phase 67 / I-02: emitted when user clicks a Similar Stations link
+    # (Same provider OR Same tag). Payload is the resolved Station; MainWindow
+    # connects to _on_similar_activated which delegates to _on_station_activated
+    # for the canonical "user picked a station" side-effect set. Distinct from
+    # sibling_activated so each surface tests independently and href routing
+    # stays unambiguous (RESEARCH Pitfall 8 -- distinct prefix avoids ambiguity
+    # when the same station could be reached from either surface).
+    similar_activated = Signal(object)
+
     # Phase 60 D-07a: fire on vote failure so MainWindow.show_toast surfaces
     # the error to the user. Mirrors track_starred pattern — forward via bound
     # method connection (QA-05).
@@ -215,6 +229,12 @@ class NowPlayingPanel(QWidget):
         self._is_stopped: bool = False  # True after full stop (vs pause); cleared on bind/play
         self._last_icy_title: str = ""
         self._streams: list = []
+        # Phase 67 / R-01: in-memory cache of (same_provider_sample, same_tag_sample)
+        # tuples keyed by station id. Populated by _refresh_similar_stations on
+        # cache miss; reused on revisit (R-02). Popped by _on_refresh_similar_clicked
+        # for explicit re-roll (R-03). Stale-OK on library mutations (R-04 --
+        # click-time defense in _on_similar_link_activated handles deleted ids).
+        self._similar_cache: dict[int, tuple[list, list]] = {}
 
         self.setMinimumWidth(560)
 
@@ -427,6 +447,102 @@ class NowPlayingPanel(QWidget):
         # Add the vote row to center layout below the playlist widget.
         center.addLayout(self._gbs_vote_row)
 
+        # ===================================================================
+        # Phase 67 / D-01..D-04, S-02, S-03, R-03: Similar Stations section
+        # ===================================================================
+        # Outer container -- toggled by MainWindow.set_similar_visible (master
+        # toggle from hamburger). When master OFF, the container is fully
+        # hidden (S-02) -- no header, no body, zero vertical reclamation
+        # (Pattern 5: Phase 64 _sibling_label hidden-when-empty precedent).
+        self._similar_container = QWidget(self)
+        sc_layout = QVBoxLayout(self._similar_container)
+        sc_layout.setContentsMargins(0, 0, 0, 0)
+        sc_layout.setSpacing(4)
+
+        # Header row: collapse button (left) + stretch + refresh button (right).
+        # Mirrors station_list_panel._filter_toggle flat-button + arrow-glyph
+        # idiom (the only collapsible-section idiom in the codebase).
+        similar_header_row = QHBoxLayout()
+        similar_header_row.setContentsMargins(0, 0, 0, 0)
+        similar_header_row.setSpacing(4)
+        self._similar_collapse_btn = QPushButton("▾ Similar Stations", self._similar_container)  # ▾ (CONTEXT.md S-03)
+        self._similar_collapse_btn.setFlat(True)
+        self._similar_collapse_btn.setStyleSheet(
+            "QPushButton { text-align: left; padding-left: 0px; }"
+        )
+        # QA-05: bound-method connection, no self-capturing lambda.
+        self._similar_collapse_btn.clicked.connect(self._on_similar_collapse_clicked)
+        similar_header_row.addWidget(self._similar_collapse_btn)
+        similar_header_row.addStretch(1)
+
+        self._similar_refresh_btn = QToolButton(self._similar_container)
+        self._similar_refresh_btn.setText("↻")  # ↻ (RESEARCH Open Q1)
+        self._similar_refresh_btn.setToolTip("Refresh similar stations")
+        self._similar_refresh_btn.setFixedSize(24, 24)
+        # QA-05: bound-method connection.
+        self._similar_refresh_btn.clicked.connect(self._on_refresh_similar_clicked)
+        similar_header_row.addWidget(self._similar_refresh_btn)
+        sc_layout.addLayout(similar_header_row)
+
+        # Body container -- collapsible via _on_similar_collapse_clicked.
+        # Holds the two sub-section widgets.
+        self._similar_body = QWidget(self._similar_container)
+        body_layout = QVBoxLayout(self._similar_body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(8)
+
+        # Same-provider sub-section: caption + RichText link list (D-04 -- name only).
+        # Each sub-section wrapped in its own QWidget so caption + links hide
+        # together when the pool is empty (D-02 hidden-when-empty contract).
+        self._same_provider_subsection = QWidget(self._similar_body)
+        sp_sub_layout = QVBoxLayout(self._same_provider_subsection)
+        sp_sub_layout.setContentsMargins(0, 0, 0, 0)
+        sp_sub_layout.setSpacing(2)
+        self._same_provider_caption = QLabel("Same provider:", self._same_provider_subsection)
+        sp_sub_layout.addWidget(self._same_provider_caption)
+        self._same_provider_links_label = QLabel("", self._same_provider_subsection)
+        self._same_provider_links_label.setTextFormat(Qt.RichText)
+        self._same_provider_links_label.setOpenExternalLinks(False)
+        # QA-05: bound-method connection (mirrors _sibling_label pattern).
+        self._same_provider_links_label.linkActivated.connect(self._on_similar_link_activated)
+        sp_sub_layout.addWidget(self._same_provider_links_label)
+        self._same_provider_subsection.setVisible(False)  # default hidden until pool populated
+        body_layout.addWidget(self._same_provider_subsection)
+
+        # Same-tag sub-section: caption + RichText link list (D-04 -- Name (Provider)).
+        self._same_tag_subsection = QWidget(self._similar_body)
+        st_sub_layout = QVBoxLayout(self._same_tag_subsection)
+        st_sub_layout.setContentsMargins(0, 0, 0, 0)
+        st_sub_layout.setSpacing(2)
+        self._same_tag_caption = QLabel("Same tag:", self._same_tag_subsection)
+        st_sub_layout.addWidget(self._same_tag_caption)
+        self._same_tag_links_label = QLabel("", self._same_tag_subsection)
+        self._same_tag_links_label.setTextFormat(Qt.RichText)
+        self._same_tag_links_label.setOpenExternalLinks(False)
+        # QA-05: bound-method connection.
+        self._same_tag_links_label.linkActivated.connect(self._on_similar_link_activated)
+        st_sub_layout.addWidget(self._same_tag_links_label)
+        self._same_tag_subsection.setVisible(False)  # default hidden until pool populated
+        body_layout.addWidget(self._same_tag_subsection)
+
+        sc_layout.addWidget(self._similar_body)
+
+        # Read collapse setting on __init__ (S-03a -- persisted across launches).
+        # Default '0' = expanded. Apply to body visibility AND glyph in one place
+        # so menu/panel state cannot drift (Pitfall 5 -- collapse state survives
+        # master OFF/ON cycle since panel doesn't re-read on visibility flip).
+        initial_collapsed = self._repo.get_setting("similar_stations_collapsed", "0") == "1"
+        self._similar_body.setVisible(not initial_collapsed)
+        self._similar_collapse_btn.setText(
+            "▸ Similar Stations" if initial_collapsed else "▾ Similar Stations"
+        )
+
+        # Default-hidden until MainWindow's __init__ pushes the master-toggle
+        # state via set_similar_visible(...) -- single source of truth (Pitfall 4
+        # WR-02 invariant; mirrors Phase 47.1 _stats_widget pattern).
+        self._similar_container.setVisible(False)
+        center.addWidget(self._similar_container)
+
         # Pitfall 1: entryid stamps ONLY from /ajax now_playing event
         self._gbs_current_entryid: Optional[int] = None
 
@@ -530,6 +646,11 @@ class NowPlayingPanel(QWidget):
         # This is the ONLY call site for _refresh_siblings -- D-04 invariant
         # (locked by test_refresh_siblings_runs_once_per_bind_station_call).
         self._refresh_siblings()
+        # Phase 67 / R-02: re-derive Similar Stations for the newly bound station.
+        # Cache hit (R-02) -- reuse cached sample. Cache miss -- derive both pools,
+        # sample, cache, render. ONLY call sites are bind_station and
+        # _on_refresh_similar_clicked (R-03 invariant; mirrors Phase 64 D-04).
+        self._refresh_similar_stations()
         # Phase 60 D-06: re-derive GBS active-playlist visibility for the
         # newly bound station. Phase 64 D-04 invariant — _refresh_gbs_visibility
         # is the ONLY call site (test_refresh_gbs_visibility_runs_once_per_bind_station
@@ -645,6 +766,24 @@ class NowPlayingPanel(QWidget):
     def set_stats_visible(self, visible: bool) -> None:
         """Toggle the stats-for-nerds wrapper visibility (D-07). Phase 47.1."""
         self._stats_widget.setVisible(bool(visible))
+
+    def set_similar_visible(self, visible: bool) -> None:
+        """Phase 67 / S-02, M-01: toggle the Similar Stations container
+        visibility (master toggle from MainWindow's hamburger menu).
+
+        When visible=False, the container hides with zero vertical reclamation
+        (Pattern 5 -- Phase 64 hidden-when-empty precedent). When visible=True,
+        the container shows; the body's collapse state is preserved from the
+        last _on_similar_collapse_clicked write or the persisted setting read
+        on __init__ (Pitfall 5 -- collapse state survives master OFF/ON cycle
+        because Qt's child widgets retain their isVisible() state when a
+        parent toggles).
+
+        Public method; called by MainWindow's _on_show_similar_toggled and by
+        MainWindow.__init__ for the initial-state push (M-02 / Pitfall 4 --
+        single source of truth for menu/panel state).
+        """
+        self._similar_container.setVisible(bool(visible))
 
     # ----------------------------------------------------------------------
     # Internal slots
@@ -973,6 +1112,164 @@ class NowPlayingPanel(QWidget):
         if sibling is None:
             return
         self.sibling_activated.emit(sibling)
+
+    # ===================================================================
+    # Phase 67: Similar Stations (region mirrors Phase 64 sibling region)
+    # ===================================================================
+
+    def _refresh_similar_stations(self) -> None:
+        """Phase 67 / R-02, R-04, R-05, D-02: derive and render the Similar
+        Stations sub-sections for the bound station.
+
+        Cache strategy (R-01 / R-02):
+          - Cache hit: reuse the cached (same_provider_sample, same_tag_sample)
+            tuple -- no re-derivation, no re-sampling. Caller drives re-roll
+            via _on_refresh_similar_clicked (R-03).
+          - Cache miss: call repo.list_stations (defended), invoke
+            pick_similar_stations to derive + sample both pools, cache the
+            tuple under the bound station id, then render.
+
+        Defense-in-depth (slots-never-raise -- Pattern 2 / Phase 64 precedent):
+          - self._station is None  -> hide both sub-sections, bail.
+          - repo.list_stations raises -> hide both sub-sections, bail.
+          - empty current.streams -> NOT a bail trigger (Pitfall 11 -- friendlier
+            to continue with provider+tag pools and skip AA exclusion silently
+            inside the pure helper).
+
+        Hidden-when-empty per sub-section (D-02):
+          - Empty same_provider sample -> _same_provider_subsection.setVisible(False).
+          - Empty same_tag sample      -> _same_tag_subsection.setVisible(False).
+          - Both empty                 -> body has no rendered content, but
+            the section header (collapse btn + refresh btn) stays visible so
+            user can refresh (per CONTEXT.md D-02 last sentence).
+
+        ONLY call sites for this method: bind_station (R-02) and
+        _on_refresh_similar_clicked (R-03). Mirrors Phase 64 D-04 invariant.
+        """
+        if self._station is None:
+            self._same_provider_subsection.setVisible(False)
+            self._same_tag_subsection.setVisible(False)
+            return
+
+        # Cache hit -- reuse without re-derivation.
+        if self._station.id in self._similar_cache:
+            same_provider, same_tag = self._similar_cache[self._station.id]
+        else:
+            # Cache miss -- derive + sample + cache.
+            try:
+                all_stations = self._repo.list_stations()
+            except Exception:
+                self._same_provider_subsection.setVisible(False)
+                self._same_tag_subsection.setVisible(False)
+                return
+            same_provider, same_tag = pick_similar_stations(
+                all_stations,
+                self._station,
+                sample_size=5,
+            )
+            self._similar_cache[self._station.id] = (same_provider, same_tag)
+
+        # Render Same provider sub-section (D-04: name only).
+        if same_provider:
+            self._same_provider_links_label.setText(
+                render_similar_html(same_provider, show_provider=False)
+            )
+            self._same_provider_subsection.setVisible(True)
+        else:
+            self._same_provider_links_label.setText("")
+            self._same_provider_subsection.setVisible(False)
+
+        # Render Same tag sub-section (D-04: Name (Provider)).
+        if same_tag:
+            self._same_tag_links_label.setText(
+                render_similar_html(same_tag, show_provider=True)
+            )
+            self._same_tag_subsection.setVisible(True)
+        else:
+            self._same_tag_links_label.setText("")
+            self._same_tag_subsection.setVisible(False)
+
+    def _on_similar_link_activated(self, href: str) -> None:
+        """Phase 67 / SIM-08, SIM-11: parse a similar:// href, look up the
+        Station, emit similar_activated.
+
+        Mirrors _on_sibling_link_activated verbatim with two substitutions:
+        prefix is "similar://" (not "sibling://") and the emitted signal is
+        similar_activated (not sibling_activated).
+
+        Five guards (slots-never-raise -- Pattern 2):
+          (1) href must start with "similar://" (Pitfall 8 -- distinct prefix
+              from Phase 64 prevents routing ambiguity).
+          (2) suffix after prefix must parse as int (rejects "similar://abc").
+          (3) self._station must be non-None (no station bound -> no-op).
+          (4) parsed id must NOT match self._station.id (prevents self-relooping).
+          (5) repo.get_station must succeed (try/except Exception) AND return
+              non-None (dual-shape: production raises ValueError on miss; some
+              test doubles return None -- covers BOTH per Pitfall 3 / Phase 64
+              precedent).
+
+        Slot is connected to linkActivated on BOTH sub-section labels via
+        bound-method connect (QA-05; lines added in Task 1).
+        """
+        prefix = "similar://"
+        if not href.startswith(prefix):
+            return
+        try:
+            similar_id = int(href[len(prefix):])
+        except ValueError:
+            return
+        if self._station is None or self._station.id == similar_id:
+            return
+        try:
+            station = self._repo.get_station(similar_id)
+        except Exception:
+            return
+        if station is None:
+            return
+        self.similar_activated.emit(station)
+
+    def _on_refresh_similar_clicked(self) -> None:
+        """Phase 67 / R-03: pop the cache entry for the bound station and
+        re-derive both pools.
+
+        Pops only the current station's entry -- other stations' cached
+        samples are preserved (R-01 cache lifetime tied to panel lifetime,
+        not Refresh button).
+
+        No-op when self._station is None (defensive -- refresh button should
+        not be reachable when no station bound, but defense-in-depth covers
+        the corner case where the panel is in an empty state but the user
+        somehow triggers the click via test code or programmatic invocation).
+        """
+        if self._station is None:
+            return
+        self._similar_cache.pop(self._station.id, None)
+        self._refresh_similar_stations()
+
+    def _on_similar_collapse_clicked(self) -> None:
+        """Phase 67 / S-03, S-03a: toggle body visibility, update collapse
+        glyph, and persist similar_stations_collapsed setting.
+
+        Glyphs:
+          - Body visible (expanded)  -> "▾ Similar Stations" (U+25BE)
+          - Body hidden (collapsed)  -> "▸ Similar Stations" (U+25B8)
+
+        Persistence: writes "0" (expanded) or "1" (collapsed) to repo
+        settings under key "similar_stations_collapsed". Read on __init__
+        (Task 1) so collapse state survives panel construction across launches.
+
+        Mirrors station_list_panel._toggle_filter_strip with two additions:
+        distinct glyph set (▾/▸ vs ▼/▶), and persisted state write at the end.
+        """
+        # Use isHidden() to query the explicit hide flag, not isVisible() which
+        # requires a shown top-level window (headless tests would always see False).
+        new_visible = self._similar_body.isHidden()
+        self._similar_body.setVisible(new_visible)
+        self._similar_collapse_btn.setText(
+            "▾ Similar Stations" if new_visible else "▸ Similar Stations"
+        )
+        # Persist as inverted: '1' = collapsed, '0' = expanded (S-03a).
+        self._repo.set_setting("similar_stations_collapsed", "0" if new_visible else "1")
 
     # ----------------------------------------------------------------------
     # Phase 60 / GBS-01c: active-playlist widget handlers (D-06/D-06a/D-06b)
