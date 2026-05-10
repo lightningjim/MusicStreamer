@@ -557,13 +557,13 @@ Plans:
 **Goal:** Detect when a DI.fm channel is currently broadcasting a live show (not normal automated programming). Hybrid detection — primary path uses the public AudioAddict events API (`/v1/di/events` — no auth required) gated by the existing `audioaddict_listen_key` setting; fallback path matches `LIVE:` / `LIVE -` prefix on ICY title for any non-DI.fm station. Three UI surfaces: an inline `LIVE` badge next to the ICY track title in NowPlayingPanel, three transition toasts (bind-to-already-live, off→on, on→off), and a "Live now" filter chip in the StationListPanel filter strip (chip hidden when no listen key). Background poll on adaptive cadence (60s when playing DI.fm, 5min otherwise). Composes with Phase 67 Similar Stations and Phase 64 sibling line — no modifications to either.
 **Requirements**: D-01..D-04, P-01..P-03, A-01..A-06, B-01..B-05, C-01..C-03, U-01..U-04, T-01..T-04, F-01..F-07, N-01..N-03, TD-01..TD-03 (CONTEXT.md decision IDs — Phase 68 has no pre-numbered REQ-* IDs)
 **Depends on:** Phase 67
-**Plans:** 2/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 68-01-PLAN.md — Wave 0 RED contract: 50 failing tests across new test_aa_live.py + 4 JSON fixtures + Phase 68 sections appended to test_now_playing_panel.py / test_station_list_panel.py / test_station_filter_proxy.py / test_main_window_integration.py
 - [x] 68-02-PLAN.md — Wave 1: musicstreamer/aa_live.py pure helpers (fetch_live_map, _parse_live_map, detect_live_from_icy, get_di_channel_key) — no Qt, no DB, no logging; 20 unit tests RED to GREEN
-- [ ] 68-03-PLAN.md — Wave 2 (parallel with 68-04): NowPlayingPanel — _AaLiveWorker(QThread) + live_status_toast signal + LIVE badge widget inline next to icy_label + _refresh_live_status (C-03 decision tree) + adaptive poll loop lifecycle; 14 panel tests RED to GREEN
-- [ ] 68-04-PLAN.md — Wave 2 (parallel with 68-03): StationFilterProxyModel set_live_map/set_live_only with Pitfall 7 invalidate guard + StationListPanel "Live now" chip (hidden when no listen key per F-07) + update_live_map/set_live_chip_visible public API; 7 proxy + 3 chip tests RED to GREEN
+- [x] 68-03-PLAN.md — Wave 2 (parallel with 68-04): NowPlayingPanel — _AaLiveWorker(QThread) + live_status_toast signal + LIVE badge widget inline next to icy_label + _refresh_live_status (C-03 decision tree) + adaptive poll loop lifecycle; 14 panel tests RED to GREEN
+- [x] 68-04-PLAN.md — Wave 2 (parallel with 68-03): StationFilterProxyModel set_live_map/set_live_only with Pitfall 7 invalidate guard + StationListPanel "Live now" chip (hidden when no listen key per F-07) + update_live_map/set_live_chip_visible public API; 7 proxy + 3 chip tests RED to GREEN
 - [ ] 68-05-PLAN.md — Wave 3: MainWindow lifecycle wiring — start_aa_poll_loop in __init__ + stop_aa_poll_loop in closeEvent + _check_and_start_aa_poll reactive hook (B-04 lazy approach) called after AccountsDialog/ImportDialog + live_status_toast→show_toast (QA-05) + live_map_changed fan-out to StationListPanel; 6 integration tests RED to GREEN
 
 ### Phase 69: Debug why AAC streams aren't playing in Windows (possibly missing codec)
