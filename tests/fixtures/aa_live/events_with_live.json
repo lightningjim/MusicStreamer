@@ -1,0 +1,31 @@
+[
+  {
+    "id": 201572,
+    "show_id": 10554145,
+    "name": "#949",
+    "start_at": "2026-05-10T11:00:00+00:00",
+    "end_at": "2026-05-10T13:00:00+00:00",
+    "show": {
+      "id": 10554145,
+      "name": "Deeper Shades of House",
+      "channels": [
+        {"id": 4, "key": "house", "name": "House"},
+        {"id": 5, "key": "lounge", "name": "Lounge"}
+      ]
+    }
+  },
+  {
+    "id": 201573,
+    "show_id": 10554146,
+    "name": "#512",
+    "start_at": "2026-05-10T14:00:00+00:00",
+    "end_at": "2026-05-10T16:00:00+00:00",
+    "show": {
+      "id": 10554146,
+      "name": "Future Sound of Egypt",
+      "channels": [
+        {"id": 7, "key": "trance", "name": "Trance"}
+      ]
+    }
+  }
+]

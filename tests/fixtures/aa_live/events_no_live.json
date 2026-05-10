@@ -1,0 +1,44 @@
+[
+  {
+    "id": 201700,
+    "show_id": 10554200,
+    "name": "#512",
+    "start_at": "2026-06-01T12:00:00+00:00",
+    "end_at": "2026-06-01T14:00:00+00:00",
+    "show": {
+      "id": 10554200,
+      "name": "Future Sound of Egypt",
+      "channels": [
+        {"id": 7, "key": "trance", "name": "Trance"}
+      ]
+    }
+  },
+  {
+    "id": 201701,
+    "show_id": 10554201,
+    "name": "#315",
+    "start_at": "2026-06-02T18:00:00+00:00",
+    "end_at": "2026-06-02T20:00:00+00:00",
+    "show": {
+      "id": 10554201,
+      "name": "The House Experience",
+      "channels": [
+        {"id": 4, "key": "house", "name": "House"}
+      ]
+    }
+  },
+  {
+    "id": 201702,
+    "show_id": 10554202,
+    "name": "#88",
+    "start_at": "2026-06-03T22:00:00+00:00",
+    "end_at": "2026-06-04T00:00:00+00:00",
+    "show": {
+      "id": 10554202,
+      "name": "Lounge Session",
+      "channels": [
+        {"id": 5, "key": "lounge", "name": "Lounge"}
+      ]
+    }
+  }
+]
