@@ -1502,6 +1502,10 @@ class NowPlayingPanel(QWidget):
         (interval=0) so cold-start state lands within ~1 second of app
         launch (Pitfall 6 mitigation), then reschedules per
         _reschedule_aa_poll.
+
+        Idempotent (BL-04): if a worker is currently in flight or the timer
+        is already armed, do not re-arm. Calling repeatedly during a cycle
+        previously reset cadence by issuing start(0).
         """
         if not bool(self._repo.get_setting("audioaddict_listen_key", "")):
             return  # B-03: silent skip when no key
@@ -1509,18 +1513,28 @@ class NowPlayingPanel(QWidget):
             self._aa_poll_timer = QTimer(self)
             self._aa_poll_timer.setSingleShot(True)
             self._aa_poll_timer.timeout.connect(self._on_aa_poll_tick)  # QA-05
-        if not self._aa_poll_timer.isActive():
-            self._aa_poll_timer.start(0)  # immediate first tick
+        worker_running = (
+            self._aa_live_worker is not None
+            and self._aa_live_worker.isRunning()
+        )
+        if self._aa_poll_timer.isActive() or worker_running:
+            return  # BL-04: already in a poll cycle
+        self._aa_poll_timer.start(0)  # immediate first tick
 
     def stop_aa_poll_loop(self) -> None:
         """Phase 68 / B-03 closeEvent path: stop the adaptive poll loop.
 
-        Idempotent. Does not interrupt an in-flight worker — the worker's
-        run() completes naturally; its finished/error signal will fire and
-        be ignored because no further reschedule occurs (timer is stopped).
+        Idempotent. BL-02: also waits for any in-flight worker to complete
+        (with a bounded timeout matching the urlopen ceiling) so Qt does
+        not destroy the QThread C++ object while the OS thread is still
+        running urllib.urlopen — that would crash on close.
         """
         if self._aa_poll_timer is not None:
             self._aa_poll_timer.stop()
+        if self._aa_live_worker is not None and self._aa_live_worker.isRunning():
+            # Worker timeout ceiling is _REQUEST_TIMEOUT_S (15s) in aa_live.
+            # 16000ms gives one extra second of slack for the run() return path.
+            self._aa_live_worker.wait(16000)
 
     def _on_aa_poll_tick(self) -> None:
         """Phase 68 / B-02 / B-05: spawn _AaLiveWorker for a single poll cycle.
@@ -1576,10 +1590,16 @@ class NowPlayingPanel(QWidget):
         """
         if self._aa_poll_timer is None:
             return  # stop_aa_poll_loop was called between cycles
-        is_playing_di = (
-            self._station is not None
-            and get_di_channel_key(self._station) is not None
-        )
+        # BL-03: get_di_channel_key dereferences station.streams[0].url.
+        # A single legacy/malformed station bound at reschedule time should
+        # not break the timer chain — fall back to the slow cadence on error.
+        try:
+            is_playing_di = (
+                self._station is not None
+                and get_di_channel_key(self._station) is not None
+            )
+        except Exception:
+            is_playing_di = False
         interval_ms = 60_000 if is_playing_di else 300_000
         self._aa_poll_timer.start(interval_ms)
 

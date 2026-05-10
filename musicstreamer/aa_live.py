@@ -34,6 +34,24 @@ _REQUEST_TIMEOUT_S = 15
 _LIVE_ICY_RE = re.compile(r'^\s*LIVE\s*[:\-]\s*(.+?)\s*$', re.IGNORECASE)
 
 
+def _parse_iso_utc(raw: str) -> datetime:
+    """Parse an ISO-8601 timestamp into a UTC-aware datetime.
+
+    Defends against:
+      - Trailing `Z` suffix (Python 3.11+ accepts it, older bundled runtimes do not).
+      - Naive timestamps (no offset). Treated as UTC since the AA events API
+        is documented to return UTC. Without coercion, comparing naive to aware
+        `now` raises TypeError and the event would be silently dropped.
+
+    Raises ValueError on truly malformed input — caller's `except` handles it.
+    """
+    s = raw.strip().replace("Z", "+00:00") if raw.endswith("Z") else raw.strip()
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def detect_live_from_icy(title: Optional[str]) -> Optional[str]:
     """Return show name if title matches LIVE: or LIVE - prefix, else None.
 
@@ -75,8 +93,8 @@ def _parse_live_map(
         if not start_raw or not end_raw:
             continue
         try:
-            start = datetime.fromisoformat(start_raw)
-            end = datetime.fromisoformat(end_raw)
+            start = _parse_iso_utc(start_raw)
+            end = _parse_iso_utc(end_raw)
         except (ValueError, TypeError):
             # Pitfall 2: malformed dates skipped silently.
             continue
