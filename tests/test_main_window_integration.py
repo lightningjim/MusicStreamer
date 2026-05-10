@@ -407,6 +407,8 @@ EXPECTED_ACTION_TEXTS = [
     "Import Stations",
     "Add GBS.FM",          # Phase 60 D-02 (Plan 60-03)
     "Search GBS.FM…",  # Phase 60 D-08a (Plan 60-07; U+2026 ellipsis)
+    "Theme",               # Phase 66 D-15 / THEME-01: Theme picker
+    "Show similar stations",  # Phase 67 / S-01, M-01: master toggle
     "Accent Color",
     "Accounts",            # Phase 53 D-13: YouTube Cookies entry removed; cookie management consolidated into Accounts dialog
     "Equalizer",           # Phase 47.2 D-07
@@ -417,22 +419,25 @@ EXPECTED_ACTION_TEXTS = [
 
 
 def test_hamburger_menu_actions(window):
-    """Phase 65 VER-02-C: hamburger menu has 11 named actions plus 1 version footer.
+    """Phase 65 VER-02-C: hamburger menu has 13 named actions plus 1 version footer.
 
-    The first 11 entries are literal text; the 12th is the Phase 65 D-01 version
+    The first 13 entries are literal text; the 14th is the Phase 65 D-01 version
     footer asserted via regex (text changes every phase via Phase 63 auto-bump,
     so we cannot pin the literal here).
+
+    Updated in Phase 67 to include 'Theme' (Phase 66 D-15) and
+    'Show similar stations' (Phase 67 S-01 M-01) in Group 2.
     """
     import re
     menu = window._menu
     actions = [a for a in menu.actions() if not a.isSeparator()]
     texts = [a.text() for a in actions]
-    assert texts[:11] == EXPECTED_ACTION_TEXTS
-    assert len(actions) == 12, (
-        f"Expected 11 named actions + 1 version footer = 12 total, got {len(actions)}: {texts!r}"
+    assert texts[:13] == EXPECTED_ACTION_TEXTS
+    assert len(actions) == 14, (
+        f"Expected 13 named actions + 1 version footer = 14 total, got {len(actions)}: {texts!r}"
     )
-    assert re.match(r"^v\d+\.\d+\.\d+$", texts[11]), (
-        f"Last menu action must be Phase 65 version footer (D-01), got {texts[11]!r}"
+    assert re.match(r"^v\d+\.\d+\.\d+$", texts[13]), (
+        f"Last menu action must be Phase 65 version footer (D-01), got {texts[13]!r}"
     )
 
 

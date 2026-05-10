@@ -189,6 +189,18 @@ class MainWindow(QMainWindow):
         act_theme = self._menu.addAction("Theme")
         act_theme.triggered.connect(self._open_theme_dialog)  # QA-05 bound method
 
+        # Phase 67 / S-01, M-01: Show similar stations master toggle.
+        # Placed in Settings group (D-16) adjacent to Theme picker per
+        # CONTEXT.md M-01. Mirrors Phase 47.1 _act_stats shape verbatim
+        # (lines 205-210) — checkable QAction + initial state from
+        # persisted setting + bound-method connect (QA-05).
+        self._act_show_similar = self._menu.addAction("Show similar stations")
+        self._act_show_similar.setCheckable(True)
+        self._act_show_similar.setChecked(
+            self._repo.get_setting("show_similar_stations", "0") == "1"
+        )
+        self._act_show_similar.toggled.connect(self._on_show_similar_toggled)  # QA-05
+
         act_accent = self._menu.addAction("Accent Color")
         act_accent.triggered.connect(self._open_accent_dialog)
 
@@ -322,6 +334,10 @@ class MainWindow(QMainWindow):
         self.now_playing.edit_requested.connect(self._on_edit_requested)
         # Phase 64 / D-02a: 'Also on:' sibling click → switch playback (bound-method per QA-05).
         self.now_playing.sibling_activated.connect(self._on_sibling_activated)
+        # Phase 67 / I-02, M-01: Similar Stations link click → switch
+        # playback. Distinct signal from sibling_activated for traceability
+        # (RESEARCH Pitfall 8 — distinct surfaces test independently).
+        self.now_playing.similar_activated.connect(self._on_similar_activated)  # QA-05
         # Phase 60 D-07a: forward vote-error toasts from NowPlayingPanel to show_toast (QA-05).
         self.now_playing.gbs_vote_error_toast.connect(self.show_toast)
         # Right-click edit from station list
@@ -336,6 +352,11 @@ class MainWindow(QMainWindow):
         # checked state. Single source of truth — the panel no longer reads the
         # setting itself, so the menu checkmark and panel visibility cannot drift.
         self.now_playing.set_stats_visible(self._act_stats.isChecked())
+        # Phase 67 / M-02: drive Similar Stations container visibility from
+        # the QAction's initial checked state. Same single-source-of-truth
+        # invariant as Phase 47.1 WR-02 — locked by
+        # test_show_similar_toggle_persists_and_toggles_panel (Pitfall 4).
+        self.now_playing.set_similar_visible(self._act_show_similar.isChecked())
 
         # ------------------------------------------------------------------
         # Phase 41: MediaKeysBackend wiring (D-02, D-05, D-06)
@@ -440,6 +461,18 @@ class MainWindow(QMainWindow):
         """
         self._on_station_activated(station)
 
+    def _on_similar_activated(self, station: Station) -> None:
+        """Phase 67 / C-01: user clicked a Similar Stations link in NowPlayingPanel.
+
+        Delegate to _on_station_activated for the canonical 'user picked a
+        station' side-effect block (bind_station, player.play,
+        update_last_played, refresh_recent, 'Connecting\u2026' toast, media-keys
+        publish + state). Mirrors Phase 64's _on_sibling_activated; the only
+        divergence from _on_station_activated is the originating signal,
+        not the side-effect set.
+        """
+        self._on_station_activated(station)
+
     def _on_failover(self, next_stream) -> None:
         """Called by Player.failover(StationStream | None)."""
         if next_stream is None:
@@ -540,6 +573,18 @@ class MainWindow(QMainWindow):
         """Persist the Stats for Nerds toggle and update the panel (D-04, D-07). Phase 47.1."""
         self._repo.set_setting("show_stats_for_nerds", "1" if checked else "0")
         self.now_playing.set_stats_visible(checked)
+
+    def _on_show_similar_toggled(self, checked: bool) -> None:
+        """Phase 67 / S-01, M-01: persist the Show Similar Stations toggle
+        and update the panel container visibility.
+
+        Same dual-write pattern as Phase 47.1 _on_stats_toggled (line 539-542):
+        (1) repo.set_setting writes the persisted state.
+        (2) panel.set_similar_visible flips the container — single source of
+            truth for menu-state vs panel-visibility (Pitfall 4 / WR-02).
+        """
+        self._repo.set_setting("show_similar_stations", "1" if checked else "0")
+        self.now_playing.set_similar_visible(checked)
 
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
         """Called when a station star is toggled in StationListPanel."""
