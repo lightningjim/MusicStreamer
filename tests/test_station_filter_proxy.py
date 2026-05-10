@@ -177,3 +177,115 @@ def test_clear_resets_all(qtbot):
     # All 5 stations should be visible again
     visible = _visible_station_names(proxy)
     assert len(visible) == len(_STATIONS)
+
+
+# === Phase 68: Live Stream Detection (DI.fm) ===
+
+
+def _di_station(id_: int, name: str, channel_key: str, tags: str = "") -> Station:
+    """Phase 68 helper: build DI.fm Station with a stream URL for channel_key."""
+    from musicstreamer.models import StationStream
+    return Station(
+        id=id_,
+        name=name,
+        provider_id=2,
+        provider_name="DI.fm",
+        tags=tags,
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=id_ * 10,
+                station_id=id_,
+                url=f"http://prem1.di.fm:80/di_{channel_key}?listen_key=k",
+                position=1,
+            )
+        ],
+    )
+
+
+_DI_STATIONS = [
+    _di_station(101, "House", "house", tags="dance"),
+    _di_station(102, "Trance", "trance", tags="dance"),
+    _di_station(103, "Lounge", "lounge", tags="chill"),
+]
+
+
+def test_set_live_only_with_live_map_filters_stations(qtbot):
+    """Phase 68 / F-02: set_live_only(True) shows only stations in live_map."""
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_live_map({"house": "Show A", "trance": "Show B"})
+    proxy.set_live_only(True)
+    visible = _visible_station_names(proxy)
+    assert "Lounge" not in visible
+    assert "House" in visible and "Trance" in visible
+
+
+def test_set_live_only_false_shows_all(qtbot):
+    """Phase 68 / F-02 toggle off: set_live_only(False) restores all stations."""
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_live_map({"house": "Show A", "trance": "Show B"})
+    proxy.set_live_only(True)
+    proxy.set_live_only(False)
+    visible = _visible_station_names(proxy)
+    assert len(visible) == 3
+
+
+def test_live_only_and_provider_chip_compose(qtbot):
+    """Phase 68 / F-03: live_only AND provider filter compose with AND semantics."""
+    mixed = [
+        _di_station(101, "House", "house", tags="dance"),
+        _di_station(102, "Trance", "trance", tags="dance"),
+        make_station(201, "Groove Salad", "SomaFM", "chill,ambient"),
+    ]
+    _, proxy = _make_proxy(mixed)
+    proxy.set_live_map({"house": "Show A"})
+    proxy.set_live_only(True)
+    proxy.set_providers({"DI.fm"})
+    visible = _visible_station_names(proxy)
+    assert visible == ["House"]
+
+
+def test_live_only_empty_when_no_live(qtbot):
+    """Phase 68 / F-04: live_only chip ON with empty live_map → empty tree."""
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_live_map({})
+    proxy.set_live_only(True)
+    assert _visible_station_names(proxy) == []
+
+
+def test_set_live_map_no_invalidate_when_chip_off(qtbot):
+    """Phase 68 / Pitfall 7: set_live_map must NOT call invalidate when live_only=False."""
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_live_only(False)
+    calls = []
+    original = proxy.invalidate
+    proxy.invalidate = lambda: calls.append(1) or original()  # type: ignore[method-assign]
+    proxy.set_live_map({"house": "Test"})
+    assert calls == []
+    proxy.set_live_only(True)
+    invalidate_count_after_set_only = len(calls)
+    proxy.set_live_map({"trance": "Test2"})
+    assert len(calls) > invalidate_count_after_set_only
+
+
+def test_has_active_filter_includes_live_only(qtbot):
+    """Phase 68 / F-03: has_active_filter() returns True when live_only is active."""
+    _, proxy = _make_proxy(_DI_STATIONS)
+    assert proxy.has_active_filter() is False
+    proxy.set_live_only(True)
+    assert proxy.has_active_filter() is True
+    proxy.set_live_only(False)
+    assert proxy.has_active_filter() is False
+
+
+def test_clear_all_resets_live_only(qtbot):
+    """Phase 68 / F-03 clear_all extension: clear_all() also resets live_only."""
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_live_map({"house": "Show A"})
+    proxy.set_live_only(True)
+    proxy.clear_all()
+    assert proxy.has_active_filter() is False
+    visible = _visible_station_names(proxy)
+    assert len(visible) == 3

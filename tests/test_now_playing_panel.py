@@ -2799,3 +2799,185 @@ def test_gbs_summary_skipped_when_queue_summary_absent(qtbot, tmp_path, monkeypa
     assert not any(t.startswith("· ") for t in items_empty), (
         "D-S4: when queue_summary is empty string, NO summary row is rendered"
     )
+
+
+# === Phase 68: Live Stream Detection (DI.fm) ===
+
+
+def _make_di_station_with_streams(station_id: int, name: str,
+                                   channel_key: str = "house") -> Station:
+    """Phase 68 helper: build DI.fm Station with stream URL for channel_key."""
+    url = f"http://prem1.di.fm:80/di_{channel_key}?listen_key=k"
+    return _make_aa_station(station_id, name, url, provider="DI.fm")
+
+
+def test_live_badge_exists_and_hidden_by_default(qtbot):
+    """Phase 68 / U-01 / U-04: _live_badge QLabel exists, reads 'LIVE', and is hidden on construction."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    assert hasattr(panel, "_live_badge")
+    from PySide6.QtWidgets import QLabel
+    assert isinstance(panel._live_badge, QLabel)
+    assert panel._live_badge.text() == "LIVE"
+    from PySide6.QtCore import Qt
+    assert panel._live_badge.textFormat() == Qt.PlainText
+    assert panel._live_badge.isHidden() is True
+
+
+def test_live_badge_hidden_on_non_live_bind(qtbot):
+    """Phase 68 / U-04 / C-01: badge hidden after bind to station not in live_map."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {}
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    assert panel._live_badge.isHidden() is True
+
+
+def test_live_badge_visible_when_live(qtbot):
+    """Phase 68 / U-01 / C-01 / C-03: badge visible when station's channel key is in live_map."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {"house": "Deeper Shades of House"}
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    assert panel._live_badge.isVisible() is True
+
+
+def test_live_badge_via_icy_pattern_for_non_aa_station(qtbot):
+    """Phase 68 / C-03 fallback / P-01: ICY LIVE: prefix shows badge for non-AA station."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    station = _station("Lofi Girl", "YouTube")
+    panel.bind_station(station)
+    panel.on_title_changed("LIVE: Special DJ Set")
+    assert panel._live_badge.isVisible() is True
+    panel.on_title_changed("Normal Track")
+    assert panel._live_badge.isHidden() is True
+
+
+def test_bind_to_live_emits_toast(qtbot):
+    """Phase 68 / T-01a: binding to already-live station emits live_status_toast."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {"house": "Deeper Shades of House"}
+    with qtbot.waitSignal(panel.live_status_toast, timeout=1000) as blocker:
+        panel.bind_station(_make_di_station_with_streams(1, "House"))
+    assert "Now live: Deeper Shades of House" in blocker.args[0]
+    assert "House" in blocker.args[0]
+
+
+def test_off_to_on_transition_toast(qtbot):
+    """Phase 68 / T-01b: mid-listen off→on transition emits 'Live show starting:' toast."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {}
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    emits = []
+    panel.live_status_toast.connect(emits.append)
+    panel._on_aa_live_ready({"house": "Surprise Live Show"})
+    assert len(emits) >= 1
+    assert "Live show starting: Surprise Live Show" in emits[-1]
+
+
+def test_on_to_off_transition_toast(qtbot):
+    """Phase 68 / T-01c: mid-listen on→off transition emits 'Live show ended on' toast."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {"house": "Show A"}
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    emits = []
+    panel.live_status_toast.connect(emits.append)
+    panel._on_aa_live_ready({})
+    assert len(emits) >= 1
+    assert "Live show ended on House" in emits[-1]
+
+
+def test_no_duplicate_toast_on_first_title_after_bind(qtbot):
+    """Phase 68 / Pitfall 5: first title_changed after bind must not emit a duplicate toast."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {"house": "Deeper Shades of House"}
+    emits = []
+    panel.live_status_toast.connect(emits.append)
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    bind_toast_count = len(emits)
+    assert bind_toast_count == 1
+    panel.on_title_changed("Some new title")
+    assert len(emits) == bind_toast_count
+
+
+def test_poll_update_no_toast_for_unbound_channel(qtbot):
+    """Phase 68 / T-03: poll update for a different channel must NOT toast."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel._live_map = {}
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    emits = []
+    panel.live_status_toast.connect(emits.append)
+    panel._on_aa_live_ready({"trance": "Other Show"})
+    assert emits == []
+
+
+def test_refresh_live_status_called_in_bind_station(qtbot):
+    """Phase 68 / C-01 / Pitfall 4: _refresh_live_status called before _refresh_gbs_visibility."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    call_order = []
+    original_live = panel._refresh_live_status
+    original_gbs = panel._refresh_gbs_visibility
+
+    def spy_live():
+        call_order.append("live")
+        original_live()
+
+    def spy_gbs():
+        call_order.append("gbs")
+        original_gbs()
+
+    panel._refresh_live_status = spy_live  # type: ignore[method-assign]
+    panel._refresh_gbs_visibility = spy_gbs  # type: ignore[method-assign]
+    panel.bind_station(_make_di_station_with_streams(1, "House"))
+    assert call_order.count("live") == 1
+    assert call_order.index("live") < call_order.index("gbs")
+
+
+def test_title_changed_calls_refresh_live_status(qtbot):
+    """Phase 68 / C-02: on_title_changed triggers _refresh_live_status."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station("Lofi Girl", "YouTube"))
+    counter = {"n": 0}
+    original = panel._refresh_live_status
+
+    def spy():
+        counter["n"] += 1
+        original()
+
+    panel._refresh_live_status = spy  # type: ignore[method-assign]
+    panel.on_title_changed("LIVE: Anything")
+    assert counter["n"] == 1
+
+
+def test_poll_loop_skipped_when_no_listen_key(qtbot):
+    """Phase 68 / B-03 / N-01: start_aa_poll_loop is a no-op when no audioaddict_listen_key."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.start_aa_poll_loop()
+    assert panel.is_aa_poll_active() is False
+
+
+def test_poll_loop_starts_when_key_present(qtbot):
+    """Phase 68 / B-03: start_aa_poll_loop activates timer when key is present."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel.start_aa_poll_loop()
+    assert panel.is_aa_poll_active() is True
+    assert panel._aa_poll_timer is not None and panel._aa_poll_timer.isActive() is True
+
+
+def test_stop_aa_poll_loop_clears_timer(qtbot):
+    """Phase 68 / B-03 closeEvent path: stop_aa_poll_loop deactivates timer."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"audioaddict_listen_key": "k"}))
+    qtbot.addWidget(panel)
+    panel.start_aa_poll_loop()
+    panel.stop_aa_poll_loop()
+    assert panel.is_aa_poll_active() is False

@@ -1291,3 +1291,62 @@ def test_no_lambda_on_similar_signal_connections(qtbot):
                 )
     for target, was_found in found.items():
         assert was_found, f"{target} not found in MainWindow source"
+
+
+# === Phase 68: Live Stream Detection (DI.fm) ===
+
+
+def test_aa_poll_loop_started_in_init_when_key_present(qtbot, fake_player, fake_repo):
+    """Phase 68 / B-03: MainWindow.__init__ starts AA poll loop when listen key is saved."""
+    fake_repo._settings["audioaddict_listen_key"] = "testkey"
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert w.now_playing.is_aa_poll_active() is True
+
+
+def test_aa_poll_loop_not_started_in_init_without_key(qtbot, fake_player, fake_repo):
+    """Phase 68 / B-03 / N-01: MainWindow.__init__ does NOT start poll when key absent."""
+    # fake_repo has no audioaddict_listen_key by default
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert w.now_playing.is_aa_poll_active() is False
+
+
+def test_check_and_start_aa_poll_after_dialog_close(qtbot, fake_player, fake_repo):
+    """Phase 68 / B-04: _check_and_start_aa_poll starts poll after key is saved."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert w.now_playing.is_aa_poll_active() is False
+    fake_repo._settings["audioaddict_listen_key"] = "newkey"
+    w._check_and_start_aa_poll()
+    assert w.now_playing.is_aa_poll_active() is True
+
+
+def test_live_status_toast_wired_to_show_toast(qtbot, fake_player, fake_repo):
+    """Phase 68 / T-01 / QA-05: live_status_toast signal must route to MainWindow.show_toast."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    toasts = []
+    original = w.show_toast
+    w.show_toast = lambda t, d=3000: toasts.append(t) or original(t, d)  # type: ignore[method-assign]
+    w.now_playing.live_status_toast.emit("Test live message")
+    assert toasts == ["Test live message"]
+
+
+def test_no_lambda_on_live_status_toast_connection(qtbot, fake_player, fake_repo):
+    """Phase 68 / QA-05 structural: live_status_toast must use bound method, not lambda."""
+    from pathlib import Path
+    import musicstreamer.ui_qt.main_window as mw_mod
+    src = Path(mw_mod.__file__).read_text()
+    assert "live_status_toast.connect(self.show_toast)" in src
+    assert "live_status_toast.connect(lambda" not in src
+
+
+def test_aa_poll_stopped_in_close_event(qtbot, fake_player, fake_repo):
+    """Phase 68 / B-03 closeEvent: closing MainWindow stops the AA poll loop."""
+    fake_repo._settings["audioaddict_listen_key"] = "k"
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert w.now_playing.is_aa_poll_active() is True
+    w.close()
+    assert w.now_playing.is_aa_poll_active() is False

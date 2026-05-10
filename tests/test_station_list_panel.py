@@ -771,3 +771,76 @@ def test_filter_change_still_calls_sync_tree_expansion(qtbot, monkeypatch):
         "filter-change handler (_on_search_changed) MUST still call _sync_tree_expansion "
         "(D-05 — Boundary B drives expansion deliberately, unchanged from prior behavior)"
     )
+
+
+# === Phase 68: Live Stream Detection (DI.fm) ===
+
+
+class _FakeRepoWithSettings:
+    """Phase 68 extension of FakeRepo that adds get_setting support.
+
+    The existing FakeRepo in this file only supports station list/recent/favorites;
+    Phase 68 chip visibility requires get_setting("audioaddict_listen_key", "").
+    """
+
+    def __init__(self, stations=None, recent=None, settings=None):
+        self._stations = list(stations or [])
+        self._recent = list(recent or [])
+        self._settings = dict(settings or {})
+        self._station_favs: dict = {}
+
+    def list_stations(self):
+        return list(self._stations)
+
+    def list_recently_played(self, n: int = 3):
+        return list(self._recent[:n])
+
+    def set_station_favorite(self, station_id: int, is_favorite: bool) -> None:
+        self._station_favs[station_id] = is_favorite
+
+    def is_favorite_station(self, station_id: int) -> bool:
+        return self._station_favs.get(station_id, False)
+
+    def list_favorite_stations(self):
+        return [s for s in self._stations if self._station_favs.get(s.id, False)]
+
+    def list_favorites(self):
+        return []
+
+    def get_setting(self, key: str, default=None):
+        return self._settings.get(key, default)
+
+    def set_setting(self, key: str, value) -> None:
+        self._settings[key] = value
+
+
+def test_live_chip_exists_and_hidden_without_key(qtbot):
+    """Phase 68 / F-01 / F-07: _live_chip QPushButton exists, is checkable, and hidden without listen key."""
+    repo = _FakeRepoWithSettings(settings={})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    from PySide6.QtWidgets import QPushButton
+    assert hasattr(panel, "_live_chip")
+    assert isinstance(panel._live_chip, QPushButton)
+    assert panel._live_chip.isCheckable() is True
+    assert panel._live_chip.text() == "Live now"
+    assert panel._live_chip.isHidden() is True
+
+
+def test_live_chip_visible_with_key(qtbot):
+    """Phase 68 / F-07 / N-03: _live_chip is visible when audioaddict_listen_key is set."""
+    repo = _FakeRepoWithSettings(settings={"audioaddict_listen_key": "testkey"})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    assert panel._live_chip.isVisible() is True
+
+
+def test_set_live_chip_visible_toggles_visibility(qtbot):
+    """Phase 68 / N-03 reactive: set_live_chip_visible() toggles chip visibility."""
+    repo = _FakeRepoWithSettings(settings={})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    panel.set_live_chip_visible(True)
+    assert panel._live_chip.isVisible() is True
+    panel.set_live_chip_visible(False)
+    assert panel._live_chip.isHidden() is True

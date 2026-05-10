@@ -1,0 +1,58 @@
+[
+  {
+    "id": 201580,
+    "show_id": 10554150,
+    "name": "#1042",
+    "start_at": "2026-05-10T10:00:00+00:00",
+    "end_at": "2026-05-10T13:00:00+00:00",
+    "show": {
+      "id": 10554150,
+      "name": "Global DJ Broadcast",
+      "channels": [
+        {"id": 11, "key": "trance", "name": "Trance"}
+      ]
+    }
+  },
+  {
+    "id": 201581,
+    "show_id": 10554151,
+    "name": "#88",
+    "start_at": "2026-05-10T11:00:00+00:00",
+    "end_at": "2026-05-10T14:00:00+00:00",
+    "show": {
+      "id": 10554151,
+      "name": "Progressive Sessions",
+      "channels": [
+        {"id": 12, "key": "progressive", "name": "Progressive"}
+      ]
+    }
+  },
+  {
+    "id": 201582,
+    "show_id": 10554152,
+    "name": "#315",
+    "start_at": "2026-05-10T11:30:00+00:00",
+    "end_at": "2026-05-10T13:30:00+00:00",
+    "show": {
+      "id": 10554152,
+      "name": "Deeper Shades of House",
+      "channels": [
+        {"id": 4, "key": "house", "name": "House"}
+      ]
+    }
+  },
+  {
+    "id": 201583,
+    "show_id": 10554153,
+    "name": "#200",
+    "start_at": "2026-05-10T15:00:00+00:00",
+    "end_at": "2026-05-10T17:00:00+00:00",
+    "show": {
+      "id": 10554153,
+      "name": "Future Event Not Live Yet",
+      "channels": [
+        {"id": 9, "key": "ambient", "name": "Ambient"}
+      ]
+    }
+  }
+]
