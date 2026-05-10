@@ -7,6 +7,9 @@ Filter logic:
   - Search text: case-insensitive substring on station name (inactive when "")
   - Provider set: OR within — station matches if provider_name in set (inactive when empty)
   - Tag set: OR within — station matches if any tag in set (inactive when empty)
+  - Live-only: stations whose AA channel key (derived from first stream URL via
+    url_helpers._aa_channel_key_from_url) is in the live_map updated by the
+    Phase 68 background poll. Inactive when False (default).
   - Between dimensions: AND logic (all active dimensions must match)
 
 Provider group rows are shown when at least one child station passes all
@@ -27,6 +30,13 @@ class StationFilterProxyModel(QSortFilterProxyModel):
         self._search_text: str = ""
         self._provider_set: set[str] = set()
         self._tag_set: set[str] = set()
+        # Phase 68 / F-02 / F-04 / Pitfall 7: live-only predicate state.
+        #   _live_only: True when the "Live now" chip is engaged.
+        #   _live_channel_keys: set of AA channel keys currently broadcasting
+        #     a live show; updated by set_live_map from MainWindow when a
+        #     poll cycle completes.
+        self._live_only: bool = False
+        self._live_channel_keys: set[str] = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -44,14 +54,50 @@ class StationFilterProxyModel(QSortFilterProxyModel):
         self._tag_set = tags
         self.invalidate()
 
+    def set_live_map(self, live_map: dict[str, str]) -> None:
+        """Phase 68 / B-02: update the set of currently-live AA channel keys.
+
+        Called from MainWindow whenever NowPlayingPanel's poll cycle completes.
+        The live_map dict is from aa_live._parse_live_map (channel_key -> show_name);
+        this proxy only needs the keys.
+
+        Pitfall 7: invalidate ONLY when _live_only is active. Otherwise the
+        proxy would re-run filterAcceptsRow for every row every 60 s even when
+        the chip is off, causing visible tree-flicker.
+        """
+        self._live_channel_keys = set(live_map.keys()) if live_map else set()
+        if self._live_only:
+            self.invalidate()
+
+    def set_live_only(self, enabled: bool) -> None:
+        """Phase 68 / F-02: toggle the live-only predicate.
+
+        Always invalidates because the predicate state itself changed —
+        unlike set_live_map, the user-visible result MUST update.
+        """
+        self._live_only = bool(enabled)
+        self.invalidate()
+
     def clear_all(self) -> None:
         self._search_text = ""
         self._provider_set = set()
         self._tag_set = set()
+        # Phase 68 / F-03 (clear_all extension): the "Live now" chip is one
+        # of the predicate dimensions; clear_all wipes it too. Note: the
+        # _live_channel_keys cache is NOT cleared — that data comes from
+        # the background poll and stays valid.
+        self._live_only = False
         self.invalidate()
 
     def has_active_filter(self) -> bool:
-        return bool(self._search_text or self._provider_set or self._tag_set)
+        # Phase 68 / F-03: live_only is one more predicate dimension —
+        # tree expansion (sync_tree_expansion) treats it as an active filter.
+        return bool(
+            self._search_text
+            or self._provider_set
+            or self._tag_set
+            or self._live_only
+        )
 
     # ------------------------------------------------------------------
     # QSortFilterProxyModel override
@@ -72,6 +118,27 @@ class StationFilterProxyModel(QSortFilterProxyModel):
                     return True
             return False
         if node.kind == "station":
+            # Phase 68 / F-02 / F-03: live-only short-circuit AND-composed with
+            # other chip filters. Lazy import of url_helpers matches the
+            # existing in-method import idiom used elsewhere in the
+            # codebase to keep proxy module imports minimal and avoid any
+            # potential circular-import risk via the panels.
+            if self._live_only:
+                from musicstreamer.url_helpers import (
+                    _aa_channel_key_from_url,
+                    _aa_slug_from_url,
+                    _is_aa_url,
+                )
+                station = node.station
+                ch_key: str | None = None
+                streams = getattr(station, "streams", None) or []
+                if streams:
+                    url = streams[0].url
+                    if _is_aa_url(url):
+                        slug = _aa_slug_from_url(url)
+                        ch_key = _aa_channel_key_from_url(url, slug=slug)
+                if ch_key is None or ch_key not in self._live_channel_keys:
+                    return False
             return matches_filter_multi(
                 node.station,
                 self._search_text,
