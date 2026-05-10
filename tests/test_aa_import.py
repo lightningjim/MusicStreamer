@@ -333,6 +333,87 @@ def test_import_multi_calls_progress():
     assert len(progress_calls) == 2
 
 
+def test_import_multi_calls_update_art_on_logo_success():
+    """When channel has image_url and download succeeds, update_station_art is called.
+
+    Migrated from the deleted single-quality `import_stations` logo test —
+    the multi variant has the identical logo-download phase.
+    """
+    mock_repo = MagicMock()
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 42
+    mock_repo.list_streams.return_value = [MagicMock(id=100)]
+
+    channels = [{
+        "title": "Ambient",
+        "provider": "DI.fm",
+        "image_url": "https://cdn-images.audioaddict.com/abc/file.png",
+        "streams": [
+            {"url": "http://hi.stream", "quality": "hi", "position": 11, "codec": "MP3"},
+            {"url": "http://med.stream", "quality": "med", "position": 21, "codec": "AAC"},
+            {"url": "http://low.stream", "quality": "low", "position": 31, "codec": "AAC"},
+        ],
+    }]
+
+    logo_progress_calls = []
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+
+    mock_resp = MagicMock()
+    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    mock_resp.read = MagicMock(return_value=png_bytes)
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", return_value=mock_resp), \
+         patch("musicstreamer.aa_import.copy_asset_for_station", return_value="assets/42/station_art.png"), \
+         patch("musicstreamer.aa_import.db_connect"), \
+         patch("musicstreamer.aa_import.Repo") as mock_repo_cls:
+        mock_thread_repo = MagicMock()
+        mock_repo_cls.return_value = mock_thread_repo
+        imported, skipped = import_stations_multi(
+            channels, mock_repo,
+            on_logo_progress=lambda done, total: logo_progress_calls.append((done, total)),
+        )
+
+    assert imported == 1
+    assert skipped == 0
+    mock_thread_repo.update_station_art.assert_called_once()
+    # (0, total) is emitted before downloads start, then (1, 1) after first completes
+    assert (0, 1) in logo_progress_calls
+    assert (1, 1) in logo_progress_calls
+
+
+def test_import_multi_logo_failure_silent():
+    """When logo download fails, station is still imported, no exception, update_station_art not called.
+
+    Migrated from the deleted single-quality `import_stations` logo test —
+    silent-failure contract per D-03 must hold for the multi variant too.
+    """
+    mock_repo = MagicMock()
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 99
+    mock_repo.list_streams.return_value = [MagicMock(id=200)]
+
+    channels = [{
+        "title": "Ambient",
+        "provider": "DI.fm",
+        "image_url": "https://cdn-images.audioaddict.com/abc/file.png",
+        "streams": [
+            {"url": "http://hi.stream", "quality": "hi", "position": 11, "codec": "MP3"},
+        ],
+    }]
+
+    with patch("musicstreamer.aa_import.urllib.request.urlopen", side_effect=Exception("network error")), \
+         patch("musicstreamer.aa_import.db_connect"), \
+         patch("musicstreamer.aa_import.Repo") as mock_repo_cls:
+        mock_thread_repo = MagicMock()
+        mock_repo_cls.return_value = mock_thread_repo
+        imported, skipped = import_stations_multi(channels, mock_repo)
+
+    assert imported == 1
+    assert skipped == 0
+    mock_thread_repo.update_station_art.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # PB-12: bitrate_kbps tier mapping + threading through import (Phase 47-03)
 # ---------------------------------------------------------------------------
