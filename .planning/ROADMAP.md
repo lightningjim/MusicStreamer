@@ -599,5 +599,15 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 72 to break down)
 
+### Phase 73: MusicBrainz album-cover lookup — complement iTunes with smart routing (fallback/primary when iTunes is off or empty) and respect MB's strict matching, 1 req/sec rate limit, and required User-Agent
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 72
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 73 to break down)
+
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*

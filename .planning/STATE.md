@@ -169,6 +169,7 @@ Key v2.0 decisions already settled:
 - Phase 60.2 inserted after Phase 60: Address Phase 60.1 UAT gaps — capture bad-religion fixture and triage zero-panel response, plus add album grouping to artist drill-down (URGENT)
 - Phase 60.3 inserted after Phase 60: Fix for ICY label gap in 60.2 Context Deferred Ideas (URGENT)
 - Phase 60.4 inserted after Phase 60: Two GBS.FM Search dialog informationals: token-balance display (red at 0) + playlist-length-with-song-count surface (URGENT)
+- Phase 73 added: MusicBrainz album-cover lookup — complement existing iTunes lookup (`musicstreamer/cover_art.py`) with smart routing (use MB as fallback when iTunes returns empty, or as primary when iTunes is off via the Phase 40.1 ICY toggle). Must respect MB's strict matching, 1 req/sec rate limit, and required custom User-Agent — capture these constraints during /gsd-discuss-phase 2026-05-09
 
 ### Pending Todos
 
