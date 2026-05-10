@@ -56,7 +56,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (Phase 42 complete — 2026-04-16)
+## Current State (Phase 67 complete — 2026-05-10)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
 - **LOC:** ~13,000 Python total (source + tests) | **Tests:** 399 passing, 1 pre-existing failure
@@ -291,4 +291,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-28 — Phase 50 (BUG-01 Recently Played Live Update) complete. `StationListPanel.refresh_recent()` wired into `MainWindow._on_station_activated` after `update_last_played` — the recent list now reflects plays within the same session, provider tree expand/collapse state preserved by construction (refresh_recent only mutates `_recent_model`, never `model`/`_proxy`/`tree`).*
+*Last updated: 2026-05-10 — Phase 67 (Show Similar Stations) complete. NowPlayingPanel grew a master-toggle "Similar Stations" container at the bottom of the center column with two pools (Same provider name-only + Same tag Name (Provider)), 5 random each via `pick_similar_stations`, refresh ↻ pops cache, ▾/▸ collapse persisted, click emits `similar_activated(Station)` to MainWindow `_on_similar_activated` → `_on_station_activated`. Off by default (SQLite key `show_similar_stations`). Phase 64 "Also on:" sibling line untouched and AA siblings excluded from both pools. Two pure helpers added to `url_helpers.py` (`pick_similar_stations`, `render_similar_html`). 188 Phase 67 tests pass; verification 9/9 must-haves.*
