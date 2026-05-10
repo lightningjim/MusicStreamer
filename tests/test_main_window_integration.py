@@ -1123,3 +1123,166 @@ def test_sibling_click_switches_playback_via_main_window(qtbot, monkeypatch):
     assert fake_repo._last_played_ids == [2]
     # Bound station is now the sibling (delegates through bind_station).
     assert w.now_playing._station is zen_station
+
+
+# ----------------------------------------------------------------------
+# Phase 67 / SIM-01..SIM-12: Similar Stations integration
+# ----------------------------------------------------------------------
+
+
+def test_show_similar_action_is_checkable(qtbot, fake_player, fake_repo):
+    """Phase 67 / SIM-01 / S-01 / M-01: hamburger 'Show similar stations'
+    QAction exists, is checkable, and initial checked state reflects
+    repo setting (default '0' -> False). Mirrors
+    test_stats_action_is_checkable at line 568."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert hasattr(w, "_act_show_similar")
+    assert w._act_show_similar.isCheckable() is True
+    assert w._act_show_similar.isChecked() is False
+
+
+def test_show_similar_action_initial_checked_when_setting_is_1(qtbot, fake_player):
+    """Phase 67 / SIM-01 / S-01: if repo has 'show_similar_stations' = '1',
+    action starts checked. Mirrors
+    test_stats_action_initial_checked_when_setting_is_1 at line 577."""
+    repo = FakeRepo(stations=[_make_station()], settings={"show_similar_stations": "1"})
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+    assert w._act_show_similar.isChecked() is True
+
+
+def test_show_similar_toggle_persists_and_toggles_panel(qtbot, fake_player, fake_repo):
+    """Phase 67 / SIM-01 + SIM-02 / S-01, M-01: triggering the action persists
+    '1'/'0' AND flips the panel's _similar_container visibility accordingly.
+
+    CRITICAL invariant (Pitfall 4): after each trigger,
+    w._act_show_similar.isChecked() == (not w.now_playing._similar_container.isHidden()).
+
+    Mirrors test_stats_toggle_persists_and_toggles_panel at line 587.
+    """
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    # Initial: unchecked, container hidden
+    assert w._act_show_similar.isChecked() is False
+    assert w.now_playing._similar_container.isHidden() is True
+
+    # Trigger ON
+    w._act_show_similar.trigger()
+    assert w._act_show_similar.isChecked() is True
+    assert fake_repo.get_setting("show_similar_stations", "0") == "1"
+    assert w.now_playing._similar_container.isHidden() is False
+    # Invariant: action checked state matches container visibility
+    assert w._act_show_similar.isChecked() == (not w.now_playing._similar_container.isHidden())
+
+    # Trigger OFF
+    w._act_show_similar.trigger()
+    assert w._act_show_similar.isChecked() is False
+    assert fake_repo.get_setting("show_similar_stations", "0") == "0"
+    assert w.now_playing._similar_container.isHidden() is True
+    # Invariant: action checked state matches container visibility
+    assert w._act_show_similar.isChecked() == (not w.now_playing._similar_container.isHidden())
+
+
+def test_show_similar_default_off_hides_container(qtbot, fake_player, fake_repo):
+    """Phase 67 / SIM-02 / S-01: default settings (no 'show_similar_stations') →
+    _similar_container hidden after MainWindow.__init__ completes.
+
+    Initial-state push at __init__ time must run during construction.
+    """
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert w.now_playing._similar_container.isHidden() is True
+
+
+def test_similar_link_switches_playback_via_main_window(qtbot):
+    """Phase 67 / SIM-08: clicking a similar-station link triggers Player.play(B)
+    and Repo.update_last_played(B.id), and bound station switches to B.
+
+    Mirrors test_sibling_click_switches_playback_via_main_window at line 1055.
+    Uses same-provider stations (not AA cross-network siblings) — Phase 67 uses
+    provider/tag matching, not AA channel keys.
+    """
+    station_a = Station(
+        id=1,
+        name="Station A",
+        provider_id=1,
+        provider_name="P1",
+        tags="rock",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=10,
+                station_id=1,
+                url="http://example.com/station_a",
+                position=1,
+            )
+        ],
+    )
+    station_b = Station(
+        id=2,
+        name="Station B",
+        provider_id=1,
+        provider_name="P1",
+        tags="rock",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[
+            StationStream(
+                id=20,
+                station_id=2,
+                url="http://example.com/station_b",
+                position=1,
+            )
+        ],
+    )
+
+    fake_player = FakePlayer()
+    fake_repo = FakeRepo(stations=[station_a, station_b])
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    # Bind to station A first (simulates user activating it from list).
+    w._on_station_activated(station_a)
+    # Reset spies to isolate the similar-link click's effects.
+    fake_player.play_calls.clear()
+    fake_repo._last_played_ids = []
+
+    # Drive the panel-side click handler directly (similar:// prefix, not sibling://).
+    w.now_playing._on_similar_link_activated("similar://2")
+
+    # Phase 67 / SIM-08: playback DID switch to station B.
+    assert fake_player.play_calls == [station_b]
+    # update_last_played was called with station B's id.
+    assert fake_repo._last_played_ids == [2]
+    # Bound station is now station B (delegates through bind_station).
+    assert w.now_playing._station is station_b
+
+
+def test_no_lambda_on_similar_signal_connections(qtbot):
+    """Phase 67 / QA-05: similar_activated and _act_show_similar.toggled
+    connections must use bound methods (no self-capturing lambdas).
+
+    Structural: greps the MainWindow source for the literal text 'lambda'
+    on each Phase 67 .connect line. Mirrors
+    test_buffer_percent_bound_method_connect_no_lambda at line 609-628."""
+    import inspect
+    from musicstreamer.ui_qt import main_window as mw_mod
+
+    src = inspect.getsource(mw_mod.MainWindow)
+
+    targets = ["similar_activated.connect", "_act_show_similar.toggled.connect"]
+    found = {t: False for t in targets}
+    for line in src.splitlines():
+        for target in targets:
+            if target in line:
+                found[target] = True
+                assert "lambda" not in line, (
+                    f"QA-05 violated — lambda found on {target} line: {line!r}"
+                )
+    for target, was_found in found.items():
+        assert was_found, f"{target} not found in MainWindow source"

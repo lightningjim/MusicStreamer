@@ -936,6 +936,248 @@ def test_panel_does_not_reimplement_aa_detection():
         assert line not in src, f"SC #4 violation: panel imports {line!r}"
 
 
+# ----------------------------------------------------------------------
+# Phase 67 / SIM-01..SIM-12: Similar Stations on the panel
+# ----------------------------------------------------------------------
+
+
+def test_similar_section_renders_when_master_toggle_on(qtbot):
+    """Phase 67 / SIM-02 / S-01: set_similar_visible(True) shows _similar_container.
+
+    Mirrors test_sibling_label_visible_for_aa_station_with_siblings at line 774.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    b = _make_aa_station(2, "B", "http://example.com/b", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a, b])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    panel.set_similar_visible(True)
+    assert panel._similar_container.isHidden() is False
+
+
+def test_similar_section_hidden_when_master_toggle_off(qtbot):
+    """Phase 67 / SIM-02 / S-01: default state (no show_similar_stations setting)
+    → _similar_container hidden on construction (default-hidden per Plan 03).
+
+    Mirrors test_sibling_label_hidden_for_non_aa_station at line 793.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    repo = FakeRepo(settings={}, stations=[a])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    # Do NOT call set_similar_visible — test the default construction state.
+    assert panel._similar_container.isHidden() is True
+
+
+def test_similar_same_provider_subsection_hidden_when_empty(qtbot):
+    """Phase 67 / SIM-10 / D-02: no same-provider matches → _same_provider_subsection hidden.
+
+    Mirrors test_sibling_label_hidden_when_no_siblings at line 804.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="UniqueProvider")
+    # provider_id=1 on _make_aa_station; no other stations share provider_id=1
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    panel.set_similar_visible(True)
+    assert panel._same_provider_subsection.isHidden() is True
+
+
+def test_similar_section_header_visible_with_empty_pools(qtbot):
+    """Phase 67 / SIM-10 / D-02: header (_similar_collapse_btn) visible even when
+    both pools empty, but sub-sections are hidden.
+
+    Collapse button is part of the outer container (header row), not the body.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="UniqueProvider")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    panel.set_similar_visible(True)
+    assert panel._similar_collapse_btn.isHidden() is False
+
+
+def test_similar_cache_reused_on_revisit(qtbot):
+    """Phase 67 / SIM-06 / R-02: re-binding the same station reuses the cached sample.
+
+    Mirrors the Phase 64 cache-identity pattern (D-04 bind_station / _refresh_siblings).
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    b = _make_aa_station(2, "B", "http://example.com/b", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a, b])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    first = panel._similar_cache[a.id]
+    panel.bind_station(b)
+    panel.bind_station(a)
+    assert panel._similar_cache[a.id] is first
+
+
+def test_similar_cache_keyed_by_station_id(qtbot):
+    """Phase 67 / SIM-06 / R-01: cache is keyed by station.id — both bind-A
+    and bind-B populate independent cache entries."""
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    b = _make_aa_station(2, "B", "http://example.com/b", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a, b])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    panel.bind_station(b)
+    assert a.id in panel._similar_cache
+    assert b.id in panel._similar_cache
+
+
+def test_refresh_similar_pops_cache_and_rerolls(qtbot):
+    """Phase 67 / SIM-07 / R-03: _on_refresh_similar_clicked() pops the cache
+    entry for the bound station and re-derives a fresh sample.
+
+    Mirrors the Phase 64 refresh/re-roll pattern in _refresh_siblings.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    b = _make_aa_station(2, "B", "http://example.com/b", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a, b])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    first = panel._similar_cache[a.id]
+    panel._on_refresh_similar_clicked()
+    assert panel._similar_cache[a.id] is not first
+
+
+def test_similar_link_emits_similar_activated_with_station_payload(qtbot):
+    """Phase 67 / SIM-08 / I-02: clicking a similar-station link emits
+    similar_activated(Station). Mirrors
+    test_sibling_link_emits_sibling_activated_with_station_payload at line 840."""
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    b = _make_aa_station(2, "B", "http://example.com/b", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a, b])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    with qtbot.waitSignal(panel.similar_activated, timeout=1000) as blocker:
+        panel._on_similar_link_activated("similar://2")
+    assert blocker.args == [b]
+
+
+def test_similar_link_handler_no_op_when_repo_get_station_raises(qtbot):
+    """Phase 67 / SIM-11 / T-67-01-03: repo.get_station raises ValueError → silent no-op.
+
+    Mirrors test_sibling_link_handler_no_op_when_repo_get_station_raises at line 870.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a])  # id 99 NOT in repo
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    emissions = []
+    panel.similar_activated.connect(lambda s: emissions.append(s))
+    panel._on_similar_link_activated("similar://99")
+    assert emissions == []
+
+
+def test_similar_link_handler_no_op_on_malformed_href(qtbot):
+    """Phase 67 / SIM-11: malformed href → silent no-op (no signal emit).
+
+    Mirrors test_sibling_link_handler_no_op_on_malformed_href at line 885.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    emissions = []
+    panel.similar_activated.connect(lambda s: emissions.append(s))
+    panel._on_similar_link_activated("not-a-similar-url")
+    panel._on_similar_link_activated("similar://abc")
+    panel._on_similar_link_activated("sibling://2")  # wrong prefix
+    assert emissions == []
+
+
+def test_similar_link_handler_no_op_when_id_matches_bound_station(qtbot):
+    """Phase 67 / SIM-11: similar://{self.id} must be a no-op (prevents self-relooping).
+
+    Mirrors test_sibling_link_handler_no_op_when_id_matches_bound_station at line 856.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    emissions = []
+    panel.similar_activated.connect(lambda s: emissions.append(s))
+    panel._on_similar_link_activated("similar://1")  # bound station's own id
+    assert emissions == []
+
+
+def test_similar_link_handler_no_op_when_no_station_bound(qtbot):
+    """Phase 67 / SIM-11: no bind_station called → _on_similar_link_activated is a no-op.
+
+    Defense: panel._station is None at construction.
+    """
+    repo = FakeRepo(settings={"show_similar_stations": "1"})
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    emissions = []
+    panel.similar_activated.connect(lambda s: emissions.append(s))
+    panel._on_similar_link_activated("similar://1")
+    assert emissions == []
+
+
+def test_similar_collapse_persists(qtbot):
+    """Phase 67 / SIM-03 / C-02: _on_similar_collapse_clicked() writes
+    'similar_stations_collapsed'='1' to repo settings, hides body, and
+    updates collapse button glyph to ▸.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    b = _make_aa_station(2, "B", "http://example.com/b", provider="P1")
+    repo = FakeRepo(settings={"show_similar_stations": "1"}, stations=[a, b])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(a)
+    panel.set_similar_visible(True)
+    # Default: expanded (collapsed_setting = "0")
+    panel._on_similar_collapse_clicked()
+    assert repo.get_setting("similar_stations_collapsed", "0") == "1"
+    assert panel._similar_body.isHidden() is True
+    assert panel._similar_collapse_btn.text().startswith("▸")
+
+
+def test_similar_collapse_initial_state_from_setting(qtbot):
+    """Phase 67 / SIM-03 / C-02: when repo has 'similar_stations_collapsed'='1'
+    at construction time, body starts hidden and collapse button shows ▸.
+    """
+    a = _make_aa_station(1, "A", "http://example.com/a", provider="P1")
+    repo = FakeRepo(
+        settings={"show_similar_stations": "1", "similar_stations_collapsed": "1"},
+        stations=[a],
+    )
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    assert panel._similar_body.isHidden() is True
+    assert panel._similar_collapse_btn.text().startswith("▸")
+
+
+def test_phase_64_sibling_label_unchanged_after_phase_67(qtbot):
+    """Phase 67 / SIM-12 / I-01: Phase 64 'Also on:' line must remain
+    functional after Phase 67 lands. Equivalent to existing
+    test_sibling_label_visible_for_aa_station_with_siblings — re-asserted
+    here in the Phase 67 section to lock the invariant."""
+    di = _make_aa_station(1, "Ambient", "http://prem1.di.fm:80/ambient_hi?listen_key=abc")
+    zr = _make_aa_station(2, "Ambient", "http://prem1.zenradio.com/zrambient?listen_key=abc", provider="ZenRadio")
+    repo = FakeRepo({"volume": "80"}, stations=[di, zr])
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    assert panel._sibling_label.isHidden() is False
+    text = panel._sibling_label.text()
+    assert "Also on:" in text
+    assert 'href="sibling://2"' in text  # sibling://, NOT similar://
+
+
 # ===========================================================================
 # Phase 60 / GBS-01c: active-playlist widget on NowPlayingPanel
 # Pattern source: 60-PATTERNS.md §"tests/ui_qt/test_now_playing_panel_gbs.py"
