@@ -202,6 +202,113 @@ def test_normalize_aa_image_url_already_https():
 
 
 # ---------------------------------------------------------------------------
+# _fetch_image_map tests
+# ---------------------------------------------------------------------------
+
+def _api_image_map_json(channels: list[dict]) -> bytes:
+    """Build an AA /v1/<slug>/channels response body from a list of channel dicts."""
+    return json.dumps(channels).encode()
+
+
+def test_fetch_image_map_prefers_default_over_square():
+    """When both `default` and `square` are present, `default` wins.
+
+    Regression for late-night-jazz-wrong-logo: AudioAddict's JazzRadio API serves
+    the same `square` image URL for both `latenightjazz` and `trumpetjazz` (upstream
+    data bug). The `default` images are channel-correct. We must prefer `default`.
+    """
+    from musicstreamer.aa_import import _fetch_image_map
+    api_data = _api_image_map_json([
+        {
+            "name": "Late Night Jazz",
+            "key": "latenightjazz",
+            "images": {
+                "default": "//cdn-images.audioaddict.com/correct/latenight.png",
+                "square": "//cdn-images.audioaddict.com/collided/shared.jpg",
+            },
+        },
+        {
+            "name": "Trumpet Jazz",
+            "key": "trumpetjazz",
+            "images": {
+                "default": "//cdn-images.audioaddict.com/correct/trumpet.png",
+                "square": "//cdn-images.audioaddict.com/collided/shared.jpg",
+            },
+        },
+    ])
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(api_data)):
+        result = _fetch_image_map("jazzradio")
+
+    assert result["latenightjazz"] == "https://cdn-images.audioaddict.com/correct/latenight.png"
+    assert result["trumpetjazz"] == "https://cdn-images.audioaddict.com/correct/trumpet.png"
+    assert result["latenightjazz"] != result["trumpetjazz"]
+
+
+def test_fetch_image_map_falls_back_to_square_when_default_absent():
+    """Backward compatibility: fixtures and channels with only `square` still resolve."""
+    from musicstreamer.aa_import import _fetch_image_map
+    api_data = _api_image_map_json([
+        {"name": "Ambient", "key": "ambient",
+         "images": {"square": "//cdn-images.audioaddict.com/abc/ambient.png"}},
+    ])
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(api_data)):
+        result = _fetch_image_map("di")
+
+    assert result == {"ambient": "https://cdn-images.audioaddict.com/abc/ambient.png"}
+
+
+def test_fetch_image_map_logs_warning_on_collision(caplog):
+    """When two channel keys map to the same normalized image URL, log a WARNING.
+
+    Defensive guard: catches future upstream collisions (analogous to the JazzRadio
+    `square` collision) before they silently surface as misreads to the user.
+    """
+    import logging
+    from musicstreamer.aa_import import _fetch_image_map
+    api_data = _api_image_map_json([
+        {"name": "ChanA", "key": "chana",
+         "images": {"default": "//cdn-images.audioaddict.com/dup/shared.png"}},
+        {"name": "ChanB", "key": "chanb",
+         "images": {"default": "//cdn-images.audioaddict.com/dup/shared.png"}},
+    ])
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(api_data)), \
+         caplog.at_level(logging.WARNING, logger="musicstreamer.aa_import"):
+        result = _fetch_image_map("jazzradio")
+
+    assert "chana" in result
+    assert "chanb" in result
+    collision_records = [
+        r for r in caplog.records
+        if "collision" in r.getMessage() and "jazzradio" in r.getMessage()
+    ]
+    assert len(collision_records) == 1
+    msg = collision_records[0].getMessage()
+    assert "chana" in msg and "chanb" in msg
+
+
+def test_fetch_image_map_no_warning_when_unique(caplog):
+    """No collision warning when every channel has a distinct image URL."""
+    import logging
+    from musicstreamer.aa_import import _fetch_image_map
+    api_data = _api_image_map_json([
+        {"name": "ChanA", "key": "chana",
+         "images": {"default": "//cdn-images.audioaddict.com/unique/a.png"}},
+        {"name": "ChanB", "key": "chanb",
+         "images": {"default": "//cdn-images.audioaddict.com/unique/b.png"}},
+    ])
+    with patch("musicstreamer.aa_import.urllib.request.urlopen",
+               side_effect=lambda url, timeout=None: _urlopen_factory(api_data)), \
+         caplog.at_level(logging.WARNING, logger="musicstreamer.aa_import"):
+        _fetch_image_map("jazzradio")
+
+    collision_records = [r for r in caplog.records if "collision" in r.getMessage()]
+    assert collision_records == []
+
+
+# ---------------------------------------------------------------------------
 # fetch_channels image_url tests
 # ---------------------------------------------------------------------------
 

@@ -62,17 +62,34 @@ def _fetch_image_map(slug: str) -> dict:
     which raises invalid_key on auth failures). Other exceptions (network blips,
     JSON errors) are also logged but swallowed — image fetch is orthogonal to
     stream access, so we don't want to abort the whole import for an image miss.
+
+    Image-key priority: prefer `default` over `square`. AudioAddict's `default`
+    is the channel's canonical asset_url and is unique per channel; `square` is
+    a curated variant that has been observed to collide upstream (jazzradio's
+    `latenightjazz` and `trumpetjazz` share one `square` URL as of 2026-05).
+    Falling back to `square` when `default` is absent preserves test fixtures
+    that only set `square`.
     """
     try:
         api_url = f"https://api.audioaddict.com/v1/{slug}/channels"
         with urllib.request.urlopen(api_url, timeout=10) as resp:
             data = json.loads(resp.read())
         out = {}
+        seen_urls: dict[str, str] = {}
         for ch in data:
             img = ch.get("images") or {}
-            raw = img.get("square") or img.get("default")
+            raw = img.get("default") or img.get("square")
             if raw:
-                out[ch["key"]] = _normalize_aa_image_url(raw)
+                normalized = _normalize_aa_image_url(raw)
+                key = ch["key"]
+                prior = seen_urls.get(normalized)
+                if prior is not None and prior != key:
+                    _log.warning(
+                        "AA image collision in %s: channels %r and %r share image %s",
+                        slug, prior, key, normalized,
+                    )
+                seen_urls.setdefault(normalized, key)
+                out[key] = normalized
         return out
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
