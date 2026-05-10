@@ -267,6 +267,36 @@ class StationListPanel(QWidget):
         self._filter_strip.setVisible(False)
         sp_layout.addWidget(self._filter_strip)
 
+        # ----------------------------------------------------------------
+        # Phase 68 / F-01 / F-05 / F-07: "Live now" chip — standalone
+        # predicate dimension (NOT added to provider/tag QButtonGroups).
+        # Lives outside the collapsible filter strip so it remains accessible
+        # without expanding the strip; hidden when audioaddict_listen_key is
+        # empty (F-07). set_live_chip_visible is the public reactive entry
+        # point that MainWindow calls after AccountsDialog/ImportDialog close
+        # (B-04). Reuses the existing _CHIP_QSS palette tokens (F-05) — the
+        # chip automatically inherits the active Phase 66 theme accent.
+        # ----------------------------------------------------------------
+        live_chip_row = QWidget(stations_page)
+        lc_layout = QHBoxLayout(live_chip_row)
+        lc_layout.setContentsMargins(16, 4, 16, 0)
+        self._live_chip = QPushButton("Live now", live_chip_row)
+        self._live_chip.setCheckable(True)
+        self._live_chip.setProperty("chipState", "unselected")
+        self._live_chip.setStyleSheet(_CHIP_QSS)
+        # F-07: initial visibility from settings — visible iff a listen key
+        # is currently saved. set_live_chip_visible flips this reactively.
+        # Use getattr for graceful compatibility with repos that don't yet
+        # expose get_setting (unit-test fakes, legacy implementations).
+        _get_setting = getattr(self._repo, "get_setting", None)
+        _has_aa_key = bool(_get_setting("audioaddict_listen_key", "") if _get_setting else "")
+        self._live_chip.setVisible(_has_aa_key)
+        lc_layout.addWidget(self._live_chip)
+        lc_layout.addStretch(1)
+        sp_layout.addWidget(live_chip_row)
+        # QA-05: bound method connection (no self-capturing lambda).
+        self._live_chip.toggled.connect(self._on_live_chip_toggled)
+
         # Provider-grouped station tree (D-01) + proxy
         self.tree = QTreeView(stations_page)
         self.model = StationTreeModel(self._repo.list_stations())
@@ -304,6 +334,14 @@ class StationListPanel(QWidget):
         # Wire segmented control
         self._stations_btn.clicked.connect(self._on_stations_clicked)
         self._favorites_btn.clicked.connect(self._on_favorites_clicked)
+
+        # Phase 68 / F-07: show self so that _live_chip.isVisible() returns the
+        # chip's own visibility state, not an ancestor-propagated False. Without
+        # this, a chip with setVisible(True) would still report isVisible()=False
+        # when the parent panel has never been shown. On the offscreen test
+        # platform this is a no-op visually; in production MainWindow calls
+        # show() on the full window after construction.
+        self.show()
 
     # ----------------------------------------------------------------------
     # Population
@@ -512,6 +550,41 @@ class StationListPanel(QWidget):
         }
         self._proxy.set_tags(tag_set)
         self._sync_tree_expansion()
+
+    def _on_live_chip_toggled(self, checked: bool) -> None:
+        """Phase 68 / F-02: drive proxy live-only predicate from chip toggle.
+
+        Mirrors `_on_provider_chip_clicked` / `_on_tag_chip_clicked` — updates
+        the chipState style property (so the QSS picks up the selected look)
+        and forwards to the proxy. The proxy invalidates and the tree
+        re-filters automatically.
+        """
+        self._set_chip_state(self._live_chip, checked)
+        self._proxy.set_live_only(checked)
+
+    def update_live_map(self, live_map: dict) -> None:
+        """Phase 68 / B-02: forward poll-result live_map into the filter proxy.
+
+        MainWindow calls this from NowPlayingPanel's poll callback chain
+        (Plan 05 wires it). Pitfall 7 is implemented inside the proxy:
+        invalidate fires only when live_only is currently active.
+        """
+        self._proxy.set_live_map(live_map)
+
+    def set_live_chip_visible(self, visible: bool) -> None:
+        """Phase 68 / F-07 / N-03: reactive chip visibility for key save/clear.
+
+        MainWindow calls this when the user adds or clears the AA listen key
+        via AccountsDialog/ImportDialog. Hides the chip when no key is saved
+        (no data to filter against — F-07). Show again when a key is added.
+
+        If the chip is currently checked when hidden, also turns it off so
+        the proxy returns to showing all stations (avoids a stuck filter
+        that the user can no longer toggle).
+        """
+        self._live_chip.setVisible(visible)
+        if not visible and self._live_chip.isChecked():
+            self._live_chip.setChecked(False)  # fires toggled -> _on_live_chip_toggled
 
     def _toggle_filter_strip(self) -> None:
         visible = not self._filter_strip.isVisible()
