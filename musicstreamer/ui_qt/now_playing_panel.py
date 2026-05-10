@@ -58,6 +58,7 @@ from musicstreamer.url_helpers import (
     render_sibling_html,
     render_similar_html,
 )
+from musicstreamer.aa_live import fetch_live_map, detect_live_from_icy, get_di_channel_key
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -97,6 +98,34 @@ class _GbsPollWorker(QThread):
                 self.playlist_error.emit(self._token, "auth_expired")
             else:
                 self.playlist_error.emit(self._token, str(exc))
+
+
+class _AaLiveWorker(QThread):
+    """Phase 68 / B-05 / D-06a: poll AudioAddict events endpoint on a worker thread.
+
+    Mirrors _GbsPollWorker shape: typed signals, single-attempt run(), no
+    retries (A-04 / A-05 — caller re-attempts on next poll cycle).
+
+    Cross-thread contract: results emit via Signal with QueuedConnection; the
+    worker NEVER calls QTimer.singleShot or touches Qt event-loop objects
+    (Anti-pattern §1 / spike-findings qt-glib-bus-threading).
+    """
+    finished = Signal(object)  # dict[str, str] — {channel_key: show_name}
+    error = Signal(str)
+
+    def __init__(self, network_slug: str = "di", parent=None):
+        super().__init__(parent)
+        self._slug = network_slug
+
+    def run(self):
+        try:
+            # Local import keeps the module test-importable without Qt:
+            # tests of _AaLiveWorker mock fetch_live_map at this resolution path.
+            from musicstreamer.aa_live import fetch_live_map as _fetch
+            live_map = _fetch(self._slug)
+            self.finished.emit(live_map)
+        except Exception as exc:
+            self.error.emit(str(exc))
 
 
 class _GbsVoteWorker(QThread):
@@ -218,6 +247,14 @@ class NowPlayingPanel(QWidget):
     # method connection (QA-05).
     gbs_vote_error_toast = Signal(str)
 
+    # Phase 68 / T-01: emitted on live-status transitions for the bound station.
+    # MainWindow connects to show_toast (QA-05 bound method, no lambda).
+    # Three transition triggers per CONTEXT T-01a/b/c:
+    #   T-01a: bind to already-live    -> "Now live: {show} on {station}"
+    #   T-01b: off -> on mid-listen    -> "Live show starting: {show}"
+    #   T-01c: on  -> off mid-listen   -> "Live show ended on {station}"
+    live_status_toast = Signal(str)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -235,6 +272,27 @@ class NowPlayingPanel(QWidget):
         # for explicit re-roll (R-03). Stale-OK on library mutations (R-04 --
         # click-time defense in _on_similar_link_activated handles deleted ids).
         self._similar_cache: dict[int, tuple[list, list]] = {}
+
+        # Phase 68 / B-02 / B-05 / Pitfall 5: Live-show detection state.
+        #   _live_map: keys are AA channel slugs (e.g. "house"); values are
+        #     show.name strings. Populated by _on_aa_live_ready from poll.
+        #   _live_show_active: prior-cycle live state for the bound station,
+        #     used to detect off->on / on->off transitions (T-01b/c).
+        #   _first_bind_check: True after bind_station, cleared after the
+        #     first _refresh_live_status fires its toast. Distinguishes the
+        #     bind-to-already-live path (T-01a) from off->on mid-listen (T-01b).
+        #     Pitfall 5 mitigation against duplicate toast on first
+        #     title_changed-driven re-evaluation.
+        #   _aa_poll_timer: single-shot QTimer; rescheduled each cycle with
+        #     the adaptive cadence (60s if currently playing DI.fm, else 5min).
+        #   _aa_live_worker: SYNC-05 retention slot (mirrors _gbs_poll_worker
+        #     at line 425) — keeps the running worker alive across the
+        #     timeout slot exit until run() completes.
+        self._live_map: dict[str, str] = {}
+        self._live_show_active: bool = False
+        self._first_bind_check: bool = False
+        self._aa_poll_timer: Optional[QTimer] = None
+        self._aa_live_worker: Optional[QThread] = None
 
         self.setMinimumWidth(560)
 
@@ -298,7 +356,33 @@ class NowPlayingPanel(QWidget):
         self.icy_label.setFont(icy_font)
         # Security lock-down: never interpret ICY strings as rich text.
         self.icy_label.setTextFormat(Qt.PlainText)
-        center.addWidget(self.icy_label)
+        # Phase 68 / U-01 / U-02 / U-04: live-show indicator badge to the LEFT
+        # of icy_label. Hidden by default; visibility driven by
+        # _refresh_live_status (cache lookup for DI.fm, ICY pattern else).
+        # Reuses the chip QSS pattern from station_list_panel.py:60-67 —
+        # palette(highlight) bg + palette(highlighted-text) fg keeps the
+        # badge in sync with the active Phase 66 theme without introducing
+        # a new global token (U-03 — "use what's closest to attention/accent").
+        # Qt.PlainText security lock matches icy_label (V5 ASVS — show names
+        # from the AA API could contain HTML metacharacters).
+        icy_row = QHBoxLayout()
+        icy_row.setContentsMargins(0, 0, 0, 0)
+        icy_row.setSpacing(6)
+        self._live_badge = QLabel("LIVE", self)
+        self._live_badge.setTextFormat(Qt.PlainText)
+        self._live_badge.setVisible(False)
+        self._live_badge.setStyleSheet(
+            "QLabel {"
+            " background-color: palette(highlight);"
+            " color: palette(highlighted-text);"
+            " border-radius: 8px;"
+            " padding: 2px 6px;"
+            " font-weight: bold;"
+            "}"
+        )
+        icy_row.addWidget(self._live_badge)
+        icy_row.addWidget(self.icy_label, 1)   # stretch=1 so icy_label fills
+        center.addLayout(icy_row)
 
         # Elapsed timer (UI-SPEC Body role 10pt, TypeWriter hint for tabular digits)
         self.elapsed_label = QLabel("0:00", self)
@@ -651,6 +735,18 @@ class NowPlayingPanel(QWidget):
         # sample, cache, render. ONLY call sites are bind_station and
         # _on_refresh_similar_clicked (R-03 invariant; mirrors Phase 64 D-04).
         self._refresh_similar_stations()
+        # Phase 68 / C-01 / Pitfall 4 / Pitfall 5: re-derive live-show
+        # status for the newly bound station. _first_bind_check=True
+        # signals _refresh_live_status to use the bind-to-already-live
+        # toast text (T-01a) on transition; cleared inside the helper
+        # after the toast fires so the immediate next title_changed
+        # re-evaluation does not duplicate (Pitfall 5).
+        #
+        # CRITICAL ORDERING (Pitfall 4): MUST run BEFORE
+        # _refresh_gbs_visibility — the GBS region assumes its
+        # _refresh_gbs_visibility call is the FINAL bind_station step.
+        self._first_bind_check = True
+        self._refresh_live_status()
         # Phase 60 D-06: re-derive GBS active-playlist visibility for the
         # newly bound station. Phase 64 D-04 invariant — _refresh_gbs_visibility
         # is the ONLY call site (test_refresh_gbs_visibility_runs_once_per_bind_station
@@ -727,6 +823,12 @@ class NowPlayingPanel(QWidget):
         # restart _gbs_poll_timer (would reset the 15s countdown).
         if is_gbs and not self._gbs_poll_in_flight():
             self._on_gbs_poll_tick()
+        # Phase 68 / C-02: every title_changed re-evaluates live status.
+        # Drives ICY-pattern detection (P-01..P-03) for non-AA stations and
+        # refreshes the badge text mid-show for AA stations. Direct call —
+        # title_changed runs on the Qt main thread (auto-queued from
+        # player.title_changed), so no QTimer indirection needed.
+        self._refresh_live_status()
 
     def on_elapsed_updated(self, seconds: int) -> None:
         if seconds < 3600:
@@ -1270,6 +1372,203 @@ class NowPlayingPanel(QWidget):
         )
         # Persist as inverted: '1' = collapsed, '0' = expanded (S-03a).
         self._repo.set_setting("similar_stations_collapsed", "0" if new_visible else "1")
+
+    # ===================================================================
+    # Phase 68: Live Stream Detection (DI.fm)
+    # ===================================================================
+
+    def _detect_live_for_current_station(self) -> Optional[str]:
+        """Phase 68 / C-03 decision tree: derive live-show name for bound station.
+
+        Returns the show name (str) when bound station is currently live,
+        else None.
+
+        C-03 logic:
+          1. If station is None or has no streams: not live.
+          2. If station is DI.fm AND audioaddict_listen_key non-empty:
+             lookup channel_key in self._live_map (populated by poll). The
+             cache returns "" for the show name when the AA API field is
+             empty — treat that as "live, no name" (still live).
+          3. Else (non-DI.fm OR no key): apply ICY pattern (P-01) to
+             self._last_icy_title.
+
+        Slots-never-raise: any exception returns None (mirrors
+        _refresh_siblings defense at line 1060-1065).
+        """
+        try:
+            if self._station is None or not getattr(self._station, "streams", None):
+                return None
+            # AA-API path
+            key_saved = bool(self._repo.get_setting("audioaddict_listen_key", ""))
+            if key_saved:
+                ch_key = get_di_channel_key(self._station)
+                if ch_key is not None and ch_key in self._live_map:
+                    # Empty show_name still means live (T-01: bare LIVE chip valid).
+                    return self._live_map[ch_key] or ""
+            # ICY-pattern fallback (P-01) — applies when no key OR station is non-DI.
+            # Returns None for non-matching titles per detect_live_from_icy contract.
+            return detect_live_from_icy(self._last_icy_title)
+        except Exception:
+            return None
+
+    def _refresh_live_status(self) -> None:
+        """Phase 68 / C-01 / C-02 / T-01: update badge + fire transition toast.
+
+        Single coupling point per CONTEXT C-03. Compares current live state
+        against _live_show_active (prior-cycle state) and emits the
+        appropriate transition toast on live_status_toast (T-01a/b/c).
+
+        Pitfall 5 mitigation: _first_bind_check distinguishes the
+        bind-to-already-live path (T-01a) from off->on mid-listen (T-01b).
+        The flag is cleared after the toast fires so the next
+        title_changed-driven re-evaluation cannot duplicate the toast.
+
+        Slots-never-raise: any exception hides the badge silently.
+        """
+        try:
+            show_name = self._detect_live_for_current_station()
+            is_live = show_name is not None
+            was_live = self._live_show_active
+
+            # U-04 — badge visibility driven directly by live state.
+            self._live_badge.setVisible(is_live)
+
+            # T-01 transition emission. Toast text per CONTEXT T-01a/b/c.
+            station_name = (
+                self._station.name if self._station is not None else ""
+            )
+            if is_live and not was_live:
+                if self._first_bind_check:
+                    # T-01a — bind to already-live station
+                    self.live_status_toast.emit(
+                        f"Now live: {show_name} on {station_name}"
+                        if show_name
+                        else f"Now live on {station_name}"
+                    )
+                else:
+                    # T-01b — off -> on mid-listen
+                    self.live_status_toast.emit(
+                        f"Live show starting: {show_name}"
+                        if show_name
+                        else "Live show starting"
+                    )
+            elif not is_live and was_live:
+                # T-01c — on -> off mid-listen
+                self.live_status_toast.emit(
+                    f"Live show ended on {station_name}"
+                )
+
+            # Pitfall 5: clear the bind-flag after first evaluation so the
+            # immediate-next title_changed-driven _refresh_live_status
+            # re-evaluation does not refire the bind-time toast.
+            self._first_bind_check = False
+            self._live_show_active = is_live
+        except Exception:
+            # Last-resort guard. Hide badge so a visual artifact does not
+            # persist after a logic exception.
+            try:
+                self._live_badge.setVisible(False)
+            except Exception:
+                pass
+            self._first_bind_check = False
+
+    # -------------------------------------------------------------------
+    # Phase 68 / B-01..B-05: poll loop lifecycle
+    # -------------------------------------------------------------------
+
+    def is_aa_poll_active(self) -> bool:
+        """Phase 68 / B-03: True iff the adaptive poll timer is running."""
+        return self._aa_poll_timer is not None and self._aa_poll_timer.isActive()
+
+    def start_aa_poll_loop(self) -> None:
+        """Phase 68 / B-03 / N-01: start the adaptive poll loop.
+
+        No-op if no audioaddict_listen_key is saved (silent fallback —
+        Plan 05's _check_and_start_aa_poll re-evaluates after dialogs close,
+        so a later key save activates the loop).
+
+        B-05: timer on Qt main thread; HTTP runs on _AaLiveWorker thread.
+        B-01: cadence is adaptive — fires the first poll immediately
+        (interval=0) so cold-start state lands within ~1 second of app
+        launch (Pitfall 6 mitigation), then reschedules per
+        _reschedule_aa_poll.
+        """
+        if not bool(self._repo.get_setting("audioaddict_listen_key", "")):
+            return  # B-03: silent skip when no key
+        if self._aa_poll_timer is None:
+            self._aa_poll_timer = QTimer(self)
+            self._aa_poll_timer.setSingleShot(True)
+            self._aa_poll_timer.timeout.connect(self._on_aa_poll_tick)  # QA-05
+        if not self._aa_poll_timer.isActive():
+            self._aa_poll_timer.start(0)  # immediate first tick
+
+    def stop_aa_poll_loop(self) -> None:
+        """Phase 68 / B-03 closeEvent path: stop the adaptive poll loop.
+
+        Idempotent. Does not interrupt an in-flight worker — the worker's
+        run() completes naturally; its finished/error signal will fire and
+        be ignored because no further reschedule occurs (timer is stopped).
+        """
+        if self._aa_poll_timer is not None:
+            self._aa_poll_timer.stop()
+
+    def _on_aa_poll_tick(self) -> None:
+        """Phase 68 / B-02 / B-05: spawn _AaLiveWorker for a single poll cycle.
+
+        SYNC-05: previous worker's reference is replaced; Qt parents the new
+        worker to self so destruction is deterministic at panel teardown.
+        Pitfall: skip if previous worker still running (defensive — should
+        not happen because timer is single-shot rescheduled in the slot).
+        """
+        if self._aa_live_worker is not None and self._aa_live_worker.isRunning():
+            self._reschedule_aa_poll()
+            return
+        self._aa_live_worker = _AaLiveWorker(network_slug="di", parent=self)
+        # QueuedConnection — worker thread emits, slot runs on main thread.
+        self._aa_live_worker.finished.connect(
+            self._on_aa_live_ready, Qt.QueuedConnection
+        )  # QA-05
+        self._aa_live_worker.error.connect(
+            self._on_aa_live_error, Qt.QueuedConnection
+        )  # QA-05
+        self._aa_live_worker.start()
+
+    def _on_aa_live_ready(self, live_map: dict) -> None:
+        """Phase 68 / B-02 / B-04: receive new live_map from poll worker.
+
+        Updates the in-memory cache, refreshes the bound station's badge,
+        and reschedules the next poll. Forwards live_map to the StationListPanel
+        (Plan 04 wires update_live_map at MainWindow level — the panel itself
+        does not know about the proxy).
+        """
+        self._live_map = live_map if isinstance(live_map, dict) else {}
+        self._refresh_live_status()  # transition toast may fire (T-01b/c)
+        self._reschedule_aa_poll()
+
+    def _on_aa_live_error(self, msg: str) -> None:
+        """Phase 68 / A-04: silent failure — keep last successful live_map.
+
+        Just reschedules the next poll. No toast (A-04: no error toasts).
+        No log spam (poll runs every 60s/5min — would amplify transient
+        failures).
+        """
+        self._reschedule_aa_poll()
+
+    def _reschedule_aa_poll(self) -> None:
+        """Phase 68 / B-01: reschedule next poll with adaptive cadence.
+
+        60_000 ms (60 s) when currently playing a DI.fm station; 300_000 ms
+        (5 min) otherwise. The cadence reassessment fires every cycle so a
+        station switch picks up the new cadence within at most one cycle.
+        """
+        if self._aa_poll_timer is None:
+            return  # stop_aa_poll_loop was called between cycles
+        is_playing_di = (
+            self._station is not None
+            and get_di_channel_key(self._station) is not None
+        )
+        interval_ms = 60_000 if is_playing_di else 300_000
+        self._aa_poll_timer.start(interval_ms)
 
     # ----------------------------------------------------------------------
     # Phase 60 / GBS-01c: active-playlist widget handlers (D-06/D-06a/D-06b)

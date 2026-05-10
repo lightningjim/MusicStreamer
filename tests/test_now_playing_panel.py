@@ -2839,7 +2839,10 @@ def test_live_badge_visible_when_live(qtbot):
     qtbot.addWidget(panel)
     panel._live_map = {"house": "Deeper Shades of House"}
     panel.bind_station(_make_di_station_with_streams(1, "House"))
-    assert panel._live_badge.isVisible() is True
+    # isVisible() returns False for unrealized (un-shown) widgets even when
+    # setVisible(True) was called — use not isHidden() to check explicit flag
+    # (same pattern as line 1258-1260, Phase 60 precedent).
+    assert not panel._live_badge.isHidden()
 
 
 def test_live_badge_via_icy_pattern_for_non_aa_station(qtbot):
@@ -2849,7 +2852,10 @@ def test_live_badge_via_icy_pattern_for_non_aa_station(qtbot):
     station = _station("Lofi Girl", "YouTube")
     panel.bind_station(station)
     panel.on_title_changed("LIVE: Special DJ Set")
-    assert panel._live_badge.isVisible() is True
+    # isVisible() returns False for unrealized (un-shown) widgets even when
+    # setVisible(True) was called — use not isHidden() to check explicit flag
+    # (same pattern as line 1258-1260, Phase 60 precedent).
+    assert not panel._live_badge.isHidden()
     panel.on_title_changed("Normal Track")
     assert panel._live_badge.isHidden() is True
 
