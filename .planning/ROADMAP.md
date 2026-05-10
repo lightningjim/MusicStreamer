@@ -541,13 +541,16 @@ Plans:
 
 ### Phase 67: Show similar stations below now playing for switching - From same Provider and Same Tag, random 5 from each with refresh, hideable and not shown by default
 
-**Goal:** [To be planned]
+**Goal:** When the master toggle is on, NowPlayingPanel shows a "Similar Stations" section at the bottom of the center column with two pools (Same provider, Same tag — up to 5 random each), refreshable via ↻ button, collapsible, with click-to-switch playback. Off by default; persisted via SQLite settings. Phase 64 "Also on:" line stays untouched and is excluded from both pools.
 **Requirements**: TBD
 **Depends on:** Phase 66
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 67 to break down)
+- [ ] 67-01-PLAN.md — Wave 0 RED contract: failing tests for SIM-04/05/09 (pure helper) + SIM-03/06/07/08/10/11/12 (panel widget) + SIM-01/02/08/QA-05 (main_window integration)
+- [ ] 67-02-PLAN.md — Wave 1: pick_similar_stations + render_similar_html in musicstreamer/url_helpers.py (no Qt; 18+ pure-helper tests RED to GREEN)
+- [ ] 67-03-PLAN.md — Wave 2: NowPlayingPanel similar_activated signal + Similar Stations widget tree + cache + 5 new methods (13+ panel tests RED to GREEN)
+- [ ] 67-04-PLAN.md — Wave 3: MainWindow hamburger QAction (Show similar stations) + initial-state push + signal connection + 2 new slots (6+ integration tests RED to GREEN, QA-05 lambda-grep enforced)
 
 ### Phase 68: Add feature for detecting Live performance streams (DI.fm and similar)
 
