@@ -19,10 +19,16 @@ search path, MSVC-vs-MinGW gotchas).
        python=3.12 pygobject gstreamer=1.28 `
        gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly `
        gst-libav `
+       pyside6 `
        pyinstaller "pyinstaller-hooks-contrib>=2026.2"
    conda activate musicstreamer-build
    # AAC playback requires gst-libav (Phase 69 — provides avdec_aac in gstlibav.dll).
    # aacparse ships with gst-plugins-good's audioparsers plugin (gstaudioparsers.dll).
+   # pyside6 MUST come from conda-forge, NOT pip — pip's PySide6 wheel is built
+   # against a different ICU ABI than conda-forge's gstreamer pulls in, and the
+   # symbol mismatch (e.g. UCNV_TO_U_CALLBACK_SUBSTITUTE) crashes Qt6Core.dll at
+   # both build-time import and bundle-runtime load (Phase 43.1 Pitfall #1,
+   # rediscovered in Phase 69 after gst-libav addition bumped icu to 78).
    ```
    The conda-forge GStreamer package ships the MSVC build with
    `gst-plugin-scanner.exe`, the GIO TLS module (`gioopenssl.dll`), and

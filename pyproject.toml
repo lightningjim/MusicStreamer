@@ -10,7 +10,12 @@ requires-python = ">=3.10"
 dependencies = [
     # PyGObject (GTK4/Adw/GStreamer) is a system package — installed via apt
     # python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1, gir1.2-gst-1.0
-    "PySide6>=6.11",
+    # Floor at 6.10 (not 6.11) so conda-forge's pyside6 (currently 6.10.1)
+    # satisfies the constraint on Windows. Pip's PySide6 6.11 wheel is
+    # ABI-incompatible with conda-forge's GStreamer env (Phase 43.1 Pitfall #1).
+    # On Windows the conda recipe pre-installs pyside6 from conda-forge so
+    # `pip install -e ..\..` sees it satisfied and skips the PyPI upgrade.
+    "PySide6>=6.10",
     "yt-dlp",
     "streamlink>=8.3",
     "platformdirs>=4.3",
