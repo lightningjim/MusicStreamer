@@ -42,6 +42,13 @@ _BUILD_PS1 = (
     / "build.ps1"
 )
 
+_README = (
+    Path(__file__).resolve().parent.parent
+    / "packaging"
+    / "windows"
+    / "README.md"
+)
+
 
 @pytest.fixture(scope="module")
 def spec_source() -> str:
@@ -53,6 +60,12 @@ def spec_source() -> str:
 def build_ps1_source() -> str:
     assert _BUILD_PS1.is_file(), f"expected build.ps1 at {_BUILD_PS1}"
     return _BUILD_PS1.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def readme_source() -> str:
+    assert _README.is_file(), f"expected README.md at {_README}"
+    return _README.read_text(encoding="utf-8")
 
 
 def test_spec_imports_copy_metadata(spec_source: str) -> None:
@@ -399,3 +412,139 @@ def test_build_ps1_post_bundle_dist_info_assertion_present(build_ps1_source: str
             "within the same failure block. Otherwise the documented "
             "exit code at line 5 would not actually fire."
         )
+
+
+def test_readme_conda_recipe_lists_every_required_plugin_package(
+    readme_source: str,
+) -> None:
+    """Phase 69 / P-01: packaging/windows/README.md conda recipe must
+    mention every conda-forge package referenced in
+    tools/check_bundle_plugins.py REQUIRED_PLUGIN_DLLS values.
+
+    Drift-guard: catches the failure mode where a future maintainer
+    edits the build-time guard's required-plugin list (e.g. adds Opus
+    or Vorbis plugins after a new codec issue) but forgets to add the
+    matching conda package to the README recipe. Without this test, the
+    build would fail at G-01 plugin-presence check (exit code 10) only
+    after a full PyInstaller run -- wasting ~5 minutes of build time
+    per drift incident. This test fires in <1 second on Linux dev CI.
+
+    Pitfall 5 mitigation: the regex anchors on the fenced code block's
+    closing ``` so a stray `conda create -n musicstreamer-build`
+    reference in markdown prose (e.g. a comment example) cannot match
+    instead of the canonical recipe block.
+    """
+    import re
+
+    from tools.check_bundle_plugins import REQUIRED_PLUGIN_DLLS
+
+    # Locate the conda create / conda env update block in README.md.
+    # The block is fenced as a powershell code block; the regex
+    # terminates at the closing fence so comments outside fenced blocks
+    # cannot match (Phase 69 RESEARCH Pitfall 5).
+    block_match = re.search(
+        r"conda create -n musicstreamer-build[^\n]*\n((?:[^\n]*\n)+?)```",
+        readme_source,
+    )
+    assert block_match, (
+        "packaging/windows/README.md must contain a fenced PowerShell "
+        "code block starting with `conda create -n musicstreamer-build` "
+        "(this is the canonical recipe location per Phase 69 DOC-02). "
+        "If you renamed the env or moved the recipe, update this test "
+        "AND tools/check_bundle_plugins.py together."
+    )
+    recipe_block = block_match.group(0)
+
+    required_packages = {pkg for (_, pkg) in REQUIRED_PLUGIN_DLLS.values()}
+    missing = [pkg for pkg in required_packages if pkg not in recipe_block]
+    assert not missing, (
+        "Phase 69 / P-01 drift-guard FAIL: the following conda-forge "
+        f"package(s) are in tools/check_bundle_plugins.py "
+        f"REQUIRED_PLUGIN_DLLS but absent from "
+        f"packaging/windows/README.md's conda recipe block: {missing}. "
+        f"Either remove them from the required-plugin list (if the "
+        f"build-time guard no longer needs them) or add them to the "
+        f"README recipe so a fresh build host produces a bundle that "
+        f"passes the post-bundle plugin-presence guard."
+    )
+
+
+def test_build_ps1_invokes_plugin_guard_with_exit_10(
+    build_ps1_source: str,
+) -> None:
+    """Phase 69 / G-01 / WIN-05: build.ps1 must contain a post-bundle
+    plugin-presence guard step (step 4b) that invokes
+    tools/check_bundle_plugins.py with the WR-01-compliant failure
+    discipline (Write-Host -ForegroundColor Red + exit 10).
+
+    Drift-guard: catches accidental removal of step 4b, accidental swap
+    from Write-Host to Write-Error (which would escalate to a
+    terminating error under $ErrorActionPreference = "Stop" and skip
+    the documented exit 10 -- script returns 1 instead, breaking CI
+    branching on $LASTEXITCODE), or accidental removal of the
+    exit-code header documentation.
+    """
+    # Rationale-tag check: the step header literal must stay stable so
+    # future grep discovery is reliable.
+    assert "POST-BUNDLE PLUGIN GUARD" in build_ps1_source, (
+        "build.ps1 must contain the literal `POST-BUNDLE PLUGIN GUARD` "
+        "in the step 4b header. If you renamed the step, update this "
+        "test AND the rationale block in build.ps1 together."
+    )
+
+    # Invocation-substring check: the PowerShell call site must use the
+    # canonical Windows backslash path to tools/check_bundle_plugins.py.
+    assert "python ..\\..\\tools\\check_bundle_plugins.py" in build_ps1_source, (
+        "build.ps1 step 4b must invoke "
+        "`python ..\\..\\tools\\check_bundle_plugins.py` (relative to "
+        "the packaging/windows/ working directory). If the path layout "
+        "changes, update this test alongside build.ps1."
+    )
+
+    # BUILD_FAIL substring check: drift-guard against a maintainer
+    # rephrasing the failure reason away from the canonical literal
+    # that CI / wrapper scripts grep for.
+    assert "BUILD_FAIL reason=plugin_missing" in build_ps1_source, (
+        "build.ps1 step 4b failure branch must emit the literal "
+        "`BUILD_FAIL reason=plugin_missing` so wrapper scripts can "
+        "grep the cause from build.log."
+    )
+
+    # Exit-code substring checks: both the literal failure-block
+    # `exit 10` AND the header-comment documentation must be present.
+    assert "exit 10" in build_ps1_source, (
+        "build.ps1 step 4b must `exit 10` on plugin-missing failure "
+        "(matches the exit-codes header documentation at line 5-7)."
+    )
+    assert "10=post-bundle plugin-presence guard fail" in build_ps1_source, (
+        "build.ps1 exit-codes header (line 5-7 region) must document "
+        "`10=post-bundle plugin-presence guard fail (Phase 69)` so a "
+        "future maintainer can map the exit code to its source step "
+        "without grep-spelunking."
+    )
+
+    # WR-01 Write-Host adjacency check -- locate the BUILD_FAIL
+    # diagnostic and verify it sits within a Write-Host (NOT
+    # Write-Error) line, followed by exit 10 within 400 chars of the
+    # same site. Write-Error escalates to a terminating error under
+    # $ErrorActionPreference = "Stop" and the documented `exit 10` line
+    # never executes -- PowerShell returns 1 instead. See Phase 65
+    # WR-01 rationale in build.ps1 lines 18-27.
+    idx = build_ps1_source.find("BUILD_FAIL reason=plugin_missing")
+    assert idx != -1
+    before = build_ps1_source[max(0, idx - 120) : idx + 50]
+    assert "Write-Host" in before, (
+        "build.ps1 step 4b `BUILD_FAIL reason=plugin_missing` must be "
+        "emitted via `Write-Host ... -ForegroundColor Red` (NOT "
+        "`Write-Error`). Write-Error escalates to a terminating error "
+        "under $ErrorActionPreference = \"Stop\" and the documented "
+        "`exit 10` below it never executes -- the script returns 1 "
+        "instead. See Phase 65 WR-01 for the full rationale."
+    )
+    after = build_ps1_source[idx : idx + 400]
+    assert "exit 10" in after, (
+        "build.ps1 step 4b `BUILD_FAIL reason=plugin_missing` must be "
+        "followed by `exit 10` within the same failure block. "
+        "Otherwise the documented exit code at line 7 would not "
+        "actually fire on plugin-missing failure."
+    )

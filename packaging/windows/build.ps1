@@ -3,7 +3,8 @@
 # Adapted from .planning/phases/43-gstreamer-windows-spike/build.ps1.
 # Exit codes: 0=ok, 1=env missing, 2=pyinstaller failed, 3=smoke test failed,
 #             4=PKG-03 guard fail, 5=version parse fail, 6=iscc fail, 7=spec entry guard fail,
-#             8=pre-bundle clean fail, 9=post-bundle dist-info assertion fail
+#             8=pre-bundle clean fail, 9=post-bundle dist-info assertion fail,
+#             10=post-bundle plugin-presence guard fail (Phase 69)
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -281,6 +282,29 @@ try {
     }
 
     Write-Host "POST-BUNDLE ASSERTION OK -- dist-info singleton: $($bundledDistInfo.Name) (version $bundledVersion matches pyproject)"
+
+    # --- 4b. Post-bundle plugin-presence guard (Phase 69 / G-01 / WIN-05) ---
+    # Validates that AAC-required GStreamer plugin DLLs landed in the bundle.
+    # Without this, a future docs-drift regression (e.g. a maintainer drops
+    # gst-libav from the conda recipe in packaging/windows/README.md) would
+    # silently produce a bundle that fails AAC playback at runtime with only
+    # the generic "Playback error" toast as a signal -- the empirical Phase 56
+    # F2 finding (56-05-UAT-LOG.md).
+    #
+    # Required plugin list is single-sourced from tools/check_bundle_plugins.py
+    # REQUIRED_PLUGIN_DLLS dict (also imported by
+    # tests/test_packaging_spec.py P-01 drift-guard pytest).
+    #
+    # DO NOT REMOVE without first updating both:
+    #   - tests/test_packaging_spec.py (P-01 drift-guard test)
+    #   - .planning/phases/69-debug-why-aac-streams-aren-t-playing-in-windows-possibly-mis/69-01-PLAN.md (this plan's rationale)
+    Write-Host "=== POST-BUNDLE PLUGIN GUARD: python tools/check_bundle_plugins.py (Phase 69 / WIN-05) ==="
+    Invoke-Native { python ..\..\tools\check_bundle_plugins.py --bundle ..\..\dist\MusicStreamer\_internal 2>&1 | Out-Host }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "BUILD_FAIL reason=plugin_missing hint='see tools/check_bundle_plugins.py output above; add the named conda-forge package to packaging/windows/README.md conda recipe'" -ForegroundColor Red
+        exit 10
+    }
+    Write-Host "POST-BUNDLE PLUGIN GUARD OK"
 
     # --- 5. Smoke test --------------------------------------------------
     if (-not $SkipSmoke) {

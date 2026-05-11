@@ -16,9 +16,13 @@ search path, MSVC-vs-MinGW gotchas).
 1. **Miniforge / conda-forge environment** — create once on the build VM:
    ```powershell
    conda create -n musicstreamer-build -c conda-forge `
-       python=3.12 pygobject gstreamer=1.28 pyinstaller `
-       "pyinstaller-hooks-contrib>=2026.2"
+       python=3.12 pygobject gstreamer=1.28 `
+       gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly `
+       gst-libav `
+       pyinstaller "pyinstaller-hooks-contrib>=2026.2"
    conda activate musicstreamer-build
+   # AAC playback requires gst-libav (Phase 69 — provides avdec_aac in gstlibav.dll).
+   # aacparse ships with gst-plugins-good's audioparsers plugin (gstaudioparsers.dll).
    ```
    The conda-forge GStreamer package ships the MSVC build with
    `gst-plugin-scanner.exe`, the GIO TLS module (`gioopenssl.dll`), and
