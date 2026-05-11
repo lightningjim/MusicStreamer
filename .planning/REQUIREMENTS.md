@@ -31,6 +31,7 @@ Phase 44 carry-forward — items deferred from the v2.0 ship line.
 - [ ] **WIN-02**: SMTC overlay shows "MusicStreamer" instead of "Unknown app" via a registered Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` (matches the in-process AUMID set during startup)
 - [x] **WIN-03**: Audio pause/resume on Windows produces no audible glitch; the volume slider takes effect on Windows playback (parity with Linux)
 - [x] **WIN-04**: `test_thumbnail_from_in_memory_stream` passes on Windows (`MagicMock` replaced with `AsyncMock` for the `store_async` await)
+- [ ] **WIN-05**: AAC-encoded streams play on Windows — DI.fm AAC tier + SomaFM HE-AAC fixtures verified post-bundle-fix *(Phase 69)*
 
 ### Features (FEAT)
 
@@ -101,13 +102,14 @@ Which phases cover which requirements.
 | VER-01 | Phase 63 | Complete |
 | VER-02 | Phase 65 | Complete |
 | THEME-01 | Phase 66 | Complete |
+| WIN-05 | Phase 69 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 19 total
-- Mapped to phases: 19 ✓
+- v2.1 requirements: 20 total
+- Mapped to phases: 20 ✓
 - Unmapped: 0 ✓
-- Complete: 2 (BUG-07 env-level; BUG-01 Phase 50)
-- Pending: 17
+- Complete: 18
+- Pending: 2 (WIN-02, WIN-05)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
