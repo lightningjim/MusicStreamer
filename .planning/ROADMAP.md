@@ -122,14 +122,6 @@ Scope expansion (45–48 — landed during v2.0 timeframe):
 - [x] Phase 47.2: AutoEQ parametric EQ import (4/4 plans) — completed 2026-04-19
 - [x] Phase 48: Fix AudioAddict listen key persistence (2/2 plans) — completed 2026-04-19
 
-Backlog regression fixes (999.x — closed during v2.0):
-
-- [x] Phase 999.1: New Station primary action (4/4 plans) — completed 2026-04-24
-- [x] Phase 999.3: Twitch + Google login fix (3/3 plans) — completed 2026-04-24
-- [x] Phase 999.7: yt-dlp cookies regression (4/4 plans) — completed 2026-04-24
-- [x] Phase 999.8: Twitch silent (REFUTED — actual fix in 9df84de) — completed 2026-04-24
-- [x] Phase 999.9: YouTube no-formats regression (1/1 plan) — completed 2026-04-24
-
 Full details: `.planning/milestones/v2.0-ROADMAP.md`
 Audit: `.planning/milestones/v2.0-MILESTONE-AUDIT.md`
 
@@ -568,13 +560,14 @@ Plans:
 
 ### Phase 69: Debug why AAC streams aren't playing in Windows (possibly missing codec)
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Land the conda-recipe + build-time guard + drift-guard pytest + Win11 UAT that empirically prove AAC-encoded streams (DI.fm AAC tier + SomaFM HE-AAC) play on the installed Windows binary post-bundle-fix, with a documented exit code 10 in `build.ps1` that fails the build loudly if `gstlibav.dll` or `gstaudioparsers.dll` ever go missing from `dist/MusicStreamer/_internal/gst_plugins/`.
+**Requirements**: WIN-05
 **Depends on:** Phase 68
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 69 to break down)
+- [ ] 69-01-PLAN.md — Linux dev: source-of-truth helper (tools/check_bundle_plugins.py), build.ps1 step 4b + exit code 10, README conda recipe expansion (gst-libav + 4 gst-plugins-* packages), tests/test_packaging_spec.py drift-guard pytests, CONCERNS.md reconciliation, REQUIREMENTS.md WIN-05 row
+- [ ] 69-02-PLAN.md — Win11 VM UAT (operator-driven): fixture URL capture (R-01), pre-fix FAIL baseline (R-03), conda env recreate + build attestation (G-01), force-fresh-install (Phase 56 D-08), post-install AAC playback PASS attestation, Phase Completion Decision
 
 ### Phase 70: Hi-res indicator for streams (mirror moOde audio criteria)
 
