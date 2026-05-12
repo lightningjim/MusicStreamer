@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QStandardPaths
 
 from musicstreamer import settings_export
+from musicstreamer.hi_res import best_tier_for_station
 from musicstreamer.repo import db_connect
 
 from musicstreamer import media_keys
@@ -130,6 +131,11 @@ class _GbsImportWorker(QThread):
 
 class MainWindow(QMainWindow):
     """Main application window — station list + now-playing + toast overlay."""
+
+    # Phase 70 — quality_map fan-out (DS-01); payload is dict[int, str] keyed on station_id.
+    # Signal(object) mirrors Phase 68 live_map_changed = Signal(object) pattern —
+    # PySide6 cannot carry a Python dict as a typed Signal arg without copy errors.
+    quality_map_changed = Signal(object)
 
     # Phase 62 / D-08 / BUG-09: cooldown for the `Buffering…` toast.
     # 10 seconds, wall-clock-based via time.monotonic; persists across station
@@ -349,6 +355,18 @@ class MainWindow(QMainWindow):
         # than a direct connect to station_panel.update_live_map so the
         # signal payload type is validated (must be dict).
         self.now_playing.live_map_changed.connect(self._on_live_map_changed)
+
+        # Phase 70 / DS-01 / Pitfall 9 Option A: Player has no repo handle so
+        # persistence + cross-component fan-out live here.
+        # Idempotency cache — dedupes back-to-back caps emits for the same stream.
+        self._last_quality_payload: dict[int, tuple[int, int]] = {}
+        # Explicit QueuedConnection for documentation clarity (belt-and-suspenders
+        # — Qt auto-queues cross-thread; Plan 70-00 grep test requires QueuedConnection
+        # near audio_caps_detected).
+        self._player.audio_caps_detected.connect(
+            self._on_audio_caps_detected, Qt.ConnectionType.QueuedConnection
+        )
+
         # Right-click edit from station list
         self.station_panel.edit_requested.connect(self._on_edit_requested)
         # Phase 999.1 D-02: "+" button in panel header shares MainWindow slot
@@ -449,6 +467,91 @@ class MainWindow(QMainWindow):
         if not isinstance(live_map, dict):
             return
         self.station_panel.update_live_map(live_map)
+
+    def _on_audio_caps_detected(
+        self, stream_id: int, rate_hz: int, bit_depth: int
+    ) -> None:
+        """Phase 70 / DS-01 / Pitfall 4 DB-write-first invariant.
+
+        Player emits audio_caps_detected(stream_id, rate_hz, bit_depth) from the
+        GStreamer bus-loop thread; Qt auto-queues it to this main-thread slot (plus
+        explicit QueuedConnection on the connect side for documentation clarity).
+
+        Strict ordering per Phase 50 D-04 / Pitfall 4:
+          1. Idempotency check — bail early if cache already matches.
+          2. DB write FIRST: fetch existing stream row to preserve all fields,
+             then call repo.update_stream with sample_rate_hz / bit_depth updated.
+          3. Update in-memory cache.
+          4. Rebuild quality_map from list_stations() (DB-consistent after step 2).
+          5. Fan-out to NowPlayingPanel + StationListPanel (hasattr-guarded for
+             forward compat with Wave 3 plans 70-06 / 70-09).
+          6. Emit quality_map_changed (non-blocking; downstream consumers optional).
+
+        NOTE: DB-write-first / fan-out-second ordering is LOAD-BEARING. Any
+        refactor that emits quality_map_changed BEFORE repo.update_stream
+        introduces the Phase 50 BUG-01 class of bug (UI re-reads stale data).
+        """
+        try:
+            # Step 1 — idempotency: skip if rate/depth already cached for this stream.
+            if self._last_quality_payload.get(stream_id) == (rate_hz, bit_depth):
+                return
+
+            # Step 2 — DB write FIRST (Phase 50 D-04 / Pitfall 4).
+            # Lightweight lookup: find the station_id for this stream_id via a
+            # parameterized SELECT (T-70-13 — parameterized, no string interpolation).
+            row = self._repo.con.execute(
+                "SELECT station_id FROM station_streams WHERE id=?", (stream_id,)
+            ).fetchone()
+            if row is None:
+                # Stream deleted between caps-emit and slot-fire — T-70-14 race handled.
+                return
+            station_id = int(row[0])
+
+            # Fetch the full existing stream row so update_stream preserves all fields.
+            existing = next(
+                (s for s in self._repo.list_streams(station_id) if s.id == stream_id),
+                None,
+            )
+            if existing is None:
+                # Deleted between the two lookups — T-70-14 race handled.
+                return
+
+            self._repo.update_stream(
+                stream_id=existing.id,
+                url=existing.url,
+                label=existing.label,
+                quality=existing.quality,
+                position=existing.position,
+                stream_type=existing.stream_type,
+                codec=existing.codec,
+                bitrate_kbps=existing.bitrate_kbps,
+                sample_rate_hz=rate_hz,
+                bit_depth=bit_depth,
+            )
+
+            # Step 3 — update in-memory cache (after successful DB write).
+            self._last_quality_payload[stream_id] = (rate_hz, bit_depth)
+
+            # Step 4 — rebuild quality_map from freshly-written DB state.
+            quality_map: dict[int, str] = {
+                st.id: best_tier_for_station(st)
+                for st in self._repo.list_stations()
+            }
+
+            # Step 5 — fan-out (hasattr-guarded for Wave 3 plan compat).
+            # NowPlayingPanel._refresh_quality_badge lands in Plan 70-06.
+            if hasattr(self.now_playing, "_refresh_quality_badge"):
+                self.now_playing._refresh_quality_badge()
+            # StationListPanel.update_quality_map lands in Plan 70-09.
+            if hasattr(self.station_panel, "update_quality_map"):
+                self.station_panel.update_quality_map(quality_map)
+
+            # Step 6 — emit quality_map_changed last (non-blocking).
+            self.quality_map_changed.emit(quality_map)
+
+        except Exception:
+            # Never-raise invariant (Phase 50 + 68 slot pattern).
+            _log.exception("_on_audio_caps_detected: unhandled exception (stream_id=%r)", stream_id)
 
     def _check_and_start_aa_poll(self) -> None:
         """Phase 68 / B-04 / F-07 / N-03: reactive lifecycle hook after
