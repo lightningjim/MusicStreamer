@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 71 plans verified — 9 plans across 6 waves; awaiting user before /gsd-execute-phase
-last_updated: "2026-05-12T21:41:04.458Z"
-last_activity: 2026-05-12 -- Phase 71 execution started
+stopped_at: Phase 71 complete — 71-08 docs polish done
+last_updated: "2026-05-12T22:41:53.591Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 31
-  completed_phases: 25
+  completed_phases: 26
   total_plans: 118
-  completed_plans: 109
-  percent: 92
+  completed_plans: 118
+  percent: 100
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 71 (sister-station-expansion-1-add-ability-to-link-sister-statio) — EXECUTING
-Plan: 1 of 9
-Status: Executing Phase 71
-Last activity: 2026-05-12 -- Phase 71 execution started
+Plan: 2 of 9
+Status: Ready to execute
+Last activity: 2026-05-12
 
 ## Performance Metrics
 
@@ -135,6 +135,9 @@ Key v2.0 decisions already settled:
 - [Phase ?]: 63-04: PostToolUseFailure timeout=10s (vs PreToolUse 30s); rollback is a single 'git checkout' completing in <100ms. Both hook entries share the same Bash(gsd-sdk query commit *) glob for symmetric registration; PostToolUseFailure event (NOT PostToolUse) per Pitfall 5 — only it fires on Bash failure.
 - [Phase 63]: 63-05: Inserted ## Versioning section ABOVE ## Constraints (PATTERNS+RESEARCH OQ3) — pure additive 6-insertion diff. Worked-example prose verbatim from CONTEXT.md §specifics line 112 (anchors 2.1.50 + 2.1.63). 5-anchor drift-guard test landed (test_constants_drift idiom).
 - [Phase 63]: 63-05: Warning 4 Option A — SC #2 outcome gate test_phase_63_self_completion_bundles_pyproject_with_planning SKIPS pre-self-completion, becomes permanent regression net once phase commit lands. Independent of Plan 03 mechanism test (synthetic fake_repo) — outcome layer asserts pyproject.toml + .planning/* + version=2.1.63 co-occurrence on the real commit object.
+- [Phase ?]: [Phase 71-08]: 6 high-signal [Phase 71] rows appended to PROJECT.md Key Decisions (not all 15 D-NN — matches Phase 70 / Phase 68 / Phase 63 precedent)
+- [Phase ?]: [Phase 71-08]: REQUIREMENTS.md coverage rollup updated 21->22 / 19->20 alongside SIB-01 row (Rule 3 auto-fix)
+- [Phase ?]: [Phase 71-08]: 35 pre-existing test failures (Phase 62 FakePlayer drift, DBus MPRIS, AA quality-combo orphan) logged to deferred-items.md - NOT Phase-71-caused
 
 ### Roadmap Evolution
 
@@ -218,9 +221,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 63 P03 | 2m44s | 3 tasks | 3 files |
 | Phase 63 PP04 | 3m37s | 2 tasks tasks | 3 files files |
 | Phase 63 P05 | 2m27s | 3 tasks | 2 files |
+| Phase 71 P08 | 7min | 4 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-05-12T19:29:04.555Z
-Stopped at: Phase 71 plans verified — 9 plans across 6 waves; awaiting user before /gsd-execute-phase
-Resume file: .planning/phases/71-sister-station-expansion-1-add-ability-to-link-sister-statio/71-00-PLAN.md
+Last session: 2026-05-12T22:41:53.581Z
+Stopped at: Phase 71 complete — 71-08 docs polish done
+Resume file: None
