@@ -1108,3 +1108,131 @@ def test_siblings_unresolved_name_silently_dropped(tmp_path):
     # No sibling rows because the named partner does not exist.
     rows = fresh.con.execute("SELECT * FROM station_siblings").fetchall()
     assert list(rows) == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 71 / CR-01 regression: duplicate-name across providers
+# ---------------------------------------------------------------------------
+# stations.name is NOT UNIQUE — two stations can share a name across
+# different providers (SomaFM "Groove Salad" + same-named station from
+# another provider). Pre-fix the second-pass name → id resolution silently
+# collapsed duplicate-name keys, misattributing or dropping sibling rows.
+
+
+def test_siblings_round_trip_with_cross_provider_duplicate_names(tmp_path):
+    """CR-01: two stations sharing a name across providers each keep their
+    own sibling links — no silent misattribution from name collision."""
+    # Build a ZIP by hand: two stations named "Groove Salad" — one on SomaFM
+    # paired with "Drone Zone (SomaFM)", one on Imaginary Network paired with
+    # "Drone Zone (Imaginary)". Without the (name, provider) tuple fix the
+    # second-pass name→id map collapses both "Groove Salad" entries and the
+    # two sibling links wrongly land on a single station_id.
+    payload = {
+        "version": 1,
+        "exported_at": "2026-01-01T00:00:00",
+        "stations": [
+            {
+                "name": "Groove Salad",
+                "provider": "SomaFM",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "siblings": ["Drone Zone (SomaFM)"],
+                "streams": [
+                    {
+                        "url": "http://somafm.example/groovesalad",
+                        "label": "", "quality": "", "position": 1,
+                        "stream_type": "", "codec": "",
+                    }
+                ],
+            },
+            {
+                "name": "Drone Zone (SomaFM)",
+                "provider": "SomaFM",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "siblings": ["Groove Salad"],
+                "streams": [
+                    {
+                        "url": "http://somafm.example/dronezone",
+                        "label": "", "quality": "", "position": 1,
+                        "stream_type": "", "codec": "",
+                    }
+                ],
+            },
+            {
+                "name": "Groove Salad",
+                "provider": "Imaginary Network",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "siblings": ["Drone Zone (Imaginary)"],
+                "streams": [
+                    {
+                        "url": "http://imaginary.example/groovesalad",
+                        "label": "", "quality": "", "position": 1,
+                        "stream_type": "", "codec": "",
+                    }
+                ],
+            },
+            {
+                "name": "Drone Zone (Imaginary)",
+                "provider": "Imaginary Network",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "siblings": ["Groove Salad"],
+                "streams": [
+                    {
+                        "url": "http://imaginary.example/dronezone",
+                        "label": "", "quality": "", "position": 1,
+                        "stream_type": "", "codec": "",
+                    }
+                ],
+            },
+        ],
+        "track_favorites": [],
+        "settings": [],
+    }
+    zip_path = tmp_path / "dup-names.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("settings.json", json.dumps(payload))
+
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")  # MUST NOT raise
+
+    # Resolve IDs by (name, provider_name) so we can target the right rows.
+    by_name_provider = {}
+    for row in fresh.con.execute(
+        "SELECT s.id, s.name, p.name AS provider_name "
+        "FROM stations s LEFT JOIN providers p ON s.provider_id = p.id"
+    ).fetchall():
+        by_name_provider[(row["name"], row["provider_name"] or "")] = row["id"]
+
+    somafm_groove = by_name_provider[("Groove Salad", "SomaFM")]
+    somafm_drone = by_name_provider[("Drone Zone (SomaFM)", "SomaFM")]
+    imaginary_groove = by_name_provider[("Groove Salad", "Imaginary Network")]
+    imaginary_drone = by_name_provider[(
+        "Drone Zone (Imaginary)", "Imaginary Network"
+    )]
+
+    # SomaFM's Groove Salad must link to SomaFM's Drone Zone (and only that).
+    assert fresh.list_sibling_links(somafm_groove) == [somafm_drone]
+    # Imaginary's Groove Salad must link to Imaginary's Drone Zone (no
+    # cross-pollination from the name collision).
+    assert fresh.list_sibling_links(imaginary_groove) == [imaginary_drone]
+    # No SomaFM → Imaginary or vice versa.
+    assert somafm_drone not in fresh.list_sibling_links(imaginary_groove)
+    assert imaginary_drone not in fresh.list_sibling_links(somafm_groove)

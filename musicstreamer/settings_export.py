@@ -348,17 +348,42 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
             # mid-transaction, breaking atomicity. Pitfall 1: name → id map is
             # built from the LIVE DB after all station rows are inserted, not
             # from the ZIP, so names always resolve to the destination's IDs.
-            name_to_id = {
-                r["name"]: r["id"]
-                for r in repo.con.execute(
-                    "SELECT id, name FROM stations"
-                ).fetchall()
-            }
+            #
+            # CR-01: stations.name is NOT UNIQUE in the schema — only
+            # providers.name is UNIQUE (repo.py:23-33). Two stations can share
+            # a name across different providers (the SomaFM-variant case is a
+            # primary motivating use case for Phase 71). Keying name_to_id by
+            # name alone would silently collapse duplicate-name entries with
+            # non-deterministic last-write-wins behavior, misattributing or
+            # dropping sibling rows. Key by (name, provider_name) instead so
+            # cross-provider name collisions resolve to the right station_id.
+            # The provider_name fallback "" mirrors the export side
+            # (_station_to_dict line 112: provider_name or "").
+            key_to_id: dict[tuple[str, str], int] = {}
+            ambiguous_keys: set[tuple[str, str]] = set()
+            for r in repo.con.execute(
+                "SELECT s.id AS id, s.name AS name, p.name AS provider_name "
+                "FROM stations s LEFT JOIN providers p ON s.provider_id = p.id"
+            ).fetchall():
+                key = (r["name"], r["provider_name"] or "")
+                if key in key_to_id:
+                    # Same (name, provider) still ambiguous (no UNIQUE
+                    # constraint on the pair). Mark as ambiguous so we drop
+                    # any sibling rows that would resolve to this key — better
+                    # to silently drop than to non-deterministically misroute.
+                    ambiguous_keys.add(key)
+                else:
+                    key_to_id[key] = r["id"]
+
             for station_data in preview.stations_data:
                 station_name = station_data.get("name", "")
                 if not station_name:
                     continue
-                station_id = name_to_id.get(station_name)
+                station_provider = station_data.get("provider", "") or ""
+                station_key = (station_name, station_provider)
+                if station_key in ambiguous_keys:
+                    continue
+                station_id = key_to_id.get(station_key)
                 if station_id is None:
                     continue
                 sibling_names = list(station_data.get("siblings") or [])
@@ -367,9 +392,20 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
                     # would crash `dict.get` on an unhashable key. Skip.
                     if not isinstance(sibling_name, str):
                         continue
-                    sibling_id = name_to_id.get(sibling_name)
-                    if sibling_id is None:
-                        continue  # D-07: silently drop unresolved names
+                    # CR-01: resolve the sibling by (name, provider) too. The
+                    # ZIP only carries names, not the partner's provider — so
+                    # check every provider bucket for a matching name. If
+                    # exactly one provider has a station with this name, use
+                    # it. If more than one does, the link is ambiguous and we
+                    # silently drop (matches D-07 "unresolved names silently
+                    # drop" semantic for the multi-match case).
+                    matching_ids = [
+                        sid for (n, _p), sid in key_to_id.items()
+                        if n == sibling_name and (n, _p) not in ambiguous_keys
+                    ]
+                    if len(matching_ids) != 1:
+                        continue
+                    sibling_id = matching_ids[0]
                     # T-71-19: defensive — never write a self-link row (would
                     # also fail the `a_id < b_id` CHECK constraint).
                     if sibling_id == station_id:
