@@ -272,6 +272,11 @@ class Player(QObject):
     _underrun_cycle_closed    = Signal(object)   # bus-loop → main: log + cancel dwell (object = _CycleClose)
     underrun_recovery_started = Signal()         # main → MainWindow: show_toast (D-07)
 
+    # Phase 70 / DS-01: streaming/bus thread → main: persist sample_rate_hz / bit_depth
+    # for the playing stream. Emitted with QueuedConnection on the receiver side
+    # (MainWindow wires the slot in Plan 70-05 — qt-glib-bus-threading.md Rule 2).
+    audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth
+
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
 
@@ -399,6 +404,14 @@ class Player(QObject):
         self._underrun_cycle_closed.connect(
             self._on_underrun_cycle_closed, Qt.ConnectionType.QueuedConnection
         )
+
+        # Phase 70 / DS-01 + qt-glib-bus-threading.md Rule 2:
+        # audio_caps_detected is emitted from the streaming thread; receiver
+        # (MainWindow._on_audio_caps_detected) connects with QueuedConnection
+        # in Plan 70-05.  Player does NOT self-connect (no repo handle — Pitfall 9).
+        self._caps_pad = None               # cached audio-pad ref for disconnect on next _set_uri
+        self._caps_handler_id: int = 0      # GObject handler-id from pad.connect(); 0 = not connected
+        self._caps_armed_for_stream_id: int = 0  # per-URL one-shot guard; 0 = disarmed (Pitfall 6)
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
         # current GTK main_window.py works unchanged this phase.
