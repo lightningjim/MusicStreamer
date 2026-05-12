@@ -757,9 +757,24 @@ class Player(QObject):
         # (Pitfall 6: pair future emit with the URL currently being set up).
         self._caps_armed_for_stream_id = self._current_stream.id
 
-        pad = self._pipeline.emit("get-audio-pad", 0)
+        # playbin3 (unlike legacy playbin 1.x) does not expose a `get-audio-pad`
+        # action signal. Use the audio-sink property — the pulsesink we set in
+        # __init__ — and probe its static sink pad, which receives the
+        # negotiated post-decode caps. Defensive: handle missing sink, missing
+        # pad, or unexpected pipeline shape by silently disabling caps detection
+        # for this stream (UI falls back to D-03 cold-start defaults).
+        try:
+            audio_sink = self._pipeline.get_property("audio-sink")
+        except Exception:
+            audio_sink = None
+        if audio_sink is None:
+            return
+        try:
+            pad = audio_sink.get_static_pad("sink")
+        except Exception:
+            pad = None
         if pad is None:
-            # Audio pad not available yet; notify::caps will arrive later.
+            # Audio sink pad not available yet; notify::caps will arrive later.
             return
         self._caps_pad = pad
         self._caps_handler_id = pad.connect("notify::caps", self._on_caps_negotiated)

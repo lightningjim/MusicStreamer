@@ -164,3 +164,61 @@ def test_caps_no_double_emit_for_same_stream(qtbot):
         f"expected exactly 1 emission, got {len(emission_count)} "
         "(Pitfall 6 one-shot guard failure)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Regression: playbin3 pad-extraction must not call get-audio-pad
+# (legacy playbin 1.x action signal; absent on GstPlayBin3 — discovered
+# via live UAT 2026-05-12)
+# ---------------------------------------------------------------------------
+
+
+def test_arm_caps_watch_uses_audio_sink_pad_not_get_audio_pad_signal(qtbot):
+    """Phase 70 / UAT-fix: _arm_caps_watch_for_current_stream must NOT call
+    `pipeline.emit("get-audio-pad", ...)`. That action signal exists on legacy
+    `playbin` but is absent on `playbin3` (which the project uses since
+    Phase 57 / WIN-03), raising `TypeError: unknown signal name: get-audio-pad`
+    on live playback.
+
+    The correct path is to read `pipeline.get_property("audio-sink")` and
+    probe that element's static sink pad — works on both playbin and playbin3.
+    """
+    import inspect as _inspect
+    from musicstreamer.player import Player
+    src = _inspect.getsource(Player._arm_caps_watch_for_current_stream)
+    # The legacy action signal MUST NOT appear in code (comments OK but
+    # strip them before grep so a documentation reference doesn't fail).
+    code_only = "\n".join(
+        line for line in src.splitlines() if not line.lstrip().startswith("#")
+    )
+    assert 'emit("get-audio-pad"' not in code_only, (
+        "playbin3 has no get-audio-pad action signal — use "
+        "pipeline.get_property('audio-sink').get_static_pad('sink') instead"
+    )
+    # Positive lock: the audio-sink property approach is present.
+    assert 'get_property("audio-sink")' in code_only, (
+        "expected pipeline.get_property('audio-sink') in pad extraction"
+    )
+
+
+def test_arm_caps_watch_survives_missing_audio_sink(qtbot):
+    """Defensive: if pipeline.get_property('audio-sink') returns None (or
+    raises), arming must not raise — UI falls back to D-03 cold-start defaults.
+    """
+    player = make_player(qtbot)
+    # Force the path: audio-sink returns None
+    player._pipeline.get_property = MagicMock(return_value=None)
+    # Set up a current stream so the early-return on _current_stream is None
+    # doesn't short-circuit before we exercise the audio-sink path.
+    fake_stream = MagicMock()
+    fake_stream.id = 7
+    player._current_stream = fake_stream
+
+    # Must not raise
+    player._arm_caps_watch_for_current_stream()
+
+    # Verify the get_audio_pad signal was NOT called
+    assert not any(
+        call.args == ("get-audio-pad", 0)
+        for call in player._pipeline.emit.call_args_list
+    ), "Player must not call pipeline.emit('get-audio-pad', ...) — that signal does not exist on playbin3"
