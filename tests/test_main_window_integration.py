@@ -929,7 +929,7 @@ def test_player_emits_expected_yt_failure_prefix():
     fails fast on that drift."""
     import re
     import pathlib
-    src = pathlib.Path("musicstreamer/player.py").read_text()
+    src = (pathlib.Path(__file__).parent.parent / "musicstreamer" / "player.py").read_text()
     assert re.search(r'playback_error\.emit\(\s*f?["\']YouTube resolve failed:', src), \
         "player.py drifted — MainWindow Node-missing toast branch will silently break (Plan 03 issue 4 regression guard)"
 
