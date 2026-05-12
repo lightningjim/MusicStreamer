@@ -1,7 +1,8 @@
 ---
 phase: 71
 slug: sister-station-expansion-1-add-ability-to-link-sister-statio
-status: draft
+status: approved
+reviewed_at: 2026-05-12
 shadcn_initialized: false
 preset: none
 created: 2026-05-12
@@ -36,21 +37,23 @@ This is a **native Qt application** — vocabulary throughout is Qt-idiomatic (Q
 
 ## Spacing Scale
 
-Phase 71 inherits the 4 px grid from Phase 68/70. No new spacing tokens are introduced. All Phase 71 values are multiples of 4 or reuse existing Phase 68/70 tokens directly.
+Phase 71 inherits the 4 px grid from Phase 68/70. The table below declares ONLY values this phase introduces or layouts this phase adds. The `_CHIP_QSS` chip body padding (`2px 6px`) and `×` button padding (`4px 6px`) are **inherited Phase 68 patterns — no change** (see note below).
 
 | Token | Value | Phase 71 Usage |
 |-------|-------|----------------|
-| xs | 2 px | Chip inner vertical padding (top/bottom) — matches Phase 68 LIVE badge `padding: 2px 6px` |
-| sm | 4 px | FlowLayout `h_spacing` and `v_spacing` between chips; `×` button internal padding; tag chip row `v_spacing` (mirrors `edit_station_dialog.py:373` `h_spacing=4, v_spacing=4`) |
-| md | 6 px | Chip inner horizontal padding (matches Phase 68 `padding: 2px 6px`); spacing between chip label and `×` glyph within a manual chip |
+| sm | 4 px | FlowLayout `h_spacing` and `v_spacing` between chips; tag chip row `v_spacing` (mirrors `edit_station_dialog.py:373` `h_spacing=4, v_spacing=4`) |
 | lg | 8 px | `outer.setSpacing(8)` in `EditStationDialog` (existing); QVBoxLayout spacing in `AddSiblingDialog`; `dialog_row.setSpacing(8)` for the provider row + station list row |
-| xl | 12 px | Chip corner radius (`border-radius: 12px` — `_CHIP_QSS` at `edit_station_dialog.py:191`) |
+| xl | 12 px | Chip corner radius (`border-radius: 12px` — `_CHIP_QSS` at `edit_station_dialog.py:191`) — border-radius, not layout spacing |
 | 2xl | 16 px | Dialog content margins (`outer.setContentsMargins(16, 16, 16, 16)` — matches `EditStationDialog._build_ui:302`) |
 | 3xl | 24 px | `AddSiblingDialog` minimum interior label spacing; no exact usage — listed for completeness. |
 
+**Inherited Phase 68 chip padding (no change):** `_CHIP_QSS` is reused verbatim from Phase 68 (`edit_station_dialog.py:191-192`). Its internal paddings (`padding: 2px 6px` on the chip body; `padding: 4px 6px` on the `×` button) are off-grid values introduced in Phase 68 for the LIVE badge. Phase 71 introduces **no new off-grid spacing** — these values are inherited unchanged. They are not declared as Phase 71 spacing tokens.
+
+All Phase 71 layout spacing values (modal margins, chip row vertical margin, button gap, dialog content padding) are from the standard scale: 4, 8, 16, 24 px. The `xl = 12 px` border-radius is acceptable because 12 is a multiple of 4 and border-radius is distinct from layout spacing.
+
 **Sibling chip row `setContentsMargins`:** `(0, 0, 0, 0)` — the chip row container inherits outer dialog margins; no additional indentation.
 
-**Exception — `+ Add sibling` button:** this button is a compact inline affordance, NOT a dialog button. It uses the standard `_CHIP_QSS` unselected chip styling so it blends visually with the chip row. Internal padding: 4 px vertical × 8 px horizontal (matching `_CHIP_QSS` `padding: 4px 8px` at `edit_station_dialog.py:192`).
+**`+ Add sibling` button:** this button is a compact inline affordance, NOT a dialog button. It uses the standard `_CHIP_QSS` unselected chip styling so it blends visually with the chip row. Internal padding: inherited from `_CHIP_QSS` Phase 68 values (`padding: 4px 8px` at `edit_station_dialog.py:192`) — not a new Phase 71 token.
 
 ---
 
@@ -65,7 +68,7 @@ Phase 71 introduces **no new font sizes or weights**. All text inherits the surr
 | `+ Add sibling` button | inherits Qt platform default | Normal | Inline button appended after chip row; styled as `chipState="unselected"` chip |
 | Modal dialog labels | inherits Qt platform default | Normal | `AddSiblingDialog` "Provider:" label, "Station:" label, search placeholder |
 | Modal station list items | inherits QListWidget default (≈ 9–10 pt) | Normal | `QListWidget` station rows inside `AddSiblingDialog` |
-| Dialog button box | inherits QDialogButtonBox default | Normal | OK / Cancel in `AddSiblingDialog` |
+| Dialog button box | inherits QDialogButtonBox default | Normal | "Don't Link" / "Link Station" in `AddSiblingDialog` |
 
 **Line-height:** Not applicable — Qt computes line-height implicitly from `QFontMetrics.height()`. Chips and dialog labels are single-line; no multi-line text in new elements.
 
@@ -124,7 +127,7 @@ All 7 Phase 66 preset themes inherit the `palette(base)` / `palette(mid)` / `pal
 | Empty state — provider has stations but all are already linked | `"All stations in this provider are already linked."` | Informational single-sentence message rendered in the station list area (center-aligned QLabel replacing the QListWidget, or a QListWidget item with `setFlags(Qt.NoItemFlags)` and this text). |
 | Empty state — provider has no other stations | `"No other stations found for this provider."` | Provider has only the editing station, or library has no stations under this provider at all. Same render approach. |
 | OK button label | `"Link Station"` | Specific verb + noun; distinguishes from a generic "OK". Matches the dialog purpose (linking). Enabled only when a station is selected in the list. |
-| Cancel button label | `"Cancel"` | Standard. |
+| Dismiss button label | `"Don't Link"` | Names the outcome explicitly: leave this dialog without adding a sibling. Contrasts unambiguously with the `"Link Station"` primary CTA. |
 | Dialog OK state — no selection | `"Link Station"` button disabled. No tooltip. | QDialogButtonBox default behavior with `button.setEnabled(bool(selection))`. |
 
 ### NowPlayingPanel (no new copy — unchanged surface)
@@ -163,6 +166,8 @@ The existing `self._sibling_label` QLabel (at `edit_station_dialog.py:486`) is *
 | Placement in `outer` | Same slot as the old `_sibling_label`: immediately before `outer.addWidget(self.button_box)` at `edit_station_dialog.py:493` |
 | Populated by | `_refresh_siblings()` — rebuilt on every call (clear all widgets, re-add from merged list + `+ Add sibling` button) |
 
+**Primary focal point:** The `+ Add sibling` button is the primary call-to-action in the chip row; existing sibling chips are secondary affordances.
+
 **Manual sibling chip construction:**
 
 Each manual sibling is rendered as a **compound widget**: a minimal `QWidget` with a `QHBoxLayout` holding two children: (1) a `QPushButton` for the station name (clickable → `navigate_to_sibling` signal, same as the old `_sibling_label` link behavior), and (2) a small `QPushButton` for the `×` unlink action.
@@ -184,11 +189,11 @@ Each manual sibling is rendered as a **compound widget**: a minimal `QWidget` wi
 | `×` QPushButton size | Fixed height = name button height; width = `QFontMetrics(font).horizontalAdvance("×") + 2 * 6 px` horizontal padding. In practice ≈ 20 px × 26 px at platform default font. Use `setFixedSize` at chip-creation time after layout. **Alternatively:** use `setMaximumWidth(24)` + `setSizePolicy(Fixed, Fixed)` for a simpler approach. Planner picks. |
 | `×` QPushButton styling | Same `_CHIP_QSS` `chipState="unselected"` — visually cohesive with the name button. **Do NOT apply `ERROR_COLOR_HEX` to the `×` button.** |
 | `×` QPushButton border-radius | 12 px (matches name button) |
-| `×` QPushButton padding | `4px 6px` (slightly tighter than name button to keep the compound chip compact) |
+| `×` QPushButton padding | `4px 6px` (slightly tighter than name button to keep the compound chip compact) — inherited Phase 68 `_CHIP_QSS` value |
 | Compound widget inner `QHBoxLayout` spacing | 0 px — name button and `×` button are flush against each other so they read as a single chip unit |
 | Compound widget inner `QHBoxLayout` contentsMargins | `(0, 0, 0, 0)` |
 | Compound widget `setObjectName` | `"sibling_chip_{station_id}"` — for test targeting |
-| Click — name button | Emits `self.navigate_to_sibling` signal with sibling station id. Mirrors Phase 51 D-09 / `_on_sibling_link_activated` behavior. The existing dirty-check confirmation flow (Phase 51 D-11) applies: if `_is_dirty()`, show `QMessageBox.question(Save / Discard / Cancel)` before navigating. |
+| Click — name button | Emits `self.navigate_to_sibling` signal with sibling station id. Mirrors Phase 51 D-09 / `_on_sibling_link_activated` behavior. The existing dirty-check confirmation flow (Phase 51 D-11) applies: if `_is_dirty()`, show `QMessageBox.question(Save / Discard / Cancel)` before navigating. The Save/Discard/Cancel buttons belong to Phase 51's inherited dirty-confirm modal — Phase 71 does NOT relabel them; the `"Don't Link"` rename applies only to the new `AddSiblingDialog` dismiss button. |
 | Click — `×` button | Calls `self._repo.remove_sibling_link(self._station.id, sibling_id)`, then calls `self._refresh_siblings()` to repaint the chip row, then emits `self.sibling_toast` signal (or calls toast callback) with `f"Unlinked from {station_name}"`. No confirmation dialog. |
 | Tooltip — cross-provider chip | `setToolTip(f"Linked from {provider_name}")` on the compound widget or the name button. |
 | Tooltip — same-provider chip | No tooltip. |
@@ -244,7 +249,7 @@ AA chips are rendered as a **single `QPushButton`** (no compound widget — no `
 │  │  Station B  ← selected              │   │
 │  │  Station C                           │   │
 │  └──────────────────────────────────────┘   │
-│  [Cancel]                  [Link Station]   │  ← QDialogButtonBox
+│  [Don't Link]              [Link Station]   │  ← QDialogButtonBox
 └─────────────────────────────────────────────┘
 ```
 
@@ -253,7 +258,7 @@ AA chips are rendered as a **single `QPushButton`** (no compound widget — no `
 | `_provider_combo` (`QComboBox`) | Populated from `Repo.list_providers()`. Default = editing station's `provider_id`. Items sorted alphabetically by provider name for easy scanning. `currentIndexChanged` signal connected to `_on_provider_changed` (bound method, QA-05). |
 | `_search_edit` (`QLineEdit`) | Placeholder: `"Filter stations…"`. `textChanged` signal connected to `_on_search_changed` (bound method). Live-filter-as-you-type against the current provider's station list. No debounce — the station list is in-memory (no network calls). |
 | `_station_list` (`QListWidget`) | `setSelectionMode(QAbstractItemView.SingleSelection)`. Populated by `_repopulate_station_list()`. Each item: `QListWidgetItem(station_name)` with `setData(Qt.UserRole, station_id)`. `itemSelectionChanged` signal connected to `_on_selection_changed` (bound method) to enable/disable the OK button. `itemDoubleClicked` connected to `_on_accept` (bound method) — double-click equivalent to clicking OK. |
-| `_button_box` (`QDialogButtonBox`) | `QDialogButtonBox(QDialogButtonBox.Ok \| QDialogButtonBox.Cancel)`. OK button label overridden to `"Link Station"` via `button_box.button(QDialogButtonBox.Ok).setText("Link Station")`. OK disabled by default; enabled when exactly one item is selected in `_station_list`. `accepted.connect(self._on_accept)` (bound method). `rejected.connect(self.reject)`. |
+| `_button_box` (`QDialogButtonBox`) | `QDialogButtonBox(QDialogButtonBox.Ok \| QDialogButtonBox.Cancel)`. OK button label overridden to `"Link Station"` via `button_box.button(QDialogButtonBox.Ok).setText("Link Station")`. Cancel button label overridden to `"Don't Link"` via `button_box.button(QDialogButtonBox.Cancel).setText("Don't Link")`. OK disabled by default; enabled when exactly one item is selected in `_station_list`. `accepted.connect(self._on_accept)` (bound method). `rejected.connect(self.reject)`. |
 
 **Provider QComboBox rationale:** A native `QComboBox` is sufficient for the typical provider count of 5–15. A left-pane `QListWidget` alternative would consume too much horizontal space at 480 px minimum width. The QComboBox selects a provider, immediately filters the station list below — this is the same two-step pattern described in D-12.
 
@@ -316,8 +321,8 @@ The existing `_sibling_label` at `now_playing_panel.py:354-360` is **structurall
 | `AddSiblingDialog` — station list | Double-click item | Equivalent to single-click + OK. Fires `_on_accept()`. |
 | `AddSiblingDialog` — station list | Empty-state item clicked | Non-selectable (Qt.NoItemFlags). OK button remains disabled. |
 | `AddSiblingDialog` — OK (`"Link Station"`) | Click | Persists link via `Repo.add_sibling_link`, stores linked name, calls `accept()`. |
-| `AddSiblingDialog` — Cancel | Click | Calls `reject()`. No DB change. |
-| `AddSiblingDialog` — Esc key | Press | Calls `reject()`. Standard QDialog behavior. |
+| `AddSiblingDialog` — "Don't Link" | Click | Calls `reject()`. No DB change. |
+| `AddSiblingDialog` — Esc key | Press | Calls `reject()`. Equivalent to clicking "Don't Link". Standard QDialog behavior. |
 | NowPlaying `_sibling_label` link | Click | Fires `sibling_activated(station)` signal — switches playback. Unchanged from Phase 64. |
 
 ### Keyboard Navigation
@@ -325,10 +330,10 @@ The existing `_sibling_label` at `now_playing_panel.py:354-360` is **structurall
 | Context | Key | Behavior |
 |---------|-----|----------|
 | `EditStationDialog` chip row | Tab | Standard Qt tab order: each chip button + each `×` button is tab-focusable. `+ Add sibling` button is last in chip row tab order (FlowLayout does not manage tab order; planner ensures `setTabOrder` in `_refresh_siblings` if needed). |
-| `AddSiblingDialog` | Tab | Provider combo → search field → station list → Cancel button → Link Station button. QDialogButtonBox handles its own tab order. |
+| `AddSiblingDialog` | Tab | Provider combo → search field → station list → "Don't Link" button → "Link Station" button. QDialogButtonBox handles its own tab order. |
 | `AddSiblingDialog` station list | Up/Down arrows | Move selection through `QListWidget` rows (native Qt behavior). |
 | `AddSiblingDialog` | Enter (when station selected) | Same as clicking OK (`"Link Station"`). Enabled via `button_box.button(QDialogButtonBox.Ok).setDefault(True)` and `setAutoDefault(True)`. |
-| `AddSiblingDialog` | Esc | Cancel. Native QDialog behavior. |
+| `AddSiblingDialog` | Esc | "Don't Link". Native QDialog behavior. |
 
 ---
 
@@ -347,6 +352,7 @@ The existing `_sibling_label` at `now_playing_panel.py:354-360` is **structurall
 | `AddSiblingDialog` provider: `QComboBox` (not left-pane list) | YES — provider count 5–15; combobox is space-efficient |
 | `AddSiblingDialog` station list: `QListWidget` (not `QListView` + model) | YES — simpler lifetime model for a modal; no `QSortFilterProxyModel` needed since filtering is in-Python on a small in-memory list (typ. 50–200 items) |
 | `AddSiblingDialog` OK button label overridden to `"Link Station"` | YES |
+| `AddSiblingDialog` dismiss button label overridden to `"Don't Link"` | YES — names the outcome; contrasts with `"Link Station"` primary CTA |
 | `AddSiblingDialog` double-click = OK | YES — standard QListWidget picker pattern |
 | NowPlaying `_sibling_label`: no structural change | YES — D-04 / Phase 64 D-05 preserved |
 | Toast on link/unlink: `show_toast(f"Linked to {name}")` / `show_toast(f"Unlinked from {name}")` | YES |
@@ -371,11 +377,11 @@ Deployment target: Linux Wayland DPR=1.0 (no HiDPI rig per project memory). Phas
 
 | Pillar | Phase 71 Posture |
 |--------|------------------|
-| **1. Copywriting** | All button labels, dialog title, form labels, placeholder text, empty-state messages, tooltips, toast copy, and accessible names defined above. All locked. |
-| **2. Visuals** | Three visual surfaces: (a) sibling chip row — reuses `_CHIP_QSS` verbatim; manual chips differ from AA chips only by presence/absence of `×`. (b) `AddSiblingDialog` — standard QDialog layout; no custom painting. (c) NowPlaying `_sibling_label` — unchanged. No new visual primitives. |
+| **1. Copywriting** | All button labels, dialog title, form labels, placeholder text, empty-state messages, tooltips, toast copy, and accessible names defined above. All locked. `AddSiblingDialog` dismiss button is `"Don't Link"` (not "Cancel"); primary CTA is `"Link Station"`. |
+| **2. Visuals** | Three visual surfaces: (a) sibling chip row — reuses `_CHIP_QSS` verbatim; manual chips differ from AA chips only by presence/absence of `×`; `+ Add sibling` button is the primary focal point / call-to-action. (b) `AddSiblingDialog` — standard QDialog layout; no custom painting. (c) NowPlaying `_sibling_label` — unchanged. No new visual primitives. |
 | **3. Color** | Zero new hex literals. No `setStyleSheet` with inline hex. Chip QSS uses `palette(base)` / `palette(mid)` / `palette(text)` exclusively. `×` button uses same chip QSS — no destructive-red. Accent (`palette(highlight)`) is NOT used for any Phase 71 widget. Honors all 7 Phase 66 presets + Custom palette. |
 | **4. Typography** | Zero new `setPointSize` calls. Zero new `setWeight` / `setBold` calls. All text inherits platform default. Type ramp unchanged from Phase 70. |
-| **5. Spacing** | All values on the 4 px grid: 2, 4, 6, 8, 12, 16 px. All inherited from Phase 68/70 or existing dialog patterns. `+ Add sibling` button and chip row: `padding: 4px 8px` / `border-radius: 12px` from `_CHIP_QSS`. |
+| **5. Spacing** | All Phase 71 layout spacing values are on the 4 px grid: 4, 8, 16, 24 px. The `xl = 12 px` border-radius is a multiple of 4 and is border-radius, not layout spacing. Off-grid chip body paddings (`2px 6px`, `4px 6px`) are inherited Phase 68 `_CHIP_QSS` values — Phase 71 introduces no new off-grid spacing. |
 | **6. Registry Safety** | N/A — native Qt project; no third-party design-system registry. |
 
 ---
@@ -425,12 +431,13 @@ No third-party UI registry is in use anywhere in this project. The "Registry Saf
 | 7 | Toast copy on link | `f"Linked to {other_station_name}"` |
 | 8 | Toast copy on unlink | `f"Unlinked from {other_station_name}"` |
 | 9 | Chip row overflow | **Wrap (FlowLayout)** — not horizontal scroll. Consistent with existing tag chip row. |
-| 10 | Keyboard nav: tab order | Tab flows: provider combo → search field → station list → Cancel → Link Station. Arrow keys navigate list. Enter on selected list item = OK. Esc = Cancel. |
+| 10 | Keyboard nav: tab order | Tab flows: provider combo → search field → station list → "Don't Link" → "Link Station". Arrow keys navigate list. Enter on selected list item = OK. Esc = "Don't Link". |
 | 11 | Hover tooltip for cross-provider chips | `"Linked from {ProviderName}"` on the name button. No tooltip for same-provider chips. `"Auto-detected from AudioAddict URL"` for AA chips. |
 | 12 | `_sibling_row_widget` always visible vs hidden-when-empty | **Always visible** in EditStationDialog (different from NowPlaying hidden-when-empty contract). The `+ Add sibling` button must be discoverable at zero siblings. |
 | 13 | Confirmation dialog for `×` unlink | **No confirmation.** Reversible action; immediate fire + toast feedback is sufficient. |
 | 14 | Toast delivery mechanism | New `Signal(str)` (e.g. `sibling_toast = Signal(str)`) on `EditStationDialog`, connected to `MainWindow.show_toast` via bound-method (QA-05). Or `toast_callback` kwarg — planner picks. |
 | 15 | `AddSiblingDialog` search: live-filter vs submit | **Live-filter-as-you-type** via `textChanged`. No submit button for the search. In-memory list allows instant filtering with no debounce. |
+| 16 | `AddSiblingDialog` dismiss button label | `"Don't Link"` — names the outcome, contrasts unambiguously with `"Link Station"`. |
 
 ---
 
