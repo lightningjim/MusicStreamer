@@ -636,13 +636,16 @@ class EditStationDialog(QDialog):
         Manual chips (objectName "sibling_chip_{id}") are compound widgets
         wrapping a name QPushButton and a "×" unlink QPushButton.
 
-        Dedup precedence (manual wins): if a station appears in BOTH the AA
-        list and the manual list (e.g. cross-network AA siblings that the user
-        also manually linked for redundancy), it renders as a MANUAL chip with
-        the "×" unlink button — the user can undo their own action. The AA
-        chip is suppressed in that case. This is distinct from merge_siblings
-        used in NowPlayingPanel (which has no unlink affordance, so AA wins
-        there for the cosmetic provider label).
+        Dedup precedence (AA wins — CR-02 fix): if a station appears in BOTH
+        the AA list and the manual list (e.g. the user manually linked a
+        station that find_aa_siblings now also detects from the URL), it
+        renders as an AA chip with NO "×" unlink button. This matches
+        merge_siblings semantics used by NowPlayingPanel (CONTEXT D-03 +
+        RESEARCH Q2). The underlying station_siblings DB row is harmless and
+        becomes visible again if the URL is edited to no longer match AA.
+        Prior behavior (manual-wins) created a UX defect where clicking ×
+        appeared to "do nothing" — the row was removed from the DB but the
+        chip immediately re-rendered as an AA chip after refresh.
 
         Pitfall 5: FlowLayout teardown uses takeAt(0) + widget.deleteLater()
         in a loop. Without deleteLater the child widgets continue to live as
@@ -679,15 +682,16 @@ class EditStationDialog(QDialog):
             current_station_id=self._station.id,
             link_ids=list(link_ids or []),
         )
-        # Manual wins on conflict (see docstring): collect manual IDs first
-        # and suppress AA chips for those station_ids.
-        manual_ids = {sid for _, sid, _ in manual_list}
+        # CR-02 fix: AA wins on conflict — mirror merge_siblings semantics
+        # so both EditStationDialog and NowPlayingPanel render the same chip
+        # variant. Collect AA IDs first and suppress manual chips for those.
+        aa_ids = {sid for _, sid, _ in aa_list}
 
         for _slug, sibling_id, station_name in aa_list:
-            if sibling_id in manual_ids:
-                continue
             self._add_aa_sibling_chip(sibling_id, station_name)
         for provider_name, sibling_id, station_name in manual_list:
+            if sibling_id in aa_ids:
+                continue
             self._add_manual_sibling_chip(
                 sibling_id, station_name, provider_name
             )

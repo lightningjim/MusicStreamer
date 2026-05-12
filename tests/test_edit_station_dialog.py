@@ -1559,8 +1559,11 @@ def test_manual_chip_has_x_button(qtbot, aa_repo, aa_station, player):
     """D-14: manual sibling chip is a compound widget objectName
     "sibling_chip_<id>" containing TWO QPushButtons (name + "×")."""
     # Seed a second station (id=42) that is manually linked.
+    # CR-02: AA-wins dedup means a station whose URL also matches AA
+    # detection would render as an AA chip (no ×). Use a non-AA URL so this
+    # partner stays in the manual-chip path regardless of dedup precedence.
     partner = _make_aa_station(42, "Manual Partner",
-                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+                               "http://example.com/somafm/manual-partner")
     aa_repo.list_stations.return_value = [aa_station, partner]
     aa_repo.list_sibling_links = MagicMock(return_value=[42])
     aa_repo.add_sibling_link = MagicMock(return_value=None)
@@ -1597,8 +1600,11 @@ def test_aa_chip_has_no_x_button(qtbot, aa_repo, aa_station, player):
 
 def test_x_click_calls_remove_sibling_link(qtbot, aa_repo, aa_station, player):
     """D-14: clicking the × button calls Repo.remove_sibling_link(self.id, sibling_id)."""
+    # CR-02: AA-wins dedup means a station whose URL also matches AA
+    # detection would render as an AA chip (no ×). Use a non-AA URL so this
+    # partner stays in the manual-chip path regardless of dedup precedence.
     partner = _make_aa_station(42, "Manual Partner",
-                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+                               "http://example.com/somafm/manual-partner")
     aa_repo.list_stations.return_value = [aa_station, partner]
     aa_repo.list_sibling_links = MagicMock(return_value=[42])
     aa_repo.add_sibling_link = MagicMock(return_value=None)
@@ -1616,8 +1622,11 @@ def test_x_click_calls_remove_sibling_link(qtbot, aa_repo, aa_station, player):
 def test_x_click_fires_unlinked_toast(qtbot, aa_repo, aa_station, player):
     """D-14: clicking × emits sibling_toast(str) with text matching '^Unlinked from '."""
     import re
+    # CR-02: AA-wins dedup means a station whose URL also matches AA
+    # detection would render as an AA chip (no ×). Use a non-AA URL so this
+    # partner stays in the manual-chip path regardless of dedup precedence.
     partner = _make_aa_station(42, "Manual Partner",
-                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+                               "http://example.com/somafm/manual-partner")
     aa_repo.list_stations.return_value = [aa_station, partner]
     aa_repo.list_sibling_links = MagicMock(return_value=[42])
     aa_repo.add_sibling_link = MagicMock(return_value=None)
@@ -1636,8 +1645,11 @@ def test_x_click_fires_unlinked_toast(qtbot, aa_repo, aa_station, player):
 def test_chip_click_emits_navigate_signal(qtbot, aa_repo, aa_station, player):
     """Navigation invariant: clicking the chip's name button emits
     navigate_to_sibling(int) with the sibling's station_id."""
+    # CR-02: AA-wins dedup means a station whose URL also matches AA
+    # detection would render as an AA chip (no ×). Use a non-AA URL so this
+    # partner stays in the manual-chip path regardless of dedup precedence.
     partner = _make_aa_station(42, "Manual Partner",
-                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+                               "http://example.com/somafm/manual-partner")
     aa_repo.list_stations.return_value = [aa_station, partner]
     aa_repo.list_sibling_links = MagicMock(return_value=[42])
     aa_repo.add_sibling_link = MagicMock(return_value=None)
@@ -1651,3 +1663,89 @@ def test_chip_click_emits_navigate_signal(qtbot, aa_repo, aa_station, player):
     name_btn = next(b for b in chip.findChildren(QPushButton) if b.text() != "×")
     name_btn.click()
     assert emitted == [42]
+
+
+# ---------------------------------------------------------------------------
+# Phase 71 / CR-02 regression: AA-wins dedup precedence in EditStationDialog
+# ---------------------------------------------------------------------------
+# A station that is BOTH AA-auto-detected AND manually linked must render as
+# an AA chip (no "×"), matching merge_siblings semantics used by
+# NowPlayingPanel. Pre-fix the dialog used manual-wins precedence, which
+# caused the "× appears broken" UX bug: clicking × removed the DB row but
+# the chip immediately re-rendered as an AA chip on refresh.
+
+
+def test_aa_and_manual_collision_renders_as_aa_chip_no_x(
+    qtbot, aa_repo, aa_station, player
+):
+    """CR-02: when a station is both AA-detected AND manually linked, the
+    chip row shows it as an AA chip (no × button) — mirrors NowPlayingPanel."""
+    # Seed a ZenRadio sibling that find_aa_siblings WILL detect (same channel
+    # key as the DI.fm station). Also list it as a manually-linked sibling so
+    # the collision case is real.
+    zr_sibling = _make_aa_station(
+        2, "Ambient",
+        "http://prem4.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo.list_stations.return_value = [aa_station, zr_sibling]
+    aa_repo.list_sibling_links = MagicMock(return_value=[2])  # also manual
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    # AA-wins: NO compound "sibling_chip_2" wrapper (would have the ×).
+    assert d.findChild(QWidget, "sibling_chip_2") is None
+    # And the AA bare-chip IS present.
+    assert d.findChild(QPushButton, "sibling_aa_chip_2") is not None
+
+
+def test_aa_and_manual_collision_matches_merge_siblings_semantics(
+    qtbot, aa_repo, aa_station, player
+):
+    """CR-02: dedup rule in EditStationDialog matches merge_siblings exactly.
+
+    The chip-rendering loop should emit the same set of station_ids as
+    merge_siblings(find_aa_siblings(...), find_manual_siblings(...)) would
+    produce — i.e. AA entry preserved, manual duplicate suppressed.
+    """
+    from musicstreamer.url_helpers import (
+        find_aa_siblings,
+        find_manual_siblings,
+        merge_siblings,
+    )
+    zr_sibling = _make_aa_station(
+        2, "Ambient",
+        "http://prem4.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo.list_stations.return_value = [aa_station, zr_sibling]
+    aa_repo.list_sibling_links = MagicMock(return_value=[2])
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    # Collect chip-row station IDs from the rendered widgets.
+    aa_chips = [
+        w for w in d._sibling_row_widget.findChildren(QPushButton)
+        if w.objectName().startswith("sibling_aa_chip_")
+    ]
+    manual_chips = [
+        w for w in d._sibling_row_widget.findChildren(QWidget)
+        if w.objectName().startswith("sibling_chip_")
+    ]
+    rendered_ids = sorted(
+        [int(b.objectName().split("_")[-1]) for b in aa_chips]
+        + [int(w.objectName().split("_")[-1]) for w in manual_chips]
+    )
+    # Compute what merge_siblings would output.
+    aa_list = find_aa_siblings(
+        [aa_station, zr_sibling],
+        current_station_id=aa_station.id,
+        current_first_url=aa_station.streams[0].url,
+    )
+    manual_list = find_manual_siblings(
+        [aa_station, zr_sibling],
+        current_station_id=aa_station.id,
+        link_ids=[2],
+    )
+    expected_ids = sorted(sid for _, sid, _ in merge_siblings(aa_list, manual_list))
+    assert rendered_ids == expected_ids
