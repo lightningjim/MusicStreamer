@@ -59,6 +59,7 @@ from musicstreamer.url_helpers import (
     render_similar_html,
 )
 from musicstreamer.aa_live import fetch_live_map, detect_live_from_icy, get_di_channel_key
+from musicstreamer.hi_res import classify_tier, TIER_LABEL_BADGE, TIER_LABEL_PROSE
 
 
 _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
@@ -378,6 +379,23 @@ class NowPlayingPanel(QWidget):
         icy_row = QHBoxLayout()
         icy_row.setContentsMargins(0, 0, 0, 0)
         icy_row.setSpacing(6)
+        # Phase 70 / Plan 70-06 / DP-04: quality badge sits immediately LEFT of
+        # _live_badge so both can coexist when a live AA station also has a
+        # cached hi-res stream.  Same Phase 68 LIVE QSS verbatim (DP-07) so all
+        # 7 preset themes + Custom palette get the contrast attestation for free.
+        # Qt.PlainText security lock — V5 ASVS / T-40-04 invariant.
+        self._quality_badge = QLabel("", self)
+        self._quality_badge.setTextFormat(Qt.PlainText)
+        self._quality_badge.setVisible(False)
+        self._quality_badge.setStyleSheet(
+            "QLabel {"
+            " background-color: palette(highlight);"
+            " color: palette(highlighted-text);"
+            " border-radius: 8px;"
+            " padding: 2px 6px;"
+            " font-weight: bold;"
+            "}"
+        )
         self._live_badge = QLabel("LIVE", self)
         self._live_badge.setTextFormat(Qt.PlainText)
         self._live_badge.setVisible(False)
@@ -390,6 +408,7 @@ class NowPlayingPanel(QWidget):
             " font-weight: bold;"
             "}"
         )
+        icy_row.addWidget(self._quality_badge)  # Phase 70: FIRST (left of LIVE)
         icy_row.addWidget(self._live_badge)
         icy_row.addWidget(self.icy_label, 1)   # stretch=1 so icy_label fills
         center.addLayout(icy_row)
@@ -757,6 +776,8 @@ class NowPlayingPanel(QWidget):
         # _refresh_gbs_visibility call is the FINAL bind_station step.
         self._first_bind_check = True
         self._refresh_live_status()
+        # Phase 70 / Plan 70-06: update quality badge for the newly bound station.
+        self._refresh_quality_badge()
         # Phase 60 D-06: re-derive GBS active-playlist visibility for the
         # newly bound station. Phase 64 D-04 invariant — _refresh_gbs_visibility
         # is the ONLY call site (test_refresh_gbs_visibility_runs_once_per_bind_station
@@ -1032,7 +1053,13 @@ class NowPlayingPanel(QWidget):
         self.stream_combo.blockSignals(True)
         self.stream_combo.clear()
         for s in streams:
-            label = f"{s.quality} \u2014 {s.codec}" if s.codec else s.quality or s.label or "stream"
+            base_label = f"{s.quality} \u2014 {s.codec}" if s.codec else s.quality or s.label or "stream"
+            # Phase 70 / Plan 70-06 / UI-SPEC OD-7 / DP-05: append tier suffix
+            # (em-dash + uppercase badge label) for hi-res and lossless streams.
+            # Lossy streams (tier == "") get NO suffix \u2014 existing format preserved.
+            tier = classify_tier(s.codec, s.sample_rate_hz, s.bit_depth)
+            tier_suffix = TIER_LABEL_BADGE.get(tier, "")
+            label = f"{base_label} \u2014 {tier_suffix}" if tier_suffix else base_label
             self.stream_combo.addItem(label, userData=s.id)
         self.stream_combo.blockSignals(False)
         self.stream_combo.setVisible(len(streams) > 1)
@@ -1046,6 +1073,8 @@ class NowPlayingPanel(QWidget):
             if s.id == stream_id:
                 self._player.play_stream(s)
                 break
+        # Phase 70 / Plan 70-06: refresh quality badge for the newly-selected stream.
+        self._refresh_quality_badge()
 
     def _sync_stream_picker(self, active_stream) -> None:
         """Sync stream picker to reflect failover-selected stream (D-22)."""
@@ -1481,6 +1510,89 @@ class NowPlayingPanel(QWidget):
             except Exception:
                 pass
             self._first_bind_check = False
+
+    # -------------------------------------------------------------------
+    # Phase 70 / Plan 70-06: Quality badge
+    # -------------------------------------------------------------------
+
+    def _refresh_quality_badge(self) -> None:
+        """Phase 70 / Plan 70-06: update _quality_badge text, visibility, tooltip.
+
+        Mirrors _refresh_live_status' slot-never-raise idiom.
+
+        Logic:
+          1. If no station bound, hide badge and return.
+          2. Get the currently-selected stream:
+             - Prefer self._streams (filled from repo by _populate_stream_picker)
+               at stream_combo.currentIndex().
+             - Fall back to self._station.streams (streams bound directly on the
+               Station object — used in tests where FakeRepo returns []).
+          3. Compute tier via classify_tier.
+          4. Set badge text (TIER_LABEL_BADGE), visibility, tooltip, accessibleName.
+          5. Slot-never-raise: any exception hides the badge silently.
+
+        Called from: bind_station, _on_stream_selected,
+        MainWindow._on_audio_caps_detected fan-out (Plan 70-05 hasattr guard).
+        """
+        try:
+            if self._station is None:
+                self._quality_badge.setVisible(False)
+                self._quality_badge.setToolTip("")
+                self._quality_badge.setAccessibleName("")
+                return
+            # Resolve the active stream. Try _streams (repo-populated) first so the
+            # picker selection index lines up with the stream object.  Fall back to
+            # station.streams when _streams is empty (e.g. FakeRepo / test context).
+            s = None
+            idx = self.stream_combo.currentIndex()
+            if self._streams:
+                if 0 <= idx < len(self._streams):
+                    s = self._streams[idx]
+                elif self._streams:
+                    s = self._streams[0]
+            if s is None:
+                station_streams = getattr(self._station, "streams", None) or []
+                if station_streams:
+                    if 0 <= idx < len(station_streams):
+                        s = station_streams[idx]
+                    else:
+                        s = station_streams[0]
+            if s is None:
+                self._quality_badge.setVisible(False)
+                self._quality_badge.setToolTip("")
+                self._quality_badge.setAccessibleName("")
+                return
+            tier = classify_tier(s.codec, s.sample_rate_hz, s.bit_depth)
+            self._quality_badge.setText(TIER_LABEL_BADGE[tier])
+            self._quality_badge.setVisible(bool(tier))
+            if tier:
+                rate = int(s.sample_rate_hz or 0)
+                depth = int(s.bit_depth or 0)
+                prose = TIER_LABEL_PROSE[tier]
+                if rate > 0 and depth > 0:
+                    # Full caps known: "Hi-Res — 96 kHz / 24-bit"
+                    tooltip = f"{prose} — {rate // 1000} kHz / {depth}-bit"
+                elif rate > 0:
+                    # Rate only: "Hi-Res — 96 kHz"
+                    tooltip = f"{prose} — {rate // 1000} kHz"
+                elif depth > 0:
+                    # Depth only: "Lossless — 24-bit"
+                    tooltip = f"{prose} — {depth}-bit"
+                else:
+                    # Cold-start: no caps yet detected (D-03 fallback)
+                    tooltip = f"{prose} — playback caps not yet detected"
+                self._quality_badge.setToolTip(tooltip)
+                self._quality_badge.setAccessibleName(
+                    f"Stream quality: {prose}"
+                )
+            else:
+                self._quality_badge.setToolTip("")
+                self._quality_badge.setAccessibleName("")
+        except Exception:
+            try:
+                self._quality_badge.setVisible(False)
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------
     # Phase 68 / B-01..B-05: poll loop lifecycle
