@@ -41,6 +41,7 @@ Small new capabilities harvested from backlog + dormant seeds.
 - [x] **ACCENT-02**: User can pick a custom accent color via a visual color picker (HSV/wheel surface), in addition to the existing 8 presets and hex entry *(harvest: SEED-006)*
 - [x] **GBS-01**: User can browse, save, and play GBS.FM streams from inside MusicStreamer (no browser bounce) *(harvest: SEED-008 — exact sub-capabilities to be refined at /gsd-discuss-phase time; may decompose into GBS-01..0N during planning)*
 - [x] **THEME-01**: User can switch between preset color themes (System default, Vaporwave, Overrun, GBS.FM, GBS.FM After Dark, Dark, Light) and one user-editable Custom palette via a Theme picker in the hamburger menu. The chosen theme drives the application QPalette's 9 primary roles (Window, WindowText, Base, AlternateBase, Text, Button, ButtonText, HighlightedText, Link). The accent_color override (Phase 59 / ACCENT-02) continues to layer on top of the theme's Highlight baseline; selecting a theme does NOT mutate `accent_color`. The Custom slot is duplicate-and-edit only with snapshot-restore-on-Cancel.
+- [ ] **HRES-01**: User sees an automatic two-tier audio-quality badge ("LOSSLESS" / "HI-RES") next to each station's now-playing panel, station-tree row, stream-picker entry, and EditStationDialog row, plus a "Hi-Res only" filter chip and a hi-res-preferring tiebreak in stream failover ordering — all driven from negotiated GStreamer caps cached per stream after first replay, mirroring moOde Audio's Hi-Res convention.
 
 ### Versioning Convention (VER)
 
@@ -103,14 +104,15 @@ Which phases cover which requirements.
 | VER-02 | Phase 65 | Complete |
 | THEME-01 | Phase 66 | Complete |
 | WIN-05 | Phase 69 | Complete |
+| HRES-01 | Phase 70 | Complete |
 
 **Coverage:**
-- v2.1 requirements: 20 total
-- Mapped to phases: 20 ✓
+- v2.1 requirements: 21 total
+- Mapped to phases: 21 ✓
 - Unmapped: 0 ✓
-- Complete: 18
+- Complete: 19
 - Pending: 2 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-05-09 — THEME-01 (preset + custom color themes via hamburger menu; accent_color layering preserved) added for Phase 66.*
+*Last updated: 2026-05-12 — HRES-01 (two-tier hi-res audio badge + caps-driven cache + Hi-Res only filter chip + rate/depth tiebreak in stream ordering) added for Phase 70.*
