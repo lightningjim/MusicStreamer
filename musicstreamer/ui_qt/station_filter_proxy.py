@@ -37,6 +37,13 @@ class StationFilterProxyModel(QSortFilterProxyModel):
         #     poll cycle completes.
         self._live_only: bool = False
         self._live_channel_keys: set[str] = set()
+        # Phase 70 / HRES-01 / F-01 / Pitfall 7: hi-res-only predicate state.
+        #   _hi_res_only: True when the "Hi-Res only" chip is engaged.
+        #   _hi_res_station_ids: set of station IDs that have at least one
+        #     "hires" tier stream; updated by set_quality_map from MainWindow
+        #     when the quality map is refreshed.
+        self._hi_res_only: bool = False
+        self._hi_res_station_ids: set[int] = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -78,6 +85,32 @@ class StationFilterProxyModel(QSortFilterProxyModel):
         self._live_only = bool(enabled)
         self.invalidate()
 
+    def set_quality_map(self, quality_map: dict[int, str]) -> None:
+        """Phase 70 / HRES-01 / F-01: update the set of hi-res station IDs.
+
+        Called from StationListPanel.update_quality_map whenever MainWindow
+        emits quality_map_changed. Only stations with tier == "hires" are
+        enrolled; "lossless" and "" are excluded.
+
+        Pitfall 7 invalidate-guard (mirrors Phase 68 set_live_map): invalidate
+        ONLY when _hi_res_only is active to avoid spurious re-filter passes
+        on every quality-map push when the chip is off.
+        """
+        self._hi_res_station_ids = {
+            sid for sid, tier in (quality_map or {}).items() if tier == "hires"
+        }
+        if self._hi_res_only:
+            self.invalidate()
+
+    def set_hi_res_only(self, enabled: bool) -> None:
+        """Phase 70 / HRES-01 / F-01: toggle the hi-res-only predicate.
+
+        Always invalidates because the predicate state itself changed —
+        unlike set_quality_map, the user-visible result MUST update.
+        """
+        self._hi_res_only = bool(enabled)
+        self.invalidate()
+
     def clear_all(self) -> None:
         self._search_text = ""
         self._provider_set = set()
@@ -87,16 +120,22 @@ class StationFilterProxyModel(QSortFilterProxyModel):
         # _live_channel_keys cache is NOT cleared — that data comes from
         # the background poll and stays valid.
         self._live_only = False
+        # Phase 70 / HRES-01: hi_res_only is also a predicate dimension.
+        # _hi_res_station_ids cache is NOT cleared — it comes from the
+        # background quality map and stays valid.
+        self._hi_res_only = False
         self.invalidate()
 
     def has_active_filter(self) -> bool:
         # Phase 68 / F-03: live_only is one more predicate dimension —
         # tree expansion (sync_tree_expansion) treats it as an active filter.
+        # Phase 70 / HRES-01: hi_res_only is also a predicate dimension.
         return bool(
             self._search_text
             or self._provider_set
             or self._tag_set
             or self._live_only
+            or self._hi_res_only
         )
 
     # ------------------------------------------------------------------
@@ -118,6 +157,10 @@ class StationFilterProxyModel(QSortFilterProxyModel):
                     return True
             return False
         if node.kind == "station":
+            # Phase 70 / HRES-01 / F-01: hi-res-only short-circuit AND-composed
+            # with other chip filters. Station must be in the hi-res station set.
+            if self._hi_res_only and int(node.station.id) not in self._hi_res_station_ids:
+                return False
             # Phase 68 / F-02 / F-03: live-only short-circuit AND-composed with
             # other chip filters. Lazy import of url_helpers matches the
             # existing in-method import idiom used elsewhere in the
