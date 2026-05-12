@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 70 Wave 1 complete (Plans 70-00 / 70-01 / 70-02)
-last_updated: "2026-05-12T15:30:00.000Z"
-last_activity: 2026-05-12 -- Phase 70 Wave 1 complete; ready for Wave 2 (Plans 70-03 + 70-04 + 70-07 + 70-08 + 70-10 in parallel)
+stopped_at: Phase 70 Wave 2 complete (8/12 plans)
+last_updated: "2026-05-12T16:00:00.000Z"
+last_activity: 2026-05-12 -- Phase 70 Wave 2 complete; ready for Wave 3 (Plan 70-05 MainWindow caps slot)
 progress:
   total_phases: 31
   completed_phases: 24
   total_plans: 109
-  completed_plans: 100
-  percent: 92
+  completed_plans: 105
+  percent: 96
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 70 (hi-res-indicator-for-streams-mirror-moode-audio-criteria) — EXECUTING
-Plan: 3 of 12 complete (Wave 0 + Wave 1)
-Status: Ready for Wave 2 (Plans 70-03 + 70-04 + 70-07 + 70-08 + 70-10 in parallel)
-Last activity: 2026-05-12 -- Wave 1 complete: hi_res.py classifier (70-01) + StationStream/Repo schema (70-02)
+Plan: 8 of 12 complete (Wave 0 + 1 + 2)
+Status: Ready for Wave 3 (Plan 70-05 MainWindow caps slot)
+Last activity: 2026-05-12 -- Wave 2 complete: stream_ordering tiebreak (70-03), player caps Signal (70-04), station-tree HI-RES pill (70-07), EditDialog Audio quality column (70-08), settings_export round-trip (70-10)
 
 ## Performance Metrics
 
