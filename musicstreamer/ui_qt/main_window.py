@@ -786,6 +786,7 @@ class MainWindow(QMainWindow):
         dlg.station_deleted.connect(self._on_station_deleted)
         # Phase 51 / D-09: a brand-new station can be an AA URL — same wiring as edit path.
         dlg.navigate_to_sibling.connect(self._on_navigate_to_sibling)
+        dlg.sibling_toast.connect(self.show_toast)   # Phase 71 / D-14 / D-11
         dlg.exec()
 
     def _on_edit_requested(self, station: Station) -> None:
@@ -800,6 +801,7 @@ class MainWindow(QMainWindow):
         dlg.station_deleted.connect(self._on_station_deleted)
         # Phase 51 / D-09: re-open editor for sibling when user clicks "Also on:" link.
         dlg.navigate_to_sibling.connect(self._on_navigate_to_sibling)
+        dlg.sibling_toast.connect(self.show_toast)   # Phase 71 / D-14 / D-11
         dlg.exec()
 
     def _on_station_deleted(self, station_id: int) -> None:
