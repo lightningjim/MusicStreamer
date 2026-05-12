@@ -111,6 +111,14 @@ class FakeRepo:
                 return s
         raise ValueError("Station not found")
 
+    # Phase 71 / Plan 71-05: NowPlayingPanel._refresh_siblings reads manual
+    # sibling links alongside list_stations. Base FakeRepo returns [] so all
+    # pre-Phase-71 tests (which used FakeRepo directly) continue to exercise
+    # the AA-only path unchanged. Tests that need real manual links use the
+    # _FakeRepoWithSiblings subclass defined below.
+    def list_sibling_links(self, station_id: int) -> list:
+        return []
+
 
 def _station(name: str = "Drone Zone", provider: Optional[str] = "SomaFM",
              art: Optional[str] = None) -> Station:
