@@ -39,6 +39,7 @@ class FakePlayer(QObject):
     elapsed_updated = Signal(int)
     buffer_percent = Signal(int)  # Phase 47.1 D-12
     underrun_recovery_started = Signal()  # Phase 62 / D-07 — main→MainWindow toast trigger
+    audio_caps_detected = Signal(int, int, int)  # Phase 70 / DS-01: stream_id, rate_hz, bit_depth
 
     def __init__(self):
         super().__init__()
@@ -1350,3 +1351,200 @@ def test_aa_poll_stopped_in_close_event(qtbot, fake_player, fake_repo):
     assert w.now_playing.is_aa_poll_active() is True
     w.close()
     assert w.now_playing.is_aa_poll_active() is False
+
+
+# === Phase 70: Hi-Res Audio Caps Fan-Out ===
+
+
+def _make_repo_with_stream():
+    """Return a (Repo, stream_id, station_id) tuple backed by an in-memory SQLite DB.
+
+    Used by Phase 70 tests that need a real repo.con.execute for the stream lookup.
+    """
+    import sqlite3
+    from musicstreamer.repo import Repo, db_init
+
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA foreign_keys = ON;")
+    db_init(con)
+    repo = Repo(con)
+
+    # Insert a station with one FLAC stream.
+    con.execute(
+        "INSERT INTO stations(id, name, provider_id, tags, station_art_path, album_fallback_path,"
+        " icy_disabled, last_played_at, is_favorite) VALUES (?,?,?,?,?,?,?,?,?)",
+        (1, "Test Station", None, "", None, None, 0, None, 0),
+    )
+    con.commit()
+    stream_id = repo.insert_stream(
+        station_id=1,
+        url="http://test.example.com/stream",
+        label="FLAC 1411",
+        quality="hi",
+        position=1,
+        stream_type="icecast",
+        codec="FLAC",
+        bitrate_kbps=1411,
+        sample_rate_hz=0,
+        bit_depth=0,
+    )
+    return repo, stream_id, 1
+
+
+def test_quality_map_changed_signal_exists_on_class():
+    """Phase 70 / DS-01: MainWindow must declare quality_map_changed at class scope."""
+    from musicstreamer.ui_qt.main_window import MainWindow as MW
+    assert hasattr(MW, "quality_map_changed"), "quality_map_changed Signal missing from MainWindow class"
+
+
+def test_audio_caps_detected_connect_wired(qtbot, fake_player, fake_repo):
+    """Phase 70 / DS-01: audio_caps_detected must be connected in MainWindow.__init__.
+
+    Verifies via source inspection that the literal 'audio_caps_detected.connect' is
+    present in MainWindow's __init__ — the Phase 70-00 grep gate requirement.
+    """
+    import inspect
+    from musicstreamer.ui_qt import main_window as mw_mod
+    src = inspect.getsource(mw_mod.MainWindow.__init__)
+    assert "audio_caps_detected.connect" in src, (
+        "audio_caps_detected.connect must appear in MainWindow.__init__"
+    )
+    assert "QueuedConnection" in src, (
+        "Explicit QueuedConnection must appear near audio_caps_detected.connect in __init__"
+    )
+
+
+def test_on_audio_caps_detected_db_write_before_fanout():
+    """Phase 70 / Pitfall 4 / D-04: in _on_audio_caps_detected, repo.update_stream
+    reference must appear LEXICALLY BEFORE quality_map_changed.emit and
+    _refresh_quality_badge and update_quality_map.
+
+    This is the DB-write-first / fan-out-second invariant.
+    """
+    import inspect
+    from musicstreamer.ui_qt import main_window as mw_mod
+
+    lines = inspect.getsourcelines(mw_mod.MainWindow._on_audio_caps_detected)[0]
+    line_texts = [ln.rstrip() for ln in lines]
+
+    # Find the update_stream call line and the first fan-out line.
+    update_idx = next(
+        (i for i, ln in enumerate(line_texts) if "update_stream(" in ln),
+        None,
+    )
+    fanout_idx = next(
+        (i for i, ln in enumerate(line_texts)
+         if "quality_map_changed.emit" in ln
+         or "_refresh_quality_badge" in ln
+         or "update_quality_map" in ln),
+        None,
+    )
+
+    assert update_idx is not None, "update_stream call not found in _on_audio_caps_detected"
+    assert fanout_idx is not None, "fan-out call not found in _on_audio_caps_detected"
+    assert update_idx < fanout_idx, (
+        f"DB write (line {update_idx}) must precede fan-out (line {fanout_idx})"
+    )
+
+
+def test_on_audio_caps_detected_writes_db_and_emits_quality_map(qtbot, fake_player):
+    """Phase 70 / DS-01: _on_audio_caps_detected writes sample_rate_hz/bit_depth to DB
+    and then emits quality_map_changed with a non-empty dict.
+
+    Uses a real in-memory Repo so repo.con.execute, list_streams, update_stream,
+    and list_stations are all exercised end-to-end (DB-write-first invariant).
+    """
+    repo, stream_id, station_id = _make_repo_with_stream()
+
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+
+    received_maps: list[dict] = []
+    w.quality_map_changed.connect(lambda m: received_maps.append(m))
+
+    # Fire the slot directly (no cross-thread queuing needed in test).
+    w._on_audio_caps_detected(stream_id, 96000, 24)
+
+    # DB must have been updated.
+    updated = repo.list_streams(station_id)
+    assert len(updated) == 1
+    assert updated[0].sample_rate_hz == 96000
+    assert updated[0].bit_depth == 24
+
+    # quality_map_changed must have fired.
+    assert len(received_maps) == 1
+    assert station_id in received_maps[0]
+    assert received_maps[0][station_id] == "hires"
+
+
+def test_on_audio_caps_detected_idempotent(qtbot, fake_player):
+    """Phase 70 / DS-01: second emit with same stream_id + rate + depth is a no-op
+    (idempotency cache prevents redundant DB writes).
+    """
+    repo, stream_id, station_id = _make_repo_with_stream()
+
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+
+    # Spy on update_stream to count calls.
+    original_update = repo.update_stream
+    call_count = [0]
+    def counting_update(*args, **kwargs):
+        call_count[0] += 1
+        return original_update(*args, **kwargs)
+    repo.update_stream = counting_update  # type: ignore[method-assign]
+
+    # First emit — should call update_stream once.
+    w._on_audio_caps_detected(stream_id, 96000, 24)
+    assert call_count[0] == 1
+
+    # Second emit with same args — must NOT call update_stream (idempotency cache).
+    w._on_audio_caps_detected(stream_id, 96000, 24)
+    assert call_count[0] == 1, "Second emit with same args must be a no-op (idempotency)"
+
+
+def test_on_audio_caps_detected_stream_deleted_race(qtbot, fake_player):
+    """Phase 70 / T-70-14: if stream is deleted between caps-emit and slot-fire,
+    the slot must NOT raise and must NOT update the cache.
+    """
+    repo, stream_id, station_id = _make_repo_with_stream()
+
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+
+    # Delete the stream to simulate the race.
+    repo.delete_stream(stream_id)
+
+    # Should be a silent no-op — no exception.
+    w._on_audio_caps_detected(stream_id, 96000, 24)
+
+    # Cache must NOT have been updated (stream was absent).
+    assert stream_id not in w._last_quality_payload
+
+
+def test_on_audio_caps_detected_fanout_guarded_pre_70_06(qtbot, fake_player):
+    """Phase 70 / forward-compat: slot does NOT raise if NowPlayingPanel lacks
+    _refresh_quality_badge (pre-Plan 70-06 state).
+    """
+    repo, stream_id, station_id = _make_repo_with_stream()
+    w = MainWindow(fake_player, repo)
+    qtbot.addWidget(w)
+
+    # Confirm NowPlayingPanel does NOT yet have _refresh_quality_badge (pre-70-06).
+    assert not hasattr(w.now_playing, "_refresh_quality_badge"), (
+        "If NowPlayingPanel already has _refresh_quality_badge, "
+        "this test is no longer relevant (Plan 70-06 has shipped)"
+    )
+
+    # Must not raise even without the method present.
+    w._on_audio_caps_detected(stream_id, 44100, 16)
+
+
+def test_last_quality_payload_initialized_in_init(qtbot, fake_player, fake_repo):
+    """Phase 70 / DS-01: _last_quality_payload must be initialized as empty dict in __init__."""
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    assert hasattr(w, "_last_quality_payload")
+    assert isinstance(w._last_quality_payload, dict)
+    assert w._last_quality_payload == {}
