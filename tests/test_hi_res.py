@@ -64,9 +64,11 @@ def _station(*streams: StationStream) -> Station:
     ("FLAC", 44100, 16, "lossless"),
     # Hi-Res by both rate and depth
     ("FLAC", 96000, 24, "hires"),
-    # Hi-Res by bit-depth only (rate == 48000 is NOT > 48000, but depth 24 > 16)
+    # Hi-Res by bit-depth only (rate == 48000 qualifies via >=, and depth 24 > 16)
     ("FLAC", 48000, 24, "hires"),
-    # Hi-Res by rate only (rate 96000 > 48000, depth 16 == 16)
+    # D-02 boundary: 48 kHz exactly qualifies as hi-res (rate >= 48000)
+    ("FLAC", 48000, 16, "hires"),
+    # Hi-Res by rate only (rate 96000 >= 48000, depth 16 == 16)
     ("FLAC", 96000, 16, "hires"),
     # D-03: FLAC + unknown rate/depth defaults to "lossless"
     ("FLAC", 0, 0, "lossless"),

@@ -151,7 +151,7 @@ def classify_tier(
     if c in _LOSSLESS_CODECS:
         rate = int(sample_rate_hz or 0)
         depth = int(bit_depth or 0)
-        if rate > _HIRES_RATE_THRESHOLD_HZ or depth > _HIRES_BIT_DEPTH_THRESHOLD:
+        if rate >= _HIRES_RATE_THRESHOLD_HZ or depth > _HIRES_BIT_DEPTH_THRESHOLD:
             return "hires"
         return "lossless"
     # Lossy branch (D-04 revised): mirror moOde RADIO_BITRATE_THRESHOLD.
