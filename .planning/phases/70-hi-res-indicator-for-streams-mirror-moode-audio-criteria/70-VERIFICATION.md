@@ -1,7 +1,7 @@
 ---
 phase: 70-hi-res-indicator-for-streams-mirror-moode-audio-criteria
 verified: 2026-05-12T00:00:00Z
-status: human_needed
+status: passed
 score: 22/22 must-haves verified
 overrides_applied: 0
 human_verification:
@@ -30,7 +30,7 @@ human_verification:
 **Phase Goal:** Surface a two-tier audio-quality badge ("LOSSLESS" / "HI-RES") across the now-playing panel, station-tree rows, stream-picker entries, and EditStationDialog rows, plus a 'Hi-Res only' filter chip and a hi-res-preferring tiebreak in stream failover ordering. Detection is runtime-driven from negotiated GStreamer caps; the rate/depth are persisted per stream so the badge appears on tree rows after the first replay. Mirrors moOde Audio's Hi-Res convention.
 
 **Verified:** 2026-05-12
-**Status:** human_needed
+**Status:** passed (escalated from `human_needed` after live UAT closure 2026-05-12T17:30:00Z — see "UAT Closure" section at file end)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -204,3 +204,19 @@ The 2 test failures (`test_filter_strip_hidden_in_favorites_mode` and `test_refr
 
 _Verified: 2026-05-12_
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## UAT Closure (2026-05-12T17:30:00Z)
+
+All 6 human-verification items closed PASS by user after two post-UAT fixes:
+
+1. **commit `e57051e`** — `fix(70-04): use audio-sink static pad for caps detection (playbin3 compat)` — restored app stability; the original Plan 70-04 used `playbin.emit("get-audio-pad", 0)`, a legacy `playbin` 1.x action signal absent on `GstPlayBin3`, raising TypeError on every station bind.
+
+2. **commit `f53d4cb`** — `fix(70): revise D-04 — mirror moOde RADIO_BITRATE_THRESHOLD=128 for lossy` — corrected the moOde mirror; original D-04 ("no badge for lossy streams") contradicted the actual moOde playerlib.js logic (`RADIO_BITRATE_THRESHOLD = 128`, badge shown when `bitrate > 128`). Lossy codecs at bitrate_kbps > 128 now classify as "hires", matching moOde's documented threshold.
+
+User report verbatim: "Yes, I see it on all the ones that I'd expect (also agree with moodeAudio's setup since just above 128 is usually 192 which is the common start for most 'indistinguishable' quality improvements start. I see no obvious regressions or other issues either."
+
+Final test count: 517 passed in the Phase 70 surface (vs 497 before the D-04 mirror fix); 2 failures are pre-existing `test_station_list_panel.py` flaky tests unrelated to Phase 70.
+
+**Verification status escalated: human_needed → passed.**

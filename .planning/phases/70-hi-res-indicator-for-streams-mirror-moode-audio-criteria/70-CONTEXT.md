@@ -45,12 +45,15 @@ The badge is purely informational + curation: it does not change codec routing o
 ### Criteria definition
 
 - **D-01:** **Two tiers only — `Lossless` and `Hi-Res`.** Internet radio reality: almost all lossless streams in this user's library are CD-quality FLAC; a third "DSD" tier would never fire. Two tiers cover Sony/JAS-style "Hi-Res Audio" intent without dead states.
-- **D-02:** **Tier rules:**
+- **D-02:** **Tier rules (lossless codec branch):**
   - `Lossless` = `codec ∈ {FLAC, ALAC}` AND `sample_rate_hz ≤ 48000` AND `bit_depth ≤ 16`.
   - `Hi-Res` = `codec ∈ {FLAC, ALAC}` AND (`sample_rate_hz > 48000` OR `bit_depth > 16`).
-  - Lossy codecs (MP3, AAC, HE-AAC, OPUS, OGG, WMA): no badge at any rate/depth.
+  - For the lossy-codec branch see D-04 (revised post-UAT).
 - **D-03:** **FLAC + unknown rate/depth defaults to `Lossless`.** Most common case (GBS.FM, SomaFM FLAC). On first replay the player's caps extraction may upgrade it to `Hi-Res` if rate > 48 kHz. Safe optimistic default; never over-claims Hi-Res without evidence.
-- **D-04:** **No badge for lossy streams period.** No "HD AAC" / "high-bitrate MP3" tier. moOde doesn't recognize lossy as hi-res; we follow.
+- **D-04 [REVISED 2026-05-12 post-UAT]:** **Lossy codec at `bitrate_kbps > 128` → `Hi-Res`; lossy at `bitrate_kbps ≤ 128` → no badge.** Mirrors moOde Audio's `RADIO_BITRATE_THRESHOLD = 128` in [playerlib.js](https://github.com/moode-player/moode/blob/develop/www/js/playerlib.js) (badge shown when `encodedAtOption == 1 && bitrate > RADIO_BITRATE_THRESHOLD`).
+  - Original D-04 ("No badge for lossy streams period") was wrong per live UAT — DI.FM Lounge MP3 320K showed the HiRes badge in moOde. Fixed in commit `f53d4cb`.
+  - Threshold is **strict greater-than** (matches moOde): 128 kbps lies at threshold and gets no badge; 129+ kbps qualifies.
+  - 192 kbps is the typical floor for transparent lossy quality, comfortably above the threshold.
 - **D-05:** **Tier labels: `LOSSLESS` and `HI-RES`.** All-caps, identical typography to Phase 68 `LIVE` badge.
 
 ### Source of truth
@@ -233,7 +236,7 @@ No todos folded.
 - **`Lossless+` filter chip** — only one chip ("Hi-Res only"). Revisit if the user wants to filter to lossless-or-better as a distinct browsing mode.
 - **`Gst.Registry` audit at app launch** — Phase 69 owns plugin-presence concerns; Phase 70 trusts the cache once written.
 - **Codec auto-correction from caps** — rejected (DS-03). Codec stays user-authored.
-- **HE-AAC "HD"-style mid-tier** — rejected (D-04). No badge for lossy.
+- **HE-AAC "HD"-style mid-tier** — superseded by revised D-04 (lossy > 128 kbps now qualifies as Hi-Res). Original entry's rationale ("moOde doesn't recognize lossy as hi-res") was incorrect per live UAT — moOde does badge lossy > 128 kbps as HiRes.
 
 ### Reviewed Todos (not folded)
 
