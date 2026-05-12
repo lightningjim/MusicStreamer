@@ -505,7 +505,7 @@ class MainWindow(QMainWindow):
             if row is None:
                 # Stream deleted between caps-emit and slot-fire — T-70-14 race handled.
                 return
-            station_id = int(row[0])
+            station_id = int(row["station_id"])
 
             # Fetch the full existing stream row so update_stream preserves all fields.
             existing = next(
