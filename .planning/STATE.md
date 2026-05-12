@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: planning
-stopped_at: Phase 70 UI-SPEC approved
-last_updated: "2026-05-12T03:18:32.342Z"
-last_activity: 2026-05-11
+status: executing
+stopped_at: Phase 70 Plan 00 complete (Wave 0 RED contract)
+last_updated: "2026-05-12T15:00:00.000Z"
+last_activity: 2026-05-12 -- Phase 70 Plan 00 complete; ready for Wave 1
 progress:
   total_phases: 31
   completed_phases: 24
-  total_plans: 97
-  completed_plans: 97
-  percent: 100
+  total_plans: 109
+  completed_plans: 98
+  percent: 90
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 69 — Debug why AAC streams aren't playing in Windows (possibly missing codec)
+**Current focus:** Phase 70 — hi-res-indicator-for-streams-mirror-moode-audio-criteria
 
 ## Current Position
 
-Phase: 70
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-11
+Phase: 70 (hi-res-indicator-for-streams-mirror-moode-audio-criteria) — EXECUTING
+Plan: 1 of 12 complete (Wave 0 RED contract)
+Status: Ready for Wave 1 (Plans 70-01 + 70-02 in parallel)
+Last activity: 2026-05-12 -- Plan 70-00 complete after recovery from prior-session terminal interruption
 
 ## Performance Metrics
 
