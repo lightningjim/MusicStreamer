@@ -61,9 +61,13 @@ _FORMAT_BIT_DEPTH: dict[str, int] = {
 }
 
 # Hi-res criteria thresholds for lossless codecs (D-02).
-# Match moOde's `hidef` flag semantics: 24-bit or > 44.1 kHz qualifies.
+# Match moOde's `hidef` flag semantics: ≥ 24-bit or ≥ 48 kHz qualifies.
+# _HIRES_BIT_DEPTH_THRESHOLD is 23 so that the comparison `depth > 23`
+# equals `depth >= 24`; valid real-world depths are only 16 and 24/32
+# (depths 17-22 don't exist in practice, but this form removes any
+# ambiguity about what the threshold actually is).
 _HIRES_RATE_THRESHOLD_HZ: int = 48_000
-_HIRES_BIT_DEPTH_THRESHOLD: int = 16
+_HIRES_BIT_DEPTH_THRESHOLD: int = 23
 
 # Hi-res criteria threshold for LOSSY codecs (D-04 revised).
 # Mirrors moOde Audio playerlib.js RADIO_BITRATE_THRESHOLD = 128 exactly:
