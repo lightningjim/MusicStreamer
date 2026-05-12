@@ -43,6 +43,12 @@ Small new capabilities harvested from backlog + dormant seeds.
 - [x] **THEME-01**: User can switch between preset color themes (System default, Vaporwave, Overrun, GBS.FM, GBS.FM After Dark, Dark, Light) and one user-editable Custom palette via a Theme picker in the hamburger menu. The chosen theme drives the application QPalette's 9 primary roles (Window, WindowText, Base, AlternateBase, Text, Button, ButtonText, HighlightedText, Link). The accent_color override (Phase 59 / ACCENT-02) continues to layer on top of the theme's Highlight baseline; selecting a theme does NOT mutate `accent_color`. The Custom slot is duplicate-and-edit only with snapshot-restore-on-Cancel.
 - [x] **HRES-01**: User sees an automatic two-tier audio-quality badge ("LOSSLESS" / "HI-RES") next to each station's now-playing panel, station-tree row, stream-picker entry, and EditStationDialog row, plus a "Hi-Res only" filter chip and a hi-res-preferring tiebreak in stream failover ordering — all driven from negotiated GStreamer caps cached per stream after first replay, mirroring moOde Audio's Hi-Res convention.
 
+### Sibling Stations (SIB)
+
+Manual user-curated cross-network/same-provider sibling linking, replacing the prior need for hand-edited DB rows.
+
+- [x] **SIB-01**: Manual sibling-station linking via GUI replaces hand-DB-edits. User adds links from EditStationDialog's '+ Add sibling' button → two-step picker (provider → station). Per-chip × unlinks. Merges with AA URL-derived siblings in the 'Also on:' line on both EditStationDialog and NowPlayingPanel. ZIP export carries siblings by station name for cross-machine sync. Symmetric `station_siblings(a_id, b_id)` join table with `CHECK(a_id < b_id)`, `UNIQUE`, `ON DELETE CASCADE`.
+
 ### Versioning Convention (VER)
 
 Project-level convention introduced 2026-04-28.
@@ -105,14 +111,15 @@ Which phases cover which requirements.
 | THEME-01 | Phase 66 | Complete |
 | WIN-05 | Phase 69 | Complete |
 | HRES-01 | Phase 70 | Complete |
+| SIB-01 | Phase 71 | Complete |
 
 **Coverage:**
-- v2.1 requirements: 21 total
-- Mapped to phases: 21 ✓
+- v2.1 requirements: 22 total
+- Mapped to phases: 22 ✓
 - Unmapped: 0 ✓
-- Complete: 19
+- Complete: 20
 - Pending: 2 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-05-12 — HRES-01 (two-tier hi-res audio badge + caps-driven cache + Hi-Res only filter chip + rate/depth tiebreak in stream ordering) added for Phase 70.*
+*Last updated: 2026-05-12 — SIB-01 (manual sibling-station linking via GUI; symmetric station_siblings join table; merged 'Also on:' line; ZIP-by-name forward-compat) added for Phase 71.*
