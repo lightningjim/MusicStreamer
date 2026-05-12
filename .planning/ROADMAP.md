@@ -577,12 +577,12 @@ Plans:
 **Goal:** Surface a two-tier audio-quality badge ("LOSSLESS" / "HI-RES") across the now-playing panel, station-tree rows, stream-picker entries, and EditStationDialog rows, plus a "Hi-Res only" filter chip and a hi-res-preferring tiebreak in stream failover ordering. Detection is runtime-driven from negotiated GStreamer caps; the rate/depth are persisted per stream so the badge appears on tree rows after the first replay. Mirrors moOde Audio's Hi-Res convention.
 **Requirements**: HRES-01
 **Depends on:** Phase 69
-**Plans:** 1/12 plans executed
+**Plans:** 3/12 plans executed
 
 Plans:
 - [x] 70-00-PLAN.md — Wave 0 RED contract (tests/test_hi_res.py + tests/test_player_caps.py NEW; 8 existing test modules extended; musicstreamer/hi_res.py empty skeleton)
-- [ ] 70-01-PLAN.md — Wave 1 musicstreamer/hi_res.py pure helpers (classify_tier + bit_depth_from_format + best_tier_for_station + TIER_LABEL_BADGE/PROSE constants)
-- [ ] 70-02-PLAN.md — Wave 1 StationStream + station_streams schema migration + Repo.insert_stream/update_stream/list_streams kwargs (sample_rate_hz, bit_depth)
+- [x] 70-01-PLAN.md — Wave 1 musicstreamer/hi_res.py pure helpers (classify_tier + bit_depth_from_format + best_tier_for_station + TIER_LABEL_BADGE/PROSE constants)
+- [x] 70-02-PLAN.md — Wave 1 StationStream + station_streams schema migration + Repo.insert_stream/update_stream/list_streams kwargs (sample_rate_hz, bit_depth)
 - [ ] 70-03-PLAN.md — Wave 1 stream_ordering.order_streams rate/depth tiebreak (S-01) preserving GBS regression + S-02 cross-codec invariant
 - [ ] 70-04-PLAN.md — Wave 2 Player.audio_caps_detected Signal + Pattern 1b notify::caps + main-thread sync-read (Pitfalls 2 + 6 honored)
 - [ ] 70-05-PLAN.md — Wave 2 MainWindow._on_audio_caps_detected slot (DB-write-first per Phase 50 D-04; quality_map fan-out)

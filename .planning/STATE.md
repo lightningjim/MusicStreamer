@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 70 Plan 00 complete (Wave 0 RED contract)
-last_updated: "2026-05-12T15:00:00.000Z"
-last_activity: 2026-05-12 -- Phase 70 Plan 00 complete; ready for Wave 1
+stopped_at: Phase 70 Wave 1 complete (Plans 70-00 / 70-01 / 70-02)
+last_updated: "2026-05-12T15:30:00.000Z"
+last_activity: 2026-05-12 -- Phase 70 Wave 1 complete; ready for Wave 2 (Plans 70-03 + 70-04 + 70-07 + 70-08 + 70-10 in parallel)
 progress:
   total_phases: 31
   completed_phases: 24
   total_plans: 109
-  completed_plans: 98
-  percent: 90
+  completed_plans: 100
+  percent: 92
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 70 (hi-res-indicator-for-streams-mirror-moode-audio-criteria) — EXECUTING
-Plan: 1 of 12 complete (Wave 0 RED contract)
-Status: Ready for Wave 1 (Plans 70-01 + 70-02 in parallel)
-Last activity: 2026-05-12 -- Plan 70-00 complete after recovery from prior-session terminal interruption
+Plan: 3 of 12 complete (Wave 0 + Wave 1)
+Status: Ready for Wave 2 (Plans 70-03 + 70-04 + 70-07 + 70-08 + 70-10 in parallel)
+Last activity: 2026-05-12 -- Wave 1 complete: hi_res.py classifier (70-01) + StationStream/Repo schema (70-02)
 
 ## Performance Metrics
 
