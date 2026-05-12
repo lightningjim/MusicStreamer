@@ -1149,6 +1149,12 @@ class EditStationDialog(QDialog):
         station.station_art_path = self._logo_path
 
         # Persist streams
+        # Build a lookup of existing stream objects so _on_save can preserve
+        # server-side fields (label, stream_type, sample_rate_hz, bit_depth)
+        # that are not exposed in the editor table columns.  Without this,
+        # update_stream would overwrite them with empty-string / zero on
+        # every save cycle (data-loss bug reported in CR-02).
+        existing_streams = {s.id: s for s in repo.list_streams(station.id)}
         ordered_ids: list[int] = []
         table = self.streams_table
         for row in range(table.rowCount()):
@@ -1174,8 +1180,17 @@ class EditStationDialog(QDialog):
             stream_id: Optional[int] = url_item.data(Qt.UserRole) if url_item else None
 
             if stream_id is not None:
-                repo.update_stream(stream_id, url, "", quality, position, "", codec,
-                                   bitrate_kbps=bitrate_kbps)
+                ex = existing_streams.get(stream_id)
+                label = ex.label if ex else ""
+                stream_type = ex.stream_type if ex else ""
+                sample_rate_hz = ex.sample_rate_hz if ex else 0
+                bit_depth = ex.bit_depth if ex else 0
+                repo.update_stream(
+                    stream_id, url, label, quality, position, stream_type, codec,
+                    bitrate_kbps=bitrate_kbps,
+                    sample_rate_hz=sample_rate_hz,
+                    bit_depth=bit_depth,
+                )
                 ordered_ids.append(stream_id)
             else:
                 new_id = repo.insert_stream(
