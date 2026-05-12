@@ -280,6 +280,7 @@ class StationListPanel(QWidget):
         live_chip_row = QWidget(stations_page)
         lc_layout = QHBoxLayout(live_chip_row)
         lc_layout.setContentsMargins(16, 4, 16, 0)
+        lc_layout.setSpacing(8)
         self._live_chip = QPushButton("Live now", live_chip_row)
         self._live_chip.setCheckable(True)
         self._live_chip.setProperty("chipState", "unselected")
@@ -292,10 +293,24 @@ class StationListPanel(QWidget):
         _has_aa_key = bool(_get_setting("audioaddict_listen_key", "") if _get_setting else "")
         self._live_chip.setVisible(_has_aa_key)
         lc_layout.addWidget(self._live_chip)
+        # Phase 70 / HRES-01 / F-01 / F-02: "Hi-Res only" filter chip —
+        # parallel structure to _live_chip. Hidden by default (F-02); visible
+        # when any station in the quality_map has tier "hires". Lives in the
+        # same live_chip_row HBoxLayout (UI-SPEC Component Inventory item 5).
+        # QA-05: bound-method connect (no self-capturing lambda).
+        self._hi_res_chip = QPushButton("Hi-Res only", live_chip_row)
+        self._hi_res_chip.setCheckable(True)
+        self._hi_res_chip.setProperty("chipState", "unselected")
+        self._hi_res_chip.setStyleSheet(_CHIP_QSS)
+        self._hi_res_chip.setVisible(False)
+        self._hi_res_chip.setToolTip("Show only stations with at least one Hi-Res stream")
+        self._hi_res_chip.setAccessibleName("Hi-Res only filter")
+        lc_layout.addWidget(self._hi_res_chip)
         lc_layout.addStretch(1)
         sp_layout.addWidget(live_chip_row)
-        # QA-05: bound method connection (no self-capturing lambda).
+        # QA-05: bound method connections (no self-capturing lambdas).
         self._live_chip.toggled.connect(self._on_live_chip_toggled)
+        self._hi_res_chip.toggled.connect(self._on_hi_res_chip_toggled)
 
         # Provider-grouped station tree (D-01) + proxy
         self.tree = QTreeView(stations_page)
@@ -585,6 +600,47 @@ class StationListPanel(QWidget):
         self._live_chip.setVisible(visible)
         if not visible and self._live_chip.isChecked():
             self._live_chip.setChecked(False)  # fires toggled -> _on_live_chip_toggled
+
+    def _on_hi_res_chip_toggled(self, checked: bool) -> None:
+        """Phase 70 / HRES-01 / F-01: drive proxy hi-res-only predicate from chip toggle.
+
+        Mirrors _on_live_chip_toggled — updates the chipState style property
+        (so the QSS picks up the selected look) and forwards to the proxy.
+        The proxy invalidates and the tree re-filters automatically.
+        """
+        self._set_chip_state(self._hi_res_chip, checked)
+        self._proxy.set_hi_res_only(checked)
+
+    def update_quality_map(self, quality_map: dict) -> None:
+        """Phase 70 / HRES-01 / F-02: forward quality_map into filter proxy + flip chip visibility.
+
+        MainWindow calls this from the hasattr-guarded fan-out in
+        _on_quality_map_changed (Plan 70-05 wired the Signal; this plan adds
+        the listener). Forwards the map to the proxy (set_quality_map) and
+        reacts to whether any station is hi-res (set_hi_res_chip_visible).
+
+        Pitfall 7 is implemented inside the proxy: invalidate fires only when
+        hi_res_only is currently active.
+        """
+        self._proxy.set_quality_map(quality_map)
+        self.set_hi_res_chip_visible(
+            any(t == "hires" for t in (quality_map or {}).values())
+        )
+
+    def set_hi_res_chip_visible(self, visible: bool) -> None:
+        """Phase 70 / HRES-01 / F-02: reactive chip visibility for quality-map updates.
+
+        Called from update_quality_map when the library has (or no longer has)
+        any hi-res streams. Hides the chip when there is no hi-res data to
+        filter against.
+
+        If the chip is currently checked when hidden, also turns it off so
+        the proxy returns to showing all stations (avoids a stuck filter
+        that the user can no longer toggle — Pitfall 7 invariant mirror).
+        """
+        self._hi_res_chip.setVisible(visible)
+        if not visible and self._hi_res_chip.isChecked():
+            self._hi_res_chip.setChecked(False)  # fires toggled -> _on_hi_res_chip_toggled
 
     def _toggle_filter_strip(self) -> None:
         visible = not self._filter_strip.isVisible()
