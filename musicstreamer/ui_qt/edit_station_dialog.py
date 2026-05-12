@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from musicstreamer import assets
+from musicstreamer.hi_res import classify_tier, TIER_LABEL_PROSE
 from musicstreamer.models import Station
 from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
@@ -211,6 +212,7 @@ _COL_QUALITY = 1
 _COL_CODEC = 2
 _COL_BITRATE = 3
 _COL_POSITION = 4
+_COL_AUDIO_QUALITY = 5  # Phase 70 — read-only auto-detected tier (DS-03); disambiguates from _COL_QUALITY user-authored quality string
 
 
 class _BitrateDelegate(QStyledItemDelegate):
@@ -395,9 +397,9 @@ class EditStationDialog(QDialog):
         streams_vbox.setContentsMargins(0, 0, 0, 0)
         streams_vbox.setSpacing(4)
 
-        self.streams_table = QTableWidget(0, 5)
+        self.streams_table = QTableWidget(0, 6)
         self.streams_table.setHorizontalHeaderLabels(
-            ["URL", "Quality", "Codec", "Bitrate (kbps)", "Position"]
+            ["URL", "Quality", "Codec", "Bitrate (kbps)", "Position", "Audio quality"]
         )
         self.streams_table.setAlternatingRowColors(True)
         self.streams_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -407,10 +409,12 @@ class EditStationDialog(QDialog):
         hdr.setSectionResizeMode(_COL_CODEC, QHeaderView.Fixed)
         hdr.setSectionResizeMode(_COL_BITRATE, QHeaderView.Fixed)
         hdr.setSectionResizeMode(_COL_POSITION, QHeaderView.Fixed)
+        hdr.setSectionResizeMode(_COL_AUDIO_QUALITY, QHeaderView.Fixed)
         self.streams_table.setColumnWidth(_COL_QUALITY, 80)
         self.streams_table.setColumnWidth(_COL_CODEC, 80)
         self.streams_table.setColumnWidth(_COL_BITRATE, 95)
         self.streams_table.setColumnWidth(_COL_POSITION, 60)
+        self.streams_table.setColumnWidth(_COL_AUDIO_QUALITY, 90)
         self.streams_table.setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
         # UI-03: surface the failover-ordering semantics on the column header
         # so users discover the feature without reading the changelog. The
@@ -419,6 +423,10 @@ class EditStationDialog(QDialog):
         # values (IN-03).
         self.streams_table.horizontalHeaderItem(_COL_BITRATE).setToolTip(
             "Higher bitrate streams play first on failover"
+        )
+        # UI-SPEC OD-8: read-only auto-detected tier column tooltip (verbatim).
+        self.streams_table.horizontalHeaderItem(_COL_AUDIO_QUALITY).setToolTip(
+            "Auto-detected from playback. Hi-Res ≥ 48 kHz or ≥ 24-bit on a lossless codec."
         )
         streams_vbox.addWidget(self.streams_table)
 
@@ -514,7 +522,12 @@ class EditStationDialog(QDialog):
 
         # Streams
         for s in streams:
-            self._add_stream_row(s.url, s.quality, s.codec, s.bitrate_kbps, s.position, stream_id=s.id)
+            self._add_stream_row(
+                s.url, s.quality, s.codec, s.bitrate_kbps, s.position,
+                stream_id=s.id,
+                sample_rate_hz=s.sample_rate_hz,
+                bit_depth=s.bit_depth,
+            )
 
         # Delete guard (T-39-03)
         is_playing = getattr(self._player, "_current_station_name", "") == station.name
@@ -675,11 +688,14 @@ class EditStationDialog(QDialog):
     def _add_stream_row(self, url: str = "", quality: str = "",
                         codec: str = "", bitrate_kbps: int = 0,
                         position: int = 1,
-                        stream_id: Optional[int] = None) -> int:
+                        stream_id: Optional[int] = None,
+                        sample_rate_hz: int = 0,
+                        bit_depth: int = 0) -> int:
         """Insert a new row in the stream table.
 
         stream_id stored in URL item's Qt.UserRole — survives row swaps.
         bitrate_kbps=0 renders as empty string (D-12/G-5).
+        sample_rate_hz + bit_depth feed Phase 70 _COL_AUDIO_QUALITY (DS-03).
         """
         row = self.streams_table.rowCount()
         self.streams_table.insertRow(row)
@@ -695,6 +711,14 @@ class EditStationDialog(QDialog):
             QTableWidgetItem(str(bitrate_kbps) if bitrate_kbps else ""),
         )
         self.streams_table.setItem(row, _COL_POSITION, QTableWidgetItem(str(position)))
+
+        # Phase 70 / DS-03: read-only auto-detected audio tier cell.
+        # Closed-enum lookup via TIER_LABEL_PROSE; default 0 for unknown fields.
+        tier = classify_tier(codec, sample_rate_hz, bit_depth)
+        audio_quality_item = QTableWidgetItem(TIER_LABEL_PROSE[tier])
+        audio_quality_item.setFlags(audio_quality_item.flags() & ~Qt.ItemIsEditable)
+        self.streams_table.setItem(row, _COL_AUDIO_QUALITY, audio_quality_item)
+
         return row
 
     def _on_add_stream(self) -> None:
