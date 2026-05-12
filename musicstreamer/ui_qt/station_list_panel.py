@@ -655,6 +655,15 @@ class StationListPanel(QWidget):
         for btn in self._tag_chip_group.buttons():
             btn.setChecked(False)
             self._set_chip_state(btn, False)
+        # Mirror provider/tag chip reset for the standalone Live / Hi-Res chips.
+        # Without these, the proxy is cleared but the buttons remain visually
+        # checked — leaving the UI filter-state desynced (CR-03).
+        if self._live_chip.isChecked():
+            self._live_chip.setChecked(False)
+            self._set_chip_state(self._live_chip, False)
+        if self._hi_res_chip.isChecked():
+            self._hi_res_chip.setChecked(False)
+            self._set_chip_state(self._hi_res_chip, False)
         self._proxy.clear_all()
         self._sync_tree_expansion()
 
