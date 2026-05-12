@@ -349,6 +349,20 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
             # built from the LIVE DB after all station rows are inserted, not
             # from the ZIP, so names always resolve to the destination's IDs.
             #
+            # WR-05: merge-mode is intentionally ADDITIVE for siblings — we
+            # never `DELETE FROM station_siblings` before re-inserting. INSERT
+            # OR IGNORE makes the operation idempotent for pairs the ZIP
+            # carries, but pre-existing links on the destination DB that the
+            # ZIP does not mention are preserved. This means: (a) if you
+            # unlink in DB-A, export, and re-import to DB-B, the deleted link
+            # SURVIVES in DB-B. Rationale: destructive sync would be a
+            # surprise. If a future requirement needs "make destination match
+            # source", the right shape is a dedicated "replace siblings only"
+            # mode rather than an unannounced merge-mode side effect.
+            # replace_all mode is unaffected because the `DELETE FROM stations`
+            # cascade above already wipes station_siblings via the ON DELETE
+            # CASCADE FK on stations.id (D-08).
+            #
             # CR-01: stations.name is NOT UNIQUE in the schema — only
             # providers.name is UNIQUE (repo.py:23-33). Two stations can share
             # a name across different providers (the SomaFM-variant case is a
