@@ -16,9 +16,14 @@ player._current_station_name == station.name (T-39-03).
 """
 from __future__ import annotations
 
+import logging
 import os
+import sqlite3
 import tempfile
+from functools import partial
 from typing import Optional
+
+_log = logging.getLogger(__name__)
 
 from PySide6.QtCore import Qt, Signal, QTimer, QThread
 from PySide6.QtGui import QCursor, QIntValidator, QPixmap, QPixmapCache
@@ -671,13 +676,24 @@ class EditStationDialog(QDialog):
             if item is not None and item.widget() is not None:
                 item.widget().deleteLater()
 
-        # Repo failures must not break the dialog — fall through to a row
-        # containing only the "+ Add sibling" button so the user still has an
-        # authoring path.
+        # WR-04: catch sqlite3.Error specifically rather than bare Exception
+        # — Repo CRUD methods raise sqlite3 family errors on DB failure, and
+        # narrowing the except clause prevents accidentally swallowing
+        # unrelated programmer errors (TypeError, AttributeError, …) that
+        # should surface during development. The dialog must still survive
+        # a real DB hiccup (locked file, corrupted schema) by falling through
+        # to a row containing only the "+ Add sibling" button, so the user
+        # still has an authoring path.
         try:
             all_stations = self._repo.list_stations()
             link_ids = self._repo.list_sibling_links(self._station.id)
-        except Exception:  # noqa: BLE001 — best-effort, fall through to add button
+        except sqlite3.Error:
+            _log.warning(
+                "_refresh_siblings: sqlite error reading sibling state for "
+                "station %s; falling back to empty chip row",
+                self._station.id,
+                exc_info=True,
+            )
             all_stations = []
             link_ids = []
 
@@ -721,6 +737,32 @@ class EditStationDialog(QDialog):
     # Phase 71 / D-14, D-15 — sibling chip construction helpers
     # ------------------------------------------------------------------
 
+    # WR-06: per-chip slot handlers reached via functools.partial instead of
+    # lambdas. partial pre-binds the sibling_id; Qt's clicked(checked: bool)
+    # argument is ignored at call time (the slot is *args/**kwargs-tolerant).
+    # This pattern is consistent with QA-05 "no lambdas" and with the
+    # _make_chip_toggle closure-factory pattern used elsewhere in this file.
+
+    def _emit_navigate_for_sibling(self, sibling_id: int, *_args, **_kwargs) -> None:
+        """Slot helper: route chip-name click to _on_sibling_link_activated.
+
+        partial(self._emit_navigate_for_sibling, sibling_id) per-chip pins
+        sibling_id at connect time. Trailing *_args/**_kwargs absorb the
+        QPushButton.clicked(bool) signal payload.
+        """
+        self._on_sibling_link_activated(f"sibling://{sibling_id}")
+
+    def _emit_unlink_for_sibling(
+        self, sibling_id: int, station_name: str, *_args, **_kwargs
+    ) -> None:
+        """Slot helper: route chip-× click to _on_unlink_sibling.
+
+        partial pins both sibling_id and station_name at connect time. The
+        trailing *_args absorbs clicked(bool); the slot itself forwards the
+        bound arguments to the real handler.
+        """
+        self._on_unlink_sibling(sibling_id, station_name)
+
     def _add_aa_sibling_chip(self, sibling_id: int, station_name: str) -> None:
         """Bare QPushButton chip for an AA auto-detected sibling (D-15).
 
@@ -735,12 +777,8 @@ class EditStationDialog(QDialog):
         btn.style().polish(btn)
         btn.setAccessibleName(station_name)
         btn.setToolTip("Auto-detected from AudioAddict URL")
-        # T-71-23 mitigation: default-arg capture binds at lambda creation
-        # time, not call time, so each chip carries its own sibling_id.
-        btn.clicked.connect(
-            lambda checked=False, sid=sibling_id:
-                self._on_sibling_link_activated(f"sibling://{sid}")
-        )
+        # WR-06: partial replaces lambda for QA-05 compliance.
+        btn.clicked.connect(partial(self._emit_navigate_for_sibling, sibling_id))
         self._sibling_row_layout.addWidget(btn)
 
     def _add_manual_sibling_chip(
@@ -779,10 +817,9 @@ class EditStationDialog(QDialog):
         own_provider = self._station.provider_name or ""
         if provider_name and provider_name != own_provider:
             name_btn.setToolTip(f"Linked from {provider_name}")
-        # T-71-23 mitigation: default-arg capture pins sibling_id per chip.
+        # WR-06: partial replaces lambda for QA-05 compliance.
         name_btn.clicked.connect(
-            lambda checked=False, sid=sibling_id:
-                self._on_sibling_link_activated(f"sibling://{sid}")
+            partial(self._emit_navigate_for_sibling, sibling_id)
         )
         chip_hl.addWidget(name_btn)
 
@@ -792,10 +829,9 @@ class EditStationDialog(QDialog):
         unlink_btn.style().polish(unlink_btn)
         unlink_btn.setAccessibleName(f"Unlink {station_name}")
         unlink_btn.setMaximumWidth(24)
-        # T-71-23 mitigation: default-arg capture pins sibling_id + name.
+        # WR-06: partial replaces lambda for QA-05 compliance.
         unlink_btn.clicked.connect(
-            lambda checked=False, sid=sibling_id, sname=station_name:
-                self._on_unlink_sibling(sid, sname)
+            partial(self._emit_unlink_for_sibling, sibling_id, station_name)
         )
         chip_hl.addWidget(unlink_btn)
 
