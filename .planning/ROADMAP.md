@@ -577,7 +577,7 @@ Plans:
 **Goal:** Surface a two-tier audio-quality badge ("LOSSLESS" / "HI-RES") across the now-playing panel, station-tree rows, stream-picker entries, and EditStationDialog rows, plus a "Hi-Res only" filter chip and a hi-res-preferring tiebreak in stream failover ordering. Detection is runtime-driven from negotiated GStreamer caps; the rate/depth are persisted per stream so the badge appears on tree rows after the first replay. Mirrors moOde Audio's Hi-Res convention.
 **Requirements**: HRES-01
 **Depends on:** Phase 69
-**Plans:** 12/12 plans executed
+**Plans:** 12/12 plans complete
 
 Plans:
 - [x] 70-00-PLAN.md — Wave 0 RED contract (tests/test_hi_res.py + tests/test_player_caps.py NEW; 8 existing test modules extended; musicstreamer/hi_res.py empty skeleton)
