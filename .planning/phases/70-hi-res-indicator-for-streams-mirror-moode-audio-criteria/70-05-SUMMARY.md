@@ -88,4 +88,12 @@ None — the slot is fully functional. `_refresh_quality_badge` and `update_qual
 
 No new unplanned threat surface introduced. All DB writes go through `repo.update_stream` (parameterized SQL per Plan 70-02). The `repo.con.execute` SELECT for station_id lookup uses a parameterized query binding `stream_id` as int.
 
-## Self-Check
+## Self-Check: PASSED
+
+- [x] `musicstreamer/ui_qt/main_window.py` exists and contains all required additions
+- [x] `tests/test_main_window_integration.py` exists with 8 new Phase 70 tests
+- [x] `70-05-SUMMARY.md` created at correct path
+- [x] Task commit `7db1366` exists in git log
+- [x] `grep -c 'audio_caps_detected.connect' main_window.py` == 1
+- [x] `grep -c 'from musicstreamer.hi_res import best_tier_for_station' main_window.py` == 1
+- [x] 197 tests pass (no regression)
