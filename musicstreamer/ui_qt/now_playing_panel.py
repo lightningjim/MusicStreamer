@@ -1580,11 +1580,11 @@ class NowPlayingPanel(QWidget):
                 depth = int(s.bit_depth or 0)
                 prose = TIER_LABEL_PROSE[tier]
                 if rate > 0 and depth > 0:
-                    # Full caps known: "Hi-Res — 96 kHz / 24-bit"
-                    tooltip = f"{prose} — {rate // 1000} kHz / {depth}-bit"
+                    # Full caps known: "Hi-Res — 96 kHz / 24-bit" (44100 → "44.1")
+                    tooltip = f"{prose} — {rate / 1000:g} kHz / {depth}-bit"
                 elif rate > 0:
-                    # Rate only: "Hi-Res — 96 kHz"
-                    tooltip = f"{prose} — {rate // 1000} kHz"
+                    # Rate only: "Hi-Res — 96 kHz" (44100 → "44.1")
+                    tooltip = f"{prose} — {rate / 1000:g} kHz"
                 elif depth > 0:
                     # Depth only: "Lossless — 24-bit"
                     tooltip = f"{prose} — {depth}-bit"

@@ -3099,6 +3099,26 @@ def test_quality_badge_tooltip_when_caps_known(qtbot):
     assert panel._quality_badge.toolTip() == "Hi-Res — 96 kHz / 24-bit"
 
 
+def test_quality_badge_tooltip_when_caps_known_at_cd_quality(qtbot):
+    """IN-01 regression guard: tooltip shows 'Lossless — 44.1 kHz / 16-bit' for a
+    44.1 kHz / 16-bit FLAC stream.
+
+    The :g format specifier is required so that 44100 / 1000 renders as '44.1'
+    rather than '44' (integer floor division) or '44.1000000000…' (plain float).
+    This test pins that edge case — 48/96/192 kHz are all exact integer kHz
+    values and would pass even with the broken `// 1000` path.
+    """
+    streams = [StationStream(
+        id=1, station_id=1, url="http://x/flac", label="cd-lossless",
+        quality="FLAC 1411", position=1, stream_type="shoutcast",
+        codec="FLAC", sample_rate_hz=44100, bit_depth=16,
+    )]
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    assert panel._quality_badge.toolTip() == "Lossless — 44.1 kHz / 16-bit"
+
+
 def test_quality_badge_tooltip_cold_start(qtbot):
     """HRES-01 / Plan 70-06 / D-03 fallback: pre-caps tooltip on a Lossless stream
     reads 'Lossless — playback caps not yet detected'. FLAC + (0,0) defaults to
