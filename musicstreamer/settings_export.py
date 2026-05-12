@@ -129,6 +129,8 @@ def _station_to_dict(station: Station) -> dict:
             }
             for s in station.streams
         ],
+        # Phase 71 D-07: populated by build_zip second pass (partner station NAMES).
+        "siblings": [],
     }
 
 
@@ -163,6 +165,18 @@ def build_zip(repo: Repo, dest_path: str) -> None:
     ]
 
     station_dicts = [_station_to_dict(s) for s in stations]
+
+    # Phase 71 D-07: enrich each station dict with partner station NAMES (not IDs).
+    # Names survive ID renumbering across DBs; commit_import resolves names back
+    # to IDs after all rows are inserted. Empty-name guard catches the
+    # theoretical stale-link case where ON DELETE CASCADE has not yet fired.
+    id_to_name = {s.id: s.name for s in stations}
+    for station, d in zip(stations, station_dicts):
+        sibling_ids = repo.list_sibling_links(station.id)
+        names = sorted(
+            id_to_name[sid] for sid in sibling_ids if id_to_name.get(sid)
+        )
+        d["siblings"] = names
 
     # Resolve logo paths and assign logo_file; handle name collisions via _{id}
     seen_logo_names: dict[str, int] = {}  # sanitized_stem -> first station_id
@@ -324,6 +338,50 @@ def commit_import(preview: ImportPreview, repo: Repo, mode: str) -> None:
                     repo.con.execute(
                         "UPDATE stations SET station_art_path=? WHERE id=?",
                         (art_rel, station_id),
+                    )
+
+            # Phase 71 D-07: second pass — resolve sibling NAMES to IDs and
+            # write station_siblings rows. Must run inside `with repo.con:` so
+            # the INSERTs join the import transaction (RESEARCH Pitfall 5).
+            # Uses raw `repo.con.execute("INSERT OR IGNORE …")` rather than
+            # `repo.add_sibling_link` because the latter calls `con.commit()`
+            # mid-transaction, breaking atomicity. Pitfall 1: name → id map is
+            # built from the LIVE DB after all station rows are inserted, not
+            # from the ZIP, so names always resolve to the destination's IDs.
+            name_to_id = {
+                r["name"]: r["id"]
+                for r in repo.con.execute(
+                    "SELECT id, name FROM stations"
+                ).fetchall()
+            }
+            for station_data in preview.stations_data:
+                station_name = station_data.get("name", "")
+                if not station_name:
+                    continue
+                station_id = name_to_id.get(station_name)
+                if station_id is None:
+                    continue
+                sibling_names = list(station_data.get("siblings") or [])
+                for sibling_name in sibling_names:
+                    # T-71-18: defensive — non-string entries (dict, None, …)
+                    # would crash `dict.get` on an unhashable key. Skip.
+                    if not isinstance(sibling_name, str):
+                        continue
+                    sibling_id = name_to_id.get(sibling_name)
+                    if sibling_id is None:
+                        continue  # D-07: silently drop unresolved names
+                    # T-71-19: defensive — never write a self-link row (would
+                    # also fail the `a_id < b_id` CHECK constraint).
+                    if sibling_id == station_id:
+                        continue
+                    lo, hi = (
+                        min(station_id, sibling_id),
+                        max(station_id, sibling_id),
+                    )
+                    repo.con.execute(
+                        "INSERT OR IGNORE INTO station_siblings(a_id, b_id) "
+                        "VALUES (?, ?)",
+                        (lo, hi),
                     )
 
             # Phase 47.2 D-16: extract eq-profiles/*.txt. _validate_zip_members
