@@ -62,6 +62,15 @@ def db_init(con: sqlite3.Connection):
             bit_depth INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS station_siblings (
+          a_id INTEGER NOT NULL,
+          b_id INTEGER NOT NULL,
+          FOREIGN KEY(a_id) REFERENCES stations(id) ON DELETE CASCADE,
+          FOREIGN KEY(b_id) REFERENCES stations(id) ON DELETE CASCADE,
+          UNIQUE(a_id, b_id),
+          CHECK(a_id < b_id)
+        );
         """
     )
     con.commit()
@@ -222,6 +231,31 @@ class Repo:
     def delete_stream(self, stream_id: int):
         self.con.execute("DELETE FROM station_streams WHERE id=?", (stream_id,))
         self.con.commit()
+
+    def add_sibling_link(self, a_id: int, b_id: int) -> None:
+        lo, hi = min(a_id, b_id), max(a_id, b_id)
+        self.con.execute(
+            "INSERT OR IGNORE INTO station_siblings(a_id, b_id) VALUES (?, ?)",
+            (lo, hi),
+        )
+        self.con.commit()
+
+    def remove_sibling_link(self, a_id: int, b_id: int) -> None:
+        lo, hi = min(a_id, b_id), max(a_id, b_id)
+        self.con.execute(
+            "DELETE FROM station_siblings WHERE a_id = ? AND b_id = ?",
+            (lo, hi),
+        )
+        self.con.commit()
+
+    def list_sibling_links(self, station_id: int) -> list[int]:
+        rows = self.con.execute(
+            "SELECT b_id AS sid FROM station_siblings WHERE a_id = ? "
+            "UNION "
+            "SELECT a_id AS sid FROM station_siblings WHERE b_id = ?",
+            (station_id, station_id),
+        ).fetchall()
+        return [r["sid"] for r in rows]
 
     def reorder_streams(self, station_id: int, ordered_ids: List[int]):
         for pos, sid in enumerate(ordered_ids, 1):
