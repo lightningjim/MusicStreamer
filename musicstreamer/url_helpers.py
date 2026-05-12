@@ -234,6 +234,48 @@ def find_aa_siblings(
     return [(slug, sid, sname) for _, slug, sid, sname in siblings]
 
 
+def find_manual_siblings(
+    stations: list,
+    current_station_id: int,
+    link_ids: list[int],
+) -> list[tuple[str, int, str]]:
+    """Return (provider_name_or_empty, station_id, station_name) triples.
+
+    link_ids: from Repo.list_sibling_links(current_station_id).
+    Excludes current_station_id even if present in link_ids (defensive).
+    Sort order: alphabetical by station_name (casefold).
+    Pure function — no Qt, no DB access, no logging.
+    """
+    link_set = set(link_ids)
+    result: list[tuple[str, int, str]] = []
+    for st in stations:
+        if st.id == current_station_id:
+            continue
+        if st.id not in link_set:
+            continue
+        result.append((st.provider_name or "", st.id, st.name))
+    result.sort(key=lambda t: t[2].casefold())
+    return result
+
+
+def merge_siblings(
+    aa_siblings: list[tuple[str, int, str]],
+    manual_siblings: list[tuple[str, int, str]],
+) -> list[tuple[str, int, str]]:
+    """Deduplicate by station_id; AA entries take precedence.
+
+    Returns aa_siblings + non-duplicate manual_siblings.
+    Pure function — no Qt, no DB access.
+    """
+    seen: set[int] = {sid for _, sid, _ in aa_siblings}
+    merged = list(aa_siblings)
+    for entry in manual_siblings:
+        if entry[1] not in seen:
+            merged.append(entry)
+            seen.add(entry[1])
+    return merged
+
+
 def render_sibling_html(
     siblings: list[tuple[str, int, str]],
     current_name: str,
