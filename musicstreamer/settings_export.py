@@ -124,6 +124,8 @@ def _station_to_dict(station: Station) -> dict:
                 "stream_type": s.stream_type,
                 "codec": s.codec,
                 "bitrate_kbps": s.bitrate_kbps,
+                "sample_rate_hz": s.sample_rate_hz,
+                "bit_depth": s.bit_depth,
             }
             for s in station.streams
         ],
@@ -405,8 +407,8 @@ def _insert_station(repo: Repo, data: dict) -> int:
     for stream in data.get("streams", []):
         repo.con.execute(
             "INSERT INTO station_streams"
-            "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps, sample_rate_hz, bit_depth) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 station_id,
                 stream.get("url", ""),
@@ -416,6 +418,8 @@ def _insert_station(repo: Repo, data: dict) -> int:
                 stream.get("stream_type", ""),
                 stream.get("codec", ""),
                 int(stream.get("bitrate_kbps", 0) or 0),  # P-2 forward-compat + defense
+                int(stream.get("sample_rate_hz", 0) or 0),  # Phase 70 forward-compat
+                int(stream.get("bit_depth", 0) or 0),  # Phase 70 forward-compat
             ),
         )
     return station_id
@@ -461,8 +465,8 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
     for stream in data.get("streams", []):
         repo.con.execute(
             "INSERT INTO station_streams"
-            "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "(station_id, url, label, quality, position, stream_type, codec, bitrate_kbps, sample_rate_hz, bit_depth) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 station_id,
                 stream.get("url", ""),
@@ -472,6 +476,8 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
                 stream.get("stream_type", ""),
                 stream.get("codec", ""),
                 int(stream.get("bitrate_kbps", 0) or 0),  # P-2 forward-compat + defense
+                int(stream.get("sample_rate_hz", 0) or 0),  # Phase 70 forward-compat
+                int(stream.get("bit_depth", 0) or 0),  # Phase 70 forward-compat
             ),
         )
     return station_id
