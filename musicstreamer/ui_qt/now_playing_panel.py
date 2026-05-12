@@ -1553,7 +1553,7 @@ class NowPlayingPanel(QWidget):
             if self._streams:
                 if 0 <= idx < len(self._streams):
                     s = self._streams[idx]
-                elif self._streams:
+                else:
                     s = self._streams[0]
             if s is None:
                 station_streams = getattr(self._station, "streams", None) or []
