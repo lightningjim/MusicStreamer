@@ -212,3 +212,122 @@ def test_accept_calls_add_sibling_link(qtbot, station, repo):
     d._station_list.setCurrentRow(0)
     d._on_accept()
     assert repo.add_sibling_link_calls == [(1, 2)]
+
+
+# ---------------------------------------------------------------------------
+# CR-03 regression: AA exclusion uses live URL, not stale streams[0].url
+# ---------------------------------------------------------------------------
+# During EditStationDialog editing the URL field is the source of truth
+# (Pitfall 4). When the user edits the URL without saving and then clicks
+# "+ Add sibling", the dialog must use the IN-PROGRESS URL to compute the
+# AA exclusion set, not the saved stale URL.
+
+
+@pytest.fixture
+def aa_repo():
+    """Repo whose providers match the AA networks used by find_aa_siblings.
+
+    AddSiblingDialog filters candidates by provider_name exact match against
+    the combo selection, so the candidate stations' provider_name must be in
+    the combo for the picker to show them.
+    """
+    r = FakeRepo()
+    r._providers = [Provider(1, "DI.fm"), Provider(2, "ZenRadio")]
+    return r
+
+
+def test_live_url_drives_aa_exclusion(qtbot, aa_repo):
+    """CR-03: AddSiblingDialog uses live_url (not station.streams[0].url) for
+    AA exclusion.
+
+    Setup:
+      - Editing station (DI.fm) has a NON-AA persisted URL (so streams[0].url
+        produces no AA siblings).
+      - Candidate station (ZenRadio Ambient) has a real ZenRadio Ambient URL.
+      - live_url is set to a DI.fm Ambient URL — find_aa_siblings should
+        cross-network-match the candidate and exclude it from the picker.
+    """
+    editing = _mk_station(
+        1, "Editing", provider_id=1, provider_name="DI.fm",
+        url="http://stale.example/saved-url",  # non-AA persisted URL
+    )
+    candidate = _mk_station(
+        2, "Ambient", provider_id=2, provider_name="ZenRadio",
+        url="http://prem4.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo._stations = [editing, candidate]
+    # live URL is the user's in-progress edit — a DI.fm Ambient URL.
+    d = AddSiblingDialog(
+        editing, aa_repo, parent=None,
+        live_url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+    )
+    qtbot.addWidget(d)
+    # Switch to ZenRadio provider so we'd see the candidate if not excluded.
+    zr_idx = d._provider_combo.findText("ZenRadio")
+    d._provider_combo.setCurrentIndex(zr_idx)
+    names = [
+        d._station_list.item(i).text() for i in range(d._station_list.count())
+    ]
+    # Candidate must be EXCLUDED because AA detection under the live URL
+    # treats it as an auto-sibling.
+    assert "Ambient" not in names
+
+
+def test_stale_url_no_longer_drives_aa_exclusion(qtbot, aa_repo):
+    """CR-03 (counter-case): the stale streams[0].url MUST NOT be used when
+    live_url is provided.
+
+    Setup is the inverse of above:
+      - Editing station (DI.fm) has a STALE persisted DI.fm Ambient URL.
+      - Candidate (ZenRadio Ambient) would be AA-matched under the stale URL.
+      - live_url is a non-AA URL — find_aa_siblings should NOT detect the
+        candidate, so it remains in the picker.
+    """
+    editing = _mk_station(
+        1, "Editing", provider_id=1, provider_name="DI.fm",
+        url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",  # stale AA
+    )
+    candidate = _mk_station(
+        2, "Ambient", provider_id=2, provider_name="ZenRadio",
+        url="http://prem4.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo._stations = [editing, candidate]
+    # User has changed the URL to a non-AA value before clicking + Add sibling.
+    d = AddSiblingDialog(
+        editing, aa_repo, parent=None,
+        live_url="http://example.com/not-aa/anymore",
+    )
+    qtbot.addWidget(d)
+    zr_idx = d._provider_combo.findText("ZenRadio")
+    d._provider_combo.setCurrentIndex(zr_idx)
+    names = [
+        d._station_list.item(i).text() for i in range(d._station_list.count())
+    ]
+    # Candidate is NOT excluded — the stale persisted URL no longer drives
+    # AA detection.
+    assert "Ambient" in names
+
+
+def test_live_url_omitted_falls_back_to_streams(qtbot, aa_repo):
+    """CR-03: backwards compatibility — when live_url is omitted (None) the
+    dialog falls back to station.streams[0].url so existing call sites and
+    tests that construct AddSiblingDialog without live_url still work."""
+    editing = _mk_station(
+        1, "Editing", provider_id=1, provider_name="DI.fm",
+        url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+    )
+    candidate = _mk_station(
+        2, "Ambient", provider_id=2, provider_name="ZenRadio",
+        url="http://prem4.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo._stations = [editing, candidate]
+    # No live_url passed — fallback path.
+    d = AddSiblingDialog(editing, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    zr_idx = d._provider_combo.findText("ZenRadio")
+    d._provider_combo.setCurrentIndex(zr_idx)
+    names = [
+        d._station_list.item(i).text() for i in range(d._station_list.count())
+    ]
+    # The saved DI.fm URL should AA-match the ZenRadio candidate.
+    assert "Ambient" not in names

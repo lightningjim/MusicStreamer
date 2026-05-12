@@ -52,10 +52,17 @@ class AddSiblingDialog(QDialog):
 
     Args:
         station: The Station being edited; its provider pre-selects the combo,
-            and its id + first stream URL drive the exclusion-set computation.
+            and its id drives the exclusion-set computation.
         repo: Repo instance providing list_providers / list_stations /
             list_sibling_links / add_sibling_link.
         parent: Optional parent widget for modal stacking.
+        live_url: Optional override for the editing station's current URL.
+            When the dialog is launched from EditStationDialog the user may
+            have edited the URL field without saving (RESEARCH Pitfall 4);
+            EditStationDialog passes its url_edit.text().strip() so the AA
+            exclusion set reflects the in-progress URL rather than the stale
+            persisted streams[0].url. When omitted the dialog falls back to
+            station.streams[0].url for backwards compatibility (CR-03).
 
     Public read-only attribute after exec() == QDialog.Accepted:
         _linked_station_name: str — the display name of the station the user
@@ -68,11 +75,16 @@ class AddSiblingDialog(QDialog):
         station,
         repo: Repo,
         parent: Optional[QWidget] = None,
+        live_url: Optional[str] = None,
     ) -> None:
         super().__init__(parent)
         self._current_station = station
         self._current_station_id = station.id
         self._repo = repo
+        # CR-03: live URL takes precedence over station.streams[0].url. None
+        # means "use stale fallback"; "" (empty string) is a valid live value
+        # meaning "user cleared the URL field" and is preserved as-is.
+        self._live_url: Optional[str] = live_url
         # Caller reads this after exec() == Accepted for the toast (UI-SPEC line 285).
         self._linked_station_name: str = ""
 
@@ -216,11 +228,18 @@ class AddSiblingDialog(QDialog):
 
         all_stations = self._repo.list_stations()
 
-        # Current first-stream URL drives find_aa_siblings (defensively allow
-        # an empty URL for new/streamless stations).
-        current_url = ""
-        if self._current_station.streams:
+        # CR-03: prefer the live URL passed in from EditStationDialog (the
+        # in-progress url_edit.text()), falling back to the saved
+        # streams[0].url only when no live URL was provided. An explicit
+        # empty-string live_url is honored (user cleared the field) — only
+        # `None` triggers the fallback. Defensively allow an empty URL for
+        # new/streamless stations.
+        if self._live_url is not None:
+            current_url = self._live_url
+        elif self._current_station.streams:
             current_url = self._current_station.streams[0].url or ""
+        else:
+            current_url = ""
 
         # Build exclusion ID set (RESEARCH Pitfall 4).
         excluded: set[int] = {self._current_station_id}

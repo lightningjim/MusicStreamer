@@ -818,8 +818,20 @@ class EditStationDialog(QDialog):
         The dialog handles its own Repo.add_sibling_link call internally
         (Plan 71-04 contract); EditStationDialog only consumes the
         _linked_station_name attribute for the toast text.
+
+        CR-03: pass live url_edit.text() into the dialog so the AA exclusion
+        set reflects the in-progress URL (the user may have edited the URL
+        field without saving — RESEARCH Pitfall 4). Without this the dialog
+        reads the stale persisted streams[0].url, can offer a candidate that
+        the NEW URL would auto-detect as AA, and adding it lands in CR-02's
+        AA+manual collision case after save.
         """
-        dlg = AddSiblingDialog(self._station, self._repo, parent=self)
+        dlg = AddSiblingDialog(
+            self._station,
+            self._repo,
+            parent=self,
+            live_url=self.url_edit.text().strip(),
+        )
         if dlg.exec() == QDialog.Accepted:
             self._refresh_siblings()
             name = dlg._linked_station_name
