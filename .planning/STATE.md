@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: planning
-stopped_at: Phase 70 context gathered
-last_updated: "2026-05-12T02:57:32.334Z"
+stopped_at: Phase 70 UI-SPEC approved
+last_updated: "2026-05-12T03:18:32.342Z"
 last_activity: 2026-05-11
 progress:
   total_phases: 31
@@ -221,6 +221,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-12T02:57:32.324Z
-Stopped at: Phase 70 context gathered
-Resume file: .planning/phases/70-hi-res-indicator-for-streams-mirror-moode-audio-criteria/70-CONTEXT.md
+Last session: 2026-05-12T03:18:32.335Z
+Stopped at: Phase 70 UI-SPEC approved
+Resume file: .planning/phases/70-hi-res-indicator-for-streams-mirror-moode-audio-criteria/70-UI-SPEC.md
