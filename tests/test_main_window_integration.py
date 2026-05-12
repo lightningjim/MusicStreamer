@@ -1523,24 +1523,6 @@ def test_on_audio_caps_detected_stream_deleted_race(qtbot, fake_player):
     assert stream_id not in w._last_quality_payload
 
 
-def test_on_audio_caps_detected_fanout_guarded_pre_70_06(qtbot, fake_player):
-    """Phase 70 / forward-compat: slot does NOT raise if NowPlayingPanel lacks
-    _refresh_quality_badge (pre-Plan 70-06 state).
-    """
-    repo, stream_id, station_id = _make_repo_with_stream()
-    w = MainWindow(fake_player, repo)
-    qtbot.addWidget(w)
-
-    # Confirm NowPlayingPanel does NOT yet have _refresh_quality_badge (pre-70-06).
-    assert not hasattr(w.now_playing, "_refresh_quality_badge"), (
-        "If NowPlayingPanel already has _refresh_quality_badge, "
-        "this test is no longer relevant (Plan 70-06 has shipped)"
-    )
-
-    # Must not raise even without the method present.
-    w._on_audio_caps_detected(stream_id, 44100, 16)
-
-
 def test_last_quality_payload_initialized_in_init(qtbot, fake_player, fake_repo):
     """Phase 70 / DS-01: _last_quality_payload must be initialized as empty dict in __init__."""
     w = MainWindow(fake_player, fake_repo)
