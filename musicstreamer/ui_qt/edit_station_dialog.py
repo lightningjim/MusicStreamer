@@ -16,6 +16,7 @@ player._current_station_name == station.name (T-39-03).
 """
 from __future__ import annotations
 
+import html
 import logging
 import os
 import sqlite3
@@ -814,9 +815,15 @@ class EditStationDialog(QDialog):
         # Tooltip is cross-provider only (UI-SPEC line 115 / T-71-24): the
         # provider name is already public in the station tree, so this is
         # additive context rather than new disclosure.
+        # IN-05: Qt auto-detects rich text in QWidget.setToolTip — a
+        # provider_name containing <, >, or & would be interpreted as HTML
+        # markup. Escape defensively so user-controlled provider_name strings
+        # cannot inject markup into the tooltip.
         own_provider = self._station.provider_name or ""
         if provider_name and provider_name != own_provider:
-            name_btn.setToolTip(f"Linked from {provider_name}")
+            name_btn.setToolTip(
+                f"Linked from {html.escape(provider_name, quote=True)}"
+            )
         # WR-06: partial replaces lambda for QA-05 compliance.
         name_btn.clicked.connect(
             partial(self._emit_navigate_for_sibling, sibling_id)
@@ -841,23 +848,32 @@ class EditStationDialog(QDialog):
     # Phase 71 / D-14, D-11 — manual sibling link add / remove slots
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _truncate_for_toast(name: str) -> str:
+        """IN-06: shared truncation helper.
+
+        Toast messages are emitted from _on_unlink_sibling and
+        _on_add_sibling_clicked; both clamped names to 40 chars with a
+        U+2026 ellipsis at index 37 to keep the toast inside the MainWindow
+        toast strip's display width. Centralizing here keeps the rule in
+        one place if it ever changes.
+        """
+        if len(name) > 40:
+            return name[:37] + "…"
+        return name
+
     def _on_unlink_sibling(self, sibling_id: int, station_name: str) -> None:
         """× click: persist the unlink, refresh the chip row, fire the toast.
 
         D-14: immediate fire + toast — no QMessageBox.question confirm
         (UI-SPEC line 314). Toast text matches "^Unlinked from " so the
         Phase 71-00 RED test (regex match) is satisfied.
-
-        Name truncation (40 chars with U+2026 ellipsis) keeps toasts inside
-        the MainWindow toast strip's display width.
         """
         self._repo.remove_sibling_link(self._station.id, sibling_id)
         self._refresh_siblings()
-        if len(station_name) > 40:
-            display = station_name[:37] + "…"
-        else:
-            display = station_name
-        self.sibling_toast.emit(f"Unlinked from {display}")
+        self.sibling_toast.emit(
+            f"Unlinked from {self._truncate_for_toast(station_name)}"
+        )
 
     def _on_add_sibling_clicked(self) -> None:
         """"+ Add sibling" click: open AddSiblingDialog modally; on Accepted,
@@ -865,7 +881,7 @@ class EditStationDialog(QDialog):
 
         The dialog handles its own Repo.add_sibling_link call internally
         (Plan 71-04 contract); EditStationDialog only consumes the
-        _linked_station_name attribute for the toast text.
+        linked_station_name attribute for the toast text.
 
         CR-03: pass live url_edit.text() into the dialog so the AA exclusion
         set reflects the in-progress URL (the user may have edited the URL
@@ -882,12 +898,11 @@ class EditStationDialog(QDialog):
         )
         if dlg.exec() == QDialog.Accepted:
             self._refresh_siblings()
-            name = dlg._linked_station_name
-            if len(name) > 40:
-                display = name[:37] + "…"
-            else:
-                display = name
-            self.sibling_toast.emit(f"Linked to {display}")
+            # IN-07: read via public accessor (linked_station_name property)
+            # instead of the underscored backing attribute.
+            self.sibling_toast.emit(
+                f"Linked to {self._truncate_for_toast(dlg.linked_station_name)}"
+            )
 
     # ------------------------------------------------------------------
     # Chip helpers

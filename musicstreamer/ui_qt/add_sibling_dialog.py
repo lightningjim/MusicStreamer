@@ -65,7 +65,7 @@ class AddSiblingDialog(QDialog):
             station.streams[0].url for backwards compatibility (CR-03).
 
     Public read-only attribute after exec() == QDialog.Accepted:
-        _linked_station_name: str — the display name of the station the user
+        linked_station_name: str — the display name of the station the user
             linked; consumed by the caller (EditStationDialog) to fire its
             "Linked to {name}" toast.
     """
@@ -85,7 +85,11 @@ class AddSiblingDialog(QDialog):
         # means "use stale fallback"; "" (empty string) is a valid live value
         # meaning "user cleared the URL field" and is preserved as-is.
         self._live_url: Optional[str] = live_url
-        # Caller reads this after exec() == Accepted for the toast (UI-SPEC line 285).
+        # Caller reads this after exec() == Accepted for the toast (UI-SPEC
+        # line 285). IN-07: external readers should use the public
+        # `linked_station_name` property below rather than the underscored
+        # backing attribute. The underscored attribute is preserved for
+        # backwards compatibility with any code path that may still touch it.
         self._linked_station_name: str = ""
 
         self.setWindowTitle("Add Sibling Station")
@@ -94,6 +98,17 @@ class AddSiblingDialog(QDialog):
 
         self._build_ui()
         self._repopulate_station_list()
+
+    @property
+    def linked_station_name(self) -> str:
+        """IN-07: public read-only accessor for the linked station name.
+
+        Returns the name of the station the user selected before clicking
+        "Link Station", or an empty string if the dialog was dismissed
+        without a selection. Callers should prefer this over the
+        underscored attribute.
+        """
+        return self._linked_station_name
 
     # ------------------------------------------------------------------
     # UI construction
@@ -168,19 +183,31 @@ class AddSiblingDialog(QDialog):
     # Slots
     # ------------------------------------------------------------------
 
-    def _on_provider_changed(self, index: int) -> None:  # noqa: ARG002
-        """Provider changed — clear search, repopulate list, disable Ok."""
-        # Clear search text without re-triggering _on_search_changed (which
-        # would cause a redundant _repopulate_station_list call).
-        self._search_edit.blockSignals(True)
-        try:
-            self._search_edit.setText("")
-        finally:
-            self._search_edit.blockSignals(False)
+    def _on_provider_changed(self) -> None:
+        """Provider changed — clear search, repopulate list, disable Ok.
+
+        IN-03: PySide6 accepts a slot whose signature has fewer parameters
+        than the signal — Qt drops the extra args. currentIndexChanged emits
+        (int) but we don't need the index (we read currentData() in
+        _repopulate_station_list), so the slot takes only self.
+
+        IN-08: previously used blockSignals(True) / setText("") /
+        blockSignals(False) to avoid a redundant repopulate call from the
+        textChanged → _on_search_changed signal. Simplified: setText("")
+        triggers one extra _repopulate_station_list call (the filter sees
+        empty search text — same end state). Cost is O(stations) over a
+        50-200 row in-memory list — microseconds at modal-open scale.
+        """
+        self._search_edit.setText("")
         self._repopulate_station_list()
 
-    def _on_search_changed(self, text: str) -> None:  # noqa: ARG002
-        """Search text changed — rebuild filtered list."""
+    def _on_search_changed(self) -> None:
+        """Search text changed — rebuild filtered list.
+
+        IN-03: textChanged emits (str) but the slot reads the current text
+        via _search_edit.text() in _repopulate_station_list, so the str arg
+        is unused. PySide6 will accept a parameter-less slot.
+        """
         self._repopulate_station_list()
 
     def _on_selection_changed(self) -> None:
