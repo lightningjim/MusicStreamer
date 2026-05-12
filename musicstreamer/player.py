@@ -47,6 +47,7 @@ from musicstreamer import constants, cookie_utils, paths
 from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
 from musicstreamer.eq_profile import EqBand, EqProfile, parse_autoeq
 from musicstreamer.gst_bus_bridge import GstBusLoopThread
+from musicstreamer.hi_res import bit_depth_from_format
 from musicstreamer.models import Station, StationStream
 from musicstreamer.stream_ordering import order_streams
 from musicstreamer.url_helpers import aa_normalize_stream_url
@@ -719,6 +720,104 @@ class Player(QObject):
         elif transition is not None:                         # closed naturally (recovered)
             self._underrun_cycle_closed.emit(transition)    # queued → main: log + cancel dwell
 
+    # ------------------------------------------------------------------ #
+    # Phase 70 / DS-01: GStreamer audio-sink-pad caps detection.
+    #
+    # Threading invariant (Phase 43.1 Pitfall 2 / qt-glib-bus-threading.md Rule 2):
+    # _on_caps_negotiated runs on the GStreamer STREAMING THREAD (not the Qt main
+    # thread). It MUST ONLY call self.audio_caps_detected.emit(...). It must
+    # NEVER touch Qt widgets, call repo methods, or mutate self._pipeline
+    # properties — those actions silently fail or corrupt state on a non-QThread.
+    #
+    # _arm_caps_watch_for_current_stream is called from BOTH _set_uri (installs
+    # the async notify::caps watch) AND _on_playbin_state_changed (Pattern 1b
+    # main-thread synchronous read path for streams whose caps are already
+    # negotiated at PLAYING transition).
+    # ------------------------------------------------------------------ #
+
+    def _arm_caps_watch_for_current_stream(self) -> None:
+        """Disconnect any prior pad watch, then arm a fresh notify::caps listener.
+
+        Called from _set_uri (async path) and _on_playbin_state_changed
+        (Pattern 1b sync path).  Idempotent: disconnects before arming.
+        """
+        # Disconnect prior watch so stale handlers don't fire against a dead pad.
+        if self._caps_pad is not None and self._caps_handler_id:
+            try:
+                self._caps_pad.disconnect(self._caps_handler_id)
+            except (TypeError, Exception):
+                pass
+        self._caps_pad = None
+        self._caps_handler_id = 0
+
+        if self._current_stream is None:
+            return
+
+        # Arm one-shot guard with the stream_id that triggered this call
+        # (Pitfall 6: pair future emit with the URL currently being set up).
+        self._caps_armed_for_stream_id = self._current_stream.id
+
+        pad = self._pipeline.emit("get-audio-pad", 0)
+        if pad is None:
+            # Audio pad not available yet; notify::caps will arrive later.
+            return
+        self._caps_pad = pad
+        self._caps_handler_id = pad.connect("notify::caps", self._on_caps_negotiated)
+        # Synchronous one-shot: if caps are already negotiated, emit immediately
+        # and disarm.  If not yet stable, the GObject handler above covers it.
+        self._on_caps_negotiated(pad, None)
+
+    def _on_caps_negotiated(self, pad, _pspec) -> None:
+        """Streaming-thread handler — MUST emit a queued Signal, never touch
+        Qt widgets or self._pipeline directly (Phase 43.1 Pitfall 2 /
+        qt-glib-bus-threading.md Rule 2).
+
+        Connected via QueuedConnection on the RECEIVER side (MainWindow in
+        Plan 70-05) so cross-thread delivery is automatic.
+        """
+        if not self._caps_armed_for_stream_id:
+            return  # already emitted for this URL (Pitfall 6 one-shot disarm)
+        caps = pad.get_current_caps()
+        if caps is None or caps.get_size() == 0:
+            return  # caps not yet stable (Pitfall 1 — wait for next fire)
+        s = caps.get_structure(0)
+        # Defensive dual-path rate extraction (RESEARCH Pattern 1 lines 290-295).
+        # GstStructure.get_int returns (found: bool, value: int) in PyGObject;
+        # fall back to dict-style access for environments where the binding differs.
+        rate = 0
+        _rate_found = False
+        if hasattr(s, "get_int"):
+            try:
+                result = s.get_int("rate")
+                if isinstance(result, tuple) and len(result) == 2:
+                    rate_ok, rate_val = result
+                    if rate_ok:
+                        rate = int(rate_val)
+                        _rate_found = True
+                elif isinstance(result, int):
+                    rate = result
+                    _rate_found = True
+            except (TypeError, ValueError):
+                pass
+        if not _rate_found:
+            try:
+                rate = int(s["rate"])
+            except (KeyError, TypeError, ValueError):
+                rate = 0
+        # Defensive format string extraction (RESEARCH Pattern 1 lines 296-299).
+        try:
+            fmt = s.get_string("format") or s["format"]
+        except (KeyError, TypeError):
+            fmt = ""
+        depth = bit_depth_from_format(fmt or "")
+        if rate <= 0 or depth <= 0:
+            return  # ignore unknown / incomplete caps (T-06 guard)
+        # Disarm one-shot guard BEFORE emit so a re-entrant call from a
+        # synchronous context cannot trigger a second emission (Pitfall 6).
+        sid = self._caps_armed_for_stream_id
+        self._caps_armed_for_stream_id = 0
+        self.audio_caps_detected.emit(sid, rate, depth)  # queued → main thread
+
     def _on_gst_state_changed(self, bus, msg) -> None:
         """Bus-loop-thread handler (Phase 57 / WIN-03 D-12).
 
@@ -755,8 +854,15 @@ class Player(QObject):
         is the cached slider position — survives pipeline rebuilds because
         it lives on the Player, not on playbin3 (which resets the property
         on every NULL->PLAYING / PAUSED->PLAYING — diagnostic Step 2).
+
+        Phase 70 / Pattern 1b: also calls _arm_caps_watch_for_current_stream
+        here so that streams whose caps are already negotiated at PLAYING
+        (most HTTP audio) are captured via the synchronous get_current_caps()
+        path.  Idempotent: the method disconnects any prior watch before arming.
         """
         self._pipeline.set_property("volume", self._volume)
+        # Pattern 1b: synchronous one-shot caps read on the main thread.
+        self._arm_caps_watch_for_current_stream()
 
     # ------------------------------------------------------------------ #
     # Timer helpers -- main-thread only
@@ -873,6 +979,9 @@ class Player(QObject):
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         self._pipeline.set_property("uri", uri)
         self._pipeline.set_state(Gst.State.PLAYING)
+        # Phase 70 / DS-01: install a fresh caps watch on the new pipeline lifecycle.
+        # MUST happen AFTER set_state(PLAYING) so playbin3 starts negotiating streams.
+        self._arm_caps_watch_for_current_stream()
 
     # ------------------------------------------------------------------ #
     # YouTube -- yt_dlp library API with EJS JS challenge solver (Plan 35-06)
