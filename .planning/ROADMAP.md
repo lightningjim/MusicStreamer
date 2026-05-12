@@ -563,21 +563,35 @@ Plans:
 **Goal:** Land the conda-recipe + build-time guard + drift-guard pytest + Win11 UAT that empirically prove AAC-encoded streams (DI.fm AAC tier + SomaFM HE-AAC) play on the installed Windows binary post-bundle-fix, with a documented exit code 10 in `build.ps1` that fails the build loudly if `gstlibav.dll` or `gstaudioparsers.dll` ever go missing from `dist/MusicStreamer/_internal/gst_plugins/`.
 **Requirements**: WIN-05
 **Depends on:** Phase 68
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 69-01-PLAN.md — Linux dev: source-of-truth helper (tools/check_bundle_plugins.py), build.ps1 step 4b + exit code 10, README conda recipe expansion (gst-libav + 4 gst-plugins-* packages), tests/test_packaging_spec.py drift-guard pytests, CONCERNS.md reconciliation, REQUIREMENTS.md WIN-05 row
-- [ ] 69-02-PLAN.md — Win11 VM UAT (operator-driven): fixture URL capture (R-01), pre-fix FAIL baseline (R-03), conda env recreate + build attestation (G-01), force-fresh-install (Phase 56 D-08), post-install AAC playback PASS attestation, Phase Completion Decision
+**Wave 1**
+- [x] 69-01-PLAN.md — Linux dev: source-of-truth helper (tools/check_bundle_plugins.py), build.ps1 step 4b + exit code 10, README conda recipe expansion (gst-libav + 4 gst-plugins-* packages), tests/test_packaging_spec.py drift-guard pytests, CONCERNS.md reconciliation, REQUIREMENTS.md WIN-05 row
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 69-02-PLAN.md — Win11 VM UAT (operator-driven): fixture URL capture (R-01), pre-fix FAIL baseline (R-03), conda env recreate + build attestation (G-01), force-fresh-install (Phase 56 D-08), post-install AAC playback PASS attestation, Phase Completion Decision
 
 ### Phase 70: Hi-res indicator for streams (mirror moOde audio criteria)
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Surface a two-tier audio-quality badge ("LOSSLESS" / "HI-RES") across the now-playing panel, station-tree rows, stream-picker entries, and EditStationDialog rows, plus a "Hi-Res only" filter chip and a hi-res-preferring tiebreak in stream failover ordering. Detection is runtime-driven from negotiated GStreamer caps; the rate/depth are persisted per stream so the badge appears on tree rows after the first replay. Mirrors moOde Audio's Hi-Res convention.
+**Requirements**: HRES-01
 **Depends on:** Phase 69
-**Plans:** 0 plans
+**Plans:** 12 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 70 to break down)
+- [ ] 70-00-PLAN.md — Wave 0 RED contract (tests/test_hi_res.py + tests/test_player_caps.py NEW; 8 existing test modules extended; musicstreamer/hi_res.py empty skeleton)
+- [ ] 70-01-PLAN.md — Wave 1 musicstreamer/hi_res.py pure helpers (classify_tier + bit_depth_from_format + best_tier_for_station + TIER_LABEL_BADGE/PROSE constants)
+- [ ] 70-02-PLAN.md — Wave 1 StationStream + station_streams schema migration + Repo.insert_stream/update_stream/list_streams kwargs (sample_rate_hz, bit_depth)
+- [ ] 70-03-PLAN.md — Wave 1 stream_ordering.order_streams rate/depth tiebreak (S-01) preserving GBS regression + S-02 cross-codec invariant
+- [ ] 70-04-PLAN.md — Wave 2 Player.audio_caps_detected Signal + Pattern 1b notify::caps + main-thread sync-read (Pitfalls 2 + 6 honored)
+- [ ] 70-05-PLAN.md — Wave 2 MainWindow._on_audio_caps_detected slot (DB-write-first per Phase 50 D-04; quality_map fan-out)
+- [ ] 70-06-PLAN.md — Wave 3 NowPlayingPanel _quality_badge QLabel + _refresh_quality_badge slot + stream picker tier suffix (DP-01 + DP-04 + DP-05)
+- [ ] 70-07-PLAN.md — Wave 3 station_star_delegate paint extension — tier pill before star with selection-state color swap (UI-SPEC OD-3)
+- [ ] 70-08-PLAN.md — Wave 3 EditStationDialog "Audio quality" read-only column (_COL_AUDIO_QUALITY = 5)
+- [ ] 70-09-PLAN.md — Wave 4 StationFilterProxyModel.set_quality_map/set_hi_res_only + Pitfall 7 invalidate-guard + _hi_res_chip filter chip (F-01 + F-02)
+- [ ] 70-10-PLAN.md — Wave 5 settings_export ZIP round-trip forward-compat (DS-04)
+- [ ] 70-11-PLAN.md — Wave 5 Docs polish (HRES-01 row in REQUIREMENTS.md + ROADMAP entry finalization)
 
 ### Phase 71: Sister station expansion: (1) Add ability to link sister stations in GUI under Edit dialog (currently requires manual DB editing — e.g., the Classical Relaxation pair had to be inserted by hand); (2) Extend sister-station support to additional sources beyond SomaFM-style pairs, accommodating sites that publish multiple variants of a station (e.g., SomaFM has 2 Drone Zones and 3 Groove Salad stations)
 

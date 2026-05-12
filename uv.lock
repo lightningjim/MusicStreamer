@@ -343,7 +343,7 @@ wheels = [
 
 [[package]]
 name = "musicstreamer"
-version = "2.1.63"
+version = "2.1.68"
 source = { editable = "." }
 dependencies = [
     { name = "chardet" },
@@ -369,7 +369,7 @@ windows = [
 requires-dist = [
     { name = "chardet", specifier = ">=5.2,<6" },
     { name = "platformdirs", specifier = ">=4.3" },
-    { name = "pyside6", specifier = ">=6.11" },
+    { name = "pyside6", specifier = ">=6.10" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9" },
     { name = "pytest-qt", marker = "extra == 'test'", specifier = ">=4" },
     { name = "streamlink", specifier = ">=8.3" },
