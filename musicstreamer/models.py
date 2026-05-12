@@ -19,6 +19,8 @@ class StationStream:
     stream_type: str = ""    # "shoutcast" | "youtube" | "hls" | ""
     codec: str = ""          # "MP3" | "AAC" | "OPUS" | "FLAC" | ""
     bitrate_kbps: int = 0     # numeric bitrate in kbps; 0 = unknown (D-01)
+    sample_rate_hz: int = 0   # Phase 70 — 0 = unknown until first caps detection (DS-05)
+    bit_depth: int = 0        # Phase 70 — 0 = unknown until first caps detection (DS-05)
 
 
 @dataclass
