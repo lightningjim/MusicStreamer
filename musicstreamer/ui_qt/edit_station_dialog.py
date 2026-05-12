@@ -49,8 +49,9 @@ from musicstreamer.hi_res import classify_tier, TIER_LABEL_PROSE
 from musicstreamer.models import Station
 from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
+from musicstreamer.ui_qt.add_sibling_dialog import AddSiblingDialog
 from musicstreamer.ui_qt.flow_layout import FlowLayout
-from musicstreamer.url_helpers import find_aa_siblings, render_sibling_html
+from musicstreamer.url_helpers import find_aa_siblings, find_manual_siblings
 
 
 class _LogoFetchWorker(QThread):
@@ -253,6 +254,11 @@ class EditStationDialog(QDialog):
     # cross-network "Also on:" section. Payload is the sibling station id.
     # MainWindow listens and re-opens EditStationDialog for the sibling.
     navigate_to_sibling = Signal(int)
+    # Phase 71 / D-14 / D-11: emitted after a manual sibling link is added or
+    # removed. Payload is the toast message ("Linked to {name}" or
+    # "Unlinked from {name}"). MainWindow connects this to show_toast via a
+    # bound-method connection (QA-05 — no lambda).
+    sibling_toast = Signal(str)
 
     def __init__(self, station: Station, player, repo,
                  parent=None, is_new: bool = False) -> None:
@@ -473,23 +479,23 @@ class EditStationDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         self.delete_btn.clicked.connect(self._on_delete)
 
-        # Phase 51-03 / D-05, D-06, D-07: cross-network sibling list label.
-        # First QLabel in the project to use Qt.RichText (deviation from
-        # T-39-01) — required for inline <a href> links. Mitigation:
-        # html.escape on every Station.name interpolation inside
-        # musicstreamer.url_helpers.render_sibling_html (promoted in
-        # Phase 64 / D-03 from a private dialog method to a free function).
-        # Network display names come from the NETWORKS compile-time
-        # constant and need no escaping; the href payload is integer-only
-        # ("sibling://{id}") so it cannot carry injectable content. Hidden
-        # until populated with siblings (D-06).
-        self._sibling_label = QLabel("", self)
-        self._sibling_label.setTextFormat(Qt.RichText)
-        self._sibling_label.setOpenExternalLinks(False)
-        self._sibling_label.setVisible(False)
-        # Phase 51-04 / D-09: bound-method connection (QA-05 — no lambda).
-        self._sibling_label.linkActivated.connect(self._on_sibling_link_activated)
-        outer.addWidget(self._sibling_label)
+        # Phase 71 / D-11, D-14, D-15: always-visible chip row for AA +
+        # manual siblings, with a "+ Add sibling" button as the primary
+        # authoring affordance. Replaces the Phase 51 / 64 read-only
+        # Qt.RichText QLabel ("Also on: ...") that previously rendered
+        # AA-only siblings. The QLabel was the only Qt.RichText surface in
+        # this file; the chip row uses Qt widget composition, so T-40-04
+        # baseline drops by 1 across musicstreamer/ (4 → 3). Manual chips
+        # carry a "×" unlink button; AA chips are bare buttons (D-15).
+        # The row is ALWAYS visible — the "+ Add sibling" affordance must
+        # be discoverable even at zero siblings (UI-SPEC Open Decision 12).
+        self._sibling_row_widget = QWidget(self)
+        self._sibling_row_layout = FlowLayout(
+            self._sibling_row_widget, h_spacing=4, v_spacing=4
+        )
+        self._sibling_row_widget.setStyleSheet(_CHIP_QSS)
+        self._sibling_row_widget.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._sibling_row_widget)
         outer.addWidget(self.button_box)
 
     # ------------------------------------------------------------------
@@ -615,40 +621,209 @@ class EditStationDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _refresh_siblings(self) -> None:
-        """Phase 51 / D-04, D-06: refresh the 'Also on:' label for the current station.
+        """Phase 71 / D-11, D-14, D-15: rebuild the sibling chip row.
 
-        Reads the current station's first stream URL (already populated in
-        self.url_edit.text() by _populate), scans repo.list_stations() for
-        AA siblings on different networks, and either populates _sibling_label
-        with HTML or hides it entirely.
+        Reads the current station's first stream URL from self.url_edit.text()
+        (NOT self._station.streams — Pitfall 4 / RESEARCH: the URL field is
+        the source of truth during editing because the user may have changed
+        it without saving yet). Computes AA + manual sibling lists, renders
+        the chips, and always appends a "+ Add sibling" button last.
 
-        Hidden-when-empty (D-06) covers three cases:
-          1. Station is non-AA -> find_aa_siblings returns [].
-          2. Station's URL has no derivable channel_key -> returns [].
-          3. AA station with a key but no other AA stations on other networks
-             share the key -> returns [].
-        In all three cases the label is hidden with zero vertical space.
+        AA chips (objectName "sibling_aa_chip_{id}") are bare QPushButtons —
+        no "×" unlink button (D-15 contract: AA siblings are auto-detected
+        and cannot be unlinked manually, only by editing the URL).
+
+        Manual chips (objectName "sibling_chip_{id}") are compound widgets
+        wrapping a name QPushButton and a "×" unlink QPushButton.
+
+        Dedup precedence (manual wins): if a station appears in BOTH the AA
+        list and the manual list (e.g. cross-network AA siblings that the user
+        also manually linked for redundancy), it renders as a MANUAL chip with
+        the "×" unlink button — the user can undo their own action. The AA
+        chip is suppressed in that case. This is distinct from merge_siblings
+        used in NowPlayingPanel (which has no unlink affordance, so AA wins
+        there for the cosmetic provider label).
+
+        Pitfall 5: FlowLayout teardown uses takeAt(0) + widget.deleteLater()
+        in a loop. Without deleteLater the child widgets continue to live as
+        invisible siblings and the next refresh stacks new ones on top.
         """
         current_url = self.url_edit.text().strip()
-        # Defensive: if URL is empty (shouldn't happen for a valid station,
-        # but guards against the new-station placeholder case), hide.
-        if not current_url:
-            self._sibling_label.setVisible(False)
-            return
-        all_stations = self._repo.list_stations()
-        siblings = find_aa_siblings(
+
+        # Pitfall 5: clear the layout and the underlying child widgets.
+        while self._sibling_row_layout.count():
+            item = self._sibling_row_layout.takeAt(0)
+            if item is not None and item.widget() is not None:
+                item.widget().deleteLater()
+
+        # Repo failures must not break the dialog — fall through to a row
+        # containing only the "+ Add sibling" button so the user still has an
+        # authoring path.
+        try:
+            all_stations = self._repo.list_stations()
+            link_ids = self._repo.list_sibling_links(self._station.id)
+        except Exception:  # noqa: BLE001 — best-effort, fall through to add button
+            all_stations = []
+            link_ids = []
+
+        if current_url:
+            aa_list = find_aa_siblings(
+                stations=all_stations,
+                current_station_id=self._station.id,
+                current_first_url=current_url,
+            )
+        else:
+            aa_list = []
+        manual_list = find_manual_siblings(
             stations=all_stations,
             current_station_id=self._station.id,
-            current_first_url=current_url,
+            link_ids=list(link_ids or []),
         )
-        if not siblings:
-            self._sibling_label.setVisible(False)
-            self._sibling_label.setText("")  # clear stale content if any
-            return
-        self._sibling_label.setText(
-            render_sibling_html(siblings, self._station.name)
+        # Manual wins on conflict (see docstring): collect manual IDs first
+        # and suppress AA chips for those station_ids.
+        manual_ids = {sid for _, sid, _ in manual_list}
+
+        for _slug, sibling_id, station_name in aa_list:
+            if sibling_id in manual_ids:
+                continue
+            self._add_aa_sibling_chip(sibling_id, station_name)
+        for provider_name, sibling_id, station_name in manual_list:
+            self._add_manual_sibling_chip(
+                sibling_id, station_name, provider_name
+            )
+
+        # "+ Add sibling" button — always last, always present (D-11).
+        add_btn = QPushButton("+ Add sibling", self._sibling_row_widget)
+        add_btn.setObjectName("add_sibling_btn")
+        add_btn.setProperty("chipState", "unselected")
+        add_btn.setStyleSheet(_CHIP_QSS)
+        add_btn.style().polish(add_btn)
+        add_btn.clicked.connect(self._on_add_sibling_clicked)
+        self._sibling_row_layout.addWidget(add_btn)
+
+    # ------------------------------------------------------------------
+    # Phase 71 / D-14, D-15 — sibling chip construction helpers
+    # ------------------------------------------------------------------
+
+    def _add_aa_sibling_chip(self, sibling_id: int, station_name: str) -> None:
+        """Bare QPushButton chip for an AA auto-detected sibling (D-15).
+
+        AA chips have NO compound wrapper and NO "×" unlink button — the
+        auto-detection runs from URL parsing every refresh, so the only way
+        to remove an AA sibling is to edit the station URL.
+        """
+        btn = QPushButton(station_name, self._sibling_row_widget)
+        btn.setObjectName(f"sibling_aa_chip_{sibling_id}")
+        btn.setProperty("chipState", "unselected")
+        btn.setStyleSheet(_CHIP_QSS)
+        btn.style().polish(btn)
+        btn.setAccessibleName(station_name)
+        btn.setToolTip("Auto-detected from AudioAddict URL")
+        # T-71-23 mitigation: default-arg capture binds at lambda creation
+        # time, not call time, so each chip carries its own sibling_id.
+        btn.clicked.connect(
+            lambda checked=False, sid=sibling_id:
+                self._on_sibling_link_activated(f"sibling://{sid}")
         )
-        self._sibling_label.setVisible(True)
+        self._sibling_row_layout.addWidget(btn)
+
+    def _add_manual_sibling_chip(
+        self,
+        sibling_id: int,
+        station_name: str,
+        provider_name: str,
+    ) -> None:
+        """Compound chip widget for a manual sibling link (D-14).
+
+        Object hierarchy:
+            QWidget objectName="sibling_chip_{id}"
+              └── QHBoxLayout (margins=0, spacing=0 — reads as one chip)
+                    ├── QPushButton name_btn (chipState styling)
+                    └── QPushButton "×" unlink_btn (chipState styling, max 24px)
+
+        The "×" button (U+00D7 MULTIPLICATION SIGN) does NOT use the
+        destructive red ERROR_COLOR_HEX (UI-SPEC Open Decision 13) because
+        unlink is reversible and confirm-free (UI-SPEC line 314 / no
+        QMessageBox.question on click).
+        """
+        chip = QWidget(self._sibling_row_widget)
+        chip.setObjectName(f"sibling_chip_{sibling_id}")
+        chip_hl = QHBoxLayout(chip)
+        chip_hl.setContentsMargins(0, 0, 0, 0)
+        chip_hl.setSpacing(0)
+
+        name_btn = QPushButton(station_name, chip)
+        name_btn.setProperty("chipState", "unselected")
+        name_btn.setStyleSheet(_CHIP_QSS)
+        name_btn.style().polish(name_btn)
+        name_btn.setAccessibleName(station_name)
+        # Tooltip is cross-provider only (UI-SPEC line 115 / T-71-24): the
+        # provider name is already public in the station tree, so this is
+        # additive context rather than new disclosure.
+        own_provider = self._station.provider_name or ""
+        if provider_name and provider_name != own_provider:
+            name_btn.setToolTip(f"Linked from {provider_name}")
+        # T-71-23 mitigation: default-arg capture pins sibling_id per chip.
+        name_btn.clicked.connect(
+            lambda checked=False, sid=sibling_id:
+                self._on_sibling_link_activated(f"sibling://{sid}")
+        )
+        chip_hl.addWidget(name_btn)
+
+        unlink_btn = QPushButton("×", chip)
+        unlink_btn.setProperty("chipState", "unselected")
+        unlink_btn.setStyleSheet(_CHIP_QSS)
+        unlink_btn.style().polish(unlink_btn)
+        unlink_btn.setAccessibleName(f"Unlink {station_name}")
+        unlink_btn.setMaximumWidth(24)
+        # T-71-23 mitigation: default-arg capture pins sibling_id + name.
+        unlink_btn.clicked.connect(
+            lambda checked=False, sid=sibling_id, sname=station_name:
+                self._on_unlink_sibling(sid, sname)
+        )
+        chip_hl.addWidget(unlink_btn)
+
+        self._sibling_row_layout.addWidget(chip)
+
+    # ------------------------------------------------------------------
+    # Phase 71 / D-14, D-11 — manual sibling link add / remove slots
+    # ------------------------------------------------------------------
+
+    def _on_unlink_sibling(self, sibling_id: int, station_name: str) -> None:
+        """× click: persist the unlink, refresh the chip row, fire the toast.
+
+        D-14: immediate fire + toast — no QMessageBox.question confirm
+        (UI-SPEC line 314). Toast text matches "^Unlinked from " so the
+        Phase 71-00 RED test (regex match) is satisfied.
+
+        Name truncation (40 chars with U+2026 ellipsis) keeps toasts inside
+        the MainWindow toast strip's display width.
+        """
+        self._repo.remove_sibling_link(self._station.id, sibling_id)
+        self._refresh_siblings()
+        if len(station_name) > 40:
+            display = station_name[:37] + "…"
+        else:
+            display = station_name
+        self.sibling_toast.emit(f"Unlinked from {display}")
+
+    def _on_add_sibling_clicked(self) -> None:
+        """"+ Add sibling" click: open AddSiblingDialog modally; on Accepted,
+        refresh the chip row and fire the "Linked to {name}" toast.
+
+        The dialog handles its own Repo.add_sibling_link call internally
+        (Plan 71-04 contract); EditStationDialog only consumes the
+        _linked_station_name attribute for the toast text.
+        """
+        dlg = AddSiblingDialog(self._station, self._repo, parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            self._refresh_siblings()
+            name = dlg._linked_station_name
+            if len(name) > 40:
+                display = name[:37] + "…"
+            else:
+                display = name
+            self.sibling_toast.emit(f"Linked to {display}")
 
     # ------------------------------------------------------------------
     # Chip helpers
