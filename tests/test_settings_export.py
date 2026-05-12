@@ -955,3 +955,156 @@ def test_eq_profiles_path_traversal_rejected(tmp_path, monkeypatch, repo):
     fresh_repo = _fresh_repo(fresh_dir)
     with pytest.raises(ValueError, match="Unsafe path"):
         preview_import(str(dest), fresh_repo)
+
+
+# ---------------------------------------------------------------------------
+# Phase 71 / Plan 71-07: ZIP siblings round-trip RED tests (D-07)
+# ---------------------------------------------------------------------------
+# 3 RED tests for the new "siblings" key in exported station JSON. Today these
+# fail because:
+#   - build_zip does not yet emit a "siblings" key (round-trip → no rows imported).
+#   - commit_import does not yet do the second-pass name → id resolution.
+#   - station_siblings table does not yet exist (Wave 1 lands schema).
+# All three turn GREEN by end of Plan 71-07.
+
+
+def test_siblings_round_trip(repo, tmp_path):
+    """D-07: export with sibling pair → fresh-repo import re-links by name."""
+    # Seed two stations + a sibling link in the source repo.
+    cur_a = repo.con.execute(
+        "INSERT INTO stations(name, tags) VALUES (?, ?)", ("Classical Relaxation", "")
+    )
+    repo.con.commit()
+    a_id = int(cur_a.lastrowid)
+    repo.con.execute(
+        "INSERT INTO station_streams(station_id, url, label, quality, position) "
+        "VALUES (?, ?, '', '', 1)",
+        (a_id, "http://example.com/classical_relax"),
+    )
+    cur_b = repo.con.execute(
+        "INSERT INTO stations(name, tags) VALUES (?, ?)", ("Relaxing Classical", "")
+    )
+    repo.con.commit()
+    b_id = int(cur_b.lastrowid)
+    repo.con.execute(
+        "INSERT INTO station_streams(station_id, url, label, quality, position) "
+        "VALUES (?, ?, '', '', 1)",
+        (b_id, "http://example.com/relaxing_classical"),
+    )
+    lo, hi = min(a_id, b_id), max(a_id, b_id)
+    repo.con.execute(
+        "INSERT INTO station_siblings(a_id, b_id) VALUES (?, ?)", (lo, hi)
+    )
+    repo.con.commit()
+
+    # Export.
+    zip_path = tmp_path / "siblings.zip"
+    build_zip(repo, str(zip_path))
+
+    # Import into a fresh empty repo.
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")
+
+    # Find the new IDs by name and assert the link survived.
+    rows = {r["name"]: r["id"] for r in fresh.con.execute(
+        "SELECT id, name FROM stations"
+    ).fetchall()}
+    new_a_id = rows["Classical Relaxation"]
+    new_b_id = rows["Relaxing Classical"]
+    assert fresh.list_sibling_links(new_a_id) == [new_b_id]
+
+
+def test_siblings_missing_key_defaults_empty(tmp_path):
+    """D-07 forward-compat: ZIP whose station JSON has no `siblings` key
+    imports without error and produces zero station_siblings rows."""
+    payload = {
+        "version": 1,
+        "exported_at": "2026-01-01T00:00:00",
+        "stations": [
+            {
+                "name": "Legacy Station",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                # NO "siblings" key — simulates a pre-71 export.
+                "streams": [
+                    {
+                        "url": "http://legacy.example/stream",
+                        "label": "",
+                        "quality": "",
+                        "position": 1,
+                        "stream_type": "",
+                        "codec": "",
+                    }
+                ],
+            }
+        ],
+        "track_favorites": [],
+        "settings": [],
+    }
+    zip_path = tmp_path / "legacy.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("settings.json", json.dumps(payload))
+
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")  # MUST NOT raise
+
+    rows = fresh.con.execute("SELECT * FROM station_siblings").fetchall()
+    assert list(rows) == []
+
+
+def test_siblings_unresolved_name_silently_dropped(tmp_path):
+    """D-07: ZIP `siblings: ["NonExistent Station"]` → no rows, no exception."""
+    payload = {
+        "version": 1,
+        "exported_at": "2026-01-01T00:00:00",
+        "stations": [
+            {
+                "name": "Lone Station",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "siblings": ["NonExistent Station"],
+                "streams": [
+                    {
+                        "url": "http://lone.example/stream",
+                        "label": "",
+                        "quality": "",
+                        "position": 1,
+                        "stream_type": "",
+                        "codec": "",
+                    }
+                ],
+            }
+        ],
+        "track_favorites": [],
+        "settings": [],
+    }
+    zip_path = tmp_path / "unresolved.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("settings.json", json.dumps(payload))
+
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")  # MUST NOT raise
+
+    # Station itself imported.
+    stations = fresh.list_stations()
+    assert any(s.name == "Lone Station" for s in stations)
+    # No sibling rows because the named partner does not exist.
+    rows = fresh.con.execute("SELECT * FROM station_siblings").fetchall()
+    assert list(rows) == []
