@@ -1161,6 +1161,11 @@ class EditStationDialog(QDialog):
                 if isinstance(new_id, int):
                     ordered_ids.append(new_id)
 
+        # Prune streams the user removed from the UI table.
+        # reorder_streams only sets positions; it never deletes rows whose ids
+        # are absent from ordered_ids. prune_streams closes that gap by deleting
+        # any station_streams row not in ordered_ids (fix for stream-remove-not-persisted).
+        repo.prune_streams(station.id, ordered_ids)
         if ordered_ids:
             repo.reorder_streams(station.id, ordered_ids)
 

@@ -577,3 +577,64 @@ def test_bitrate_kbps_migration_adds_column():
 
     # Idempotency — second db_init must not raise
     db_init(con)
+
+
+# ============================================================
+# prune_streams — fix for stream-remove-not-persisted (bug slug)
+# ============================================================
+
+
+def test_prune_streams_deletes_removed_stream(repo):
+    """Streams not in keep_ids are deleted; streams in keep_ids survive."""
+    sid = repo.create_station()
+    id1 = repo.insert_stream(sid, 'http://a.com', position=1)
+    id2 = repo.insert_stream(sid, 'http://b.com', position=2)
+    id3 = repo.insert_stream(sid, 'http://c.com', position=3)
+
+    # User removed row for id2 -> keep_ids contains only id1 and id3
+    repo.prune_streams(sid, [id1, id3])
+
+    streams = repo.list_streams(sid)
+    ids = [s.id for s in streams]
+    assert id2 not in ids
+    assert id1 in ids
+    assert id3 in ids
+
+
+def test_prune_streams_all_removed(repo):
+    """When keep_ids is empty all streams are deleted (user removed all rows)."""
+    sid = repo.create_station()
+    repo.insert_stream(sid, 'http://a.com', position=1)
+    repo.insert_stream(sid, 'http://b.com', position=2)
+
+    repo.prune_streams(sid, [])
+
+    assert repo.list_streams(sid) == []
+
+
+def test_prune_streams_noop_when_all_kept(repo):
+    """When all existing ids appear in keep_ids nothing is deleted."""
+    sid = repo.create_station()
+    id1 = repo.insert_stream(sid, 'http://a.com', position=1)
+    id2 = repo.insert_stream(sid, 'http://b.com', position=2)
+
+    repo.prune_streams(sid, [id1, id2])
+
+    streams = repo.list_streams(sid)
+    assert len(streams) == 2
+
+
+def test_prune_streams_does_not_touch_other_stations(repo):
+    """Pruning one station must not delete streams from a different station."""
+    sid_a = repo.create_station()
+    sid_b = repo.create_station()
+    id_a1 = repo.insert_stream(sid_a, 'http://a1.com', position=1)
+    id_b1 = repo.insert_stream(sid_b, 'http://b1.com', position=1)
+
+    # Prune all from station A
+    repo.prune_streams(sid_a, [])
+
+    assert repo.list_streams(sid_a) == []
+    b_streams = repo.list_streams(sid_b)
+    assert len(b_streams) == 1
+    assert b_streams[0].id == id_b1

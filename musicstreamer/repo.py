@@ -210,6 +210,26 @@ class Repo:
                              (pos, sid, station_id))
         self.con.commit()
 
+
+    def prune_streams(self, station_id: int, keep_ids: List[int]) -> None:
+        """Delete all station_streams rows for station_id whose id is not in keep_ids.
+
+        Called by EditStationDialog._on_save after building ordered_ids so that
+        streams the user removed from the UI table are actually deleted from the DB.
+        If keep_ids is empty (user removed all streams), all rows for the station
+        are deleted — that is an intentional edit, not an accident, so we honour it.
+        """
+        existing = [
+            r[0] for r in self.con.execute(
+                "SELECT id FROM station_streams WHERE station_id=?", (station_id,)
+            ).fetchall()
+        ]
+        keep_set = set(keep_ids)
+        for sid in existing:
+            if sid not in keep_set:
+                self.con.execute("DELETE FROM station_streams WHERE id=?", (sid,))
+        self.con.commit()
+
     def get_preferred_stream_url(self, station_id: int, preferred_quality: str = "") -> str:
         if preferred_quality:
             row = self.con.execute(

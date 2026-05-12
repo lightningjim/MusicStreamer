@@ -1395,3 +1395,78 @@ def test_on_pls_fetched_stale_token_does_not_modify_table(qtbot, monkeypatch, di
     )
 
     assert dialog.streams_table.rowCount() == 1  # unchanged
+
+
+# ---------------------------------------------------------------------------
+# Regression: stream-remove-not-persisted (bug fix)
+#
+# When the user removes a stream row from the table and clicks Save, the
+# row must be deleted from the DB. Previously _on_save called only
+# repo.reorder_streams() which updates positions but never deletes rows —
+# removed streams silently survived in the DB.
+# ---------------------------------------------------------------------------
+
+
+def test_save_calls_prune_streams_with_remaining_ids(qtbot, station, player, repo):
+    """_on_save must call repo.prune_streams(station_id, ordered_ids) so that
+    streams the user removed from the UI table are deleted from the DB.
+
+    This is the direct regression guard for the stream-remove-not-persisted bug.
+    The mock repo's update_stream returns None and insert_stream returns a fresh
+    int, so we can inspect the prune_streams call args precisely.
+    """
+    # Two streams loaded: id=10 (kept) and id=11 (user will remove)
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1.mp3",
+                      label="", quality="hi", position=1,
+                      stream_type="", codec="MP3"),
+        StationStream(id=11, station_id=1, url="http://s2.mp3",
+                      label="", quality="med", position=2,
+                      stream_type="", codec="MP3"),
+    ]
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    # Verify both rows loaded
+    assert d.streams_table.rowCount() == 2
+
+    # Remove row 1 (stream id=11)
+    d.streams_table.selectRow(1)
+    d._on_remove_stream()
+    assert d.streams_table.rowCount() == 1
+
+    # Save
+    d._on_save()
+
+    # prune_streams must have been called with only the kept stream id
+    repo.prune_streams.assert_called_once()
+    call_args = repo.prune_streams.call_args
+    station_id_arg, keep_ids_arg = call_args.args
+    assert station_id_arg == station.id
+    assert 10 in keep_ids_arg
+    assert 11 not in keep_ids_arg
+
+
+def test_save_calls_prune_streams_when_all_streams_removed(qtbot, station, player, repo):
+    """Edge case: user removes ALL streams. prune_streams must be called with
+    an empty keep_ids list so all DB rows are cleared."""
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1.mp3",
+                      label="", quality="hi", position=1,
+                      stream_type="", codec="MP3"),
+    ]
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    # Remove the only row
+    d.streams_table.selectRow(0)
+    d._on_remove_stream()
+    assert d.streams_table.rowCount() == 0
+
+    d._on_save()
+
+    repo.prune_streams.assert_called_once()
+    call_args = repo.prune_streams.call_args
+    station_id_arg, keep_ids_arg = call_args.args
+    assert station_id_arg == station.id
+    assert keep_ids_arg == []
