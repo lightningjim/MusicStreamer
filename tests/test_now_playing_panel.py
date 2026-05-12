@@ -2987,3 +2987,172 @@ def test_stop_aa_poll_loop_clears_timer(qtbot):
     panel.start_aa_poll_loop()
     panel.stop_aa_poll_loop()
     assert panel.is_aa_poll_active() is False
+
+
+# --- Phase 70 / HRES-01 ---
+#
+# RED stubs covering the _quality_badge contract + stream-picker tier suffix
+# (Plan 70-06 turns these GREEN). Each test constructs a Station whose streams
+# carry sample_rate_hz/bit_depth kwargs that do NOT yet exist on StationStream
+# (Plan 70-02 adds them) — TypeError on construction IS the RED state.
+#
+# Picker label contract per UI-SPEC Component Inventory item 5:
+#   "FLAC 1411 — HI-RES" (em-dash + uppercase badge label)
+# Cold-start tooltip per D-03 fallback:
+#   "Lossless — playback caps not yet detected"
+
+
+def _station_with_streams(streams: List[StationStream]) -> Station:
+    """Build a Station carrying caller-provided streams (Phase 70 RED helper)."""
+    return Station(
+        id=1,
+        name="Phase 70 Test",
+        provider_id=1,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=streams,
+    )
+
+
+class _RepoWithStreams(FakeRepo):
+    """FakeRepo subclass whose list_streams returns a fixed list (Phase 70).
+
+    NowPlayingPanel._populate_stream_picker queries repo.list_streams to fill
+    the QComboBox — the live FakeRepo above returns []. The picker tier-suffix
+    tests need the panel to see real streams.
+    """
+
+    def __init__(self, settings: Optional[dict], streams: List[StationStream]):
+        super().__init__(settings or {})
+        self._streams = list(streams)
+
+    def list_streams(self, station_id: int) -> list:
+        return list(self._streams)
+
+
+def test_quality_badge_visible_for_hires_stream(qtbot):
+    """HRES-01 / Plan 70-06: _quality_badge visible + text 'HI-RES' for FLAC 96/24 station.
+
+    RED until Plan 70-02 adds StationStream.sample_rate_hz / bit_depth and
+    Plan 70-06 adds NowPlayingPanel._quality_badge + _refresh_quality_badge.
+    """
+    streams = [StationStream(  # RED: sample_rate_hz / bit_depth kwargs raise TypeError pre-70-02
+        id=1, station_id=1, url="http://x/flac", label="hi-res",
+        quality="FLAC 96/24", position=1, stream_type="shoutcast",
+        codec="FLAC", sample_rate_hz=96000, bit_depth=24,
+    )]
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    assert hasattr(panel, "_quality_badge")  # RED: AttributeError until Plan 70-06
+    assert not panel._quality_badge.isHidden()
+    assert panel._quality_badge.text() == "HI-RES"
+
+
+def test_quality_badge_hidden_for_lossy_stream(qtbot):
+    """HRES-01 / Plan 70-06 / D-04: _quality_badge hidden for MP3-only station.
+
+    Lossy codecs always return tier "" → badge hidden (UI-SPEC FLAG-04).
+    """
+    streams = [StationStream(
+        id=1, station_id=1, url="http://x/mp3", label="lo",
+        quality="MP3 128", position=1, stream_type="shoutcast",
+        codec="MP3",
+    )]
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    # RED: AttributeError until Plan 70-06 adds _quality_badge
+    assert panel._quality_badge.isHidden() is True
+
+
+def test_quality_badge_text_matches_tier(qtbot):
+    """HRES-01 / Plan 70-06: 44.1/16 FLAC → badge text 'LOSSLESS' (not HI-RES)."""
+    streams = [StationStream(  # RED: kwargs not yet accepted
+        id=1, station_id=1, url="http://x/cd", label="cd",
+        quality="FLAC 1411", position=1, stream_type="shoutcast",
+        codec="FLAC", sample_rate_hz=44100, bit_depth=16,
+    )]
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    # RED: AttributeError until Plan 70-06
+    assert panel._quality_badge.text() == "LOSSLESS"
+
+
+def test_quality_badge_tooltip_when_caps_known(qtbot):
+    """HRES-01 / Plan 70-06 / UI-SPEC OD-6: tooltip shows 'Hi-Res — 96 kHz / 24-bit'
+    once Player.audio_caps_detected has fired for the active stream.
+    """
+    streams = [StationStream(  # RED: kwargs not yet accepted
+        id=1, station_id=1, url="http://x/flac", label="hi-res",
+        quality="FLAC 96/24", position=1, stream_type="shoutcast",
+        codec="FLAC", sample_rate_hz=96000, bit_depth=24,
+    )]
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    # RED: AttributeError until Plan 70-06 surfaces caps tooltip on the badge
+    assert panel._quality_badge.toolTip() == "Hi-Res — 96 kHz / 24-bit"
+
+
+def test_quality_badge_tooltip_cold_start(qtbot):
+    """HRES-01 / Plan 70-06 / D-03 fallback: pre-caps tooltip on a Lossless stream
+    reads 'Lossless — playback caps not yet detected'. FLAC + (0,0) defaults to
+    Lossless per D-03.
+    """
+    streams = [StationStream(  # RED: kwargs not yet accepted (zero values still need fields)
+        id=1, station_id=1, url="http://x/flac", label="flac",
+        quality="FLAC", position=1, stream_type="shoutcast",
+        codec="FLAC", sample_rate_hz=0, bit_depth=0,
+    )]
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    # RED: AttributeError until Plan 70-06; cold-start prose locked by UI-SPEC OD-6.
+    assert panel._quality_badge.toolTip() == (
+        "Lossless — playback caps not yet detected"
+    )
+
+
+def test_picker_label_appends_tier_suffix(qtbot):
+    """HRES-01 / Plan 70-06 / UI-SPEC Component Inventory item 5: stream picker
+    items render as 'FLAC 1411 — HI-RES' for hi-res streams (existing label +
+    em-dash + uppercase badge).
+    """
+    streams = [StationStream(  # RED: kwargs not yet accepted
+        id=1, station_id=1, url="http://x/flac", label="hi-res",
+        quality="FLAC 1411", position=1, stream_type="shoutcast",
+        codec="FLAC", sample_rate_hz=96000, bit_depth=24,
+    )]
+    repo = _RepoWithStreams({}, streams)
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    # Picker populated by _populate_stream_picker; item 0 must end with "— HI-RES"
+    text = panel.stream_combo.itemText(0)
+    # RED: pre-70-06 label format is "{quality} — {codec}" only — assertion fails.
+    assert text.endswith("— HI-RES"), f"expected HI-RES suffix; got {text!r}"
+
+
+def test_picker_label_no_suffix_for_lossy_stream(qtbot):
+    """HRES-01 / Plan 70-06: MP3 picker items get NO tier suffix (D-04)."""
+    streams = [StationStream(
+        id=1, station_id=1, url="http://x/mp3", label="lo",
+        quality="MP3 128", position=1, stream_type="shoutcast",
+        codec="MP3",
+    )]
+    repo = _RepoWithStreams({}, streams)
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_streams(streams))
+    text = panel.stream_combo.itemText(0)
+    # RED: Plan 70-06 must guard so MP3 items get no "— HI-RES" or "— LOSSLESS"
+    # suffix. Pre-70-06 the label already lacks the suffix so this LOOKS GREEN —
+    # the contract is locked once Plan 70-06 ships the new format and proves the
+    # lossy branch is skipped.
+    assert "— HI-RES" not in text
+    assert "— LOSSLESS" not in text

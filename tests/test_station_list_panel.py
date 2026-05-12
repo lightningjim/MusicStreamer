@@ -844,3 +844,80 @@ def test_set_live_chip_visible_toggles_visibility(qtbot):
     assert panel._live_chip.isVisible() is True
     panel.set_live_chip_visible(False)
     assert panel._live_chip.isHidden() is True
+
+
+# --- Phase 70 / HRES-01 ---
+#
+# RED stubs for the Hi-Res-only filter chip. Plan 70-09 mirrors the Phase 68
+# `_live_chip` / `set_live_map` / `set_live_only` architecture verbatim:
+#   - _hi_res_chip QPushButton (checkable, hidden until any station is hi-res)
+#   - set_hi_res_chip_visible(bool) reactive show/hide
+#   - update_quality_map(map) → flips visibility when any value is "hires"
+#   - toggle wires to StationFilterProxyModel.set_hi_res_only
+# All four tests reference identifiers Plan 70-09 will add.
+
+
+def test_hi_res_chip_hidden_when_no_hi_res_streams(qtbot):
+    """HRES-01 / Plan 70-09 / F-02: _hi_res_chip QPushButton exists and is hidden
+    by default — no station in the (empty) quality_map carries the 'hires' tier.
+
+    RED until Plan 70-09 adds _hi_res_chip to StationListPanel.
+    """
+    repo = _FakeRepoWithSettings(settings={})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    from PySide6.QtWidgets import QPushButton
+    assert hasattr(panel, "_hi_res_chip")  # RED: AttributeError until Plan 70-09
+    assert isinstance(panel._hi_res_chip, QPushButton)
+    assert panel._hi_res_chip.isCheckable() is True
+    assert panel._hi_res_chip.text() == "Hi-Res only"
+    assert panel._hi_res_chip.isHidden() is True
+
+
+def test_hi_res_chip_visible_after_update_quality_map_with_hires(qtbot):
+    """HRES-01 / Plan 70-09: update_quality_map({1: 'hires', ...}) flips the
+    chip visible. Mirror of Phase 68's update_live_map → set_live_chip_visible.
+    """
+    repo = _FakeRepoWithSettings(settings={})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    # RED: AttributeError until Plan 70-09 adds update_quality_map.
+    panel.update_quality_map({1: "hires", 2: "lossless", 3: ""})
+    assert panel._hi_res_chip.isVisible() is True
+
+
+def test_set_hi_res_chip_visible_unchecks_when_hiding(qtbot):
+    """HRES-01 / Plan 70-09 / Pitfall 7 mirror: set_hi_res_chip_visible(False)
+    must also uncheck the chip (parallel to set_live_chip_visible at lines
+    574-587 of station_list_panel.py).
+    """
+    repo = _FakeRepoWithSettings(settings={})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    # RED: AttributeError until Plan 70-09 adds set_hi_res_chip_visible + _hi_res_chip.
+    panel.set_hi_res_chip_visible(True)
+    panel._hi_res_chip.setChecked(True)
+    panel.set_hi_res_chip_visible(False)
+    assert panel._hi_res_chip.isHidden() is True
+    assert panel._hi_res_chip.isChecked() is False
+
+
+def test_hi_res_chip_toggle_calls_proxy_set_hi_res_only(qtbot):
+    """HRES-01 / Plan 70-09: toggling _hi_res_chip wires through to
+    StationFilterProxyModel.set_hi_res_only. The toggle is the primary user
+    surface for the filter; the proxy is the producer.
+    """
+    repo = _FakeRepoWithSettings(settings={})
+    panel = StationListPanel(repo)
+    qtbot.addWidget(panel)
+    # Force the chip visible so toggle works regardless of seed quality_map.
+    panel.set_hi_res_chip_visible(True)  # RED: AttributeError until Plan 70-09
+
+    calls: list[bool] = []
+    panel._proxy.set_hi_res_only = lambda enabled: calls.append(enabled)  # type: ignore[assignment]
+
+    panel._hi_res_chip.setChecked(True)
+    panel._hi_res_chip.setChecked(False)
+
+    # Toggle fires once per state change.
+    assert calls == [True, False]

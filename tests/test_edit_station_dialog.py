@@ -1470,3 +1470,108 @@ def test_save_calls_prune_streams_when_all_streams_removed(qtbot, station, playe
     station_id_arg, keep_ids_arg = call_args.args
     assert station_id_arg == station.id
     assert keep_ids_arg == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 70 / HRES-01: Audio quality column (read-only, prose tier label)
+# ---------------------------------------------------------------------------
+#
+# RED stubs for the new "Audio quality" column. Plan 70-08 ships:
+#   - _COL_AUDIO_QUALITY = 5 (new module-level column index)
+#   - read-only cell (no Qt.ItemIsEditable flag)
+#   - prose label from TIER_LABEL_PROSE ("Hi-Res", "Lossless", "")
+#   - header tooltip locked by UI-SPEC OD-8
+#
+# Distinct from existing _COL_QUALITY (user-authored "FLAC 1411") — the new
+# column is auto-derived from cached sample_rate_hz / bit_depth per stream.
+
+
+def test_audio_quality_column_present_and_read_only(qtbot, station, player, repo):
+    """HRES-01 / Plan 70-08: _COL_AUDIO_QUALITY column exists and is read-only.
+
+    Cell flags MUST NOT include Qt.ItemIsEditable; auto-derived data cannot be
+    user-edited (UI-SPEC FLAG-03).
+    """
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1", label="",
+                      quality="FLAC 1411", position=1, stream_type="",
+                      codec="FLAC", bitrate_kbps=1411),
+    ]
+    # RED: ImportError until Plan 70-08 introduces _COL_AUDIO_QUALITY.
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_AUDIO_QUALITY
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    item = d.streams_table.item(0, _COL_AUDIO_QUALITY)
+    assert item is not None
+    from PySide6.QtCore import Qt
+    # Read-only: ItemIsEditable bit MUST NOT be set.
+    assert not bool(item.flags() & Qt.ItemFlag.ItemIsEditable)
+
+
+def test_audio_quality_cell_shows_prose_label(qtbot, station, player, repo):
+    """HRES-01 / Plan 70-08 / UI-SPEC Copywriting Contract: cell text uses
+    title-case TIER_LABEL_PROSE — 'Hi-Res', 'Lossless', '' (empty for lossy).
+
+    Three streams cover the truth table; assertions reference the kwargs
+    Plan 70-02 will add (sample_rate_hz / bit_depth) — RED on construction
+    until then.
+    """
+    repo.list_streams.return_value = [
+        StationStream(  # RED: kwargs not yet accepted (Plan 70-02)
+            id=10, station_id=1, url="http://s1", label="",
+            quality="FLAC 96/24", position=1, stream_type="",
+            codec="FLAC", bitrate_kbps=2304,
+            sample_rate_hz=96000, bit_depth=24,
+        ),
+        StationStream(  # RED: kwargs not yet accepted (Plan 70-02)
+            id=11, station_id=1, url="http://s2", label="",
+            quality="FLAC 1411", position=2, stream_type="",
+            codec="FLAC", bitrate_kbps=1411,
+            sample_rate_hz=44100, bit_depth=16,
+        ),
+        StationStream(
+            id=12, station_id=1, url="http://s3", label="",
+            quality="MP3 320", position=3, stream_type="",
+            codec="MP3", bitrate_kbps=320,
+        ),
+    ]
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_AUDIO_QUALITY
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    # RED: AssertionError pre-70-08 (column does not yet render prose tier).
+    assert d.streams_table.item(0, _COL_AUDIO_QUALITY).text() == "Hi-Res"
+    assert d.streams_table.item(1, _COL_AUDIO_QUALITY).text() == "Lossless"
+    assert d.streams_table.item(2, _COL_AUDIO_QUALITY).text() == ""
+
+
+def test_audio_quality_header_tooltip(qtbot, station, player, repo):
+    """HRES-01 / Plan 70-08 / UI-SPEC OD-8: header text 'Audio quality' (Sentence
+    case) + tooltip prose locked verbatim:
+      'Auto-detected from playback. Hi-Res >= 48 kHz or >= 24-bit on a lossless codec.'
+
+    Stored as a horizontal header item so QHeaderView surfaces the tooltip via
+    the toolTip role.
+    """
+    repo.list_streams.return_value = [
+        StationStream(id=10, station_id=1, url="http://s1", label="",
+                      quality="FLAC 1411", position=1, stream_type="",
+                      codec="FLAC", bitrate_kbps=1411),
+    ]
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_AUDIO_QUALITY
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    header_item = d.streams_table.horizontalHeaderItem(_COL_AUDIO_QUALITY)
+    # RED: pre-70-08 there is no header item at this column index.
+    assert header_item is not None
+    assert header_item.text() == "Audio quality"
+    expected_tooltip = (
+        "Auto-detected from playback. "
+        "Hi-Res ≥ 48 kHz or ≥ 24-bit on a lossless codec."
+    )
+    assert header_item.toolTip() == expected_tooltip

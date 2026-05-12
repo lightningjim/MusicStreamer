@@ -21,7 +21,7 @@ from PySide6.QtGui import QPainter, QPixmap, QPixmapCache
 from PySide6.QtWidgets import QStyledItemDelegate, QStyleOptionViewItem
 
 from musicstreamer import paths
-from musicstreamer.models import Station
+from musicstreamer.models import Station, StationStream
 from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
 from musicstreamer.ui_qt.station_star_delegate import (
     StationStarDelegate,
@@ -256,6 +256,230 @@ def test_uniform_row_height_applies_floor_with_provider_first_row(tmp_data_dir, 
         f"tree.setUniformRowHeights(True) probes the first (provider) row; got "
         f"{rect.height()}. This is the BLOCKER #1 regression — provider-row "
         f"sizeHint is not flooring at 32."
+    )
+
+
+# --- Phase 70 / HRES-01 ---
+
+
+def _make_station_with_streams(*stream_specs) -> Station:
+    """Build a Station with StationStream objects for Phase 70 delegate tests.
+
+    stream_specs: list of (codec, sample_rate_hz, bit_depth) tuples.
+    NOTE: sample_rate_hz / bit_depth kwargs are RED until Plan 70-02 lands.
+    """
+    streams = []
+    for i, (codec, rate, depth) in enumerate(stream_specs, start=1):
+        streams.append(StationStream(
+            id=i, station_id=1, url=f"http://example.com/{i}",
+            codec=codec,
+            sample_rate_hz=rate,  # RED: AttributeError until Plan 70-02
+            bit_depth=depth,       # RED: AttributeError until Plan 70-02
+        ))
+    return Station(
+        id=1,
+        name="Test Station",
+        provider_id=None,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        streams=streams,
+    )
+
+
+def _build_model_and_delegate_for_station(station, tmp_data_dir, qtbot):
+    from musicstreamer.ui_qt.station_tree_model import StationTreeModel
+    from musicstreamer.ui_qt.station_star_delegate import StationStarDelegate
+    model = StationTreeModel([station])
+    delegate = StationStarDelegate(_StubRepo())
+    return model, delegate
+
+
+def test_paints_hires_pill_for_hires_station(tmp_data_dir, qtbot):
+    """HRES-01 / T-05 / DP-02: delegate paint calls for a station with a 96/24 FLAC stream
+    result in drawing the text "HI-RES" (tier pill).
+
+    RED until Plan 70-07 extends station_star_delegate.paint() with quality-pill rendering.
+    """
+    from unittest.mock import patch, MagicMock
+    from PySide6.QtGui import QPainter, QPixmap
+
+    station = _make_station_with_streams(
+        ("MP3", 0, 0),
+        ("FLAC", 44100, 16),
+        ("FLAC", 96000, 24),
+    )
+    model, delegate = _build_model_and_delegate_for_station(station, tmp_data_dir, qtbot)
+    station_idx = _station_index(model)
+    option = _build_option_for_index(delegate, station_idx)
+
+    drawn_texts = []
+
+    canvas = QPixmap(300, 64)
+    canvas.fill(Qt.white)
+    painter = QPainter(canvas)
+    original_draw_text = painter.drawText
+
+    def _capture_draw_text(*args, **kwargs):
+        # Capture any string arguments passed to drawText
+        for arg in args:
+            if isinstance(arg, str):
+                drawn_texts.append(arg)
+        return original_draw_text(*args, **kwargs)
+
+    with patch.object(painter, "drawText", side_effect=_capture_draw_text):
+        try:
+            delegate.paint(painter, option, station_idx)
+        finally:
+            painter.end()
+
+    # RED: "HI-RES" will not appear until Plan 70-07 ships the pill rendering
+    assert "HI-RES" in drawn_texts, (
+        f"expected delegate.paint to draw 'HI-RES' pill for hi-res station; "
+        f"drawn texts: {drawn_texts}"
+    )
+
+
+def test_paints_lossless_pill_for_cd_flac_station(tmp_data_dir, qtbot):
+    """HRES-01 / T-05 / DP-02: station with FLAC 44/16 → delegate draws "LOSSLESS" pill.
+
+    RED until Plan 70-07 ships.
+    """
+    from unittest.mock import patch
+    from PySide6.QtGui import QPainter, QPixmap
+
+    station = _make_station_with_streams(("FLAC", 44100, 16))
+    model, delegate = _build_model_and_delegate_for_station(station, tmp_data_dir, qtbot)
+    station_idx = _station_index(model)
+    option = _build_option_for_index(delegate, station_idx)
+
+    drawn_texts = []
+    canvas = QPixmap(300, 64)
+    canvas.fill(Qt.white)
+    painter = QPainter(canvas)
+    original_draw_text = painter.drawText
+
+    def _capture(* args, **kwargs):
+        for arg in args:
+            if isinstance(arg, str):
+                drawn_texts.append(arg)
+        return original_draw_text(*args, **kwargs)
+
+    with patch.object(painter, "drawText", side_effect=_capture):
+        try:
+            delegate.paint(painter, option, station_idx)
+        finally:
+            painter.end()
+
+    assert "LOSSLESS" in drawn_texts, (
+        f"expected 'LOSSLESS' pill for CD-FLAC station; drawn: {drawn_texts}"
+    )
+
+
+def test_no_pill_for_lossy_station(tmp_data_dir, qtbot):
+    """HRES-01 / T-05 / D-04: station with only MP3 → no pill text drawn.
+
+    RED until Plan 70-07 ships (currently no-op so may accidentally pass; locked
+    to guard against regression once the feature lands).
+    """
+    from unittest.mock import patch
+    from PySide6.QtGui import QPainter, QPixmap
+
+    station = _make_station_with_streams(("MP3", 0, 0))
+    model, delegate = _build_model_and_delegate_for_station(station, tmp_data_dir, qtbot)
+    station_idx = _station_index(model)
+    option = _build_option_for_index(delegate, station_idx)
+
+    drawn_texts = []
+    canvas = QPixmap(300, 64)
+    canvas.fill(Qt.white)
+    painter = QPainter(canvas)
+    original_draw_text = painter.drawText
+
+    def _capture(*args, **kwargs):
+        for arg in args:
+            if isinstance(arg, str):
+                drawn_texts.append(arg)
+        return original_draw_text(*args, **kwargs)
+
+    with patch.object(painter, "drawText", side_effect=_capture):
+        try:
+            delegate.paint(painter, option, station_idx)
+        finally:
+            painter.end()
+
+    assert "HI-RES" not in drawn_texts
+    assert "LOSSLESS" not in drawn_texts
+
+
+def test_no_pill_for_provider_row(tmp_data_dir, qtbot):
+    """HRES-01 / UI-SPEC Component Inventory item 2: Provider rows must NOT
+    get a tier pill painted by the delegate.
+
+    RED until Plan 70-07 ships (the provider-row guard is the relevant check).
+    """
+    from unittest.mock import patch
+    from PySide6.QtGui import QPainter, QPixmap
+
+    station = _make_station_with_streams(("FLAC", 96000, 24))
+    model, delegate = _build_model_and_delegate_for_station(station, tmp_data_dir, qtbot)
+    provider_idx = _provider_index(model)
+    option = QStyleOptionViewItem()
+    delegate.initStyleOption(option, provider_idx)
+
+    drawn_texts = []
+    canvas = QPixmap(300, 64)
+    canvas.fill(Qt.white)
+    painter = QPainter(canvas)
+    original_draw_text = painter.drawText
+
+    def _capture(*args, **kwargs):
+        for arg in args:
+            if isinstance(arg, str):
+                drawn_texts.append(arg)
+        return original_draw_text(*args, **kwargs)
+
+    with patch.object(painter, "drawText", side_effect=_capture):
+        try:
+            delegate.paint(painter, option, provider_idx)
+        finally:
+            painter.end()
+
+    assert "HI-RES" not in drawn_texts
+    assert "LOSSLESS" not in drawn_texts
+
+
+def test_sizehint_grows_for_pill(tmp_data_dir, qtbot):
+    """HRES-01: station-row sizeHint width must grow to accommodate the tier pill.
+
+    RED until Plan 70-07 extends sizeHint to reserve space for the pill.
+    """
+    # Baseline: station without streams (no pill)
+    station_no_pill = Station(
+        id=2, name="No Pill", provider_id=None, provider_name="TestProvider",
+        tags="", station_art_path=None, album_fallback_path=None, streams=[],
+    )
+    model_no_pill = StationTreeModel([station_no_pill])
+    delegate_no_pill = StationStarDelegate(_StubRepo())
+
+    station_idx_no_pill = _station_index(model_no_pill)
+    option_no_pill = _build_option_for_index(delegate_no_pill, station_idx_no_pill)
+    baseline_width = delegate_no_pill.sizeHint(option_no_pill, station_idx_no_pill).width()
+
+    # With pill: station with FLAC 96/24 stream
+    station_with_pill = _make_station_with_streams(("FLAC", 96000, 24))
+    model_with_pill, delegate_with_pill = _build_model_and_delegate_for_station(
+        station_with_pill, tmp_data_dir, qtbot
+    )
+    station_idx_with_pill = _station_index(model_with_pill)
+    option_with_pill = _build_option_for_index(delegate_with_pill, station_idx_with_pill)
+    pill_width = delegate_with_pill.sizeHint(option_with_pill, station_idx_with_pill).width()
+
+    # RED: sizeHint width won't grow until Plan 70-07 adds the pill reservation
+    assert pill_width > baseline_width, (
+        f"expected sizeHint to grow for pill station: "
+        f"pill_width={pill_width} <= baseline={baseline_width}"
     )
 
 

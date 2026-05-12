@@ -790,6 +790,155 @@ def test_eq_profiles_zip_round_trip(tmp_path, monkeypatch, repo):
     assert restored.read_text() == text1
 
 
+# --- Phase 70 / HRES-01 ---
+
+
+def test_export_import_roundtrip_preserves_sample_rate_hz_and_bit_depth(repo, tmp_path):
+    """HRES-01 / T-04 / DS-04: sample_rate_hz + bit_depth survive build_zip → commit_import.
+
+    RED until Plan 70-02 adds StationStream fields + Plan 70-10 adds forward-compat
+    export/import lines.
+    """
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags) VALUES (?, ?)", ("HiRes Test", "")
+    )
+    repo.con.commit()
+    sid = int(cur.lastrowid)
+    # Seed via raw SQL since insert_stream doesn't have the kwargs yet (Plan 70-02)
+    repo.con.execute(
+        "INSERT INTO station_streams"
+        "(station_id, url, label, quality, position, stream_type, codec,"
+        " bitrate_kbps, sample_rate_hz, bit_depth) "
+        "VALUES (?, ?, '', 'hi', 1, '', 'FLAC', 1411, 96000, 24)",
+        (sid, "http://hires.example/stream"),
+    )
+    repo.con.commit()
+
+    zip_path = tmp_path / "hires.zip"
+    build_zip(repo, str(zip_path))
+
+    # Sanity: sample_rate_hz + bit_depth appear in exported JSON
+    with zipfile.ZipFile(str(zip_path)) as zf:
+        payload = json.loads(zf.read("settings.json"))
+    target_st = [
+        st for st in payload["stations"]
+        if any(s.get("url") == "http://hires.example/stream"
+               for s in st.get("streams", []))
+    ]
+    assert target_st, "test station missing from export payload"
+    target_stream = next(
+        s for s in target_st[0]["streams"]
+        if s.get("url") == "http://hires.example/stream"
+    )
+    # RED: keys absent until Plan 70-10 adds them to _station_to_dict
+    assert target_stream["sample_rate_hz"] == 96000
+    assert target_stream["bit_depth"] == 24
+
+    # Import into a fresh repo
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")
+
+    row = fresh.con.execute(
+        "SELECT sample_rate_hz, bit_depth FROM station_streams WHERE url = ?",
+        ("http://hires.example/stream",),
+    ).fetchone()
+    assert row is not None
+    # RED: columns absent until Plan 70-02 migration + Plan 70-10 import
+    assert row["sample_rate_hz"] == 96000
+    assert row["bit_depth"] == 24
+
+
+def test_commit_import_forward_compat_missing_quality_keys(tmp_path):
+    """HRES-01 / T-04 / DS-04: pre-70 ZIP (stream dict without sample_rate_hz /
+    bit_depth) imports cleanly with default 0. Mirrors Phase 47.3 PB-15 idiom.
+
+    RED until Plan 70-10 ships the int(stream.get("KEY", 0) or 0) forward-compat lines.
+    """
+    payload = {
+        "version": 1,
+        "exported_at": "2026-01-01T00:00:00",
+        "stations": [
+            {
+                "name": "Legacy Station",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "streams": [
+                    # NO sample_rate_hz / bit_depth keys — simulates a pre-70 export.
+                    {
+                        "url": "http://legacy70.example/stream",
+                        "label": "",
+                        "quality": "",
+                        "position": 1,
+                        "stream_type": "",
+                        "codec": "FLAC",
+                        "bitrate_kbps": 1411,
+                    }
+                ],
+            }
+        ],
+        "track_favorites": [],
+        "settings": [],
+    }
+    zip_path = tmp_path / "legacy70.zip"
+    with zipfile.ZipFile(str(zip_path), "w") as zf:
+        zf.writestr("settings.json", json.dumps(payload))
+
+    fresh_dir = tmp_path / "fresh"
+    fresh_dir.mkdir()
+    fresh = _fresh_repo(fresh_dir)
+    preview = preview_import(str(zip_path), fresh)
+    commit_import(preview, fresh, mode="replace_all")  # no KeyError expected
+
+    row = fresh.con.execute(
+        "SELECT sample_rate_hz, bit_depth FROM station_streams WHERE url = ?",
+        ("http://legacy70.example/stream",),
+    ).fetchone()
+    assert row is not None
+    # RED: columns absent until Plan 70-02 migration + Plan 70-10 forward-compat
+    assert row["sample_rate_hz"] == 0
+    assert row["bit_depth"] == 0
+
+
+def test_station_to_dict_emits_quality_keys(repo):
+    """HRES-01 / T-04 / DS-04: _station_to_dict emits 'sample_rate_hz' and 'bit_depth'
+    keys from StationStream.sample_rate_hz / bit_depth.
+
+    RED until Plan 70-10 adds these keys to _station_to_dict output.
+    """
+    from musicstreamer.settings_export import _station_to_dict
+
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags) VALUES (?, ?)", ("QualityTest", "")
+    )
+    repo.con.commit()
+    sid = int(cur.lastrowid)
+    repo.con.execute(
+        "INSERT INTO station_streams"
+        "(station_id, url, label, quality, position, stream_type, codec,"
+        " bitrate_kbps, sample_rate_hz, bit_depth) "
+        "VALUES (?, ?, '', 'hi', 1, '', 'FLAC', 1411, 96000, 24)",
+        (sid, "http://q.example/stream"),
+    )
+    repo.con.commit()
+
+    station = repo.get_station(sid)
+    station.streams = repo.list_streams(sid)
+    d = _station_to_dict(station)
+    stream_d = d["streams"][0]
+    # RED: keys absent until Plan 70-10 ships
+    assert "sample_rate_hz" in stream_d
+    assert "bit_depth" in stream_d
+    assert stream_d["sample_rate_hz"] == 96000
+    assert stream_d["bit_depth"] == 24
+
+
 def test_eq_profiles_path_traversal_rejected(tmp_path, monkeypatch, repo):
     """Pitfall 8: hostile eq-profiles/../evil.txt is rejected by _validate_zip_members."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))

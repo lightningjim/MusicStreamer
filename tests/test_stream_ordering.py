@@ -10,10 +10,14 @@ from musicstreamer.stream_ordering import codec_rank, order_streams, quality_ran
 def _s(
     codec: str = "", bitrate_kbps: int = 0, position: int = 1,
     url: str = "u", quality: str = "",
+    sample_rate_hz: int = 0, bit_depth: int = 0,
 ) -> StationStream:
+    # sample_rate_hz / bit_depth kwargs: RED until Plan 70-02 adds StationStream fields.
+    # Until then, constructing with those kwargs raises TypeError — the RED state.
     return StationStream(
         id=0, station_id=0, url=url, codec=codec, quality=quality,
         bitrate_kbps=bitrate_kbps, position=position,
+        sample_rate_hz=sample_rate_hz, bit_depth=bit_depth,  # Phase 70 / T-03
     )
 
 
@@ -142,6 +146,29 @@ def test_does_not_mutate_input():
     _ = order_streams(streams)
     assert streams == original_order  # list not reordered
     assert streams is not original_order  # sanity: different objects, same values
+
+
+# --- Phase 70 / HRES-01 ---
+
+
+def test_hires_flac_outranks_cd_flac():
+    """HRES-01 / T-03 / S-01: within the same codec (FLAC), 96/24 sorts above 44/16.
+
+    Both streams have the same quality tier ("") and the same codec (FLAC).
+    The rate/depth tiebreak introduced by Phase 70 must place the hi-res stream first.
+
+    RED until Plan 70-02 adds StationStream.sample_rate_hz / bit_depth fields
+    AND Plan 70-03 extends order_streams sort key.
+    """
+    result = order_streams([
+        _s("FLAC", bitrate_kbps=1411, position=2, sample_rate_hz=44100, bit_depth=16),
+        _s("FLAC", bitrate_kbps=1411, position=1, sample_rate_hz=96000, bit_depth=24),
+    ])
+    # 96/24 must be first regardless of position
+    assert result[0].sample_rate_hz == 96000, (  # RED: AttributeError until Plan 70-02
+        f"expected 96000 Hz stream first; got {result[0].sample_rate_hz}"
+    )
+    assert result[1].sample_rate_hz == 44100
 
 
 # Phase 60 / GBS-01f: regression — FLAC bitrate sentinel sorts FIRST among GBS quality tiers.
