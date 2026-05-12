@@ -638,3 +638,87 @@ def test_prune_streams_does_not_touch_other_stations(repo):
     b_streams = repo.list_streams(sid_b)
     assert len(b_streams) == 1
     assert b_streams[0].id == id_b1
+
+
+# --- Phase 70 / HRES-01 ---
+
+
+def test_sample_rate_hz_hydrated_from_row():
+    """HRES-01 / T-02: list_streams hydrates sample_rate_hz from the row.
+
+    RED until Plan 70-02 adds sample_rate_hz column + StationStream field.
+    """
+    con = _make_bare_con()
+    db_init(con)
+    repo = Repo(con)
+    con.execute("INSERT INTO stations(name) VALUES ('S')")
+    station_id = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+    repo.insert_stream(station_id, "http://a", sample_rate_hz=96000)  # RED: kwarg not yet accepted
+    repo.insert_stream(station_id, "http://b")  # legacy — no sample_rate arg
+
+    streams = repo.list_streams(station_id)
+    rates = sorted(s.sample_rate_hz for s in streams)  # RED: AttributeError until Plan 70-02
+    assert rates == [0, 96000]
+
+
+def test_bit_depth_hydrated_from_row():
+    """HRES-01 / T-02: list_streams hydrates bit_depth from the row.
+
+    RED until Plan 70-02 adds bit_depth column + StationStream field.
+    """
+    con = _make_bare_con()
+    db_init(con)
+    repo = Repo(con)
+    con.execute("INSERT INTO stations(name) VALUES ('S')")
+    station_id = int(con.execute("SELECT last_insert_rowid()").fetchone()[0])
+    repo.insert_stream(station_id, "http://a", bit_depth=24)  # RED: kwarg not yet accepted
+    repo.insert_stream(station_id, "http://b")  # legacy — no bit_depth arg
+
+    streams = repo.list_streams(station_id)
+    depths = sorted(s.bit_depth for s in streams)  # RED: AttributeError until Plan 70-02
+    assert depths == [0, 24]
+
+
+def test_db_init_idempotent_for_sample_rate_hz():
+    """HRES-01 / M-01: pre-70 DB (no sample_rate_hz / bit_depth columns) gains
+    them on db_init. Idempotency: second db_init must not raise.
+
+    RED until Plan 70-02 ships the ALTER TABLE blocks.
+    """
+    con = _make_bare_con()
+    # Simulate pre-70 schema — station_streams without sample_rate_hz / bit_depth
+    con.executescript(
+        """
+        CREATE TABLE stations (id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL);
+        CREATE TABLE station_streams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            station_id INTEGER NOT NULL,
+            url TEXT NOT NULL DEFAULT '',
+            label TEXT NOT NULL DEFAULT '',
+            quality TEXT NOT NULL DEFAULT '',
+            position INTEGER NOT NULL DEFAULT 1,
+            stream_type TEXT NOT NULL DEFAULT '',
+            codec TEXT NOT NULL DEFAULT '',
+            bitrate_kbps INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE CASCADE
+        );
+        INSERT INTO stations(name) VALUES ('Legacy');
+        INSERT INTO station_streams(station_id, url) VALUES (1, 'http://legacy');
+        """
+    )
+    con.commit()
+
+    # Run db_init — additive ALTER TABLE must succeed without raising
+    db_init(con)
+
+    # Both new columns exist on old row with default 0
+    row = con.execute(
+        "SELECT sample_rate_hz, bit_depth FROM station_streams WHERE station_id=1"
+    ).fetchone()
+    # RED: columns absent until Plan 70-02 ships the schema migration
+    assert row["sample_rate_hz"] == 0
+    assert row["bit_depth"] == 0
+
+    # Idempotency — second db_init must not raise
+    db_init(con)

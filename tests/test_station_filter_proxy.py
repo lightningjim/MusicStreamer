@@ -289,3 +289,63 @@ def test_clear_all_resets_live_only(qtbot):
     assert proxy.has_active_filter() is False
     visible = _visible_station_names(proxy)
     assert len(visible) == 3
+
+
+# --- Phase 70 / HRES-01 ---
+
+
+def test_set_hi_res_only_with_quality_map_filters_stations(qtbot):
+    """HRES-01 / F-01: set_quality_map + set_hi_res_only(True) shows only hi-res stations.
+
+    RED until Plan 70-09 ships set_quality_map / set_hi_res_only on StationFilterProxyModel.
+    """
+    stations = [
+        make_station(1, "HiRes Station", "SomaFM"),
+        make_station(2, "Lossless Station", "SomaFM"),
+        make_station(3, "Lossy Station", "DI.fm"),
+    ]
+    _, proxy = _make_proxy(stations)
+    proxy.set_quality_map({1: "hires", 2: "lossless", 3: ""})  # RED: AttributeError
+    proxy.set_hi_res_only(True)  # RED: AttributeError
+    visible = _visible_station_names(proxy)
+    assert "HiRes Station" in visible
+    assert "Lossless Station" not in visible
+    assert "Lossy Station" not in visible
+
+
+def test_set_quality_map_no_invalidate_when_chip_off(qtbot):
+    """HRES-01 / Pitfall 7: set_quality_map must NOT call invalidate when hi_res_only=False.
+
+    Mirrors Phase 68's Pitfall 7 guard — no spurious re-filter on every live-map push.
+
+    RED until Plan 70-09 ships the invalidate-guard pattern.
+    """
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_hi_res_only(False)  # RED: AttributeError
+    calls = []
+    original = proxy.invalidate
+    proxy.invalidate = lambda: calls.append(1) or original()  # type: ignore[method-assign]
+    proxy.set_quality_map({101: "hires", 102: "lossless"})  # RED: AttributeError
+    assert calls == [], (
+        "set_quality_map must NOT invalidate when hi_res_only=False (Pitfall 7 mirror)"
+    )
+    proxy.set_hi_res_only(True)  # RED: AttributeError
+    invalidate_count_after_set_only = len(calls)
+    proxy.set_quality_map({101: "hires"})  # RED: AttributeError
+    assert len(calls) > invalidate_count_after_set_only, (
+        "set_quality_map MUST invalidate when hi_res_only=True"
+    )
+
+
+def test_clear_all_clears_hi_res_only(qtbot):
+    """HRES-01: clear_all() must reset hi_res_only to False.
+
+    RED until Plan 70-09 ships set_hi_res_only + clear_all extension.
+    """
+    _, proxy = _make_proxy(_DI_STATIONS)
+    proxy.set_quality_map({101: "hires"})  # RED: AttributeError
+    proxy.set_hi_res_only(True)  # RED: AttributeError
+    proxy.clear_all()
+    assert proxy.has_active_filter() is False
+    visible = _visible_station_names(proxy)
+    assert len(visible) == len(_DI_STATIONS)
