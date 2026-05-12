@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: ready_to_plan
 stopped_at: Phase 70 Wave 2 complete (8/12 plans)
 last_updated: "2026-05-12T16:00:00.000Z"
 last_activity: 2026-05-12 -- Phase 70 Wave 2 complete; ready for Wave 3 (Plan 70-05 MainWindow caps slot)
 progress:
   total_phases: 31
-  completed_phases: 24
+  completed_phases: 25
   total_plans: 109
   completed_plans: 105
-  percent: 96
+  percent: 81
 ---
 
 # Project State
@@ -25,16 +25,16 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 70 (hi-res-indicator-for-streams-mirror-moode-audio-criteria) — EXECUTING
-Plan: 8 of 12 complete (Wave 0 + 1 + 2)
-Status: Ready for Wave 3 (Plan 70-05 MainWindow caps slot)
-Last activity: 2026-05-12 -- Wave 2 complete: stream_ordering tiebreak (70-03), player caps Signal (70-04), station-tree HI-RES pill (70-07), EditDialog Audio quality column (70-08), settings_export round-trip (70-10)
+Phase: 71
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-12
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 153 (v1.0–v1.5 combined)
+- Total plans completed: 165 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
