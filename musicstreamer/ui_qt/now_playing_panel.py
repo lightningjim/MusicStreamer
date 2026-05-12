@@ -54,6 +54,8 @@ from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.models import Station
 from musicstreamer.url_helpers import (
     find_aa_siblings,
+    find_manual_siblings,
+    merge_siblings,
     pick_similar_stations,
     render_sibling_html,
     render_similar_html,
@@ -1205,15 +1207,22 @@ class NowPlayingPanel(QWidget):
         # the label and bail silently.
         try:
             all_stations = self._repo.list_stations()
+            link_ids = self._repo.list_sibling_links(self._station.id)
         except Exception:
             self._sibling_label.setVisible(False)
             self._sibling_label.setText("")
             return
-        siblings = find_aa_siblings(
+        aa_list = find_aa_siblings(
             stations=all_stations,
             current_station_id=self._station.id,
             current_first_url=current_url,
         )
+        manual_list = find_manual_siblings(
+            stations=all_stations,
+            current_station_id=self._station.id,
+            link_ids=link_ids,
+        )
+        siblings = merge_siblings(aa_list, manual_list)
         if not siblings:
             self._sibling_label.setVisible(False)
             self._sibling_label.setText("")
