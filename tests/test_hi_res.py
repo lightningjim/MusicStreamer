@@ -19,19 +19,26 @@ from musicstreamer.models import Station, StationStream
 # Helper — minimal Station + StationStream construction
 # ---------------------------------------------------------------------------
 
-def _stream(codec: str, sample_rate_hz: int = 0, bit_depth: int = 0) -> StationStream:
+def _stream(
+    codec: str,
+    sample_rate_hz: int = 0,
+    bit_depth: int = 0,
+    bitrate_kbps: int = 0,
+) -> StationStream:
     """Build a StationStream for tier testing.
 
-    NOTE: sample_rate_hz + bit_depth are Phase 70 / Plan 70-02 fields.
-    Constructing them here is intentionally RED until Plan 70-02 lands.
+    bitrate_kbps kwarg supports the post-2026-05-12 D-04 revision where lossy
+    codecs at bitrate > 128 also qualify as Hi-Res (mirrors moOde
+    RADIO_BITRATE_THRESHOLD).
     """
     return StationStream(
         id=0,
         station_id=0,
         url="http://example.com",
         codec=codec,
-        sample_rate_hz=sample_rate_hz,  # RED until Plan 70-02
-        bit_depth=bit_depth,             # RED until Plan 70-02
+        sample_rate_hz=sample_rate_hz,
+        bit_depth=bit_depth,
+        bitrate_kbps=bitrate_kbps,
     )
 
 
@@ -65,9 +72,10 @@ def _station(*streams: StationStream) -> Station:
     ("FLAC", 0, 0, "lossless"),
     # ALAC defaults to "lossless" (mirrors FLAC)
     ("ALAC", 0, 0, "lossless"),
-    # D-04: MP3 — no badge regardless of synthetic rate/depth
+    # D-04 (no-bitrate branch): MP3 with no bitrate info → no badge
     ("MP3", 0, 0, ""),
-    # D-04: AAC — no badge even at "hi-res" rates
+    # D-04 (no-bitrate branch): AAC with no bitrate info → no badge even at
+    # synthetic "hi-res" caps (caps without bitrate context can't qualify)
     ("AAC", 96000, 24, ""),
     # Case-insensitive (lowercase flac)
     ("flac", 44100, 16, "lossless"),
@@ -82,6 +90,55 @@ def test_classify_tier_truth_table(codec, rate, depth, expected):
     """T-01: classify_tier returns the correct tier for all canonical input cases."""
     from musicstreamer.hi_res import classify_tier  # RED: ImportError until Plan 70-01
     assert classify_tier(codec, rate, depth) == expected
+
+
+# ---------------------------------------------------------------------------
+# test_classify_tier_lossy_bitrate_threshold (D-04 revised 2026-05-12 post-UAT)
+#
+# Mirrors moOde Audio playerlib.js RADIO_BITRATE_THRESHOLD = 128:
+# lossy codec at bitrate_kbps > 128 → "hires" badge.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("codec,bitrate,expected", [
+    # 320 kbps MP3 (DI.FM premium tier) — moOde shows HiRes here per live UAT
+    ("MP3", 320, "hires"),
+    # 256 kbps lossy — also > 128 → hires
+    ("AAC", 256, "hires"),
+    ("OPUS", 256, "hires"),
+    # 192 kbps lossy — still > 128 → hires
+    ("MP3", 192, "hires"),
+    # 129 kbps — strictly > 128 → hires (boundary just above)
+    ("MP3", 129, "hires"),
+    # 128 kbps lossy — exactly at threshold, NOT strictly greater → no badge
+    # (moOde uses > not >=; matches your screenshot: MP3 128K and AAC 128K
+    # show no HiRes badge)
+    ("MP3", 128, ""),
+    ("AAC", 128, ""),
+    # Sub-128 lossy → no badge
+    ("MP3", 96, ""),
+    ("AAC", 64, ""),
+    # Zero / missing bitrate → no badge (pre-Phase-47.2 import compat)
+    ("MP3", 0, ""),
+    # Lossless codec branch ignores bitrate; FLAC at any kbps still → lossless
+    # for CD-quality caps (rate/depth not passed → 0,0 = D-03 default).
+    ("FLAC", 320, "lossless"),
+    ("FLAC", 0, "lossless"),
+    # ALAC same as FLAC.
+    ("ALAC", 1500, "lossless"),
+    # Unknown / empty codec ignores bitrate.
+    ("", 320, ""),
+    (None, 320, ""),
+])
+def test_classify_tier_lossy_bitrate_threshold(codec, bitrate, expected):
+    """D-04 revised: lossy codec at bitrate > 128 kbps → 'hires' (moOde mirror).
+
+    Pinned thresholds:
+      - bitrate > 128 → "hires" (NOT >=; matches RADIO_BITRATE_THRESHOLD)
+      - bitrate <= 128 → ""
+      - Lossless codec branch unaffected by bitrate.
+    """
+    from musicstreamer.hi_res import classify_tier
+    assert classify_tier(codec, 0, 0, bitrate) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -147,9 +204,33 @@ def test_best_tier_for_station_returns_lossless_when_no_hires():
 
 
 def test_best_tier_for_station_returns_empty_for_lossy_only():
-    """T-05: station with only MP3 streams → ''."""
+    """T-05: station with only sub-128-kbps MP3 streams → ''."""
     from musicstreamer.hi_res import best_tier_for_station  # RED: ImportError until Plan 70-01
-    station = _station(_stream("MP3", 128, 0))
+    # rate=128 here is a typo-resistant value — MP3 with no bitrate kwarg
+    # passes bitrate_kbps=0 (default), which is below the 128 threshold.
+    station = _station(_stream("MP3", sample_rate_hz=44100, bit_depth=0))
+    assert best_tier_for_station(station) == ""
+
+
+def test_best_tier_for_station_returns_hires_for_high_bitrate_lossy():
+    """T-05 revised: D-04 lossy>128 path — station with only MP3-320 → 'hires'.
+
+    Matches the moOde behavior verified live 2026-05-12: DI.FM Lounge at MP3
+    320K shows the HiRes badge. Phase 70's original D-04 (no badge for lossy)
+    was rejected after UAT.
+    """
+    from musicstreamer.hi_res import best_tier_for_station
+    station = _station(_stream("MP3", bitrate_kbps=320))
+    assert best_tier_for_station(station) == "hires"
+
+
+def test_best_tier_for_station_lossy_at_128_kbps_returns_empty():
+    """T-05 revised: D-04 boundary — MP3 at exactly 128 kbps → ''.
+
+    Mirrors moOde's `bitrate > RADIO_BITRATE_THRESHOLD` (strict greater-than).
+    """
+    from musicstreamer.hi_res import best_tier_for_station
+    station = _station(_stream("MP3", bitrate_kbps=128))
     assert best_tier_for_station(station) == ""
 
 

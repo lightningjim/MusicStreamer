@@ -1057,7 +1057,12 @@ class NowPlayingPanel(QWidget):
             # Phase 70 / Plan 70-06 / UI-SPEC OD-7 / DP-05: append tier suffix
             # (em-dash + uppercase badge label) for hi-res and lossless streams.
             # Lossy streams (tier == "") get NO suffix \u2014 existing format preserved.
-            tier = classify_tier(s.codec, s.sample_rate_hz, s.bit_depth)
+            tier = classify_tier(
+                s.codec,
+                s.sample_rate_hz,
+                s.bit_depth,
+                getattr(s, "bitrate_kbps", 0) or 0,
+            )
             tier_suffix = TIER_LABEL_BADGE.get(tier, "")
             label = f"{base_label} \u2014 {tier_suffix}" if tier_suffix else base_label
             self.stream_combo.addItem(label, userData=s.id)
@@ -1562,7 +1567,12 @@ class NowPlayingPanel(QWidget):
                 self._quality_badge.setToolTip("")
                 self._quality_badge.setAccessibleName("")
                 return
-            tier = classify_tier(s.codec, s.sample_rate_hz, s.bit_depth)
+            tier = classify_tier(
+                s.codec,
+                s.sample_rate_hz,
+                s.bit_depth,
+                getattr(s, "bitrate_kbps", 0) or 0,
+            )
             self._quality_badge.setText(TIER_LABEL_BADGE[tier])
             self._quality_badge.setVisible(bool(tier))
             if tier:

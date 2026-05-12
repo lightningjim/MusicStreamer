@@ -1514,18 +1514,19 @@ def test_audio_quality_cell_shows_prose_label(qtbot, station, player, repo):
     """HRES-01 / Plan 70-08 / UI-SPEC Copywriting Contract: cell text uses
     title-case TIER_LABEL_PROSE — 'Hi-Res', 'Lossless', '' (empty for lossy).
 
-    Three streams cover the truth table; assertions reference the kwargs
-    Plan 70-02 will add (sample_rate_hz / bit_depth) — RED on construction
-    until then.
+    Three streams cover the truth table. The MP3 row uses bitrate 96 kbps to
+    land in the "no badge" branch — the post-UAT D-04 revision treats lossy
+    at bitrate > 128 kbps as Hi-Res (mirrors moOde RADIO_BITRATE_THRESHOLD).
+    A 320 kbps MP3 is covered by test_audio_quality_cell_shows_hires_for_high_bitrate_lossy.
     """
     repo.list_streams.return_value = [
-        StationStream(  # RED: kwargs not yet accepted (Plan 70-02)
+        StationStream(
             id=10, station_id=1, url="http://s1", label="",
             quality="FLAC 96/24", position=1, stream_type="",
             codec="FLAC", bitrate_kbps=2304,
             sample_rate_hz=96000, bit_depth=24,
         ),
-        StationStream(  # RED: kwargs not yet accepted (Plan 70-02)
+        StationStream(
             id=11, station_id=1, url="http://s2", label="",
             quality="FLAC 1411", position=2, stream_type="",
             codec="FLAC", bitrate_kbps=1411,
@@ -1533,8 +1534,8 @@ def test_audio_quality_cell_shows_prose_label(qtbot, station, player, repo):
         ),
         StationStream(
             id=12, station_id=1, url="http://s3", label="",
-            quality="MP3 320", position=3, stream_type="",
-            codec="MP3", bitrate_kbps=320,
+            quality="MP3 96", position=3, stream_type="",
+            codec="MP3", bitrate_kbps=96,
         ),
     ]
     from musicstreamer.ui_qt.edit_station_dialog import _COL_AUDIO_QUALITY
@@ -1542,9 +1543,43 @@ def test_audio_quality_cell_shows_prose_label(qtbot, station, player, repo):
     d = EditStationDialog(station, player, repo, parent=None)
     qtbot.addWidget(d)
 
-    # RED: AssertionError pre-70-08 (column does not yet render prose tier).
     assert d.streams_table.item(0, _COL_AUDIO_QUALITY).text() == "Hi-Res"
     assert d.streams_table.item(1, _COL_AUDIO_QUALITY).text() == "Lossless"
+    # MP3 at 96 kbps is below the 128-kbps moOde RADIO_BITRATE_THRESHOLD, so
+    # the lossy branch returns "" (empty prose label).
+    assert d.streams_table.item(2, _COL_AUDIO_QUALITY).text() == ""
+
+
+def test_audio_quality_cell_shows_hires_for_high_bitrate_lossy(qtbot, station, player, repo):
+    """HRES-01 / Plan 70-08 / D-04 revised post-UAT: lossy at bitrate > 128
+    kbps renders 'Hi-Res' in the Audio quality column (matches the moOde
+    radio-station badge logic — RADIO_BITRATE_THRESHOLD = 128 in
+    playerlib.js)."""
+    repo.list_streams.return_value = [
+        StationStream(
+            id=20, station_id=1, url="http://di-lounge", label="",
+            quality="MP3 320K", position=1, stream_type="",
+            codec="MP3", bitrate_kbps=320,
+        ),
+        StationStream(
+            id=21, station_id=1, url="http://aac-256", label="",
+            quality="AAC 256K", position=2, stream_type="",
+            codec="AAC", bitrate_kbps=256,
+        ),
+        StationStream(
+            id=22, station_id=1, url="http://mp3-128", label="",
+            quality="MP3 128K", position=3, stream_type="",
+            codec="MP3", bitrate_kbps=128,
+        ),
+    ]
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_AUDIO_QUALITY
+
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d.streams_table.item(0, _COL_AUDIO_QUALITY).text() == "Hi-Res"
+    assert d.streams_table.item(1, _COL_AUDIO_QUALITY).text() == "Hi-Res"
+    # 128 kbps lies exactly at threshold; moOde uses strict > not >=.
     assert d.streams_table.item(2, _COL_AUDIO_QUALITY).text() == ""
 
 

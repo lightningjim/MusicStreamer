@@ -5,28 +5,35 @@ Mirrors stream_ordering.py shape (small enum-mapped helpers).
 
 Public API:
   bit_depth_from_format(format_str: str) -> int
-  classify_tier(codec: str, sample_rate_hz: int, bit_depth: int) -> str
+  classify_tier(codec: str, sample_rate_hz: int, bit_depth: int,
+                bitrate_kbps: int = 0) -> str
   best_tier_for_station(station: Station) -> str
 
 Constants:
   TIER_LABEL_BADGE: dict[str, str]   # uppercase badge labels
   TIER_LABEL_PROSE: dict[str, str]   # title-case prose labels
 
+Behavioral rules (mirror moOde Audio's playerlib.js radio-badge logic
+verified at https://github.com/moode-player/moode/blob/develop/www/js/playerlib.js):
+
+  - D-01: Two tiers only — "lossless" and "hires".
+  - D-02 (lossless codecs FLAC/ALAC): rate ≥ 48000 OR depth ≥ 24 → "hires";
+          otherwise → "lossless".
+  - D-03: FLAC/ALAC + unknown rate/depth (0, 0) defaults to "lossless".
+  - D-04 [REVISED 2026-05-12 post-UAT]: Lossy codecs (MP3/AAC/HE-AAC/OPUS/
+          OGG/WMA) at bitrate_kbps > 128 → "hires" (mirrors moOde
+          RADIO_BITRATE_THRESHOLD = 128). At bitrate_kbps ≤ 128 → "".
+          ORIGINAL D-04 was "lossy always returns '' " — that was wrong per
+          live moOde behavior; see playerlib.js radio-station path.
+  - D-05: Badge labels "LOSSLESS" / "HI-RES" (all-caps, mirrors Phase 68 LIVE
+          badge).
+
 Load-bearing constraints (PATTERNS.md lines 53-70):
   - This module MUST remain pure: no GStreamer, no I/O, no Qt imports.
   - classify_tier returns ONLY "" | "lossless" | "hires" (closed enum, D-01).
   - Case-insensitive, whitespace-tolerant, None-safe (mirrors codec_rank idiom).
-  - FLAC + unknown rate/depth (0, 0) defaults to "lossless" (D-03).
-  - Lossy codecs (MP3, AAC, HE-AAC, OPUS, OGG, WMA) always return "" (D-04).
-  - Wave 1 (Plan 70-01) provides the implementation; Wave 0 shipped the skeleton only.
-
-Behavioral rules locked by CONTEXT D-01..D-05:
-  - D-01: Two tiers only — "lossless" and "hires".
-  - D-02: Lossless = FLAC/ALAC + rate ≤ 48000 AND depth ≤ 16.
-           Hi-Res = FLAC/ALAC + (rate > 48000 OR depth > 16).
-  - D-03: FLAC/ALAC + unknown rate/depth (0, 0) defaults to "lossless".
-  - D-04: Lossy codecs → "" at any rate/depth.
-  - D-05: Badge labels "LOSSLESS" / "HI-RES" (all-caps, mirrors Phase 68 LIVE badge).
+  - bitrate_kbps kwarg defaults to 0 — existing callers that don't pass it
+    preserve the previous "lossy → ''" semantics until they're updated.
 """
 from __future__ import annotations
 
@@ -53,9 +60,15 @@ _FORMAT_BIT_DEPTH: dict[str, int] = {
     "F64LE": 32, "F64BE": 32,   # DS-02 caps 64-bit float at 32-bit-equivalent
 }
 
-# Hi-res criteria thresholds (D-02, mirrors moOde + JAS "Hi-Res Audio" spec).
+# Hi-res criteria thresholds for lossless codecs (D-02).
+# Match moOde's `hidef` flag semantics: 24-bit or > 44.1 kHz qualifies.
 _HIRES_RATE_THRESHOLD_HZ: int = 48_000
 _HIRES_BIT_DEPTH_THRESHOLD: int = 16
+
+# Hi-res criteria threshold for LOSSY codecs (D-04 revised).
+# Mirrors moOde Audio playerlib.js RADIO_BITRATE_THRESHOLD = 128 exactly:
+# lossy stream at bitrate_kbps > 128 → "hires" badge.
+_HIRES_LOSSY_BITRATE_THRESHOLD_KBPS: int = 128
 
 # Lossless codec allow-list (D-02).
 _LOSSLESS_CODECS: set[str] = {"FLAC", "ALAC"}
@@ -101,31 +114,50 @@ def bit_depth_from_format(format_str: str) -> int:
     return _FORMAT_BIT_DEPTH.get((format_str or ""), 0)
 
 
-def classify_tier(codec: str, sample_rate_hz: int, bit_depth: int) -> str:
-    """Return "hires" | "lossless" | "" per CONTEXT D-02 / D-03 / D-04.
+def classify_tier(
+    codec: str,
+    sample_rate_hz: int,
+    bit_depth: int,
+    bitrate_kbps: int = 0,
+) -> str:
+    """Return "hires" | "lossless" | "" per CONTEXT D-02 / D-03 / D-04 (revised).
 
-    Lossy codecs always return "" (D-04).
-    Lossless codec + (rate > 48 kHz OR depth > 16) → "hires" (D-02).
-    Lossless codec + everything else → "lossless" (D-02 + D-03 fallback).
+    Mirrors moOde Audio's playerlib.js radio-station HiRes badge logic:
+      - Lossless codec (FLAC/ALAC) + (rate ≥ 48 kHz OR depth ≥ 24) → "hires"
+      - Lossless codec at lower rate/depth → "lossless" (CD quality)
+      - Lossy codec at bitrate_kbps > 128 → "hires"
+        (moOde RADIO_BITRATE_THRESHOLD = 128; mirrors playerlib.js)
+      - Lossy codec at bitrate_kbps ≤ 128 → "" (no badge)
+      - Unknown / empty codec → ""
 
     Case-insensitive, whitespace-tolerant, None-safe (mirrors codec_rank idiom
-    from stream_ordering.py:25-31).
+    from stream_ordering.py:25-31). bitrate_kbps defaults to 0, preserving the
+    pre-2026-05-12 D-04 semantics for callers that don't yet pass it.
 
     Examples:
         classify_tier("FLAC", 44100, 16) == "lossless"
         classify_tier("FLAC", 96000, 24) == "hires"
-        classify_tier("FLAC", 0, 0) == "lossless"  # D-03 fallback
-        classify_tier("MP3", 96000, 24) == ""       # D-04 lossy
-        classify_tier(None, 0, 0) == ""             # None-safe
+        classify_tier("FLAC", 0, 0) == "lossless"             # D-03 fallback
+        classify_tier("MP3", 0, 0, 320) == "hires"            # > 128 kbps
+        classify_tier("MP3", 0, 0, 128) == ""                 # not strictly > 128
+        classify_tier("MP3", 0, 0, 0) == ""                   # no bitrate info
+        classify_tier("AAC", 0, 0, 256) == "hires"            # > 128 kbps lossy
+        classify_tier(None, 0, 0, 320) == ""                  # unknown codec
+        classify_tier("", 0, 0, 320) == ""                    # unknown codec
     """
     c = (codec or "").strip().upper()
-    if c not in _LOSSLESS_CODECS:
+    if not c:
         return ""
-    rate = int(sample_rate_hz or 0)
-    depth = int(bit_depth or 0)
-    if rate > _HIRES_RATE_THRESHOLD_HZ or depth > _HIRES_BIT_DEPTH_THRESHOLD:
+    if c in _LOSSLESS_CODECS:
+        rate = int(sample_rate_hz or 0)
+        depth = int(bit_depth or 0)
+        if rate > _HIRES_RATE_THRESHOLD_HZ or depth > _HIRES_BIT_DEPTH_THRESHOLD:
+            return "hires"
+        return "lossless"
+    # Lossy branch (D-04 revised): mirror moOde RADIO_BITRATE_THRESHOLD.
+    if int(bitrate_kbps or 0) > _HIRES_LOSSY_BITRATE_THRESHOLD_KBPS:
         return "hires"
-    return "lossless"
+    return ""
 
 
 def best_tier_for_station(station) -> str:
@@ -134,18 +166,24 @@ def best_tier_for_station(station) -> str:
     Hi-Res > Lossless > "" (no tier). Pure: reads station.streams attribute;
     no DB calls. Safe with empty or None streams list.
 
-    Each stream item must expose .codec, .sample_rate_hz, .bit_depth.
-    The StationStream dataclass gains these fields in Plan 70-02; until then
-    any duck-typed object with those attributes is accepted.
+    Each stream item must expose .codec, .sample_rate_hz, .bit_depth, .bitrate_kbps.
+    bitrate_kbps is read defensively — pre-Phase-47.2 StationStream objects that
+    lack it will fall back to 0 via getattr.
 
     Examples:
-        station with MP3 + FLAC-44/16 + FLAC-96/24 → "hires"
-        station with MP3 + FLAC-44/16 → "lossless"
-        station with only MP3 streams → ""
+        station with MP3-320 + FLAC-96/24 → "hires"
+        station with MP3-320 only → "hires"  (D-04 revised)
+        station with MP3-128 + FLAC-44/16 → "lossless"
+        station with only MP3-128 streams → ""
         station with no streams → ""
     """
     tiers = {
-        classify_tier(s.codec, s.sample_rate_hz, s.bit_depth)
+        classify_tier(
+            s.codec,
+            s.sample_rate_hz,
+            s.bit_depth,
+            getattr(s, "bitrate_kbps", 0) or 0,
+        )
         for s in (station.streams or [])
     }
     if "hires" in tiers:

@@ -714,7 +714,8 @@ class EditStationDialog(QDialog):
 
         # Phase 70 / DS-03: read-only auto-detected audio tier cell.
         # Closed-enum lookup via TIER_LABEL_PROSE; default 0 for unknown fields.
-        tier = classify_tier(codec, sample_rate_hz, bit_depth)
+        # bitrate_kbps feeds D-04 (post-UAT revised): lossy > 128 kbps → "hires".
+        tier = classify_tier(codec, sample_rate_hz, bit_depth, bitrate_kbps or 0)
         audio_quality_item = QTableWidgetItem(TIER_LABEL_PROSE[tier])
         audio_quality_item.setFlags(audio_quality_item.flags() & ~Qt.ItemIsEditable)
         self.streams_table.setItem(row, _COL_AUDIO_QUALITY, audio_quality_item)
