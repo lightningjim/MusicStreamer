@@ -624,10 +624,22 @@ class EditStationDialog(QDialog):
         """Phase 71 / D-11, D-14, D-15: rebuild the sibling chip row.
 
         Reads the current station's first stream URL from self.url_edit.text()
-        (NOT self._station.streams — Pitfall 4 / RESEARCH: the URL field is
-        the source of truth during editing because the user may have changed
-        it without saving yet). Computes AA + manual sibling lists, renders
-        the chips, and always appends a "+ Add sibling" button last.
+        AT THE MOMENT THIS METHOD RUNS (NOT self._station.streams — Pitfall 4
+        / RESEARCH: the URL field is the source of truth at refresh time,
+        because the user may have changed it without saving yet, and the
+        AddSiblingDialog spawn path explicitly forwards self.url_edit.text()
+        as live_url to keep AA detection consistent). Computes AA + manual
+        sibling lists, renders the chips, and always appends a "+ Add sibling"
+        button last.
+
+        WR-01: this method is invoked only on _populate(), _on_unlink_sibling
+        and _on_add_sibling_clicked — there is NO debounced textChanged
+        connection on url_edit. The chip row does NOT live-refresh as the
+        user types into the URL field; AA detection updates lazily at the
+        next refresh trigger (save, unlink, or "+ Add sibling" reopen). A
+        live-debounce wire was considered and rejected: the AA URL pattern
+        space is unusual (channel-key match) and intermediate keystrokes
+        produce noisy partial matches.
 
         AA chips (objectName "sibling_aa_chip_{id}") are bare QPushButtons —
         no "×" unlink button (D-15 contract: AA siblings are auto-detected
