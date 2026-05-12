@@ -598,12 +598,12 @@ Plans:
 **Goal:** Ship manual user-curated sibling-station linking as a first-class in-app concept that replaces hand-DB edits. Augments (does not replace) Phase 51's AA URL-derived cross-network sibling auto-detection. Handles two real cases: (1) AA name-mismatch overrides where channel-key auto-detection fails (e.g., DI.fm "Classical Relaxation" ↔ RadioTunes "Relaxing Classical"); (2) same-provider variants like SomaFM's 2× Drone Zone or 3× Groove Salad. UI: '+ Add sibling' button + two-step picker (provider → station) in EditStationDialog; per-chip × on manual links; AA chips plain text. Storage: symmetric `station_siblings(a_id, b_id)` join table with `CHECK(a_id < b_id)`, `UNIQUE`, `ON DELETE CASCADE`. ZIP export carries siblings by name. NowPlaying 'Also on:' line shows the merged AA+manual list.
 **Requirements**: [SIB-01]
 **Depends on:** Phase 70
-**Plans:** 1/9 plans executed
+**Plans:** 3/9 plans executed
 
 Plans:
 - [x] 71-00-PLAN.md — Wave 0 RED contract (22 RED tests across 6 test files; fixture mirroring per project convention)
-- [ ] 71-01-PLAN.md — Wave 1 station_siblings schema + Repo.add/remove/list_sibling_link CRUD
-- [ ] 71-02-PLAN.md — Wave 1 url_helpers.find_manual_siblings + merge_siblings pure helpers
+- [x] 71-01-PLAN.md — Wave 1 station_siblings schema + Repo.add/remove/list_sibling_link CRUD
+- [x] 71-02-PLAN.md — Wave 1 url_helpers.find_manual_siblings + merge_siblings pure helpers
 - [ ] 71-03-PLAN.md — Wave 3 EditStationDialog chip row + + Add sibling + sibling_toast Signal
 - [ ] 71-04-PLAN.md — Wave 2 AddSiblingDialog new file (two-step picker modal)
 - [ ] 71-05-PLAN.md — Wave 3 NowPlayingPanel._refresh_siblings merge-helper swap
