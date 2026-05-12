@@ -177,6 +177,22 @@ class FakeRepo:
         self._deleted_ids: list = getattr(self, "_deleted_ids", [])
         self._deleted_ids.append(station_id)
 
+    # ------------------------------------------------------------------
+    # Phase 71 — sibling-link CRUD (default no-op; EditStationDialog reads
+    # this during _refresh_siblings). Returning [] keeps pre-Phase-71
+    # integration tests on the AA-only path; tests that need manual links
+    # can override per-test via monkeypatch.setattr(type(fake_repo), ...).
+    # ------------------------------------------------------------------
+
+    def list_sibling_links(self, station_id: int) -> list:
+        return []
+
+    def add_sibling_link(self, a_id: int, b_id: int) -> None:
+        pass
+
+    def remove_sibling_link(self, a_id: int, b_id: int) -> None:
+        pass
+
 
 def _make_station(name="Test Station", provider="TestFM") -> Station:
     return Station(
@@ -1005,15 +1021,22 @@ def test_phase_51_sibling_navigation_end_to_end(
     )
 
     # ── MONKEYPATCH EditStationDialog.exec ─────────────────────────────
+    from PySide6.QtWidgets import QPushButton
     exec_calls: list[int] = []
-    captured_sibling_label_text: list[str] = []
+    captured_chip_object_names: list[list[str]] = []
 
     def _fake_exec(self):
         exec_calls.append(self._station.id)
         if len(exec_calls) == 1:
-            # First exec: this is the DI.fm dialog. Capture sibling-label
-            # state and simulate a link click.
-            captured_sibling_label_text.append(self._sibling_label.text())
+            # First exec: this is the DI.fm dialog. Capture chip-row state
+            # (Phase 71: chip row replaces the old Qt.RichText _sibling_label)
+            # and simulate a sibling-name-button click.
+            chip_names = [
+                w.objectName()
+                for w in self._sibling_row_widget.findChildren(QPushButton)
+                if (w.objectName() or "").startswith("sibling_")
+            ]
+            captured_chip_object_names.append(chip_names)
             self._on_sibling_link_activated("sibling://2")
         return QDialog.Accepted
 
@@ -1028,12 +1051,14 @@ def test_phase_51_sibling_navigation_end_to_end(
     # SC #2: clicking the link opened the sibling's edit dialog
     assert exec_calls == [1, 2], f"expected [1, 2], got {exec_calls}"
 
-    # SC #1: 'Also on:' rendered with a sibling://2 link to ZenRadio
-    assert len(captured_sibling_label_text) == 1
-    text = captured_sibling_label_text[0]
-    assert "Also on:" in text, f"sibling label missing 'Also on:': {text!r}"
-    assert 'href="sibling://2"' in text, f"sibling label missing href: {text!r}"
-    assert "ZenRadio" in text, f"sibling label missing ZenRadio: {text!r}"
+    # SC #1: chip row rendered an AA sibling chip for the ZenRadio sibling
+    # (Phase 71 / Plan 71-03 chip-row contract — replaces the Phase 51/64
+    # Qt.RichText "Also on:" label).
+    assert len(captured_chip_object_names) == 1
+    chip_names = captured_chip_object_names[0]
+    assert "sibling_aa_chip_2" in chip_names, (
+        f"chip row missing AA chip for ZenRadio sibling: {chip_names!r}"
+    )
 
     # SC #4: assert no playback occurred during sibling navigation.
     # FakePlayer.play_calls (line 44) records every play() call (line 53).
