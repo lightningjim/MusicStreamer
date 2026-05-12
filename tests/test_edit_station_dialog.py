@@ -1610,3 +1610,134 @@ def test_audio_quality_header_tooltip(qtbot, station, player, repo):
         "Hi-Res ≥ 48 kHz or ≥ 24-bit on a lossless codec."
     )
     assert header_item.toolTip() == expected_tooltip
+
+
+# ---------------------------------------------------------------------------
+# Phase 71 / Plan 71-03: chip row + sibling_toast Signal RED tests
+# ---------------------------------------------------------------------------
+# 6 RED tests for EditStationDialog chip-row behavior. Today these fail because
+# the production widgets do not exist yet (Plan 71-03 implements them).
+# Mappings: D-11, D-14, D-15, Navigation invariant from 71-VALIDATION.md.
+
+from PySide6.QtWidgets import QPushButton, QWidget  # noqa: E402 — append-only section
+
+
+@pytest.fixture()
+def repo_with_siblings(repo):
+    """Extends the existing MagicMock `repo` fixture with sibling-CRUD mocks.
+
+    MagicMock auto-mocks attribute access, but the .return_value defaults to
+    a MagicMock object (not [] / None) — explicit return values make tests
+    deterministic.
+    """
+    repo.list_sibling_links.return_value = []
+    repo.add_sibling_link.return_value = None
+    repo.remove_sibling_link.return_value = None
+    return repo
+
+
+def test_add_sibling_button_present(qtbot, station, player, repo_with_siblings):
+    """D-11: '+ Add sibling' button (objectName "add_sibling_btn") is present
+    in the chip row after dialog construction."""
+    d = EditStationDialog(station, player, repo_with_siblings, parent=None)
+    qtbot.addWidget(d)
+    btn = d.findChild(QPushButton, "add_sibling_btn")
+    assert btn is not None
+
+
+def test_manual_chip_has_x_button(qtbot, aa_repo, aa_station, player):
+    """D-14: manual sibling chip is a compound widget objectName
+    "sibling_chip_<id>" containing TWO QPushButtons (name + "×")."""
+    # Seed a second station (id=42) that is manually linked.
+    partner = _make_aa_station(42, "Manual Partner",
+                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+    aa_repo.list_stations.return_value = [aa_station, partner]
+    aa_repo.list_sibling_links = MagicMock(return_value=[42])
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    chip = d.findChild(QWidget, "sibling_chip_42")
+    assert chip is not None
+    buttons = chip.findChildren(QPushButton)
+    assert len(buttons) >= 2
+    # Second button is the "×" unlink trigger (UI-SPEC line 188).
+    assert any(b.text() == "×" for b in buttons)
+
+
+def test_aa_chip_has_no_x_button(qtbot, aa_repo, aa_station, player):
+    """D-15: AA auto-detected chip is a bare QPushButton with NO "×".
+
+    AA chips have objectName "sibling_aa_chip_<id>" and NO compound
+    "sibling_chip_<id>" wrapper.
+    """
+    zr_sibling = _make_aa_station(
+        2, "Ambient",
+        "http://prem4.zenradio.com/zrambient?listen_key=abc",
+    )
+    aa_repo.list_stations.return_value = [aa_station, zr_sibling]
+    aa_repo.list_sibling_links = MagicMock(return_value=[])  # no manual links
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    # AA chip MUST NOT have the compound sibling_chip_ wrapper.
+    assert d.findChild(QWidget, "sibling_chip_2") is None
+
+
+def test_x_click_calls_remove_sibling_link(qtbot, aa_repo, aa_station, player):
+    """D-14: clicking the × button calls Repo.remove_sibling_link(self.id, sibling_id)."""
+    partner = _make_aa_station(42, "Manual Partner",
+                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+    aa_repo.list_stations.return_value = [aa_station, partner]
+    aa_repo.list_sibling_links = MagicMock(return_value=[42])
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    chip = d.findChild(QWidget, "sibling_chip_42")
+    assert chip is not None
+    # Find the × button — UI-SPEC lines 188-200: name button first, "×" second.
+    unlink_btn = next(b for b in chip.findChildren(QPushButton) if b.text() == "×")
+    unlink_btn.click()
+    assert aa_repo.remove_sibling_link.call_args == call(aa_station.id, 42)
+
+
+def test_x_click_fires_unlinked_toast(qtbot, aa_repo, aa_station, player):
+    """D-14: clicking × emits sibling_toast(str) with text matching '^Unlinked from '."""
+    import re
+    partner = _make_aa_station(42, "Manual Partner",
+                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+    aa_repo.list_stations.return_value = [aa_station, partner]
+    aa_repo.list_sibling_links = MagicMock(return_value=[42])
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    emitted = []
+    d.sibling_toast.connect(emitted.append)
+    chip = d.findChild(QWidget, "sibling_chip_42")
+    unlink_btn = next(b for b in chip.findChildren(QPushButton) if b.text() == "×")
+    unlink_btn.click()
+    assert len(emitted) == 1
+    assert re.match(r"^Unlinked from ", emitted[0])
+
+
+def test_chip_click_emits_navigate_signal(qtbot, aa_repo, aa_station, player):
+    """Navigation invariant: clicking the chip's name button emits
+    navigate_to_sibling(int) with the sibling's station_id."""
+    partner = _make_aa_station(42, "Manual Partner",
+                               "http://prem4.zenradio.com/zrambient?listen_key=abc")
+    aa_repo.list_stations.return_value = [aa_station, partner]
+    aa_repo.list_sibling_links = MagicMock(return_value=[42])
+    aa_repo.add_sibling_link = MagicMock(return_value=None)
+    aa_repo.remove_sibling_link = MagicMock(return_value=None)
+    d = EditStationDialog(aa_station, player, aa_repo, parent=None)
+    qtbot.addWidget(d)
+    emitted = []
+    d.navigate_to_sibling.connect(emitted.append)
+    chip = d.findChild(QWidget, "sibling_chip_42")
+    # The name button is the one whose text is the station name (not "×").
+    name_btn = next(b for b in chip.findChildren(QPushButton) if b.text() != "×")
+    name_btn.click()
+    assert emitted == [42]

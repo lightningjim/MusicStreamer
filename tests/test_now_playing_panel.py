@@ -3176,3 +3176,63 @@ def test_picker_label_no_suffix_for_lossy_stream(qtbot):
     # lossy branch is skipped.
     assert "— HI-RES" not in text
     assert "— LOSSLESS" not in text
+
+
+# ---------------------------------------------------------------------------
+# Phase 71 / Plan 71-05: merged AA + manual siblings RED test (D-01)
+# ---------------------------------------------------------------------------
+
+
+class _FakeRepoWithSiblings(FakeRepo):
+    """Extends FakeRepo with list_sibling_links for Phase 71 merge-display tests.
+
+    Default returns [] for any station_id; tests override `_sibling_links_for`
+    per station to seed manual links.
+    """
+
+    def __init__(self, settings=None, stations=None, sibling_links_for=None):
+        super().__init__(settings=settings, stations=stations)
+        self._sibling_links_for = dict(sibling_links_for or {})
+
+    def list_sibling_links(self, station_id):
+        return list(self._sibling_links_for.get(station_id, []))
+
+
+def test_now_playing_shows_merged_siblings(qtbot):
+    """D-01: NowPlaying renders ONE 'Also on:' line merging AA + manual siblings.
+
+    Bound station 1 (DI.fm "Ambient") has:
+      - AA auto-detected sibling 2 (ZenRadio "Ambient") via find_aa_siblings.
+      - Manual sibling 99 (SomaFM "Manual Drone") via list_sibling_links([99]).
+    After bind_station, _sibling_label is visible and its text contains BOTH.
+    """
+    di = _make_aa_station(
+        1, "Ambient",
+        "http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+        provider="DI.fm",
+    )
+    zr = _make_aa_station(
+        2, "Ambient",
+        "http://prem1.zenradio.com/zrambient?listen_key=abc",
+        provider="ZenRadio",
+    )
+    manual = _make_aa_station(
+        99, "Manual Drone",
+        "http://example.com/somafm/drone",
+        provider="SomaFM",
+    )
+    repo = _FakeRepoWithSiblings(
+        {"volume": "80"},
+        stations=[di, zr, manual],
+        sibling_links_for={1: [99]},  # station 1 manually linked to station 99
+    )
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(di)
+    assert panel._sibling_label.isHidden() is False
+    text = panel._sibling_label.text()
+    # AA partner present (network name shown for matching station names).
+    assert "ZenRadio" in text
+    # Manual partner station name present (cross-provider name-mismatch case
+    # is rendered via the em-dash "Network — Name" branch of render_sibling_html).
+    assert "Manual Drone" in text
