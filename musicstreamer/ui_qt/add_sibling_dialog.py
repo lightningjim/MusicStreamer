@@ -141,7 +141,10 @@ class AddSiblingDialog(QDialog):
         self._station_list = QListWidget(self)
         self._station_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self._station_list.itemSelectionChanged.connect(self._on_selection_changed)
-        self._station_list.itemDoubleClicked.connect(self._on_accept)
+        # WR-07: itemDoubleClicked emits a QListWidgetItem arg; accepted emits
+        # zero args. Wiring both to a single slot with *args was fragile —
+        # split into named slots that delegate to a shared helper.
+        self._station_list.itemDoubleClicked.connect(self._on_item_double_clicked)
         root.addWidget(self._station_list, 1)
 
         # Button box — labels overridden per UI-SPEC line 261 / CONTEXT D-13.
@@ -156,6 +159,7 @@ class AddSiblingDialog(QDialog):
         ok_btn.setEnabled(False)
         ok_btn.setDefault(True)
         ok_btn.setAutoDefault(True)
+        # WR-07: accepted() emits zero args — wire to a zero-arg slot.
         self._button_box.accepted.connect(self._on_accept)
         self._button_box.rejected.connect(self.reject)
         root.addWidget(self._button_box)
@@ -185,13 +189,28 @@ class AddSiblingDialog(QDialog):
         enabled = item is not None and bool(item.flags() & Qt.ItemIsSelectable)
         self._button_box.button(QDialogButtonBox.Ok).setEnabled(enabled)
 
-    def _on_accept(self, *args) -> None:
-        """Persist the link and accept the dialog.
+    def _on_accept(self) -> None:
+        """QDialogButtonBox.accepted slot — zero-arg.
 
-        Accepts variadic *args so this can be wired both to
-        QDialogButtonBox.accepted (no args) and to QListWidget.itemDoubleClicked
-        (one QListWidgetItem arg) without separate adapters.
+        Persist the selected link via Repo.add_sibling_link and close the
+        dialog. WR-07: split out from the variadic *args slot — itemDoubleClicked
+        now routes through _on_item_double_clicked which delegates here.
         """
+        self._accept_selected()
+
+    def _on_item_double_clicked(self, item) -> None:
+        """QListWidget.itemDoubleClicked slot — receives the clicked item.
+
+        The item argument is unused — _accept_selected reads the currentItem
+        which is already set by the click that initiated the double-click.
+        Keeping the parameter (rather than discarding via *_args) documents
+        the signal shape explicitly per WR-07.
+        """
+        del item  # documented but unused; currentItem is the source of truth
+        self._accept_selected()
+
+    def _accept_selected(self) -> None:
+        """Shared helper: validate selection, persist, accept the dialog."""
         item = self._station_list.currentItem()
         if item is None or not bool(item.flags() & Qt.ItemIsSelectable):
             return
@@ -252,15 +271,20 @@ class AddSiblingDialog(QDialog):
         for sid in self._repo.list_sibling_links(self._current_station_id):
             excluded.add(sid)
 
-        # Selected provider name drives the per-provider filter.
-        provider_name = self._provider_combo.currentText()
+        # WR-03: filter by provider_id (currentData), not by display name
+        # (currentText). Today providers.name is UNIQUE so the two would
+        # agree, but keying on the integer id is the robust shape — it
+        # survives a provider rename and is one fewer string comparison per
+        # candidate. currentData() returns None when the combo is empty;
+        # we fall through to empty results in that case.
+        provider_id = self._provider_combo.currentData()
 
-        # Provider candidates: stations matching the selected provider name,
+        # Provider candidates: stations matching the selected provider id,
         # not equal to self. Used for empty-state copy disambiguation.
         provider_candidates = [
             st for st in all_stations
             if st.id != self._current_station_id
-            and (st.provider_name or "") == provider_name
+            and st.provider_id == provider_id
         ]
 
         # Apply exclusion set.
