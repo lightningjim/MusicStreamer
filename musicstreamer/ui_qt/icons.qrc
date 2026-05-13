@@ -13,5 +13,7 @@
     <file alias="edit-clear-all-symbolic.svg">icons/edit-clear-all-symbolic.svg</file>
     <file alias="document-edit-symbolic.svg">icons/document-edit-symbolic.svg</file>
     <file alias="multimedia-equalizer-symbolic.svg">icons/multimedia-equalizer-symbolic.svg</file>
+    <file alias="sidebar-show-symbolic.svg">icons/sidebar-show-symbolic.svg</file>
+    <file alias="sidebar-hide-symbolic.svg">icons/sidebar-hide-symbolic.svg</file>
   </qresource>
 </RCC>
