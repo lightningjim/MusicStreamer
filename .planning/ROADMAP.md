@@ -634,13 +634,18 @@ Plans:
 
 ### Phase 73: MusicBrainz album-cover lookup — complement iTunes with smart routing (fallback/primary when iTunes is off or empty) and respect MB's strict matching, 1 req/sec rate limit, and required User-Agent
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Add MusicBrainz + Cover Art Archive as an additive per-station cover-art source complementing iTunes (3-mode selector: Auto / iTunes-only / MB-only; Auto = iTunes→MB fallback) with a 1-req/sec rate gate, Lucene-escaped recording search, score≥80 acceptance + Official+Album+earliest release selection, and round-trip persistence through settings_export, while preserving the existing iTunes path unchanged for legacy stations.
+**Requirements:** [ART-MB-01, ART-MB-02, ART-MB-03, ART-MB-04, ART-MB-05, ART-MB-06, ART-MB-07, ART-MB-08, ART-MB-09, ART-MB-10, ART-MB-11, ART-MB-12, ART-MB-13, ART-MB-14, ART-MB-15, ART-MB-16]
 **Depends on:** Phase 72
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 73 to break down)
+- [ ] 73-01-PLAN.md — Wave 1 foundation: register ART-MB-01..16 in REQUIREMENTS.md (remove stale OoS row), add Station.cover_art_source field + idempotent SQLite migration, scaffold 6 MB JSON fixtures + Wave 0 RED test files
+- [ ] 73-02-PLAN.md — Wave 2 MB lookup core: cover_art_mb.py module (Lucene escape, 1-req/sec _MbGate via time.monotonic, recording score≥80 filter, release-ladder D-10 step 1+2, CAA-250 fetch, MB-tag-as-genre, latest-wins queue, T-73-01 injection mitigation)
+- [ ] 73-03-PLAN.md — Wave 3 router: cover_art.fetch_cover_art widened with source kwarg (auto/itunes_only/mb_only dispatch + D-07 bare-title gate), Repo.update_station extended with cover_art_source persistence
+- [ ] 73-04-PLAN.md — Wave 4 UI wiring: EditStationDialog QComboBox + dirty-snapshot, settings_export ZIP round-trip with Pitfall-9 forward-compat, NowPlayingPanel._fetch_cover_art_async source pass-through
+- [ ] 73-05-PLAN.md — Wave 5 UAT: 73-UAT-SCRIPT.md covering real-MB-cover, CAA-250 visual quality at 160×160, cross-machine ZIP round-trip; non-autonomous checkpoint captures verdict
+
 
 ### Phase 74: SomaFM full station catalog + art — pull all SomaFM streams and station art (parity with GBS.FM and AudioAddict); decide poll-to-install vs in-memory catalog (new stations are rare)
 
