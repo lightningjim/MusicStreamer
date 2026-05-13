@@ -1,6 +1,6 @@
 ---
 slug: phase-72-hover-peek-wayland
-status: fix_applied
+status: resolved
 trigger: phase 72 hover-peek fails on live wayland — sit 10 seconds, nothing happens
 created: 2026-05-13
 updated: 2026-05-13
