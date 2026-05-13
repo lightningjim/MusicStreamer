@@ -1057,6 +1057,21 @@ class MainWindow(QMainWindow):
         """
         if event.type() != QEvent.MouseMove:
             return super().eventFilter(obj, event)
+        # WR-01: skip dwell when a modal dialog is up. The Ctrl+B QShortcut
+        # is scoped Qt.WidgetWithChildrenShortcut so a modal eats it
+        # (RESEARCH A3 + test_modal_dialog_blocks_ctrl_b), but the global
+        # mouse-move filter has no equivalent gate. Without this, a cursor
+        # bump near the left edge while a dialog is open would open the
+        # peek behind the modal — invisible and undismissible until the
+        # cursor re-enters the overlay rect (D-14 dismiss-via-mouse-leave
+        # only fires from inside the overlay).
+        if QApplication.activeModalWidget() is not None:
+            if (
+                self._peek_dwell_timer is not None
+                and self._peek_dwell_timer.isActive()
+            ):
+                self._peek_dwell_timer.stop()
+            return super().eventFilter(obj, event)
         if not self.station_panel.isHidden():
             return super().eventFilter(obj, event)
 
