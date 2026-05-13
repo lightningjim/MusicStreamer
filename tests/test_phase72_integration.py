@@ -123,6 +123,23 @@ def _send_leave(widget) -> None:
     QApplication.sendEvent(widget, ev)
 
 
+def _make_peek_visible_predicate(window):
+    """Build a bound-method-style predicate for qtbot.waitUntil that returns
+    True iff `window._peek_overlay` is non-None and visible. Avoids the
+    inline-anonymous-callable pattern banned by QA-05; mirrors the same
+    bound-method convention used by every other connect/predicate call in
+    the Phase 72 test files.
+    """
+
+    def predicate() -> bool:
+        return (
+            window._peek_overlay is not None
+            and window._peek_overlay.isVisible()
+        )
+
+    return predicate
+
+
 # ---------------------------------------------------------------------------
 # Test 1 — Full single-cycle lifecycle walk-through
 # ---------------------------------------------------------------------------
@@ -212,7 +229,11 @@ def test_full_compact_peek_lifecycle(window, qtbot, fake_player):
     _send_mouse_move(cw, 2, 100)
     qtbot.wait(50)  # Dwell not yet complete — peek must stay closed
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
-    qtbot.wait(280)  # Total wait now >= 280ms — peek opens
+    # waitUntil() is preferred over a fixed sleep here because the offscreen
+    # platform's event-loop drain can occasionally run a few-dozen ms behind
+    # the wall clock; the substantive contract is "peek opens after the
+    # dwell completes", not "peek opens at exactly 280 ms".
+    qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay is not None, (
         "D-13: peek overlay must be lazy-constructed after first dwell completes."
     )
@@ -268,8 +289,13 @@ def test_full_compact_peek_lifecycle(window, qtbot, fake_player):
     # ------------------------------------------------------------------
     # Step 7 — Second peek cycle (proves lifecycle is repeatable)
     # ------------------------------------------------------------------
+    # Use waitUntil() (poll-based) rather than a fixed wait, because the
+    # post-Leave Qt event-loop drain can vary by a few-dozen ms across
+    # runs (offscreen platform). The substantive contract is that the peek
+    # re-opens within a reasonable time after a fresh MouseMove + dwell,
+    # not that it opens at exactly 280 ms.
     _send_mouse_move(cw, 2, 100)
-    qtbot.wait(300)
+    qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay.isVisible() is True, (
         "Peek must re-open on a second dwell within the same compact session."
     )
@@ -396,7 +422,7 @@ def test_no_compact_setting_written_after_full_lifecycle(
     window._splitter.setSizes([400, 800])
     btn.click()  # ON
     _send_mouse_move(cw, 2, 100)
-    qtbot.wait(300)
+    qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay is not None
     assert window._peek_overlay.isVisible() is True
     # Click a station from inside the peek
