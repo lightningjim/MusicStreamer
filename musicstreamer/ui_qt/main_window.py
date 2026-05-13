@@ -932,7 +932,12 @@ class MainWindow(QMainWindow):
                 )
             self.station_panel.show()
             self._splitter.handle(1).show()
-            if self._splitter_sizes_before_compact:
+            # WR-03: explicit `is not None` rather than truthiness. The
+            # annotation is `list[int] | None`; `[]` (zero-children edge)
+            # would silently skip restore under truthiness, asymmetric with
+            # the snapshot side which writes sizes() unconditionally. Future
+            # refactors that reset the snapshot to [] would lose state.
+            if self._splitter_sizes_before_compact is not None:
                 self._splitter.setSizes(self._splitter_sizes_before_compact)
                 self._splitter_sizes_before_compact = None
             self._remove_peek_hover_filter()
