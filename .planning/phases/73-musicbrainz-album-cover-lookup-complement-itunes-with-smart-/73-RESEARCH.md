@@ -566,32 +566,32 @@ def test_mb_gate_serializes_with_1s_floor(monkeypatch):
 | A5 | `pyproject.toml` `version="2.1.72"` is the correct source for `importlib.metadata.version('musicstreamer')` after pip install | Stack / Versioning | True for installed packages; planner should verify behavior in PyInstaller bundle (Windows packaging). Low risk on Linux dev / Wayland deployment per current scope. |
 | A6 | The planner choice between QComboBox vs three radio buttons matches edit_station_dialog's idiom — QComboBox feels right since the dialog already uses `provider_combo` (QComboBox) and similar | Recommended Project Structure / Discretion | Cosmetic only. Low risk. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should D-10 step 3 (CAA-art existence probe) ship at all, or is steps 1+2 sufficient?**
    - What we know: Live probes show "any Official release" usually has CAA art (recording rec[0] for One More Time → CAA 307 OK). Pure-fallback step 3 adds one extra HTTP call per miss and only helps for recordings where ONLY a bootleg/promo release has art.
    - What's unclear: Real-world frequency of "no Official release exists but Bootleg has CAA art".
-   - Recommendation: Ship step 1+2 first; document step 3 as a future enhancement. If users report misses where step 3 would have helped, add it. Saves implementation complexity now.
+   - RESOLVED: Deferred to a future phase per user decision 2026-05-13. D-10 step 3 (CAA art existence probe on any release) is moved to CONTEXT.md Deferred Ideas. Plan 02 implements D-10 steps 1+2 only.
 
 2. **Does the MB User-Agent require an `email` over a `github URL`?**
    - What we know: MB docs say `( contact-url )` OR `( contact-email )` are both acceptable. CONTEXT D-18 locks the GitHub URL form: `MusicStreamer/<version> (https://github.com/lightningjim/MusicStreamer)`.
    - What's unclear: Nothing — the format is locked.
-   - Recommendation: Use the GitHub URL form verbatim. Privacy-preserving (memory `project_publishing_history.md`). No need to revisit.
+   - RESOLVED: Use the GitHub URL form verbatim. Privacy-preserving (memory `project_publishing_history.md`). No need to revisit.
 
 3. **Should the Qt-thread payload widen from `Signal(str)` to `Signal(dict)` to carry source + genre?**
    - What we know: `last_itunes_result` is already the genre channel; widening the Signal isn't strictly necessary. But `last_itunes_result` is a MODULE-LEVEL singleton — racy if two stations switch rapidly.
    - What's unclear: Whether the race is observable in practice (existing iTunes path also writes module-level; no race reported).
-   - Recommendation: Keep `Signal(str)` for Phase 73 (matches existing pattern, no race regression). If favorites-star takes the wrong genre under fast switching, fix in a follow-up. Document the staleness invariant in the worker docstring.
+   - RESOLVED: Keep `Signal(str)` for Phase 73 (matches existing pattern, no race regression). If favorites-star takes the wrong genre under fast switching, fix in a follow-up. Document the staleness invariant in the worker docstring.
 
 4. **What `limit` value for MB search?**
    - What we know: D-08 says "limit=5" as default, planner's discretion. Live probe showed top-5 may not include canonical Album (Hey Jude case — canonical is rec[15] of 25).
    - What's unclear: Acceptable miss rate at limit=5 vs limit=25. Larger N = more payload but better selection.
-   - Recommendation: Start at `limit=10`. Larger than 5 to catch the canonical-release case more often; smaller than 25 to keep payload manageable. Reassess if user reports persistent misses on canonical-album lookups.
+   - RESOLVED: Start at `limit=10`. Larger than 5 to catch the canonical-release case more often; smaller than 25 to keep payload manageable. Reassess if user reports persistent misses on canonical-album lookups.
 
 5. **Does Phase 73 need a dedicated mock-HTTP fixture set, or are JSON-string fixtures sufficient?**
    - What we know: TESTING.md doesn't currently use a mock HTTP server. The existing `test_cover_art.py` uses inline JSON dicts.
    - What's unclear: Whether monkey-patching `urlopen` is sufficient for the end-to-end "iTunes miss → MB hit shows correct image" test.
-   - Recommendation: Inline JSON fixtures + `urlopen` monkeypatch. Matches existing convention. No new test infrastructure.
+   - RESOLVED: Inline JSON fixtures + `urlopen` monkeypatch. Matches existing convention. No new test infrastructure.
 
 ## Environment Availability
 

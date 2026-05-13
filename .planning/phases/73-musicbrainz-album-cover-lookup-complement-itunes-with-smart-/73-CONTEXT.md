@@ -48,7 +48,8 @@ The phase touches:
 - **D-10: Release selection.** From the accepted recording's `releases[]`:
   1. Prefer `status == "Official"` AND `release-group.primary-type == "Album"`, earliest `date` first.
   2. Fall back to any `status == "Official"` release.
-  3. Fall back to any release that has cover art on CAA (`HEAD https://coverartarchive.org/release/<mbid>/front` → 200).
+
+  (Step 3 — any release with CAA art on HEAD probe — deferred per user decision 2026-05-13; see Deferred Ideas.)
 - **D-11: Cover Art Archive endpoint.** Once a release MBID is chosen, fetch `https://coverartarchive.org/release/<mbid>/front`. Image-size variant is planner's discretion (250 / 500 / 1200) — current cover slot is 160×160 in `now_playing_panel.py` so 250 or 500 is sufficient; bias toward the smallest variant that still scales cleanly.
 
 ### Caching & rate-limit behavior
@@ -161,6 +162,7 @@ Per the memory `feedback_gstreamer_mock_blind_spot.md`: pipeline mocks can pass 
 <deferred>
 ## Deferred Ideas
 
+- **D-10 step 3 (CAA art existence probe on any release)** — deferred 2026-05-13. RESEARCH OQ-1 rationale: D-10 steps 1+2 cover the common case; releases without CAA art fall through to station-logo placeholder cleanly. Re-open if real-world usage shows frequent "official-album-has-no-CAA-art" cases.
 - **Cover-art caching** (in-memory dict + persistent SQLite + on-disk image cache, negative caching for misses, TTL'd hits). Strong UX win on rapid channel-surfing and repeat tracks across sessions, but explicit out-of-scope for Phase 73 to keep the surface tight. Re-open as a future phase if Kyle hits the 1-req/sec gate visibly.
 - **Global cover-art-source toggle in hamburger menu.** Per-station is the chosen scope. A global "set all stations to MB-only" power-user knob could ship later, alongside a bulk-edit dialog.
 - **Editing favorites' genre after-the-fact** (e.g. when a track is re-encountered and the new source provides a different genre). Phase 73 writes genre to favorites at star-time and leaves it; not retroactively updated.
