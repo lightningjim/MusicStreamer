@@ -71,6 +71,12 @@ _FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
 # room without bloating the QListWidget item count. Mitigates T-60-10-03.
 _GBS_QUEUE_MAX_ROWS = 10
 
+# Phase 68 / B-01 (surfaced by Phase 72 IN-05): adaptive AA poll cadences.
+# Lifted from inline literals in _reschedule_aa_poll so future tuning lives
+# at module scope alongside _GBS_QUEUE_MAX_ROWS and main_window.py:_PEEK_*.
+_AA_POLL_INTERVAL_FAST_MS = 60_000   # 60s when actively playing a DI.fm station
+_AA_POLL_INTERVAL_SLOW_MS = 300_000  # 5min otherwise
+
 _log = logging.getLogger(__name__)
 
 
@@ -1788,7 +1794,10 @@ class NowPlayingPanel(QWidget):
             )
         except Exception:
             is_playing_di = False
-        interval_ms = 60_000 if is_playing_di else 300_000
+        interval_ms = (
+            _AA_POLL_INTERVAL_FAST_MS if is_playing_di
+            else _AA_POLL_INTERVAL_SLOW_MS
+        )
         self._aa_poll_timer.start(interval_ms)
 
     # ----------------------------------------------------------------------
