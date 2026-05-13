@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: completed
 stopped_at: Phase 72 UI-SPEC approved
-last_updated: "2026-05-13T16:20:43.271Z"
-last_activity: 2026-05-13 -- Phase 72 planning complete
+last_updated: "2026-05-13T19:45:28.951Z"
+last_activity: 2026-05-13 -- Phase 72 marked complete
 progress:
   total_phases: 31
-  completed_phases: 26
+  completed_phases: 27
   total_plans: 123
-  completed_plans: 118
-  percent: 96
+  completed_plans: 123
+  percent: 87
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 71 — sister-station-expansion-1-add-ability-to-link-sister-statio
+**Current focus:** Phase 72 — fullscreen-mode-hide-left-column-for-compact-displays
 
 ## Current Position
 
-Phase: 72
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-13 -- Phase 72 planning complete
+Phase: 72 — COMPLETE
+Plan: 1 of 5
+Status: Phase 72 complete
+Last activity: 2026-05-13 -- Phase 72 marked complete
 
 ## Performance Metrics
 

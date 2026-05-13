@@ -620,17 +620,17 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 72-01-PLAN.md — Wave 0 spike tests (A1 splitter handle auto-hide; A2 station_panel reparent safety)
-- [ ] 72-02-PLAN.md — Wave 1 NowPlayingPanel compact-toggle button + signal + two sidebar SVG icons + icons.qrc/icons_rc.py regen
+- [x] 72-01-PLAN.md — Wave 0 spike tests (A1 splitter handle auto-hide; A2 station_panel reparent safety)
+- [x] 72-02-PLAN.md — Wave 1 NowPlayingPanel compact-toggle button + signal + two sidebar SVG icons + icons.qrc/icons_rc.py regen
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 72-03-PLAN.md — Wave 2 MainWindow Ctrl+B QShortcut (first in codebase) + central _on_compact_toggle slot + splitter snapshot/restore + session-only invariant
+- [x] 72-03-PLAN.md — Wave 2 MainWindow Ctrl+B QShortcut (first in codebase) + central _on_compact_toggle slot + splitter snapshot/restore + session-only invariant
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 72-04-PLAN.md — Wave 3 StationListPeekOverlay class + MouseMove event filter + dwell timer + mouse-leave dismiss + ToastOverlay z-order
+- [x] 72-04-PLAN.md — Wave 3 StationListPeekOverlay class + MouseMove event filter + dwell timer + mouse-leave dismiss + ToastOverlay z-order
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 72-05-PLAN.md — Wave 4 end-to-end integration test + Manual UAT script + user sign-off checkpoint
+- [x] 72-05-PLAN.md — Wave 4 end-to-end integration test + Manual UAT script + user sign-off checkpoint
 
 ### Phase 73: MusicBrainz album-cover lookup — complement iTunes with smart routing (fallback/primary when iTunes is off or empty) and respect MB's strict matching, 1 req/sec rate limit, and required User-Agent
 
