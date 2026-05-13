@@ -30,7 +30,7 @@ from importlib.metadata import version as _pkg_version
 # Phase 36 research Pitfall 2 and D-24.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import QEvent, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QCursor, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -53,6 +53,26 @@ from musicstreamer.media_keys.base import NoOpMediaKeysBackend
 from musicstreamer.models import Station
 
 _log = logging.getLogger(__name__)
+
+# ----------------------------------------------------------------------------
+# Phase 72 / LAYOUT-01 / D-13 — Hover-to-peek tuning constants
+# ----------------------------------------------------------------------------
+# Trigger zone width (px): the cursor must be within the LEFT N pixels of the
+# centralWidget to arm the dwell timer. 4 is the narrowest end of the
+# CONTEXT D-13 4-6px band, chosen to fully eliminate accidental-trigger drift
+# during cursor crossings.
+_PEEK_TRIGGER_ZONE_PX = 4
+# Dwell timer length (ms): how long the cursor must remain inside the trigger
+# zone before the overlay opens. 280ms sits mid-band of CONTEXT D-13's
+# 250-300ms band and matches Qt's stock tooltip cadence.
+_PEEK_DWELL_MS = 280
+# Fallback peek-overlay width (px): used when no pre-compact splitter
+# snapshot is available (e.g., the user toggles compact before ever resizing).
+# Matches the splitter design-default left width at main_window.py:285
+# (`self._splitter.setSizes([360, 840])`).
+_PEEK_FALLBACK_WIDTH_PX = 360
+
+
 from musicstreamer.ui_qt.accent_color_dialog import AccentColorDialog
 from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
 from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
@@ -60,6 +80,7 @@ from musicstreamer.ui_qt.discovery_dialog import DiscoveryDialog
 from musicstreamer.ui_qt.import_dialog import ImportDialog
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
+from musicstreamer.ui_qt.station_list_peek_overlay import StationListPeekOverlay
 from musicstreamer.ui_qt.toast import ToastOverlay
 from musicstreamer.accent_utils import apply_accent_palette, _is_valid_hex
 
@@ -856,7 +877,19 @@ class MainWindow(QMainWindow):
             self._splitter.handle(1).hide()
             self._install_peek_hover_filter()
         else:
-            # TODO Plan 04: insert peek-release guard here
+            # Peek-release guard (Plan 04): if the peek overlay is visible
+            # when the user exits compact, reparent station_panel back to
+            # the splitter at index 0 (Pitfall 6) BEFORE the panel.show() +
+            # splitter resize sequence below. Otherwise station_panel would
+            # remain a child of the overlay and the splitter would have an
+            # orphan index-0 slot, breaking the size restore.
+            if (
+                self._peek_overlay is not None
+                and self._peek_overlay.isVisible()
+            ):
+                self._peek_overlay.release(
+                    self._splitter, self.station_panel, None
+                )
             self.station_panel.show()
             self._splitter.handle(1).show()
             if self._splitter_sizes_before_compact:
@@ -876,31 +909,142 @@ class MainWindow(QMainWindow):
         self.now_playing.compact_mode_toggle_btn.toggle()
 
     # ------------------------------------------------------------------
-    # Plan 04 hand-off stubs — bodies are intentionally empty in Plan 03.
-    # Plan 04 will overwrite each with the hover-peek implementation.
-    # The toggle slot calls these so Plan 04 only fills the bodies — the
-    # wiring at the call sites is already in place.
+    # Phase 72 / LAYOUT-01 / D-11..D-15 — Hover-to-peek lifecycle.
+    # Filled in by Plan 04. The Plan 03 toggle slot already calls these
+    # at the entry/exit points (compact-ON / compact-OFF branches), so
+    # the bodies below own the actual hover-filter wiring + overlay
+    # construction + reparent-back.
     # ------------------------------------------------------------------
 
     def _install_peek_hover_filter(self) -> None:
-        # Plan 04 fills body — install mouse-move event filter for
-        # left-edge hover detection (D-13 narrow band + brief dwell).
-        pass
+        """Pitfall 2: mouse tracking MUST be enabled on BOTH MainWindow and
+        centralWidget so QEvent.MouseMove events fire without a mouse button
+        held down. The event filter is installed on centralWidget so the
+        eventFilter override can detect cursor positions in centralWidget's
+        local coordinate system.
+
+        Called from `_on_compact_toggle` when entering compact mode. The
+        dwell timer is lazy-constructed inside `eventFilter` on the first
+        in-zone MouseMove (no work here so the cost is zero if the user
+        never hovers near the left edge).
+        """
+        self.setMouseTracking(True)
+        self.centralWidget().setMouseTracking(True)
+        self.centralWidget().installEventFilter(self)
 
     def _remove_peek_hover_filter(self) -> None:
-        # Plan 04 fills body — uninstall the hover filter and cancel any
-        # pending dwell timer.
-        pass
+        """Pitfall 7: leaving compact mode MUST remove the event filter AND
+        clear the dwell timer reference. Without the filter removal, the
+        next mouse-move on centralWidget would still fire the eventFilter
+        path. Without the timer reset, a stale timer instance could fire
+        after the user has exited compact mode.
+
+        Setting `self._peek_dwell_timer = None` (rather than just stop())
+        forces the next compact-ON cycle to lazy-reconstruct the timer.
+        """
+        self.centralWidget().removeEventFilter(self)
+        if self._peek_dwell_timer is not None:
+            if self._peek_dwell_timer.isActive():
+                self._peek_dwell_timer.stop()
+            self._peek_dwell_timer = None
 
     def _open_peek_overlay(self) -> None:
-        # Plan 04 fills body — lazy-construct StationListPeekOverlay and
-        # show it anchored to the centralWidget's left edge.
-        pass
+        """Lazy-construct `StationListPeekOverlay` and adopt `station_panel`.
+
+        Parent strategy (deviation from plan body — Rule 1 fix discovered
+        during execution; documented in 72-04-SUMMARY): the overlay is
+        parented to `MainWindow` (self), NOT `centralWidget()`. The plan
+        body prescribed `centralWidget()` to avoid raising peek above
+        ToastOverlay, but `centralWidget()` is the QSplitter; parenting a
+        QFrame to a QSplitter causes the splitter to auto-manage it as a
+        third child (sibling to station_panel + now_playing), repositioning
+        the overlay into the right pane's area. Mirroring the established
+        ToastOverlay parent strategy (main_window.py:328, `ToastOverlay(self)`)
+        + skipping `.raise_()` inside `adopt` preserves the z-order intent
+        (toasts always raise above peek) without breaking the layout.
+
+        Width is the captured pre-compact splitter[0] when available,
+        otherwise the design-default fallback (360px per UI-SPEC §Spacing).
+
+        D-12 preservation: when `station_panel` is reparented out of the
+        splitter, Qt creates a placeholder slot at the old index that
+        claims a few pixels of width (~25-30px in offscreen), narrowing
+        `now_playing`. Capture the splitter sizes before adopt and restore
+        them after, so `now_playing` keeps its full compact-mode width and
+        the overlay genuinely "floats over" without forcing a layout shift.
+        """
+        if self._peek_overlay is None:
+            # Rule 1 fix: parent = MainWindow, NOT centralWidget. See docstring.
+            self._peek_overlay = StationListPeekOverlay(self)
+        if self._splitter_sizes_before_compact:
+            width = self._splitter_sizes_before_compact[0]
+        else:
+            width = _PEEK_FALLBACK_WIDTH_PX
+        # Snapshot the now-compact splitter sizes (`[0, total]` after
+        # station_panel.hide()) so we can restore them after the reparent.
+        sizes_during_compact = self._splitter.sizes()
+        # Anchor the overlay to centralWidget's geometry — keeps the peek
+        # BELOW the menu bar at the LEFT edge of the content area.
+        self._peek_overlay.adopt(
+            self.station_panel,
+            width,
+            anchor_rect=self.centralWidget().geometry(),
+        )
+        # Restore — counteracts Qt's placeholder-slot reflow on reparent-out.
+        self._splitter.setSizes(sizes_during_compact)
 
     def _close_peek_overlay(self) -> None:
-        # Plan 04 fills body — hide the overlay (called from the
-        # overlay's own mouse-leave eventFilter).
-        pass
+        """Called from the overlay's own mouse-leave eventFilter. Reparents
+        `station_panel` back to `_splitter` at index 0 (Pitfall 6 —
+        `insertWidget(0, ...)` NOT `addWidget`) and hides the overlay. The
+        panel stays hidden because compact mode is still active; only the
+        toggle-OFF path in `_on_compact_toggle` makes it visible again.
+        """
+        if self._peek_overlay is not None and self._peek_overlay.isVisible():
+            self._peek_overlay.release(
+                self._splitter, self.station_panel, None
+            )
+
+    def eventFilter(self, obj, event):
+        """Phase 72 / D-13 — hover-peek dwell trigger.
+
+        Watches MouseMove on centralWidget for cursor positions within the
+        LEFT `_PEEK_TRIGGER_ZONE_PX` pixels. If the cursor lands in-zone and
+        no peek is currently visible, the dwell timer is (lazy-constructed
+        and) started; if the cursor leaves the zone, any pending dwell is
+        cancelled.
+
+        Returns False to propagate the event — the filter does NOT consume
+        mouse moves (T-72-05 mitigation), so stock Qt mouse handling for
+        the underlying widgets is preserved.
+
+        Pitfall 9: QMouseEvent.position() returns a QPointF in Qt 6 — call
+        `.toPoint()` for integer pixel coordinates.
+        """
+        if event.type() == QEvent.MouseMove and obj is self.centralWidget():
+            pos = event.position().toPoint()
+            in_zone = pos.x() <= _PEEK_TRIGGER_ZONE_PX
+            no_visible_peek = (
+                self._peek_overlay is None
+                or not self._peek_overlay.isVisible()
+            )
+            if in_zone and no_visible_peek:
+                if self._peek_dwell_timer is None:
+                    self._peek_dwell_timer = QTimer(self)
+                    self._peek_dwell_timer.setSingleShot(True)
+                    # QA-05 bound method — NO lambda.
+                    self._peek_dwell_timer.timeout.connect(
+                        self._open_peek_overlay
+                    )
+                if not self._peek_dwell_timer.isActive():
+                    self._peek_dwell_timer.start(_PEEK_DWELL_MS)
+            else:
+                if (
+                    self._peek_dwell_timer is not None
+                    and self._peek_dwell_timer.isActive()
+                ):
+                    self._peek_dwell_timer.stop()
+        return super().eventFilter(obj, event)
 
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
         """Called when a station star is toggled in StationListPanel."""
