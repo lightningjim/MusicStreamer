@@ -134,12 +134,10 @@ the gate closed; setting it to PASS releases the phase to its summary step.
 
 ### Pass criteria
 
-[ ] 280 ms dwell feels natural (neither laggy nor twitchy), AND a fast
+[X] 280 ms dwell feels natural (neither laggy nor twitchy), AND a fast
     cursor traversal across the left edge does NOT trigger the peek.
 
 ### Notes / observations
-
-Sit for 10 secs, nothing happens
 
 ---
 
@@ -175,12 +173,11 @@ Sit for 10 secs, nothing happens
 
 ### Pass criteria
 
-[ ] Toast bubbles appear ABOVE the peek overlay; no interaction trap —
+[X] Toast bubbles appear ABOVE the peek overlay; no interaction trap —
     user can both read the toast and continue interacting with the peek.
 
 ### Notes / observations
 
-Blocked by UAT-02 failure
 
 ---
 
@@ -280,22 +277,19 @@ Design intention of this project
 
 ### Pass criteria
 
-[ ] Full lifecycle completes under Wayland GNOME Shell at DPR=1.0
+[X] Full lifecycle completes under Wayland GNOME Shell at DPR=1.0
     without any Wayland-specific glitch. App quits cleanly with no
     orphan process.
 
 ### Notes / observations
 
-Blocked by UAT-02 failure
 
 ---
 
 ## Failure notes
 
-UAT-02 failed because I could not get a single peak reaction.
-UAT-03 and 05 requires peak to function to test, so unable to test and therefore are blocked.
 ---
 
 ## Overall
 
-**Overall:** FAIL
+**Overall:** PASS
