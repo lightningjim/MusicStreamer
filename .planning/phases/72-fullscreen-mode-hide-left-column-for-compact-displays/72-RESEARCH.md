@@ -729,32 +729,37 @@ def test_compact_button_checked_matches_station_panel_hidden(qtbot, fake_player,
 | A5 | Existing `ToastOverlay` parented to MainWindow (not centralWidget) renders ABOVE a peek overlay parented to centralWidget | Pitfall 8 | MEDIUM — z-order in Qt depends on widget tree hierarchy; this is the expected ordering but should be locked by an integration test ("toast during peek shows above peek"). |
 | A6 | `setMouseTracking(True)` must be called on every widget along the cursor path for the top-level event filter to see all `MouseMove` events | Pattern 3 | LOW — Qt docs and pythonguis.com confirm that mouse tracking propagates if set on the window AND the widgets that should report bare moves. Belt-and-braces: set on MainWindow + centralWidget. [CITED: pythonguis.com/tutorials/pyside6-signals-slots-events] |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Icon decision: built-in `QStyle.SP_TitleBarShadeButton/SP_TitleBarUnshadeButton` vs custom SVG glyphs in icons/**
    - What we know: project icon family is `*-symbolic.svg` (SomaFM/AA monochrome aesthetic, e.g., `non-starred-symbolic.svg`, `media-playback-start-symbolic.svg`). Existing buttons all use `QIcon.fromTheme(name, QIcon(":/icons/{name}.svg"))` pattern.
    - What's unclear: whether the user prefers visual consistency (custom SVG) or low-effort Qt built-in. The CONTEXT marks this as Claude's discretion.
    - Recommendation: hand-author two `sidebar-show-symbolic.svg` / `sidebar-hide-symbolic.svg` SVGs in the same monochrome family. Falls back to QStyle built-ins via `QIcon.fromTheme` if a system theme provides them. Total marginal effort: ~30min of SVG editing.
+   - **RESOLVED:** Custom SVG path chosen — Plan 72-02 `planner_decisions` locks `sidebar-show-symbolic.svg` and `sidebar-hide-symbolic.svg` at 16x16 viewBox with `fill="currentColor"` to match the existing 12-icon family (rendered at 20x20 via QIcon.fromTheme fallback chain).
 
 2. **Peek overlay width: snapshot size, fixed 360px, or panel's `sizeHint()`?**
    - What we know: the in-memory snapshot stores the LIVE splitter size at compact-entry. The default at fresh launch is `[360, 840]`.
    - What's unclear: whether to use the snapshot (respects the user's last splitter drag) or a fixed 360px (predictable across sessions).
    - Recommendation: use the in-memory snapshot value if available, else 360px. Matches "restore previous live sizes" decision (D-10) for the docked case.
+   - **RESOLVED:** Snapshot-or-360px-fallback committed — UI-SPEC §Spacing locks `width = _splitter_sizes_before_compact[0] if available else 360`; Plan 72-04 implements this in `_open_peek_overlay` and tests both branches (`test_peek_overlay_width_matches_snapshot` + `test_peek_overlay_width_fallback_to_360_when_no_resize`).
 
 3. **Does PySide6 6.10 (conda-forge) and 6.11 (pip) behave identically for QSplitter hide?**
    - What we know: stack pins `PySide6>=6.10`. CI / dev box runs offscreen platform; production runs Wayland.
    - What's unclear: any known regression in 6.10 vs 6.11 that affects splitter hide / handle visibility.
    - Recommendation: integration test covers both code paths; Wayland UAT confirms visual behavior on the user's actual box. Cross-version risk is LOW given the API stability of QSplitter since Qt 4.
+   - **RESOLVED:** HIGH confidence on Standard Stack per §Metadata — QSplitter API stable since Qt 4; Wave 0 spike test 72-01 (A1 handle auto-hide) pins behavior on the actual installed PySide6 version. Any future regression will fail that spike test first.
 
 4. **Z-order interaction: peek overlay vs `_act_node_missing` warning indicator vs `_quality_badge`?**
    - What we know: ToastOverlay z-order has been thought through. Other always-visible chrome (status bar, menu bar) lives at MainWindow level, not centralWidget level — should NOT be obscured by peek.
    - What's unclear: peek overlay anchors to the LEFT edge of the now-playing pane area; it should not extend over the menu bar (which is at the QMainWindow level, above centralWidget). Confirmed by geometry — centralWidget is below menu bar in QMainWindow's frame.
    - Recommendation: parent overlay to `centralWidget()`, use `setGeometry(0, 0, width, centralWidget.height())` — naturally stays within the splitter area, doesn't escape into the menu bar.
+   - **RESOLVED:** UI-SPEC §Visuals locks the 4-layer Z-order contract: ToastOverlay (parent=MainWindow) > peek (parent=centralWidget) > now-playing > station_panel. `_act_node_missing` and `_quality_badge` live inside the now-playing pane, so peek covers them in compact mode by design.
 
 5. **Should "compact mode entered" be announced via toast?**
    - What we know: CONTEXT.md does not specify. No toast on Ctrl+B activation is the silent assumption.
    - What's unclear: whether the user expects a "Stations hidden — Ctrl+B to show" hint the first time.
    - Recommendation: NO toast. The icon flip + immediate visual change (panel disappears) is feedback enough; toast would clutter the use case (rapid in/out as device moves between screens). User can always be added later if discoverability is a problem (already a deferred idea in CONTEXT).
+   - **RESOLVED:** UI-SPEC §Out-of-Scope locks "no new toast notifications when toggling — clutters rapid-toggle use case." Discoverability hint remains a deferred idea in CONTEXT.md.
 
 ## Environment Availability
 
