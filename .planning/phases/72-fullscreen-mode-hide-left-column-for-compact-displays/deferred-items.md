@@ -42,3 +42,23 @@ package (Debian/Ubuntu packaging), not from MusicStreamer. The Task 2 acceptance
 criterion's intent ("no NEW warnings from Wave 0") is satisfied. Wave 0 adds zero
 new warnings. Fix path (if ever desired): pin a newer PyGI inside `.venv` or move
 the bus-bridge import behind a try/except that suppresses the deprecation.
+
+## Pre-existing Qt teardown crash crossing test_phase72_now_playing_panel → test_phase72_assumptions (Plan 72-03)
+
+Found during Plan 72-03 verification when running multiple test files together.
+
+**Symptom:** Running `pytest tests/test_main_window_integration.py tests/test_phase72_now_playing_panel.py tests/test_phase72_assumptions.py` (or any ordering that puts the assumptions file LAST after now_playing_panel) aborts with `Fatal Python error: Aborted` inside Qt's teardown path between the last test in `test_phase72_now_playing_panel.py` and the first test in `test_phase72_assumptions.py`.
+
+**Reproduction:** Confirmed pre-existing — reproduces on the bare worktree branch HEAD with Plan 72-03's `main_window.py` impl reverted. The crash is in the C teardown stack (`_ZN7QWidgetD1Ev` / `_ZN14QObjectPrivate14deleteChildrenEv`), suggesting a Qt singleton or QApplication-lifecycle issue between the two test modules' fixtures, NOT a regression from Plan 03.
+
+**Disposition:** Out of scope for Plan 72-03. Each of the four files passes individually:
+- `pytest tests/test_main_window_integration.py` → 66 passed
+- `pytest tests/test_phase72_compact_toggle.py` → 12 passed
+- `pytest tests/test_phase72_now_playing_panel.py` → 8 passed (in isolation)
+- `pytest tests/test_phase72_assumptions.py` → 2 passed (in isolation)
+
+The plan's verification command (`pytest tests/test_phase72_compact_toggle.py tests/test_main_window_integration.py -x -v`) — the specific ordering the plan body specifies — runs cleanly: 78 passed.
+
+Reordering to `pytest tests/test_phase72_assumptions.py tests/test_phase72_now_playing_panel.py tests/test_phase72_compact_toggle.py tests/test_main_window_integration.py` also runs cleanly: 88 passed. So the crash is reproducible only in the specific ordering `…now_playing_panel.py → …assumptions.py`.
+
+Fix path (out of scope for Plan 72-03): investigate whether `test_phase72_now_playing_panel.py` is leaving a dangling QObject parented to QApplication that the next test's qtbot teardown stumbles on (likely the cover-art worker thread issue Plan 72-02 already documented under "Pre-existing test-teardown warning"). Would belong to a test-infrastructure cleanup phase, not a feature phase.
