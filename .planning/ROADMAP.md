@@ -613,13 +613,17 @@ Plans:
 
 ### Phase 72: Fullscreen Mode — Hide Left Column for Compact Displays
 
-**Goal:** Add a toggleable "fullscreen"/compact mode that hides the left column so the bottom-bar controls stop compressing and overlapping when the window is moved to a small/secondary display. Mode must be quick to enter and exit (e.g., keyboard shortcut + menu/toolbar entry) so the user can flip in and out as they move the device between screens.
-**Requirements**: TBD — confirm during /gsd-plan-phase whether scope includes other panels (right column? Now Playing detail?) or strictly the left column hide. Verify on the user's small-screen device and on the X11 DPR=1.0 deployment target.
+**Goal:** Add a toggleable "fullscreen"/compact mode that hides the left column so the bottom-bar controls stop compressing and overlapping when the window is moved to a small/secondary display. Mode must be quick to enter and exit (Ctrl+B keyboard shortcut + QToolButton on the now-playing pane — no hamburger entry per D-01) so the user can flip in and out as they move the device between screens. Hover-to-peek overlay on the left edge (4px zone, 280ms dwell) reveals the station list without exiting compact mode. Session-only state (no SQLite persistence — D-09 divergence from Phase 47.1/67 precedent). Verify on the user's small-screen device under Linux Wayland (GNOME Shell) at DPR=1.0 — the ROADMAP's prior "X11 DPR=1.0" wording is stale and superseded.
+**Requirements**: LAYOUT-01 (proposed — first Layout-class polish item in v2.1; rolling milestone, no pre-allocated REQ ID)
 **Depends on:** Phase 71
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 72 to break down)
+- [ ] 72-01-PLAN.md — Wave 0 spike tests (A1 splitter handle auto-hide; A2 station_panel reparent safety)
+- [ ] 72-02-PLAN.md — Wave 1 NowPlayingPanel compact-toggle button + signal + two sidebar SVG icons + icons.qrc/icons_rc.py regen
+- [ ] 72-03-PLAN.md — Wave 2 MainWindow Ctrl+B QShortcut (first in codebase) + central _on_compact_toggle slot + splitter snapshot/restore + session-only invariant
+- [ ] 72-04-PLAN.md — Wave 3 StationListPeekOverlay class + MouseMove event filter + dwell timer + mouse-leave dismiss + ToastOverlay z-order
+- [ ] 72-05-PLAN.md — Wave 4 end-to-end integration test + Manual UAT script + user sign-off checkpoint
 
 ### Phase 73: MusicBrainz album-cover lookup — complement iTunes with smart routing (fallback/primary when iTunes is off or empty) and respect MB's strict matching, 1 req/sec rate limit, and required User-Agent
 
