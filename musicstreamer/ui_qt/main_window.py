@@ -31,7 +31,7 @@ from importlib.metadata import version as _pkg_version
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtGui import QCloseEvent, QCursor, QIcon
+from PySide6.QtGui import QCloseEvent, QCursor, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -287,6 +287,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._splitter)
 
         # ------------------------------------------------------------------
+        # Phase 72 / D-10 / Pitfall 1+5: in-memory splitter-size snapshot
+        # for compact-mode round-trip. None when expanded; list[int] while
+        # compact mode is ON. Reset to None on every restore — see
+        # _on_compact_toggle for the snapshot-before-hide / reset-after-
+        # restore ordering. NOT persisted (D-09 session-only).
+        # ------------------------------------------------------------------
+        self._splitter_sizes_before_compact: list[int] | None = None
+        # Plan 04 will lazy-construct these for the hover-peek overlay. Plan
+        # 03 declares the attributes so the toggle slot can refer to the
+        # peek-related stubs without AttributeError on first toggle.
+        self._peek_overlay = None
+        self._peek_dwell_timer = None
+
+        # ------------------------------------------------------------------
         # Toast overlay — parented to centralWidget, anchored bottom-centre.
         # D-09/D-10: constructed AFTER centralWidget is set.
         # ------------------------------------------------------------------
@@ -356,6 +370,11 @@ class MainWindow(QMainWindow):
         # signal payload type is validated (must be dict).
         self.now_playing.live_map_changed.connect(self._on_live_map_changed)
 
+        # Phase 72 / D-01 / LAYOUT-01: compact-mode button (NowPlayingPanel,
+        # Plan 02) drives station_panel visibility via the central toggle
+        # slot. Bound method per QA-05 — no lambda.
+        self.now_playing.compact_mode_toggled.connect(self._on_compact_toggle)
+
         # Phase 70 / DS-01 / Pitfall 9 Option A: Player has no repo handle so
         # persistence + cross-component fan-out live here.
         # Idempotency cache — dedupes back-to-back caps emits for the same stream.
@@ -384,6 +403,18 @@ class MainWindow(QMainWindow):
         # invariant as Phase 47.1 WR-02 — locked by
         # test_show_similar_toggle_persists_and_toggles_panel (Pitfall 4).
         self.now_playing.set_similar_visible(self._act_show_similar.isChecked())
+
+        # Phase 72 / D-09 single-source-of-truth initial-state push: drive
+        # station_panel visibility from the compact button's initial checked
+        # state (constant False per D-09 — the button starts unchecked, so
+        # the panel starts visible). Deliberately uses a CONSTANT False
+        # rather than self._repo.get_setting("compact_mode", ...) — session-
+        # only persistence (D-09) means every launch starts expanded. The
+        # negative-assertion test `test_compact_mode_starts_expanded_on_launch`
+        # locks this invariant.
+        self.station_panel.setVisible(
+            not self.now_playing.compact_mode_toggle_btn.isChecked()
+        )
 
         # ------------------------------------------------------------------
         # Phase 68 / B-03 / F-07: live-detection startup. start_aa_poll_loop
@@ -426,6 +457,29 @@ class MainWindow(QMainWindow):
             self._player.restore_eq_from_settings(self._repo)
         except Exception as exc:
             _log.warning("EQ restore failed: %s", exc)
+
+        # ------------------------------------------------------------------
+        # Phase 72 / D-02 / D-03 / Pitfall 9: register Ctrl+B QShortcut LAST,
+        # AFTER all panels are constructed and signal wiring is done. This
+        # is the FIRST QShortcut in the codebase — establishes the pattern
+        # for future shortcut-registration phases.
+        #
+        # context=Qt.WidgetWithChildrenShortcut (RESEARCH §Pattern 2 /
+        # RESEARCH A3): window-scope — modal QDialogs (EditStationDialog,
+        # AccountsDialog, …) block the shortcut naturally because their
+        # focus is outside MainWindow's child tree while exec()-ing.
+        #
+        # Single source of truth (Pitfall 4): the shortcut activates the
+        # button, NOT the slot directly. button.toggle() fans out via
+        # compact_mode_toggled → _on_compact_toggle, so mouse-click and
+        # Ctrl+B traverse the same code path.
+        # ------------------------------------------------------------------
+        self._compact_shortcut = QShortcut(
+            QKeySequence("Ctrl+B"),
+            self,
+            context=Qt.WidgetWithChildrenShortcut,
+        )
+        self._compact_shortcut.activated.connect(self._on_compact_shortcut_activated)
 
     # ----------------------------------------------------------------------
     # Public helpers
@@ -756,6 +810,97 @@ class MainWindow(QMainWindow):
         """
         self._repo.set_setting("show_similar_stations", "1" if checked else "0")
         self.now_playing.set_similar_visible(checked)
+
+    # ------------------------------------------------------------------
+    # Phase 72 / LAYOUT-01 — compact-mode toggle
+    # ------------------------------------------------------------------
+
+    def _on_compact_toggle(self, checked: bool) -> None:
+        """Phase 72 / D-01 / D-06 / D-08 / D-09 / D-10 central toggle slot.
+
+        Drives station_panel visibility + splitter-handle visibility from
+        the compact button's checked state (single source of truth — both
+        mouse click and Ctrl+B traverse this slot via the button).
+
+        Ordering (LOAD-BEARING):
+          ON branch:
+            (1) Snapshot sizes BEFORE station_panel.hide() (Pitfall 1 — if
+                you read sizes() AFTER hide, Qt has already redistributed).
+            (2) Hide the station_panel.
+            (3) Explicit self._splitter.handle(1).hide() — Wave 0 spike
+                72-01 INVALIDATED RESEARCH A1 on PySide6 6.11; the handle
+                does NOT auto-hide when an adjacent child is hidden.
+            (4) Install peek-overlay hover filter (Plan 04 fills body).
+          OFF branch:
+            (1) Plan 04 hand-off marker (peek-release guard); Plan 04 will
+                replace the marker with the actual overlay-release call.
+            (2) Show the station_panel.
+            (3) Explicit self._splitter.handle(1).show() — symmetric
+                restore for the explicit hide above.
+            (4) If a snapshot exists, restore sizes and RESET the snapshot
+                to None (Pitfall 5 — leaving stale state means the next
+                cycle would restore the wrong sizes if .sizes() returns
+                unexpected values mid-hide).
+            (5) Remove peek-overlay hover filter (Plan 04 fills body).
+          Both branches end with set_compact_button_icon(checked) so the
+          icon + tooltip reflect the new state.
+
+        D-09 session-only: NO repo.set_setting / get_setting call. Every
+        app launch starts expanded regardless of how the previous session
+        ended (the user physically moves the laptop between screens —
+        persistence would be surprising).
+        """
+        if checked:
+            self._splitter_sizes_before_compact = self._splitter.sizes()
+            self.station_panel.hide()
+            self._splitter.handle(1).hide()
+            self._install_peek_hover_filter()
+        else:
+            # TODO Plan 04: insert peek-release guard here
+            self.station_panel.show()
+            self._splitter.handle(1).show()
+            if self._splitter_sizes_before_compact:
+                self._splitter.setSizes(self._splitter_sizes_before_compact)
+                self._splitter_sizes_before_compact = None
+            self._remove_peek_hover_filter()
+        self.now_playing.set_compact_button_icon(checked)
+
+    def _on_compact_shortcut_activated(self) -> None:
+        """Phase 72 / D-02 / D-03 / Pitfall 4: Ctrl+B activates the button.
+
+        Flips compact_mode_toggle_btn (the single source of truth) rather
+        than calling _on_compact_toggle directly. The button's `toggled`
+        signal then drives the rest of the flow, so mouse-click and
+        Ctrl+B produce identical state changes.
+        """
+        self.now_playing.compact_mode_toggle_btn.toggle()
+
+    # ------------------------------------------------------------------
+    # Plan 04 hand-off stubs — bodies are intentionally empty in Plan 03.
+    # Plan 04 will overwrite each with the hover-peek implementation.
+    # The toggle slot calls these so Plan 04 only fills the bodies — the
+    # wiring at the call sites is already in place.
+    # ------------------------------------------------------------------
+
+    def _install_peek_hover_filter(self) -> None:
+        # Plan 04 fills body — install mouse-move event filter for
+        # left-edge hover detection (D-13 narrow band + brief dwell).
+        pass
+
+    def _remove_peek_hover_filter(self) -> None:
+        # Plan 04 fills body — uninstall the hover filter and cancel any
+        # pending dwell timer.
+        pass
+
+    def _open_peek_overlay(self) -> None:
+        # Plan 04 fills body — lazy-construct StationListPeekOverlay and
+        # show it anchored to the centralWidget's left edge.
+        pass
+
+    def _close_peek_overlay(self) -> None:
+        # Plan 04 fills body — hide the overlay (called from the
+        # overlay's own mouse-leave eventFilter).
+        pass
 
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:
         """Called when a station star is toggled in StationListPanel."""
