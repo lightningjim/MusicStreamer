@@ -89,7 +89,7 @@ the gate closed; setting it to PASS releases the phase to its summary step.
 
 ### Pass criteria
 
-[ ] Both the icon AND the tooltip clearly communicate the next action; a
+[X] Both the icon AND the tooltip clearly communicate the next action; a
     first-time user could read them and predict what `Ctrl+B` will do.
 
 ### Notes / observations
@@ -139,8 +139,7 @@ the gate closed; setting it to PASS releases the phase to its summary step.
 
 ### Notes / observations
 
-(leave blank for user — if the dwell feels too long or too short, note the
-preferred ms value so it can be adjusted in deferred polish)
+Sit for 10 secs, nothing happens
 
 ---
 
@@ -181,7 +180,7 @@ preferred ms value so it can be adjusted in deferred polish)
 
 ### Notes / observations
 
-(leave blank for user)
+Blocked by UAT-02 failure
 
 ---
 
@@ -218,15 +217,13 @@ preferred ms value so it can be adjusted in deferred polish)
 
 ### Pass criteria
 
-[ ] Compact mode resolves the bottom-bar overlap at narrow widths on the
+[X] Compact mode resolves the bottom-bar overlap at narrow widths on the
     small/secondary display. All transport controls are fully clickable
     in compact mode at ~560 px width.
 
 ### Notes / observations
 
-(leave blank for user — if any control is still partially clipped at
-560 px even in compact mode, note which one)
-
+Design intention of this project
 ---
 
 ## UAT-05: Wayland GNOME Shell behavior
@@ -289,18 +286,16 @@ preferred ms value so it can be adjusted in deferred polish)
 
 ### Notes / observations
 
-(leave blank for user)
+Blocked by UAT-02 failure
 
 ---
 
 ## Failure notes
 
-(If any UAT-01 through UAT-05 item failed, note which one and why here. A
-follow-up Phase 72.1 gap-closure plan will be scoped to fix the specific
-failure(s). Leave blank if all passed.)
-
+UAT-02 failed because I could not get a single peak reaction.
+UAT-03 and 05 requires peak to function to test, so unable to test and therefore are blocked.
 ---
 
 ## Overall
 
-**Overall:** PENDING
+**Overall:** FAIL
