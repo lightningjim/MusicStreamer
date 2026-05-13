@@ -1,5 +1,5 @@
 ---
-status: testing
+status: complete
 phase: 71-sister-station-expansion-1-add-ability-to-link-sister-statio
 source:
   - 71-00-SUMMARY.md
@@ -19,7 +19,7 @@ updated: "2026-05-13T00:00:00Z"
 
 ## Current Test
 
-1. Cross-provider AA name-mismatch link (Classical Relaxation / Relaxing Classical)
+[complete — 4 passed, 1 skipped]
 
 ## Tests
 
@@ -31,7 +31,7 @@ expected: |
   the partner's name and an `×` unlink button. Close + reopen the dialog — chip persists.
   Click the partner chip name — dialog switches to that station's editor. Open NowPlaying
   for either station — "Also on:" line shows the partner.
-result: [pending]
+result: passed
 
 ### 2. SomaFM 3× Groove Salad multi-link
 expected: |
@@ -41,7 +41,7 @@ expected: |
   the chip row shows Groove Salad (the one we linked from) but NOT Groove Salad 2
   (per CONTEXT D-04 — no transitive closure). Click `×` on one chip — link removed,
   toast appears confirming the unlink, the chip disappears from the row.
-result: [pending]
+result: passed
 
 ### 3. ZIP export/import round-trip carries siblings
 expected: |
@@ -51,7 +51,7 @@ expected: |
   settings → pick the ZIP. All 4 stations restored. Sibling links restored
   (A↔B and C↔D). Open NowPlaying for A and C — "Also on:" rows render correctly
   showing B and D respectively.
-result: [pending]
+result: passed
 
 ### 4. AA auto + manual co-exist on "Also on:" line
 expected: |
@@ -61,7 +61,7 @@ expected: |
   shows two chips in "Also on:": the AA chip (bare, no `×`) and the manual chip
   (with `×`). Click `×` on the manual chip — manual link removed, AA chip
   remains visible and clickable.
-result: [pending]
+result: passed
 
 ### 5. CR-02 regression — AA + manual collision (verifier-flagged)
 expected: |
@@ -73,15 +73,25 @@ expected: |
   you remove the manual link via Repo CRUD or by editing the URL so the AA
   detection no longer matches, the manual chip then reappears with `×`. Both
   surfaces stay in sync — never show different chips for the same partner.
-result: [pending]
+result: skipped
+skip_reason: |
+  AddSiblingDialog's exclusion logic correctly hides AA-detected stations from
+  the picker (CR-03 fix uses live URL for exclusion), so collisions cannot be
+  constructed through normal UX. The collision invariant is verified at the
+  code level by the automated regression tests added in commit 547b3ec:
+    - test_aa_and_manual_collision_renders_as_aa_chip_no_x
+    - test_aa_and_manual_collision_matches_merge_siblings_semantics
+  Both tests construct the collision state directly and verify EditStationDialog
+  + NowPlayingPanel render identically (AA-wins). Manual DB-edit verification
+  declined as out of scope for normal UAT.
 
 ## Summary
 
 total: 5
-passed: 0
+passed: 4
 issues: 0
-pending: 5
-skipped: 0
+pending: 0
+skipped: 1
 blocked: 0
 
 ## Gaps
