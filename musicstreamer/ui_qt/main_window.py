@@ -1100,7 +1100,13 @@ class MainWindow(QMainWindow):
 
         cw = self.centralWidget()
         pos = cw.mapFromGlobal(QCursor.pos())
-        in_cw = 0 <= pos.x() < cw.width() and 0 <= pos.y() < cw.height()
+        # WR-05: QRect.contains is the idiomatic Qt bounds check and matches
+        # Qt's rect-inclusion semantics. The previous strict-less-than check
+        # on width/height could mis-classify a cursor exactly on the right or
+        # bottom edge as "outside centralWidget" and cancel an in-flight
+        # dwell. The strict-less-than was also inconsistent with the inclusive
+        # `pos.x() <= _PEEK_TRIGGER_ZONE_PX` zone check below.
+        in_cw = cw.rect().contains(pos)
         if not in_cw:
             if (
                 self._peek_dwell_timer is not None
