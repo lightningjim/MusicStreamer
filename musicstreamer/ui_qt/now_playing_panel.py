@@ -268,6 +268,12 @@ class NowPlayingPanel(QWidget):
     # similar_activated payload-shape convention).
     live_map_changed = Signal(object)
 
+    # Phase 72 / LAYOUT-01: emitted when compact-mode toggle button is clicked.
+    # Payload = new checked state. Session-only — no repo write side-effect
+    # (D-09: every launch starts expanded). MainWindow connects this to its
+    # _on_compact_toggle slot (QA-05 bound method, no lambda).
+    compact_mode_toggled = Signal(bool)
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -511,6 +517,26 @@ class NowPlayingPanel(QWidget):
         self.volume_slider.setFixedWidth(120)
         self.volume_slider.setTickPosition(QSlider.NoTicks)
         controls.addWidget(self.volume_slider)
+
+        # Phase 72 / LAYOUT-01 / D-04 (corrected per UI-SPEC §Interaction Contract):
+        # compact-mode toggle inserted between volume_slider and addStretch(1).
+        # 28x28 / 20x20 sizes mirror star_btn (line 458-467) and eq_toggle_btn
+        # (line 471-486). Icon family is sidebar-{show,hide}-symbolic per
+        # Plan 72-02 Task 1. D-09: NO repo.set_setting call here — session-only.
+        # QA-05: bound-method connect, no lambda.
+        self.compact_mode_toggle_btn = QToolButton(self)
+        self.compact_mode_toggle_btn.setIconSize(QSize(20, 20))
+        self.compact_mode_toggle_btn.setFixedSize(28, 28)
+        self.compact_mode_toggle_btn.setCheckable(True)
+        self.compact_mode_toggle_btn.setIcon(
+            QIcon.fromTheme(
+                "sidebar-hide-symbolic",
+                QIcon(":/icons/sidebar-hide-symbolic.svg"),
+            )
+        )
+        self.compact_mode_toggle_btn.setToolTip("Hide stations (Ctrl+B)")
+        self.compact_mode_toggle_btn.toggled.connect(self._on_compact_btn_toggled)
+        controls.addWidget(self.compact_mode_toggle_btn)
 
         controls.addStretch(1)
         center.addLayout(controls)
@@ -1047,6 +1073,37 @@ class NowPlayingPanel(QWidget):
         """Phase 47.2 D-08: Wire the toggle to Player + persist enable state (D-15)."""
         self._player.set_eq_enabled(checked)
         self._repo.set_setting("eq_enabled", "1" if checked else "0")
+
+    def _on_compact_btn_toggled(self, checked: bool) -> None:
+        """Phase 72 / LAYOUT-01: re-emit compact_mode_toggle_btn.toggled as the
+        panel's compact_mode_toggled signal. MainWindow connects to this signal
+        (in Plan 72-03) to drive station_panel.hide()/show() + splitter handle
+        visibility. Bound-method slot per QA-05; NO repo write (D-09)."""
+        self.compact_mode_toggled.emit(checked)
+
+    def set_compact_button_icon(self, checked: bool) -> None:
+        """Phase 72 / D-05: flip the compact-toggle button's icon + tooltip per
+        new checked state. MainWindow calls this from its compact-toggle slot
+        AFTER the panel hide/show + splitter restore have run (so the icon flip
+        is the last visible change of the transition).
+
+        checked=True  -> panel hidden -> sidebar-show-symbolic + "Show stations (Ctrl+B)"
+        checked=False -> panel shown  -> sidebar-hide-symbolic + "Hide stations (Ctrl+B)"
+        """
+        if checked:
+            icon = QIcon.fromTheme(
+                "sidebar-show-symbolic",
+                QIcon(":/icons/sidebar-show-symbolic.svg"),
+            )
+            tooltip = "Show stations (Ctrl+B)"
+        else:
+            icon = QIcon.fromTheme(
+                "sidebar-hide-symbolic",
+                QIcon(":/icons/sidebar-hide-symbolic.svg"),
+            )
+            tooltip = "Hide stations (Ctrl+B)"
+        self.compact_mode_toggle_btn.setIcon(icon)
+        self.compact_mode_toggle_btn.setToolTip(tooltip)
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
