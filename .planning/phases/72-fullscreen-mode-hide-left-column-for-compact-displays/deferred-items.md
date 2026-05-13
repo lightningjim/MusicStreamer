@@ -62,3 +62,20 @@ The plan's verification command (`pytest tests/test_phase72_compact_toggle.py te
 Reordering to `pytest tests/test_phase72_assumptions.py tests/test_phase72_now_playing_panel.py tests/test_phase72_compact_toggle.py tests/test_main_window_integration.py` also runs cleanly: 88 passed. So the crash is reproducible only in the specific ordering `…now_playing_panel.py → …assumptions.py`.
 
 Fix path (out of scope for Plan 72-03): investigate whether `test_phase72_now_playing_panel.py` is leaving a dangling QObject parented to QApplication that the next test's qtbot teardown stumbles on (likely the cover-art worker thread issue Plan 72-02 already documented under "Pre-existing test-teardown warning"). Would belong to a test-infrastructure cleanup phase, not a feature phase.
+
+## Pre-existing Qt teardown crash crossing test_main_window_integration → test_now_playing_panel (Plan 72-04)
+
+Found during Plan 72-04 verification when chaining the broader regression suite.
+
+**Symptom:** Running `pytest tests/test_main_window_integration.py tests/test_now_playing_panel.py` (or any ordering that puts `test_now_playing_panel.py` after `test_main_window_integration.py`) aborts with `Fatal Python error: Aborted` inside Qt's teardown.
+
+**Reproduction:** Confirmed pre-existing — reproduces on Plan 72-03 base commit (27bfdbd) with Plan 72-04 changes stashed. Same underlying singleton/QApplication-lifecycle issue as the Plan 03 teardown crash above (and the Plan 02 cover-art worker thread issue).
+
+**Disposition:** Out of scope for Plan 72-04. Plan 72-04's targeted tests pass cleanly:
+- `pytest tests/test_phase72_peek_overlay.py` → 16 passed
+- `pytest tests/test_phase72_peek_overlay.py tests/test_phase72_compact_toggle.py tests/test_phase72_now_playing_panel.py tests/test_phase72_assumptions.py` → 38 passed (Phase 72 surface)
+- `pytest tests/test_main_window_integration.py` → 66 passed (in isolation)
+
+Reordering `pytest tests/test_now_playing_panel.py tests/test_phase72_peek_overlay.py` → 152 passed (alternate order avoids the crash).
+
+The crash is reproducible only in the specific ordering `…main_window_integration.py → …now_playing_panel.py`. Same teardown-race symptom as Plan 03's deferred item — almost certainly the same underlying cause (cover-art worker, signal-source-deleted race).
