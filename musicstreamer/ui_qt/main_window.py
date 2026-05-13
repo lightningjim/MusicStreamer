@@ -663,7 +663,33 @@ class MainWindow(QMainWindow):
         underrun cycle as outcome=shutdown so its log line is written before
         app exit. SYNCHRONOUS log write inside Player.shutdown_underrun_tracker;
         queued slots may never run after closeEvent returns.
+
+        Phase 72 / BL-01: remove the global hover-peek event filter and stop
+        the dwell timer BEFORE super().closeEvent() destroys widget state.
+        Mirrors the Phase 62 BUG-09 closeEvent discipline — no queued slot
+        may fire against a partially-destroyed MainWindow. If compact mode
+        is still active at close time and the peek overlay is visible, the
+        explicit release() reparents station_panel back to the splitter so
+        any save-on-close hook (or downstream destructor) sees a consistent
+        layout rather than the overlay's adopted child.
         """
+        # Phase 72 / BL-01: tear down hover-peek FIRST — a MouseMove queued
+        # by Qt between here and super().closeEvent() would otherwise dispatch
+        # through a filter installed on a destroyed MainWindow.
+        try:
+            if (
+                self._peek_overlay is not None
+                and self._peek_overlay.isVisible()
+            ):
+                self._peek_overlay.release(
+                    self._splitter, self.station_panel, None
+                )
+        except Exception as exc:
+            _log.warning("peek overlay teardown failed: %s", exc)
+        try:
+            self._remove_peek_hover_filter()
+        except Exception as exc:
+            _log.warning("peek hover filter teardown failed: %s", exc)
         try:
             self._player.shutdown_underrun_tracker()
         except Exception as exc:
