@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: Phase 71 complete — 71-08 docs polish done
-last_updated: "2026-05-12T22:41:53.591Z"
-last_activity: 2026-05-12
+status: planning
+stopped_at: Phase 72 context gathered
+last_updated: "2026-05-13T15:33:09.344Z"
+last_activity: 2026-05-13
 progress:
   total_phases: 31
-  completed_phases: 27
+  completed_phases: 26
   total_plans: 118
   completed_plans: 118
-  percent: 87
+  percent: 100
 ---
 
 # Project State
@@ -225,6 +225,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-12T22:41:53.581Z
-Stopped at: Phase 71 complete — 71-08 docs polish done
-Resume file: None
+Last session: 2026-05-13T15:33:09.333Z
+Stopped at: Phase 72 context gathered
+Resume file: .planning/phases/72-fullscreen-mode-hide-left-column-for-compact-displays/72-CONTEXT.md
