@@ -118,6 +118,26 @@ def _send_leave(widget) -> None:
     QApplication.sendEvent(widget, ev)
 
 
+def _make_peek_visible_predicate(window):
+    """Build a bound-method-style predicate for qtbot.waitUntil that returns
+    True iff `window._peek_overlay` is non-None and visible.
+
+    WR-06: lifted from tests/test_phase72_integration.py so this module can
+    swap the flaky `qtbot.wait(280)` waits for predicate-based waits without
+    cross-module import. Avoids the inline-anonymous-callable pattern banned
+    by QA-05; mirrors the same bound-method convention used by every other
+    connect/predicate call in the Phase 72 test files.
+    """
+
+    def predicate() -> bool:
+        return (
+            window._peek_overlay is not None
+            and window._peek_overlay.isVisible()
+        )
+
+    return predicate
+
+
 # ---------------------------------------------------------------------------
 # Trigger zone + dwell timer
 # ---------------------------------------------------------------------------
@@ -139,8 +159,10 @@ def test_dwell_fires_after_280ms_in_zone(window, qtbot, monkeypatch):
     # Not yet — dwell still pending
     qtbot.wait(50)
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
-    # After full dwell — overlay should be visible
-    qtbot.wait(280)
+    # WR-06: waitUntil() instead of a fixed wait(280) — offscreen
+    # event-loop drain can lag the wall clock by tens of ms on slow CI,
+    # so a hard 280ms wait races the QTimer's timeout dispatch.
+    qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay is not None
     assert window._peek_overlay.isVisible() is True
 
@@ -206,7 +228,8 @@ def test_global_filter_fires_when_event_targets_now_playing(window, qtbot, monke
     _send_mouse_move(window.now_playing, 2, 100, monkeypatch=monkeypatch, cursor_widget=cw)
     qtbot.wait(50)
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
-    qtbot.wait(280)
+    # WR-06: predicate-based wait — see test_dwell_fires_after_280ms_in_zone.
+    qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay is not None
     assert window._peek_overlay.isVisible() is True
 
