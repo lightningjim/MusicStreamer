@@ -903,6 +903,20 @@ class MainWindow(QMainWindow):
             self._splitter.handle(1).hide()
             self._install_peek_hover_filter()
         else:
+            # WR-02: stop the dwell timer FIRST — before any layout mutations
+            # — so a timeout already queued onto the main thread event queue
+            # cannot fire after the splitter has been restored. Otherwise a
+            # late _open_peek_overlay would reparent station_panel back into
+            # the (invisible) overlay, leaving a phantom peek + invisible
+            # station list recoverable only by another Ctrl+B-Ctrl+B cycle.
+            # _remove_peek_hover_filter (below) also stops the timer, but it
+            # runs after station_panel.show()/setSizes — too late to close
+            # the race window.
+            if (
+                self._peek_dwell_timer is not None
+                and self._peek_dwell_timer.isActive()
+            ):
+                self._peek_dwell_timer.stop()
             # Peek-release guard (Plan 04): if the peek overlay is visible
             # when the user exits compact, reparent station_panel back to
             # the splitter at index 0 (Pitfall 6) BEFORE the panel.show() +
