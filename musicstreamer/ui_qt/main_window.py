@@ -984,20 +984,24 @@ class MainWindow(QMainWindow):
         QApplication.instance().installEventFilter(self)
 
     def _remove_peek_hover_filter(self) -> None:
-        """Remove the global event filter and reset the dwell timer.
+        """Remove the global event filter and stop the dwell timer.
 
         Mirror of _install_peek_hover_filter: pulls the filter off
         QApplication.instance() (not centralWidget) so re-toggling compact
         mode doesn't double-install.
 
-        Setting `self._peek_dwell_timer = None` (rather than just stop())
-        forces the next compact-ON cycle to lazy-reconstruct the timer.
+        WR-04: keep the QTimer instance across compact cycles. Earlier the
+        timer was reconstructed each cycle (with `_peek_dwell_timer = None`
+        here, then lazy-construct in eventFilter), which left a chain of
+        parent-owned timers waiting for Qt's parent ownership to reclaim
+        them. Single-shot + bound-method-connected QTimer reuse is safe:
+        .stop() guarantees no further timeout dispatch until the next
+        .start() in eventFilter.
         """
         QApplication.instance().removeEventFilter(self)
         if self._peek_dwell_timer is not None:
             if self._peek_dwell_timer.isActive():
                 self._peek_dwell_timer.stop()
-            self._peek_dwell_timer = None
 
     def _open_peek_overlay(self) -> None:
         """Lazy-construct `StationListPeekOverlay` and adopt `station_panel`.
