@@ -73,21 +73,36 @@ def window(qtbot, fake_player, fake_repo):
 # ---------------------------------------------------------------------------
 
 
-def _send_mouse_move(widget, x: int, y: int) -> None:
-    """Synthesize a QEvent.MouseMove on the given widget at local pos (x, y).
+def _send_mouse_move(widget, x: int, y: int, monkeypatch=None, cursor_widget=None) -> None:
+    """Synthesize a MouseMove and (when monkeypatch given) move the virtual cursor.
 
-    Routes through QApplication.sendEvent so the receiving widget's event
-    filter chain (MainWindow.eventFilter installed on centralWidget) sees it
-    exactly as Qt would deliver a real cursor move.
+    The Phase 72 hover-peek filter is installed globally on
+    QApplication.instance() and reads cursor position from QCursor.pos()
+    rather than from event.position(). For tests to drive the filter, we
+    must (a) patch QCursor.pos to a deterministic value AND (b) send any
+    MouseMove so the global filter is woken on the Qt event loop.
+
+    ``widget`` is the event RECEIVER (which the buggy old filter cared about).
+    ``cursor_widget`` is the widget whose local (x, y) is converted to global
+    for the QCursor.pos() patch — defaults to ``widget`` for backward-compat,
+    but the regression test passes a different value to prove the new filter
+    no longer depends on receiver identity.
+
+    monkeypatch is optional for backward-compat with assertions that don't
+    depend on the filter firing (e.g., Leave-event tests in the overlay).
     """
+    from PySide6.QtGui import QCursor
     from PySide6.QtWidgets import QApplication
 
     pos_local = QPointF(x, y)
-    global_pos = QPointF(widget.mapToGlobal(QPoint(x, y)))
+    src = cursor_widget if cursor_widget is not None else widget
+    global_pt = src.mapToGlobal(QPoint(x, y))
+    if monkeypatch is not None:
+        monkeypatch.setattr(QCursor, "pos", staticmethod(lambda gp=global_pt: gp))
     ev = QMouseEvent(
         QEvent.MouseMove,
         pos_local,
-        global_pos,
+        QPointF(global_pt),
         Qt.NoButton,
         Qt.NoButton,
         Qt.NoModifier,
@@ -108,17 +123,19 @@ def _send_leave(widget) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_dwell_fires_after_280ms_in_zone(window, qtbot):
+def test_dwell_fires_after_280ms_in_zone(window, qtbot, monkeypatch):
     """D-13: hover within <= 4px for 280ms opens the peek overlay.
 
     Compact ON -> MouseMove at x=2 -> wait 50ms (peek not yet open) ->
-    wait 280ms total (peek open).
+    wait 280ms total (peek open). The hover-peek filter reads cursor
+    position from QCursor.pos() (global filter), so monkeypatch is
+    required to deterministically drive the cursor.
     """
     btn = window.now_playing.compact_mode_toggle_btn
     btn.click()  # compact ON
     cw = window.centralWidget()
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
-    _send_mouse_move(cw, 2, 100)
+    _send_mouse_move(cw, 2, 100, monkeypatch=monkeypatch)
     # Not yet — dwell still pending
     qtbot.wait(50)
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
@@ -128,15 +145,15 @@ def test_dwell_fires_after_280ms_in_zone(window, qtbot):
     assert window._peek_overlay.isVisible() is True
 
 
-def test_zone_exit_cancels_dwell(window, qtbot):
+def test_zone_exit_cancels_dwell(window, qtbot, monkeypatch):
     """D-13: leaving the zone before 280ms cancels the pending dwell."""
     btn = window.now_playing.compact_mode_toggle_btn
     btn.click()  # compact ON
     cw = window.centralWidget()
-    _send_mouse_move(cw, 2, 100)
+    _send_mouse_move(cw, 2, 100, monkeypatch=monkeypatch)
     qtbot.wait(100)
     # Cursor leaves the zone before the dwell completes
-    _send_mouse_move(cw, 200, 100)
+    _send_mouse_move(cw, 200, 100, monkeypatch=monkeypatch)
     qtbot.wait(300)
     # Peek must NOT have opened
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
@@ -155,17 +172,43 @@ def test_mouse_tracking_enabled_when_compact_on(window):
     assert window.centralWidget().hasMouseTracking() is True
 
 
-def test_event_filter_removed_on_compact_off(window, qtbot):
+def test_event_filter_removed_on_compact_off(window, qtbot, monkeypatch):
     """Pitfall 7: leaving compact mode removes the event filter so the dwell
     timer no longer fires on subsequent mouse moves."""
     btn = window.now_playing.compact_mode_toggle_btn
     btn.click()  # compact ON
     btn.click()  # compact OFF
     cw = window.centralWidget()
-    _send_mouse_move(cw, 2, 100)
+    _send_mouse_move(cw, 2, 100, monkeypatch=monkeypatch)
     qtbot.wait(300)
     # Peek must NOT have opened — filter removed, dwell timer not restarted
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
+
+
+def test_global_filter_fires_when_event_targets_now_playing(window, qtbot, monkeypatch):
+    """Regression for the receiver-identity bug fixed 2026-05-13.
+
+    Prior to the fix the filter was installed on centralWidget and gated on
+    ``obj is centralWidget()``; under real Qt dispatch MouseMove targets the
+    widget under the cursor (NowPlayingPanel in compact mode), so the filter
+    never fired on a live Wayland session despite all synthetic-event tests
+    passing. This test sends a MouseMove to NowPlayingPanel (not
+    centralWidget) and asserts the dwell completes — locks the global-filter
+    fix so the bug class cannot regress.
+    """
+    btn = window.now_playing.compact_mode_toggle_btn
+    btn.click()  # compact ON
+    cw = window.centralWidget()
+    # Send the wake event to NowPlayingPanel — NOT centralWidget. Under the
+    # old buggy filter the obj-identity check would reject this; under the
+    # global filter the receiver is irrelevant. The cursor is patched to
+    # centralWidget-local (2, 100) — i.e. inside the trigger zone.
+    _send_mouse_move(window.now_playing, 2, 100, monkeypatch=monkeypatch, cursor_widget=cw)
+    qtbot.wait(50)
+    assert window._peek_overlay is None or not window._peek_overlay.isVisible()
+    qtbot.wait(280)
+    assert window._peek_overlay is not None
+    assert window._peek_overlay.isVisible() is True
 
 
 # ---------------------------------------------------------------------------

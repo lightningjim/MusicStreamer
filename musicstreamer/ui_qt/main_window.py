@@ -917,32 +917,38 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _install_peek_hover_filter(self) -> None:
-        """Pitfall 2: mouse tracking MUST be enabled on BOTH MainWindow and
-        centralWidget so QEvent.MouseMove events fire without a mouse button
-        held down. The event filter is installed on centralWidget so the
-        eventFilter override can detect cursor positions in centralWidget's
-        local coordinate system.
+        """Install a global QApplication-level event filter for MouseMove.
 
-        Called from `_on_compact_toggle` when entering compact mode. The
-        dwell timer is lazy-constructed inside `eventFilter` on the first
-        in-zone MouseMove (no work here so the cost is zero if the user
-        never hovers near the left edge).
+        Why global, not centralWidget: Qt delivers MouseMove to the widget
+        UNDER THE CURSOR (NowPlayingPanel in compact mode), never to the
+        parent QSplitter that is centralWidget(). A filter on centralWidget
+        only fires when the cursor sits over centralWidget's own pixels —
+        i.e. the splitter handle — which is hidden in compact mode, so the
+        filter never fires in practice. (Debug session
+        phase-72-hover-peek-wayland — root cause confirmed 2026-05-13.)
+
+        A global filter sees MouseMove regardless of receiver. We then map
+        QCursor.pos() to centralWidget-local coordinates and gate on
+        compact-mode + in-window in eventFilter.
+
+        setMouseTracking calls retained for any code paths that still rely
+        on bare MouseMove arriving at MainWindow/centralWidget directly.
         """
         self.setMouseTracking(True)
         self.centralWidget().setMouseTracking(True)
-        self.centralWidget().installEventFilter(self)
+        QApplication.instance().installEventFilter(self)
 
     def _remove_peek_hover_filter(self) -> None:
-        """Pitfall 7: leaving compact mode MUST remove the event filter AND
-        clear the dwell timer reference. Without the filter removal, the
-        next mouse-move on centralWidget would still fire the eventFilter
-        path. Without the timer reset, a stale timer instance could fire
-        after the user has exited compact mode.
+        """Remove the global event filter and reset the dwell timer.
+
+        Mirror of _install_peek_hover_filter: pulls the filter off
+        QApplication.instance() (not centralWidget) so re-toggling compact
+        mode doesn't double-install.
 
         Setting `self._peek_dwell_timer = None` (rather than just stop())
         forces the next compact-ON cycle to lazy-reconstruct the timer.
         """
-        self.centralWidget().removeEventFilter(self)
+        QApplication.instance().removeEventFilter(self)
         if self._peek_dwell_timer is not None:
             if self._peek_dwell_timer.isActive():
                 self._peek_dwell_timer.stop()
@@ -1006,44 +1012,60 @@ class MainWindow(QMainWindow):
             )
 
     def eventFilter(self, obj, event):
-        """Phase 72 / D-13 — hover-peek dwell trigger.
+        """Phase 72 / D-13 — hover-peek dwell trigger (global filter).
 
-        Watches MouseMove on centralWidget for cursor positions within the
-        LEFT `_PEEK_TRIGGER_ZONE_PX` pixels. If the cursor lands in-zone and
-        no peek is currently visible, the dwell timer is (lazy-constructed
-        and) started; if the cursor leaves the zone, any pending dwell is
-        cancelled.
+        Filter is installed on QApplication.instance() so it sees MouseMove
+        regardless of receiver. We use QCursor.pos() mapped to centralWidget
+        coordinates rather than event.position() (which is in the receiver
+        widget's local frame and varies per event).
 
-        Returns False to propagate the event — the filter does NOT consume
-        mouse moves (T-72-05 mitigation), so stock Qt mouse handling for
-        the underlying widgets is preserved.
+        Gates (cheap-first ordering, short-circuit on early failures):
+          1. event type is MouseMove
+          2. compact mode is active (station_panel is hidden)
+          3. cursor maps to a point inside centralWidget's rect
+          4. cursor x is in [0, _PEEK_TRIGGER_ZONE_PX]
+          5. no peek overlay currently visible
 
-        Pitfall 9: QMouseEvent.position() returns a QPointF in Qt 6 — call
-        `.toPoint()` for integer pixel coordinates.
+        Returns super().eventFilter(...) (False under normal flow) — the
+        filter never consumes events (T-72-05 mitigation).
         """
-        if event.type() == QEvent.MouseMove and obj is self.centralWidget():
-            pos = event.position().toPoint()
-            in_zone = pos.x() <= _PEEK_TRIGGER_ZONE_PX
-            no_visible_peek = (
-                self._peek_overlay is None
-                or not self._peek_overlay.isVisible()
-            )
-            if in_zone and no_visible_peek:
-                if self._peek_dwell_timer is None:
-                    self._peek_dwell_timer = QTimer(self)
-                    self._peek_dwell_timer.setSingleShot(True)
-                    # QA-05 bound method — NO lambda.
-                    self._peek_dwell_timer.timeout.connect(
-                        self._open_peek_overlay
-                    )
-                if not self._peek_dwell_timer.isActive():
-                    self._peek_dwell_timer.start(_PEEK_DWELL_MS)
-            else:
-                if (
-                    self._peek_dwell_timer is not None
-                    and self._peek_dwell_timer.isActive()
-                ):
-                    self._peek_dwell_timer.stop()
+        if event.type() != QEvent.MouseMove:
+            return super().eventFilter(obj, event)
+        if not self.station_panel.isHidden():
+            return super().eventFilter(obj, event)
+
+        cw = self.centralWidget()
+        pos = cw.mapFromGlobal(QCursor.pos())
+        in_cw = 0 <= pos.x() < cw.width() and 0 <= pos.y() < cw.height()
+        if not in_cw:
+            if (
+                self._peek_dwell_timer is not None
+                and self._peek_dwell_timer.isActive()
+            ):
+                self._peek_dwell_timer.stop()
+            return super().eventFilter(obj, event)
+
+        in_zone = pos.x() <= _PEEK_TRIGGER_ZONE_PX
+        no_visible_peek = (
+            self._peek_overlay is None
+            or not self._peek_overlay.isVisible()
+        )
+        if in_zone and no_visible_peek:
+            if self._peek_dwell_timer is None:
+                self._peek_dwell_timer = QTimer(self)
+                self._peek_dwell_timer.setSingleShot(True)
+                # QA-05 bound method — NO lambda.
+                self._peek_dwell_timer.timeout.connect(
+                    self._open_peek_overlay
+                )
+            if not self._peek_dwell_timer.isActive():
+                self._peek_dwell_timer.start(_PEEK_DWELL_MS)
+        else:
+            if (
+                self._peek_dwell_timer is not None
+                and self._peek_dwell_timer.isActive()
+            ):
+                self._peek_dwell_timer.stop()
         return super().eventFilter(obj, event)
 
     def _on_station_favorited(self, station: Station, is_fav: bool) -> None:

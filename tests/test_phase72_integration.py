@@ -95,20 +95,28 @@ def window(qtbot, fake_player, fake_repo):
 # ---------------------------------------------------------------------------
 
 
-def _send_mouse_move(widget, x: int, y: int) -> None:
-    """Synthesize a QEvent.MouseMove on `widget` at local pos (x, y).
+def _send_mouse_move(widget, x: int, y: int, monkeypatch=None) -> None:
+    """Synthesize a QEvent.MouseMove on `widget` and patch QCursor.pos.
 
-    Routes through `QApplication.sendEvent` so the receiving widget's event
-    filter chain (MainWindow.eventFilter installed on centralWidget) sees
-    the event exactly as Qt would deliver a real cursor move. Mirrors the
-    helper in tests/test_phase72_peek_overlay.py:_send_mouse_move.
+    The Phase 72 hover-peek filter is installed globally on
+    QApplication.instance() and reads cursor position from QCursor.pos()
+    rather than from event.position() (the centralWidget-receiver-identity
+    filter was a bug — see debug session phase-72-hover-peek-wayland for
+    root cause). Tests must (a) patch QCursor.pos to a deterministic value
+    AND (b) send any MouseMove so the global filter is woken.
+
+    Mirrors tests/test_phase72_peek_overlay.py:_send_mouse_move.
     """
+    from PySide6.QtGui import QCursor
+
     pos_local = QPointF(x, y)
-    global_pos = QPointF(widget.mapToGlobal(QPoint(x, y)))
+    global_pt = widget.mapToGlobal(QPoint(x, y))
+    if monkeypatch is not None:
+        monkeypatch.setattr(QCursor, "pos", staticmethod(lambda gp=global_pt: gp))
     ev = QMouseEvent(
         QEvent.MouseMove,
         pos_local,
-        global_pos,
+        QPointF(global_pt),
         Qt.NoButton,
         Qt.NoButton,
         Qt.NoModifier,
@@ -145,7 +153,7 @@ def _make_peek_visible_predicate(window):
 # ---------------------------------------------------------------------------
 
 
-def test_full_compact_peek_lifecycle(window, qtbot, fake_player):
+def test_full_compact_peek_lifecycle(window, qtbot, fake_player, monkeypatch):
     """End-to-end walk-through of every documented interaction in UI-SPEC.
 
     Step-by-step structure (each step asserts the observable state delta):
@@ -226,7 +234,7 @@ def test_full_compact_peek_lifecycle(window, qtbot, fake_player):
     # ------------------------------------------------------------------
     # Step 4 — Hover-peek dwell fires after 280ms in the left-edge zone
     # ------------------------------------------------------------------
-    _send_mouse_move(cw, 2, 100)
+    _send_mouse_move(cw, 2, 100, monkeypatch=monkeypatch)
     qtbot.wait(50)  # Dwell not yet complete — peek must stay closed
     assert window._peek_overlay is None or not window._peek_overlay.isVisible()
     # waitUntil() is preferred over a fixed sleep here because the offscreen
@@ -294,7 +302,7 @@ def test_full_compact_peek_lifecycle(window, qtbot, fake_player):
     # runs (offscreen platform). The substantive contract is that the peek
     # re-opens within a reasonable time after a fresh MouseMove + dwell,
     # not that it opens at exactly 280 ms.
-    _send_mouse_move(cw, 2, 100)
+    _send_mouse_move(cw, 2, 100, monkeypatch=monkeypatch)
     qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay.isVisible() is True, (
         "Peek must re-open on a second dwell within the same compact session."
@@ -401,7 +409,7 @@ def test_multiple_toggle_cycles_preserve_sizes(window, qtbot):
 
 
 def test_no_compact_setting_written_after_full_lifecycle(
-    window, qtbot, fake_player, fake_repo
+    window, qtbot, fake_player, fake_repo, monkeypatch
 ):
     """D-09 final lock at integration level: a full compact+peek+restore
     lifecycle must NOT write any setting with 'compact' in its key.
@@ -421,7 +429,7 @@ def test_no_compact_setting_written_after_full_lifecycle(
     # Full lifecycle — mirrors test 1 but compressed.
     window._splitter.setSizes([400, 800])
     btn.click()  # ON
-    _send_mouse_move(cw, 2, 100)
+    _send_mouse_move(cw, 2, 100, monkeypatch=monkeypatch)
     qtbot.waitUntil(_make_peek_visible_predicate(window), timeout=1000)
     assert window._peek_overlay is not None
     assert window._peek_overlay.isVisible() is True
