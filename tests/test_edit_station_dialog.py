@@ -358,6 +358,75 @@ def test_every_update_station_call_passes_cover_art_source_kwarg():
     )
 
 
+def test_every_update_station_call_in_musicstreamer_package_passes_kwarg():
+    """WR-02 (Phase 73 review): broaden the source-grep gate to the entire
+    `musicstreamer/` package, not just edit_station_dialog.py.
+
+    Rationale: repo.update_station's keyword-default design means ANY caller
+    (current or future) that omits the kwarg silently resets the user's
+    per-station cover_art_source preference to 'auto'. The narrower
+    `test_every_update_station_call_passes_cover_art_source_kwarg` only
+    covers edit_station_dialog.py — a future bulk-edit dialog, import
+    workflow, or fixup script added elsewhere in the package would regress
+    every user's preference without a single failing test. This test
+    catches that by walking every `.py` file under `musicstreamer/`.
+
+    Substring match is intentionally broad: `.update_station(` rather than
+    `repo.update_station(`, since callers may bind the repo to a different
+    name (e.g. `self._repo`, `aa_repo`).
+    """
+    import importlib.resources
+    import os
+
+    package_root = importlib.resources.files("musicstreamer")
+    offenders: list[str] = []
+
+    for dirpath, _dirnames, filenames in os.walk(str(package_root)):
+        for fname in filenames:
+            if not fname.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, fname)
+            rel = os.path.relpath(path, str(package_root))
+            with open(path, "r", encoding="utf-8") as f:
+                src = f.read()
+            lines = src.splitlines()
+            for i, line in enumerate(lines):
+                # Only consider non-comment lines so a docstring or comment
+                # mentioning ".update_station(" doesn't false-positive.
+                stripped = line.lstrip()
+                if stripped.startswith("#"):
+                    continue
+                if ".update_station(" not in line:
+                    continue
+                # Skip method definition itself in repo.py and other shapes
+                # like list_recently_played, update_station_art, etc.
+                if "def update_station(" in line:
+                    continue
+                # Scan forward up to 30 lines tracking paren depth.
+                depth = 0
+                seen_open = False
+                span_text_parts: list[str] = []
+                for j in range(i, min(i + 30, len(lines))):
+                    seg = lines[j]
+                    span_text_parts.append(seg)
+                    for ch in seg:
+                        if ch == "(":
+                            depth += 1
+                            seen_open = True
+                        elif ch == ")":
+                            depth -= 1
+                    if seen_open and depth == 0:
+                        break
+                span_text = "\n".join(span_text_parts)
+                if "cover_art_source=" not in span_text:
+                    offenders.append(f"{rel}:{i+1}: {line.strip()}")
+
+    assert not offenders, (
+        ".update_station(...) call sites missing cover_art_source= kwarg "
+        "anywhere in the musicstreamer/ package:\n" + "\n".join(offenders)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Phase 40.1-04: Logo picker + preview + auto-fetch (D-12, D-13, D-14)
 # ---------------------------------------------------------------------------
