@@ -1236,3 +1236,183 @@ def test_siblings_round_trip_with_cross_provider_duplicate_names(tmp_path):
     # No SomaFM → Imaginary or vice versa.
     assert somafm_drone not in fresh.list_sibling_links(imaginary_groove)
     assert imaginary_drone not in fresh.list_sibling_links(somafm_groove)
+
+
+# ---------------------------------------------------------------------------
+# Phase 73-04 / ART-MB-10 — cover_art_source round-trip (export + INSERT +
+# REPLACE), with Pitfall 9 forward-compat (old ZIPs lack the field -> 'auto').
+# ---------------------------------------------------------------------------
+
+
+def test_export_payload_contains_cover_art_source(repo):
+    """ART-MB-10 export side: _station_to_dict emits cover_art_source key."""
+    from musicstreamer.settings_export import _station_to_dict
+
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags, cover_art_source) VALUES (?, ?, ?)",
+        ("MB Station", "", "mb_only"),
+    )
+    repo.con.commit()
+    sid = int(cur.lastrowid)
+    repo.con.execute(
+        "INSERT INTO station_streams(station_id, url, position) VALUES (?, ?, ?)",
+        (sid, "http://mb.example/s", 1),
+    )
+    repo.con.commit()
+
+    station = next(s for s in repo.list_stations() if s.name == "MB Station")
+    d = _station_to_dict(station)
+    assert "cover_art_source" in d
+    assert d["cover_art_source"] == "mb_only"
+
+
+def test_import_insert_persists_cover_art_source(repo, tmp_path):
+    """ART-MB-10 INSERT side: a payload with cover_art_source persists through
+    commit_import (add path) and reads back from repo.list_stations."""
+    payload = _default_payload(
+        stations=[
+            {
+                "name": "Imported MB",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                "cover_art_source": "itunes_only",
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "streams": [
+                    {"url": "http://imp.example/s", "label": "", "quality": "",
+                     "position": 1, "stream_type": "", "codec": ""}
+                ],
+            }
+        ]
+    )
+    zip_path = _make_import_zip(tmp_path, payload)
+    preview = preview_import(str(zip_path), repo)
+    assert preview.added == 1
+    commit_import(preview, repo, mode="merge")
+
+    stations = repo.list_stations()
+    s = next(x for x in stations if x.name == "Imported MB")
+    assert s.cover_art_source == "itunes_only"
+
+
+def test_import_replace_persists_cover_art_source(repo, tmp_path):
+    """ART-MB-10 REPLACE side: a payload with cover_art_source replaces the
+    existing station's value when the URL match drives a merge-replace."""
+    # Seed a station with cover_art_source='auto'.
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags, cover_art_source) VALUES (?, ?, ?)",
+        ("Old Name", "", "auto"),
+    )
+    repo.con.commit()
+    old_id = cur.lastrowid
+    repo.con.execute(
+        "INSERT INTO station_streams(station_id, url, position) VALUES (?, ?, ?)",
+        (old_id, "http://match.example/replace_src.mp3", 1),
+    )
+    repo.con.commit()
+
+    payload = _default_payload(
+        stations=[
+            {
+                "name": "New Name",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                "cover_art_source": "mb_only",
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "streams": [
+                    {"url": "http://match.example/replace_src.mp3", "label": "",
+                     "quality": "", "position": 1, "stream_type": "", "codec": ""}
+                ],
+            }
+        ]
+    )
+    zip_path = _make_import_zip(tmp_path, payload)
+    preview = preview_import(str(zip_path), repo)
+    assert preview.replaced == 1
+    commit_import(preview, repo, mode="merge")
+
+    stations = repo.list_stations()
+    s = next(x for x in stations if x.name == "New Name")
+    assert s.cover_art_source == "mb_only"
+
+
+def test_import_insert_missing_cover_art_source_defaults_to_auto(repo, tmp_path):
+    """Pitfall 9 forward-compat (INSERT): pre-Phase-73 ZIP without the field
+    -> _insert_station defaults to 'auto'."""
+    payload = _default_payload(
+        stations=[
+            {
+                "name": "Legacy",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                # NOTE: no "cover_art_source" key — simulates pre-Phase-73 ZIP
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "streams": [
+                    {"url": "http://legacy.example/s", "label": "", "quality": "",
+                     "position": 1, "stream_type": "", "codec": ""}
+                ],
+            }
+        ]
+    )
+    zip_path = _make_import_zip(tmp_path, payload)
+    preview = preview_import(str(zip_path), repo)
+    commit_import(preview, repo, mode="merge")
+
+    stations = repo.list_stations()
+    s = next(x for x in stations if x.name == "Legacy")
+    assert s.cover_art_source == "auto"
+
+
+def test_import_replace_missing_cover_art_source_defaults_to_auto(repo, tmp_path):
+    """Pitfall 9 forward-compat (REPLACE): pre-Phase-73 ZIP imported on a
+    73+ machine REPLACES the existing cover_art_source with 'auto' (the
+    missing-key default applies uniformly — same as icy_disabled). This is
+    expected behavior, documented in the SUMMARY: a pre-73 export does not
+    carry the field, so the imported state is the additive-field default."""
+    # Seed a station with cover_art_source='mb_only'.
+    cur = repo.con.execute(
+        "INSERT INTO stations(name, tags, cover_art_source) VALUES (?, ?, ?)",
+        ("Replace Me", "", "mb_only"),
+    )
+    repo.con.commit()
+    old_id = cur.lastrowid
+    repo.con.execute(
+        "INSERT INTO station_streams(station_id, url, position) VALUES (?, ?, ?)",
+        (old_id, "http://rep.example/legacy_match.mp3", 1),
+    )
+    repo.con.commit()
+
+    payload = _default_payload(
+        stations=[
+            {
+                "name": "Replace Me",
+                "provider": "",
+                "tags": "",
+                "icy_disabled": False,
+                # NOTE: no "cover_art_source" key — pre-Phase-73 ZIP
+                "is_favorite": False,
+                "last_played_at": None,
+                "logo_file": None,
+                "streams": [
+                    {"url": "http://rep.example/legacy_match.mp3", "label": "",
+                     "quality": "", "position": 1, "stream_type": "", "codec": ""}
+                ],
+            }
+        ]
+    )
+    zip_path = _make_import_zip(tmp_path, payload)
+    preview = preview_import(str(zip_path), repo)
+    assert preview.replaced == 1
+    commit_import(preview, repo, mode="merge")
+
+    stations = repo.list_stations()
+    s = next(x for x in stations if x.name == "Replace Me")
+    assert s.cover_art_source == "auto"
