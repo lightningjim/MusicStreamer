@@ -1,6 +1,7 @@
 ---
 phase: 73-musicbrainz-album-cover-lookup-complement-itunes-with-smart-
 reviewed: 2026-05-14T01:51:56Z
+fixed: 2026-05-14T03:00:00Z
 depth: standard
 files_reviewed: 20
 files_reviewed_list:
@@ -29,7 +30,11 @@ findings:
   warning: 4
   info: 8
   total: 12
-status: issues_found
+fix_results:
+  fixed: 7
+  skipped: 5
+  attempted_reverted: 0
+status: fixes_applied
 ---
 
 # Phase 73: Code Review Report
@@ -76,6 +81,8 @@ def _worker(initial_job: tuple) -> None:
         raise  # let daemon-thread default handler log it; flag now clear
 ```
 
+**Status:** Fixed in daa7329
+
 ### WR-02: `repo.update_station` silently writes `cover_art_source='auto'` when kwarg omitted; only one in-tree caller is gated
 
 **File:** `musicstreamer/repo.py:380-413`
@@ -90,6 +97,8 @@ def update_station(
 ):
 ```
 Or, if the keyword-default ergonomic must stay, broaden the source-grep test to scan every `*.py` under `musicstreamer/` (`importlib.resources.files("musicstreamer")` + recursive walk) so the gate covers the whole package, not just `edit_station_dialog.py`.
+
+**Status:** Fixed in aa09650 (broadened source-grep test; kept keyword-default for backward compat with the locked test_update_station_omitting_cover_art_source_resets_to_auto contract).
 
 ### WR-03: `cover_art_source` value is not validated at the repo write boundary
 
@@ -109,6 +118,8 @@ def update_station(self, ..., cover_art_source="auto"):
     ...
 ```
 Apply the same check in `settings_export._insert_station` and `_replace_station` so a malformed ZIP cannot inject a bad value.
+
+**Status:** Fixed in e468ef8 (repo raises ValueError; settings_export coerces unknown values to 'auto' so a malformed ZIP cannot abort the entire import).
 
 ### WR-04: Auto-mode chains iTunes worker into MB on miss without checking that the iTunes worker actually ran the search
 
@@ -140,6 +151,8 @@ def _itunes_attempt(icy, on_done):
 ```
 Then `_on_itunes_done` falls through to MB only on `ITUNES_MISS`, calls `callback(None)` on `ITUNES_ERROR`. (Or keep current behavior but document it explicitly as a design choice in the Plan 03 SUMMARY so a future maintainer doesn't tighten this and break the latent fail-open.)
 
+**Status:** Skipped (design choice aligned with strict D-02 reading: "If iTunes returns no result … try MB" — an error counts as no result. Introducing an ITUNES_MISS / ITUNES_ERROR sentinel would split the auto-mode fall-open behavior and require updates to both Plan 03 SUMMARY and existing tests. Defer to a future phase if the 2× request load becomes user-visible.)
+
 ## Info
 
 ### IN-01: Unused import `urllib.error` in `cover_art_mb.py`
@@ -147,6 +160,8 @@ Then `_on_itunes_done` falls through to MB only on `ITUNES_MISS`, calls `callbac
 **File:** `musicstreamer/cover_art_mb.py:59`
 **Issue:** `import urllib.error` is present but no code path references `urllib.error.HTTPError` or anything from that namespace (the `except Exception` catches HTTPError as a base-class-of-OSError catch). Test file uses it (raises `HTTPError` in mock); module file doesn't.
 **Fix:** Remove the unused import. If the intent was to keep it as documentation that 503/429 are anticipated, replace with a comment.
+
+**Status:** Fixed in 6da6ba1
 
 ### IN-02: Unused test fixture `mb_recording_search_503_body.json`
 
@@ -160,17 +175,23 @@ def fake_urlopen_503(req, timeout=None):
                                   hdrs=None, fp=io.BytesIO(body))
 ```
 
+**Status:** Skipped (review presents two equally-valid options — delete or wire. Neither is unambiguously better, and the 503 test currently constructs its own HTTPError without consuming a body. Leaving the fixture as documentation of the expected payload shape.)
+
 ### IN-03: Two redundant in-function imports of `musicstreamer.cover_art`
 
 **File:** `musicstreamer/cover_art.py:109` and `musicstreamer/cover_art_mb.py:355`
 **Issue:** Both worker bodies do an `import musicstreamer.cover_art as _self_module` / `as _cover_art_module` inside the function to obtain the module object for `last_itunes_result` write. The comment explains why (mutate the module attribute, not a local binding) — but the import is repeated on every worker invocation. Since `cover_art.py` is already loaded by the time any worker runs, this works but is unnecessary churn through `sys.modules` lookup on every call. The cleaner idiom is `import musicstreamer.cover_art as _self_module` at module level (or in `cover_art_mb.py` use a deferred reference via `sys.modules["musicstreamer.cover_art"]` once), but the inline import does avoid the circular-import problem at module load. Trade-off accepted; documenting only.
 **Fix:** No action required. Optionally, hoist to a module-level lazy property or add a once-per-process cache.
 
+**Status:** Skipped (review explicitly says "No action required.")
+
 ### IN-04: `last_itunes_result` is a module-level mutable dict with no concurrency guard
 
 **File:** `musicstreamer/cover_art.py:61` and `musicstreamer/cover_art_mb.py:357-360`
 **Issue:** Multiple fetch operations can in principle race on `last_itunes_result` writes. The MB-side has a 1-req/sec gate and single-slot queue, so MB cannot race against itself. iTunes-side spawns a fresh daemon thread per call with no gate — back-to-back station switches could fly two iTunes workers in parallel, racing on `last_itunes_result`. Read-side is the Favorites flow (genre column at favorite-add time) which only fires on user action. Pre-existing condition not introduced by Phase 73, but expanded surface (MB writes are new). Worth noting because the genre-handoff channel is the documented D-15 contract and racy writes can cause genre mismatch on the next favorite-add.
 **Fix:** Wrap writes in a `threading.Lock`, or change the data flow to thread the genre alongside the path through the callback rather than via a module global.
+
+**Status:** Skipped (pre-existing concurrency surface, not introduced by Phase 73. Adding a lock or rethreading the genre channel through callbacks would require new abstractions and touch D-15 contracts. Defer to a dedicated concurrency-hardening phase.)
 
 ### IN-05: `_USER_AGENT` computed at import time can fail entire module load
 
@@ -185,6 +206,8 @@ except Exception:
 _USER_AGENT = f"MusicStreamer/{_MS_VERSION} (https://github.com/lightningjim/MusicStreamer)"
 ```
 
+**Status:** Fixed in a64309a
+
 ### IN-06: `_genre_from_tags` may raise on malformed MB payload with `count=None`
 
 **File:** `musicstreamer/cover_art_mb.py:230`
@@ -194,6 +217,8 @@ _USER_AGENT = f"MusicStreamer/{_MS_VERSION} (https://github.com/lightningjim/Mus
 key=lambda t: (-int(t.get("count") or 0), t.get("name") or "")
 ```
 Apply the same to `_pick_recording`'s `(r.get("score") or 0) >= 80` (already done — good — so the pattern is established; just propagate to tags).
+
+**Status:** Fixed in d486359
 
 ### IN-07: `release_mbid` is interpolated into the CAA URL without UUID-shape validation
 
@@ -212,14 +237,23 @@ def _pick_release_mbid(...) -> Optional[str]:
     return candidate_id
 ```
 
+**Status:** Fixed in 2f86c90 (regex applied to BOTH D-10 ladder steps via helper).
+
 ### IN-08: `is_junk_title` list does not cover common ad markers
 
 **File:** `musicstreamer/cover_art.py:32-43`
 **Issue:** `JUNK_TITLES` covers `""`, `"advertisement"`, `"advert"`, `"commercial"`, `"commercial break"`. Real-world streams also produce: `"unknown"`, `"radio break"`, `"station id"`, `"sweeper"`, `"underwriting"`, `"ad break"`. None of these will trigger the gate today, so MB+CAA gets queried for "Unknown - Unknown" and similar. Pre-existing scope but worth flagging since Phase 73 now spends an MB rate-gate slot on each such call. Not a regression, just a place where the existing junk list is thin.
 **Fix:** Extend the set if there's user demand; otherwise document the scope. No action required for ship.
 
+**Status:** Skipped (review explicitly says "No action required for ship.")
+
 ---
 
 _Reviewed: 2026-05-14T01:51:56Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+_Fixes applied: 2026-05-14_
+_Fixer: Claude Opus 4.7 (1M context)_
+_Fix scope: --fix --all_
+_Result: 7 fixed (WR-01, WR-02, WR-03, IN-01, IN-05, IN-06, IN-07); 5 skipped (WR-04, IN-02, IN-03, IN-04, IN-08)_
