@@ -56,7 +56,6 @@ import queue
 import tempfile
 import threading
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 from importlib.metadata import version as _pkg_version
