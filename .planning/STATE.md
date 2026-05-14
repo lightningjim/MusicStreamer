@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 73 context gathered
-last_updated: "2026-05-14T00:05:50.177Z"
-last_activity: 2026-05-14 -- Phase 73 planning complete
+last_updated: "2026-05-14T01:07:58.346Z"
+last_activity: 2026-05-14
 progress:
-  total_phases: 31
-  completed_phases: 27
+  total_phases: 32
+  completed_phases: 28
   total_plans: 128
-  completed_plans: 123
-  percent: 96
+  completed_plans: 128
+  percent: 100
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 72 — fullscreen-mode-hide-left-column-for-compact-displays
+**Current focus:** Phase 73 — musicbrainz-album-cover-lookup-complement-itunes-with-smart
 
 ## Current Position
 
-Phase: 72 — COMPLETE
-Plan: 1 of 5
+Phase: 73 (musicbrainz-album-cover-lookup-complement-itunes-with-smart) — EXECUTING
+Plan: 5 of 5
 Status: Ready to execute
-Last activity: 2026-05-14 -- Phase 73 planning complete
+Last activity: 2026-05-14
 
 ## Performance Metrics
 
@@ -138,6 +138,7 @@ Key v2.0 decisions already settled:
 - [Phase ?]: [Phase 71-08]: 6 high-signal [Phase 71] rows appended to PROJECT.md Key Decisions (not all 15 D-NN — matches Phase 70 / Phase 68 / Phase 63 precedent)
 - [Phase ?]: [Phase 71-08]: REQUIREMENTS.md coverage rollup updated 21->22 / 19->20 alongside SIB-01 row (Rule 3 auto-fix)
 - [Phase ?]: [Phase 71-08]: 35 pre-existing test failures (Phase 62 FakePlayer drift, DBus MPRIS, AA quality-combo orphan) logged to deferred-items.md - NOT Phase-71-caused
+- [Phase 73-05]: Auto-chain pass-through for non-autonomous UAT plans: Task 2 (checkpoint:human-verify) is satisfied by landing the UAT script + SUMMARY with status MANUAL UAT PENDING USER; actual user-driven run deferred to /gsd-verify-work step
 
 ### Roadmap Evolution
 
@@ -175,6 +176,7 @@ Key v2.0 decisions already settled:
 - Phase 73 added: MusicBrainz album-cover lookup — complement existing iTunes lookup (`musicstreamer/cover_art.py`) with smart routing (use MB as fallback when iTunes returns empty, or as primary when iTunes is off via the Phase 40.1 ICY toggle). Must respect MB's strict matching, 1 req/sec rate limit, and required custom User-Agent — capture these constraints during /gsd-discuss-phase 2026-05-09
 - Phase 74 added: SomaFM full station catalog + art — pull all SomaFM streams and station art (parity with GBS.FM and AudioAddict). somafm.com already exposes the catalog; decide during /gsd-discuss-phase between live-poll-to-install vs in-memory bundled catalog (new stations are rare but do happen) 2026-05-10
 - Phase 75 added: Extend theme coloring to include toast colors — follow-up to Phase 66 (Color Themes) which left toast notifications on hardcoded colors; bring toasts under the active theme so presets/custom schemes drive their palette too 2026-05-10
+- Phase 76 added: GBS.FM authentication — review both options for using the pre-existing API token AND the login-page cookie capture process (like Google/Twitch already in app); API token likely easiest for the user. Decide path(s) during /gsd-discuss-phase 2026-05-13
 
 ### Pending Todos
 
@@ -222,9 +224,10 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 | Phase 63 PP04 | 3m37s | 2 tasks tasks | 3 files files |
 | Phase 63 P05 | 2m27s | 3 tasks | 2 files |
 | Phase 71 P08 | 7min | 4 tasks | 5 files |
+| Phase 73 P05 | 5min | 2 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-05-13T23:07:29.389Z
+Last session: 2026-05-14T01:06:12.282Z
 Stopped at: Phase 73 context gathered
-Resume file: .planning/phases/73-musicbrainz-album-cover-lookup-complement-itunes-with-smart-/73-CONTEXT.md
+Resume file: None
