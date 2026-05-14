@@ -309,3 +309,53 @@ def test_no_self_capturing_lambda_in_soma_action():
         assert m.strip().startswith("self."), (
             f"QA-05: bound method starting with 'self.' expected, got: {m!r}"
         )
+
+
+def test_re_import_emits_no_changes_toast_via_real_thread(main_window, qtbot, monkeypatch):
+    """SOMA-11 / UAT-07 regression: re-import (inserted=0, skipped=46) emits
+    'SomaFM import: no changes' toast via the live _SomaImportWorker thread.
+
+    Exercises the real Qt event loop (start the worker, wait for the toast)
+    — NOT a direct slot call. This is the test that catches the
+    QThread.finished shadowing bug from 74-VERIFICATION.md G-01 / 74-REVIEW.md
+    CR-02 + WR-04: when the worker's completion signal shadows the inherited
+    QThread.finished, Qt's no-arg auto-emitted finished() dispatches into a
+    2-int slot with the wrong arity, raising TypeError that Qt swallows,
+    causing the toast to never appear.
+    """
+    from musicstreamer import soma_import
+
+    captured_toasts: list[str] = []
+    monkeypatch.setattr(main_window, "show_toast",
+                        lambda text, *a, **kw: captured_toasts.append(text))
+    monkeypatch.setattr(main_window, "_refresh_station_list", lambda: None)
+
+    # Patch fetch_channels and import_stations so the live worker exits
+    # immediately with (0, 46) — no network calls.
+    monkeypatch.setattr(soma_import, "fetch_channels",
+                        lambda *a, **kw: [{"id": "stub", "title": "stub",
+                                           "description": "", "image_url": None,
+                                           "streams": []}])
+    monkeypatch.setattr(soma_import, "import_stations",
+                        lambda channels, repo: (0, 46))
+
+    # Click the action — this constructs _SomaImportWorker and calls .start().
+    main_window._on_soma_import_clicked()
+
+    # Wait up to 5 s for the worker to complete and dispatch the toast via
+    # the real Qt event loop. The bug under test causes the toast to never
+    # arrive — the test then times out and fails.
+    qtbot.waitUntil(
+        lambda: "SomaFM import: no changes" in captured_toasts,
+        timeout=5000,
+    )
+
+    assert "SomaFM import: no changes" in captured_toasts, (
+        "UAT-07 regression: live _SomaImportWorker.start() with "
+        "(inserted=0, skipped=46) must produce a 'SomaFM import: no changes' "
+        "toast — got toasts: " + repr(captured_toasts)
+    )
+    # Worker should be cleared by _on_soma_import_done
+    assert main_window._soma_import_worker is None, (
+        "SOMA-12: _soma_import_worker must be cleared in _on_soma_import_done"
+    )
