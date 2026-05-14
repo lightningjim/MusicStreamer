@@ -23,7 +23,18 @@ from typing import List, Optional
 
 from musicstreamer import paths
 from musicstreamer.models import Favorite, Station
-from musicstreamer.repo import Repo
+from musicstreamer.repo import VALID_COVER_ART_SOURCES, Repo
+
+
+def _coerce_cover_art_source(raw: object) -> str:
+    """WR-03 (Phase 73): coerce an imported cover_art_source value into a
+    valid enum string. Unknown/typo'd values fall back to 'auto' rather
+    than raising, so a malformed ZIP cannot abort an otherwise-valid
+    import (parallels the WR-03 settings-parse pattern at line 474).
+    """
+    if isinstance(raw, str) and raw in VALID_COVER_ART_SOURCES:
+        return raw
+    return "auto"
 
 # Settings keys excluded from export (credentials / machine-local secrets).
 _EXCLUDED_SETTINGS = {"audioaddict_listen_key"}
@@ -519,7 +530,10 @@ def _insert_station(repo: Repo, data: dict) -> int:
             # Phase 73 D-06 / Pitfall 9 forward-compat: pre-Phase-73 ZIPs lack
             # the field, default to 'auto' (D-05). The `or "auto"` form also
             # covers an explicit-None payload value.
-            data.get("cover_art_source") or "auto",
+            # WR-03: coerce unknown/typo values to 'auto' instead of letting
+            # bad data persist (the dataclass Literal hint is not runtime-
+            # enforced).
+            _coerce_cover_art_source(data.get("cover_art_source")),
         ),
     )
     station_id = int(cur.lastrowid)
@@ -583,7 +597,9 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
             # icy_disabled pattern above (data.get(field, default)). This is
             # the documented additive-field design: a pre-73 export does not
             # carry the field, so import always resets to 'auto'.
-            data.get("cover_art_source") or "auto",
+            # WR-03: coerce unknown/typo values to 'auto' (same rationale
+            # as _insert_station above).
+            _coerce_cover_art_source(data.get("cover_art_source")),
             station_id,
         ),
     )

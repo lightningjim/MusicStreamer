@@ -5,6 +5,15 @@ from musicstreamer.models import Station, Provider, Favorite, StationStream
 from musicstreamer import paths
 
 
+# Phase 73 WR-03: valid values for the `cover_art_source` column. The
+# Station dataclass declares this as a Literal[...] but Python does not
+# enforce Literal at runtime — a typo in any caller would persist silently
+# and surface only as a downstream bug (e.g. EditStationDialog combobox
+# falling through to index 0 with no error). Validate at the write
+# boundary so bad values never reach the DB.
+VALID_COVER_ART_SOURCES: frozenset[str] = frozenset({"auto", "itunes_only", "mb_only"})
+
+
 def db_connect() -> sqlite3.Connection:
     con = sqlite3.connect(paths.db_path())
     con.row_factory = sqlite3.Row
@@ -398,7 +407,20 @@ class Repo:
         locked by test_repo.test_update_station_omitting_cover_art_source_resets_to_auto
         so Plan 04's EditStationDialog implementation cannot silently regress
         — it MUST always pass the kwarg.
+
+        WR-03: validate cover_art_source at the write boundary. The
+        Station dataclass Literal hint is annotation-only and not enforced
+        at runtime; a typo would silently persist and surface as a UX bug
+        (the dialog combo's index-lookup loop falls through to index 0,
+        making the user think their preference is 'auto' when it's
+        actually unparseable). Raise ValueError so callers see the bug
+        immediately at save time.
         """
+        if cover_art_source not in VALID_COVER_ART_SOURCES:
+            raise ValueError(
+                f"cover_art_source must be one of "
+                f"{sorted(VALID_COVER_ART_SOURCES)}; got {cover_art_source!r}"
+            )
         self.con.execute(
             """
             UPDATE stations
