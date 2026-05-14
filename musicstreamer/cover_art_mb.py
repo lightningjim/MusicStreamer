@@ -232,11 +232,17 @@ def _genre_from_tags(recording: dict) -> str:
     tags = recording.get("tags") or []
     if not tags:
         return ""
+    # IN-06: coerce defensively — `t.get("count", 0)` returns the default 0
+    # only when the key is MISSING; an explicit `"count": null` produces
+    # None, which `int(None)` then raises TypeError on. The `or 0` form
+    # collapses both None and a literal 0 to 0 (acceptable for sorting).
+    # Same pattern is already used elsewhere (`r.get("score") or 0` in
+    # _pick_recording).
     tags_sorted = sorted(
         tags,
-        key=lambda t: (-int(t.get("count", 0)), t.get("name", "")),
+        key=lambda t: (-int(t.get("count") or 0), t.get("name") or ""),
     )
-    return tags_sorted[0].get("name", "")
+    return tags_sorted[0].get("name") or ""
 
 
 def _do_mb_search(artist: str, title: str) -> Optional[dict]:
