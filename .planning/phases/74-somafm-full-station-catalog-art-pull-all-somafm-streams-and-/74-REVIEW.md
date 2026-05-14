@@ -1,124 +1,65 @@
 ---
 phase: 74-somafm-full-station-catalog-art-pull-all-somafm-streams-and-
-reviewed: 2026-05-14T13:30:00Z
+reviewed: 2026-05-14T00:00:00Z
 depth: standard
-files_reviewed: 3
+files_reviewed: 9
 files_reviewed_list:
+  - musicstreamer/__main__.py
   - musicstreamer/soma_import.py
   - musicstreamer/ui_qt/main_window.py
-  - musicstreamer/__main__.py
+  - tests/fixtures/soma_channels_3ch.json
+  - tests/fixtures/soma_channels_with_dedup_hit.json
+  - tests/test_constants_drift.py
+  - tests/test_main_window_gbs.py
+  - tests/test_main_window_soma.py
+  - tests/test_soma_import.py
 findings:
-  critical: 4
-  warning: 5
-  info: 3
-  total: 12
+  critical: 5
+  warning: 7
+  info: 5
+  total: 17
 status: issues_found
 ---
 
 # Phase 74: Code Review Report
 
-**Reviewed:** 2026-05-14T13:30:00Z
+**Reviewed:** 2026-05-14
 **Depth:** standard
-**Files Reviewed:** 3
+**Files Reviewed:** 9
 **Status:** issues_found
 
 ## Summary
 
-Phase 74 adds a SomaFM bulk-import backend (`soma_import.py`) plus a `_SomaImportWorker` QThread + handler trio in `main_window.py`, with a logger registration in `__main__.py`. The shape mirrors the AudioAddict importer (`aa_import.py`) and the GBS worker (`_GbsImportWorker`), so the structural skeleton is sound.
+Phase 74 ships a SomaFM bulk-import backend (`soma_import.py`) and a `_SomaImportWorker` QThread plus three handlers in `main_window.py`. Two follow-up plans (74-05, 74-06) have already landed in the diff under review: a URL-slug bitrate parser (`_bitrate_from_url`) and a rename of every worker's `finished` signal to `<verb>_finished` to stop shadowing the inherited `QThread.finished()`. Those two follow-ups DO close the previously-identified CR-01 (hardcoded MP3-highest bitrate) and WR-04 (signal-shadowing). They do NOT close the other Critical and Warning findings from the earlier review, several of which remain live in the merged code.
 
-The two UAT-surfaced issues are real and confirmed:
+Re-reviewing the **current** state of the source files I find:
 
-1. **Hardcoded MP3-highest bitrate (CR-01)** — `_TIER_BY_FORMAT_QUALITY` pins `(mp3, "highest")` to `bitrate_kbps=128`. SomaFM's catalog has channels whose `highest`-quality MP3 stream is 256 kbps (e.g. `synphaera-256-mp3`, `secretagent-128-mp3` is 128 but `bootliquor-128-mp3` is 128 — many are ≥ 192). The actual bitrate is encoded in the URL slug (`-NNN-mp3`) and is also exposed by `playlists[].url` plus the upstream API's per-playlist hints, but the import never reads them. Every imported MP3-highest stream lands in the DB with `bitrate_kbps=128`, which is wrong.
+* **BLOCKER** — `_resolve_pls` still returns `[pls_url]` (the input PLS URL) on any fetch/parse failure (line 115). That bogus URL is then fed into `_bitrate_from_url(pls_url, default)` (line 153), persisted as an ICE relay URL, and the user gets a "station" whose only stream is a `.pls` file the player cannot decode. This is the same silent-data-corruption path called out in WR-03 of the prior review — still unfixed.
+* **BLOCKER** — `urllib.request.urlopen` is called on three operator-API-controlled URL fields (`_API_URL`, `pls_url`, `image_url`) with no scheme allow-list. A compromised api.somafm.com or any MitM that survives TLS can return `image: "file:///etc/passwd"` and the import will read it, copy it into the station-art assets directory, and persist the path. CR-03 from the prior review — still unfixed.
+* **BLOCKER** — `_download_logos._download_logo` opens a new `sqlite3` connection per logo via `Repo(db_connect())` (line 286) and never closes it. With `max_workers=8` against the full 80+ SomaFM catalog, dozens of unclosed connections pile up under WAL on Windows. CR-04 from the prior review — still unfixed.
+* **BLOCKER** — `import_stations` per-channel `try/except` (lines 252-255) wraps the station insert AND the stream-insert loop. If `insert_stream` raises mid-loop (UNIQUE constraint, OperationalError, etc.) the station row remains in the DB with a partial stream set, the user is told `skipped += 1`, and any subsequent re-import dedups on the partial URLs and never repairs the row. WR-02 from the prior review elevated here because the symptom is silent permanent data corruption.
+* **BLOCKER** — `_on_soma_import_error` slot DOES NOT call `_refresh_station_list()` (line 1519-1523), but `import_stations` is allowed to insert rows BEFORE raising (the worker's `try/except` is at line 165-174 around the whole `fetch_channels` + `import_stations` chain). If a malformed channel late in the list triggers an unhandled exception OUTSIDE the per-channel `try/except` (e.g., a `KeyboardInterrupt` or memory error during `_download_logos` post-loop), the user sees "SomaFM import failed: …" but the station list is stale — `imported` stations are in the DB and invisible until next refresh.
 
-2. **Idempotent re-import emits "no changes" toast — but two adjacent defects can suppress it (CR-02 + WR-04)**. The `else:` branch in `_on_soma_import_done` is correctly written, so when it fires you DO get the toast. The cases where it does NOT fire (and which match the UAT report) are: (a) `_SomaImportWorker.finished = Signal(int, int)` SHADOWS `QThread.finished()`, the auto-emitted parent C++ signal — the same trapdoor the GBS worker has, but GBS gets re-imports rarely so the symptom never showed; and (b) on idempotent re-import `import_stations` returns `(0, N)` and `_download_logos([])` short-circuits, so the run completes faster than the network-fetch user expects, but this is fine. The actual user-visible regression is that on `inserted=0` with EVERY channel skipped via the per-channel try/except bumping `skipped`, the worker never reaches the manual `self.finished.emit(...)` call IF `fetch_channels` itself raises — and the error path's `_on_soma_import_error` runs instead of `_on_soma_import_done`. See CR-02 for the concrete trace.
-
-Beyond the two known issues there are additional Critical/Warning findings: SSRF surface from un-validated `image_url` / `pls_url` schemes (CR-03), per-logo SQLite connection leak (CR-04), silent logo failures (WR-01), and several quality issues.
+Beyond the five blockers there are seven warnings (silent logo-failure logging, double-click race, `_bitrate_from_url` accepts arbitrary digit run lengths, `urllib.error` unused import promoted from info because it betrays incomplete error-handling design, regression-test `db_connect` not mocked, `_re_import…` test relies on real fs/db side effects, codec literal "AAC" conflates LC and HE-AAC) and five info items.
 
 ## Critical Issues
 
-### CR-01: MP3-highest bitrate hardcoded to 128 — wrong for ~half the SomaFM catalog
+### CR-01: `_resolve_pls` silently corrupts the import by returning the input PLS URL as if it were a stream URL
 
-**File:** `musicstreamer/soma_import.py:62-67`
-**Issue:** `_TIER_BY_FORMAT_QUALITY[("mp3", "highest")]` returns `{"bitrate_kbps": 128, ...}` unconditionally, but SomaFM publishes 128 / 192 / 256 kbps as the `highest` MP3 tier per channel. Channels like `synphaera` (`https://ice2.somafm.com/synphaera-256-mp3`), `vaporwaves`, `groovesalad` (192), etc. all get persisted with the wrong bitrate. Downstream UI / quality-map logic that uses `bitrate_kbps` for sorting/labelling is now lying about the stream. This is the UAT-surfaced bug #1.
-
-The bitrate is recoverable from at least three places: (a) the URL slug `-(\d+)-mp3`, (b) the SomaFM `playlists[]` entry doesn't expose bitrate directly but the channel JSON has a `highestpls`/`fastpls`/`slowpls` set with explicit kbps fields, (c) parsing the icy headers from each ICE relay (heavyweight; do not).
-
-**Fix:** Parse the bitrate from the relay URL slug after `_resolve_pls`, then override the table default per stream. Keep the table default as a fallback only:
-
+**File:** `musicstreamer/soma_import.py:113-115`
+**Issue:**
 ```python
-import re
-
-_BITRATE_FROM_URL_RE = re.compile(r"-(\d+)-(?:mp3|aac|aacp)\b")
-
-def _bitrate_from_url(url: str, default: int) -> int:
-    """Extract bitrate from SomaFM ICE URL slug like ice2.somafm.com/foo-256-mp3."""
-    m = _BITRATE_FROM_URL_RE.search(url)
-    if m:
-        try:
-            return int(m.group(1))
-        except ValueError:
-            pass
-    return default
-
-# Then in fetch_channels at the streams.append site:
-for relay_index, relay_url in enumerate(relay_urls, start=1):
-    parsed_bitrate = _bitrate_from_url(relay_url, tier_meta["bitrate_kbps"])
-    streams.append({
-        "url": relay_url,
-        "quality": tier_meta["quality"],
-        "position": tier_meta["tier_base"] * 10 + relay_index,
-        "codec": tier_meta["codec"],
-        "bitrate_kbps": parsed_bitrate,
-    })
+except Exception:  # noqa: BLE001
+    pass
+return [pls_url]
 ```
+On any fetch failure (network blip, parse error, empty playlist) the function returns the input `.pls` URL inside a 1-element list. `fetch_channels` then iterates that list at line 152 as if it were a list of ICE relay URLs, calls `_bitrate_from_url(pls_url, default)` (line 153), persists the `.pls` URL as a `station_streams.url` row, and the SomaFM provider gets a "station" whose only stream is `https://api.somafm.com/groovesalad256.pls` — a playlist file, not an audio stream. The Player cannot decode it. Worse: on the next re-import `station_exists_by_url(".../groovesalad256.pls")` returns True and the WHOLE channel is dedup-skipped, so the broken station is never repaired.
 
-Also add a unit test fixture asserting `synphaera`'s `hi`-tier streams persist as 256 kbps and `groovesalad` as 192 (or whatever the live data shows).
+The docstring at line 102-103 claims "Falls back to [pls_url] on any exception (mirrors AA; callers that need [0] continue to work against the fallback-on-error contract)" — but no current Phase 74 caller "needs [0]"; the AA-legacy contract has no place in the Phase 74 import path and produces silently-broken data for the SomaFM use case.
 
-### CR-02: `_SomaImportWorker` swallows fatal `fetch_channels` errors as toast-failed; on partial-failure the per-channel try/except in `import_stations` masks the failure and emits `(0, 0)` — no toast either way
-
-**File:** `musicstreamer/ui_qt/main_window.py:165-174` and `musicstreamer/soma_import.py:120-155, 175-240`
-**Issue:** This is the root cause of UAT bug #2 ("no toast at all on idempotent re-import"). The flow has two interacting bugs:
-
-1. `_SomaImportWorker.run()` wraps the entire `fetch_channels()` + `import_stations()` chain in a single `try/except Exception`. If `fetch_channels` raises (network blip, DNS, SomaFM 5xx), the worker calls `self.error.emit(str(exc))` — `_on_soma_import_error` then shows "SomaFM import failed: …". OK so far.
-
-2. But `fetch_channels` itself has a per-channel `try/except` (line 120-153) that swallows ALL exceptions (including `_resolve_pls` returning the fallback `[pls_url]`, which is THEN treated as a valid stream URL). `_resolve_pls` ALSO swallows all exceptions and returns `[pls_url]` — the input PLS URL — as if it were a real ICE relay URL. So a SomaFM-side outage that 502s the per-channel `.pls` fetches yields a channel with `streams=[{"url": "https://somafm.com/foo.pls", ...}]`. On re-import, `station_exists_by_url("...foo.pls")` returns False (no prior PLS-URL stream exists), the channel is "imported" with a non-streamable URL, and the user sees `"SomaFM import: 80 stations added"` with stations that never play.
-
-3. The `_on_soma_import_done` slot itself is correct. The reason the UAT saw "no toast at all" is that the `finished` signal — `Signal(int, int)` — SHADOWS the parent `QThread.finished()` (no-arg). When the C++ side auto-emits `finished()` with no args at thread end, PySide6 dispatches into the Python signal slot `_on_soma_import_done(inserted, skipped)` with the wrong arity, which raises `TypeError: _on_soma_import_done() missing 2 required positional arguments` *inside the Qt event dispatcher*, swallowed by Qt and printed only to stderr. The result: no toast. The GBS worker has the identical bug (line 124-150) but it has not surfaced because GBS imports are rare.
-
-**Fix:** Two changes are needed.
-
-(a) Rename the Phase 74 worker's signal so it does not shadow `QThread.finished`:
-
+**Fix:** Return `[]` (empty list) on fetch failure or empty parse. The caller's `if not streams: continue` at line 161 already drops a channel that produces zero recognisable tiers, which is the correct behaviour:
 ```python
-class _SomaImportWorker(QThread):
-    import_finished = Signal(int, int)   # (inserted, skipped) — NOT 'finished'
-    error = Signal(str)
-
-    def run(self):
-        try:
-            from musicstreamer.repo import Repo
-            from musicstreamer import soma_import
-            channels = soma_import.fetch_channels()
-            repo = Repo(db_connect())
-            inserted, skipped = soma_import.import_stations(channels, repo)
-            self.import_finished.emit(int(inserted), int(skipped))
-        except Exception as exc:
-            self.error.emit(str(exc))
-```
-
-And update the connect at `main_window.py:1506`:
-
-```python
-self._soma_import_worker.import_finished.connect(self._on_soma_import_done)
-```
-
-Apply the same rename to `_GbsImportWorker.finished` → `_GbsImportWorker.import_finished` (and its caller at `main_window.py:1462`), and `_ExportWorker.finished` / `_ImportPreviewWorker.finished` if they have the same shape (they do — `main_window.py:101, 107, 119`). This clears the latent bug across all four workers.
-
-(b) Make `_resolve_pls` distinguish "fetched OK but empty" from "fetch failed", and stop returning the input PLS URL as if it were a relay URL. Caller-side (`fetch_channels`) should treat a fetch failure as a recoverable per-channel error that contributes to `skipped`:
-
-```python
-def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str] | None:
-    """Returns None on fetch failure, [] on empty playlist, list[str] otherwise."""
+def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str]:
     try:
         req = urllib.request.Request(pls_url, headers={"User-Agent": _USER_AGENT})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -129,32 +70,28 @@ def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str] | None:
         return [e["url"] for e in entries if e.get("url")]
     except Exception as exc:
         _log.warning("SomaFM PLS fetch failed for %s: %s", pls_url, exc)
-        return None
+        return []
 ```
+If AA's `_resolve_pls` shares the same fallback contract, audit it separately — Phase 74 should not be the place to ripple the change.
 
-In `fetch_channels`, treat `None` as a hard failure for that tier (skip the tier; do NOT silently substitute the input URL):
+### CR-02: SSRF / local-file-read via `urllib.request.urlopen` — no scheme allow-list on any of the three call sites
 
-```python
-relay_urls = _resolve_pls(pl["url"])
-if not relay_urls:
-    continue   # tier failed — drop this tier, channel may still have other tiers
-```
+**File:** `musicstreamer/soma_import.py:106, 132, 278`
+**Issue:** `urllib.request.urlopen` accepts `file://`, `ftp://`, and arbitrary `http://` URLs. Three call sites pass operator-API-controlled URL fields into it:
 
-Note: this is a behavioural change for AA-style callers, so audit `aa_import._resolve_pls` callers before applying the same fix there.
+1. Line 132 — `urlopen(req)` where `req.full_url` is `_API_URL` (hardcoded HTTPS — safe today).
+2. Line 106 — `urlopen(req, timeout=timeout)` where `pls_url` comes from `playlists[].url` in the SomaFM JSON response.
+3. Line 278 — `urlopen(req, timeout=15)` where `image_url` comes from `channels[].image` in the SomaFM JSON response.
 
-### CR-03: SSRF / local-file-read via `urllib.request.urlopen(image_url)` — no scheme allow-list
+A compromised api.somafm.com (single bad CDN edge, single MitM in TLS chain, single hijacked DNS resolution) can return `{"image": "file:///etc/passwd", "playlists": [{"url": "http://127.0.0.1:9100/metrics", ...}]}`. The import will then (a) read local files into the user's station-art directory and persist the path in the DB, and (b) open arbitrary internal HTTP services from the user's workstation. On a future server-side bulk-import path (any Phase 7x cron / sync job) this is a hard SSRF pivot.
 
-**File:** `musicstreamer/soma_import.py:255` (and `:84` for PLS, `:111` for the channels API)
-**Issue:** `urllib.request.urlopen` accepts `file://`, `ftp://`, and arbitrary `http://` URLs. The `image_url` and `pl["url"]` values come from the SomaFM API response, and while api.somafm.com is reasonably trusted, a single compromised CDN entry or a MitM in the api.somafm.com TLS chain can serve `{"image": "file:///etc/passwd"}` or `{"image": "http://internal-corp-host:8080/admin"}`. The ThreadPoolExecutor then opens `file:///etc/passwd`, reads the bytes, copies them into the user's station-art directory, and persists the path in the DB. On a developer workstation that's a leak; on a future server-side bulk-import (Phase 7x) it's an SSRF pivot into the internal network.
+This matches Phase 74's "Mirror X" decision-citation rule from MEMORY.md — the only spec citation supporting `urllib.request.urlopen` is "AA does it this way", and AA carries the same surface; both deserve the fix.
 
-The api endpoint `_API_URL` is hardcoded HTTPS (good), but `urlopen` does not enforce that the URL passed to `Request(...)` is HTTPS. There is no scheme validation anywhere in this module.
-
-**Fix:** Add a strict scheme check before every `urlopen`. A 4-line helper covers all three call sites:
-
+**Fix:** Add a `_safe_urlopen` helper that rejects non-HTTPS schemes and empty netlocs. Replace all three call sites.
 ```python
 from urllib.parse import urlparse
 
-_ALLOWED_SCHEMES = {"https", "http"}   # 'http' kept for ICE relays that 80/tcp some legacy SomaFM mirrors
+_ALLOWED_SCHEMES = {"https", "http"}  # 'http' retained for legacy SomaFM ICE relays on port 80
 
 def _safe_urlopen(url: str, timeout: int):
     parsed = urlparse(url)
@@ -166,115 +103,115 @@ def _safe_urlopen(url: str, timeout: int):
     return urllib.request.urlopen(req, timeout=timeout)
 ```
 
-Then replace every `urllib.request.urlopen(req, ...)` site with `_safe_urlopen(url, timeout)`. The mitigation should also propagate to `aa_import.py` (same surface, same trust level).
+### CR-03: SQLite connection leak in `_download_logos` — one connection per logo, never closed
 
-### CR-04: SQLite connection leak in `_download_logos` — one new connection per logo, never closed
-
-**File:** `musicstreamer/soma_import.py:264-265`
-**Issue:** `_download_logo` does `thread_repo = Repo(db_connect())` for every logo target. The connection is referenced by `thread_repo` for the duration of the `update_station_art` call and then dropped. CPython will eventually GC the `Repo` and close the underlying sqlite connection, but only on a future GC cycle — and inside a `ThreadPoolExecutor(max_workers=8)` running through the full ~80-channel SomaFM catalog this means ~80 connections are opened in quick succession with no deterministic close. On Windows (Phase 74's deployment target per spike findings) sqlite WAL files have been observed to lock under exactly this pattern, and a worker thread holding an unclosed connection across a `update_station_art` is a known Phase 67 footgun (referenced in your project memory).
-
-The AA importer (`aa_import.py:267`) has the same bug — but Phase 74 surfaces it more sharply because SomaFM has 80 channels vs AA's smaller per-network sets.
-
-**Fix:** Close the connection deterministically with `try/finally` or use the connection as a context manager:
-
+**File:** `musicstreamer/soma_import.py:286-287`
+**Issue:**
 ```python
-def _download_logo(station_id: int, image_url: str) -> None:
-    try:
-        req = urllib.request.Request(image_url, headers={"User-Agent": _USER_AGENT})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = resp.read()
-        suffix = os.path.splitext(image_url.split("?")[0])[1] or ".png"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(data)
-            tmp_path = tmp.name
-        try:
-            art_path = copy_asset_for_station(station_id, tmp_path, "station_art")
-            con = db_connect()
-            try:
-                Repo(con).update_station_art(station_id, art_path)
-            finally:
-                con.close()
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-    except Exception as exc:
-        _log.warning("SomaFM logo download failed for %s: %s", image_url, exc)
+art_path = copy_asset_for_station(station_id, tmp_path, "station_art")
+thread_repo = Repo(db_connect())
+thread_repo.update_station_art(station_id, art_path)
+```
+`thread_repo` (and the underlying `sqlite3.Connection`) is local. There is no `con.close()` and no context-manager use. CPython's reference-counting GC will close the connection when `thread_repo` drops, but only after the `_download_logo` callable returns — for `ThreadPoolExecutor(max_workers=8)` running through 80+ channels this means dozens of connections held open across the executor's lifetime. On Windows SQLite WAL has been observed to hold journal locks across exactly this pattern (referenced in MEMORY.md `reference_musicstreamer_db_schema.md`). The corresponding bug in `aa_import.py:267` has the same shape; do not let Phase 74 reintroduce it.
+
+**Fix:**
+```python
+art_path = copy_asset_for_station(station_id, tmp_path, "station_art")
+con = db_connect()
+try:
+    Repo(con).update_station_art(station_id, art_path)
+finally:
+    con.close()
 ```
 
-(See WR-01 for the related `except Exception: pass` swallowing.)
+### CR-04: `import_stations` per-channel try/except allows half-imported stations to persist permanently
+
+**File:** `musicstreamer/soma_import.py:197-256`
+**Issue:** The `try` block (line 198) wraps both `repo.insert_station(...)` (line 215) AND the per-stream loop (lines 224-248). If `insert_stream` raises on, say, the 7th of 20 streams (UNIQUE constraint from a prior crashed run, sqlite OperationalError on lock contention), the outer `except Exception` (line 252) increments `skipped`, the user is told "skipped 1 channel", and the half-imported station persists in the DB:
+- 1 row in `stations` (created at line 215)
+- 1 row in `station_streams` from `insert_station`'s implicit first-stream insert (repo.py:542)
+- N additional rows in `station_streams` (where N is the count before the failure)
+
+On the next re-import, `station_exists_by_url` returns True for the persisted partial URLs, the WHOLE channel is dedup-skipped (line 210), and the broken station is never repaired. The user has no UI affordance for "this station is missing 13 streams"; the only escape is a manual edit-station-streams round-trip.
+
+This is silently permanent data corruption — strictly worse than the original symptom WR-02 in the prior review documented (which classified it as Warning).
+
+**Fix:** Two-step approach. Cheap fix: roll back the station on any per-channel exception by tracking the inserted station_id and deleting it on failure. Repo already has `delete_station` (per the `_FakeRepo` test double). The Repo `delete_station` implementation should CASCADE-delete `station_streams` rows; verify before relying on it.
+```python
+for ch in channels:
+    inserted_station_id: int | None = None
+    try:
+        if not ch.get("streams"):
+            ...
+        else:
+            ...
+            inserted_station_id = repo.insert_station(...)
+            for s in ch["streams"]:
+                ...
+            imported += 1
+            if ch.get("image_url"):
+                logo_targets.append((inserted_station_id, ch["image_url"]))
+    except Exception as exc:
+        if inserted_station_id is not None:
+            try:
+                repo.delete_station(inserted_station_id)
+            except Exception:
+                _log.warning("Failed to roll back partial SomaFM station %s", inserted_station_id)
+        _log.warning("SomaFM channel %s import skipped: %s", ch.get("id"), exc)
+        skipped += 1
+```
+Long-term, add a `Repo.insert_station_with_streams(...)` atomic API so the whole channel is one SQLite transaction.
+
+### CR-05: `_on_soma_import_error` skips `_refresh_station_list()` — UI silently stale after partial-import failure
+
+**File:** `musicstreamer/ui_qt/main_window.py:1519-1523`
+**Issue:**
+```python
+def _on_soma_import_error(self, msg: str) -> None:
+    truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+    self.show_toast(f"SomaFM import failed: {truncated}")
+    self._soma_import_worker = None
+```
+This branch does not refresh the station list. But `_SomaImportWorker.run()` wraps the ENTIRE `fetch_channels() + import_stations()` chain in one `try/except Exception` (line 165-174). `import_stations` is allowed to commit station rows BEFORE the failure propagates (e.g., the per-channel `try/except` does not catch `MemoryError`, `KeyboardInterrupt`, `SystemExit`; an exception during `_download_logos` after the loop will also propagate out of `import_stations` with stations already committed). The user then sees the failure toast, the worker reference is cleared, but `_refresh_station_list()` never runs — the StationListPanel is now lying about the library state until the next manual interaction.
+
+Compare to `_on_soma_import_done` which DOES call `self._refresh_station_list()` at line 1516. The error path should mirror it.
+
+**Fix:**
+```python
+def _on_soma_import_error(self, msg: str) -> None:
+    truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+    self.show_toast(f"SomaFM import failed: {truncated}")
+    self._refresh_station_list()    # partial inserts may exist; never trust the cached list
+    self._soma_import_worker = None
+```
 
 ## Warnings
 
-### WR-01: `_download_logos` silently swallows ALL exceptions — no log line, no telemetry
+### WR-01: `_download_logos` silently swallows ALL exceptions with no log line
 
-**File:** `musicstreamer/soma_import.py:271-272`
-**Issue:** `except Exception: pass` (bare-bones, not even a `noqa` comment justifying it). The docstring claims "best-effort" and "silently swallowed", but for a 280-line file that registers a logger at INFO level (per `__main__.py:236`), eating every logo failure with no log line is a debugging dead-end. When a user reports "half my SomaFM stations have no art", you have zero diagnostic data — was it a 404? a permission denied on the asset dir? a `copy_asset_for_station` raise? Unknown.
+**File:** `musicstreamer/soma_import.py:293-294`
+**Issue:**
+```python
+except Exception:  # noqa: BLE001
+    pass
+```
+The module registers a logger at INFO (`__main__.py:236`), but the bare-swallow `pass` eats every logo-download failure with zero diagnostic data. When a user reports "half my SomaFM stations have no art" the developer has nothing to grep for — was it a 404? a permission denied on the asset dir? a Pillow / `copy_asset_for_station` crash? Unknown.
 
-**Fix:** Log the exception at WARNING. The "non-fatal" contract is preserved; you just gain diagnostics:
-
+**Fix:**
 ```python
 except Exception as exc:
     _log.warning("SomaFM logo download failed for station %s (%s): %s",
                  station_id, image_url, exc)
 ```
 
-### WR-02: `import_stations` per-channel try/except can mark a successfully-half-imported channel as "skipped"
-
-**File:** `musicstreamer/soma_import.py:175-233`
-**Issue:** The channel body inserts the station, then iterates streams and calls `insert_stream` per stream. If `insert_stream` raises on, say, the 5th stream of 20 (UNIQUE constraint on `url` from a prior partial run), the channel is half-imported (1 station + 4 streams in the DB) but the outer `except Exception` increments `skipped` and the user is told "skipped 1". A subsequent re-import will then see that stream URL exists, skip the WHOLE channel, and the half-imported station is permanently broken (1 station with 4 streams, never repaired).
-
-**Fix:** Wrap the station/stream insert in a single transaction so a stream failure rolls back the station. The repo currently auto-commits after each `insert_stream`. Either:
-
-(a) Add `repo.delete_station(station_id)` in the `except` branch when partway through stream inserts, OR
-
-(b) Restructure to validate all streams first (no DB writes), then do all inserts inside a single transaction. The latter is cleaner but requires a `repo.insert_station_with_streams` API.
-
-The minimal short-term fix is (a):
-
-```python
-station_id = None
-try:
-    # ... existing logic ...
-    station_id = repo.insert_station(...)
-    # ... insert_stream loop ...
-    imported += 1
-except Exception as exc:
-    if station_id is not None:
-        try:
-            repo.delete_station(station_id)
-        except Exception:
-            _log.warning("Failed to roll back partial SomaFM station %s", station_id)
-    _log.warning("SomaFM channel %s import skipped: %s", ch.get("id"), exc)
-    skipped += 1
-```
-
-### WR-03: `_resolve_pls` returns input PLS URL as a "relay URL" on any fetch failure — silently corrupts the import
-
-**File:** `musicstreamer/soma_import.py:92-94`
-**Issue:** Already covered structurally in CR-02, but worth its own finding because it is a localised bug independent of the worker-shadowing issue. The `return [pls_url]` fallback hands the upstream caller a list containing the `.pls` playlist URL itself, which is then persisted as if it were a `https://ice2.somafm.com/...` ICE relay URL. The `Player` cannot decode a PLS file as a stream — playback will fail at runtime with an obscure pipeline error.
-
-The docstring says "callers that need [0] continue to work against the fallback-on-error contract" — but no current Phase 74 caller "needs [0]"; the fallback only existed for AA's legacy callers. In the SomaFM path it produces silently broken data.
-
-**Fix:** Change the fallback to `return []` (empty list — no streams for this tier). The caller in `fetch_channels` already has `if not streams: continue` (line 139) so the channel with no recognisable tiers is dropped. See CR-02's deeper fix for `None` vs `[]` semantics.
-
-### WR-04: `_SomaImportWorker.finished` shadows `QThread.finished` — latent slot-arity TypeError eats the toast
-
-**File:** `musicstreamer/ui_qt/main_window.py:159`
-**Issue:** Already covered structurally in CR-02 part (3). Filed as its own warning so the fix can be applied in isolation if CR-02 part 1+2 are deferred. The PySide6 idiom for "I want a worker thread with a typed completion signal" is to declare a NEW signal name, not to redeclare `finished`. Same warning applies to `_GbsImportWorker.finished` (line 132) and any other `QThread` subclass in this file that re-declares `finished`.
-
-**Fix:** Rename to `import_finished`. See CR-02 fix snippet.
-
-### WR-05: `_on_soma_import_clicked` does not disable the menu action while the import runs — double-click spawns parallel workers
+### WR-02: Double-clicking "Import SomaFM" spawns parallel workers — no in-flight guard
 
 **File:** `musicstreamer/ui_qt/main_window.py:1502-1508`
-**Issue:** A user who double-clicks "Import SomaFM" gets two `_SomaImportWorker` instances started in sequence. Both call `Repo(db_connect())` from their respective threads, both run `fetch_channels()` (~30 s of network), and both attempt to import. The second one's `station_exists_by_url` checks will see the first's inserts (race-dependent), so most channels are skipped, but logo downloads happen TWICE for any channel the second one observes as "newly inserted between its existence-check and its `insert_station` call". And `self._soma_import_worker = _SomaImportWorker(...)` overwrites the reference to the first worker — the first becomes orphaned (still parented to MainWindow so it survives, but the `_on_soma_import_done` for it will set `self._soma_import_worker = None` while the second is still running, defeating the SYNC-05 retention rationale).
+**Issue:** `_on_soma_import_clicked` unconditionally constructs a new `_SomaImportWorker` and assigns it to `self._soma_import_worker`, dropping the previous reference. A user who double-clicks the action gets two workers racing: both call `fetch_channels()` (~30s of network each), both call `Repo(db_connect())` from different threads, both try to import. `station_exists_by_url` checks race against each other's inserts. The first worker's `_on_soma_import_done` clears `self._soma_import_worker = None` while the second is still running, defeating the SYNC-05 retention rationale and exposing the second worker to mid-run GC.
 
-The GBS analog has the same bug (`_on_gbs_add_clicked`).
+The GBS analog (`_on_gbs_add_clicked`, line 1453-1464) has the same defect.
 
-**Fix:** Disable the menu action while a worker is in flight, and re-enable in both `_on_soma_import_done` and `_on_soma_import_error`. Or guard with `if self._soma_import_worker is not None: return` at the top of `_on_soma_import_clicked` (and show a "import already running" toast).
-
+**Fix:** Guard at function head.
 ```python
 def _on_soma_import_clicked(self) -> None:
     if self._soma_import_worker is not None:
@@ -287,31 +224,128 @@ def _on_soma_import_clicked(self) -> None:
     self._soma_import_worker.start()
 ```
 
+### WR-03: `_bitrate_from_url` accepts arbitrary-length digit runs; no upper bound on parsed bitrate
+
+**File:** `musicstreamer/soma_import.py:74, 77-88`
+**Issue:** `_BITRATE_FROM_URL_RE = re.compile(r"-(\d+)-(?:mp3|aac|aacp)\b")` matches `\d+` with no length cap, then `int(m.group(1))` parses to a Python int (arbitrary precision). A SomaFM URL containing `-999999999999-mp3` (whether maliciously injected, copy-pasted, or simply a slug typo) is silently persisted as `bitrate_kbps=999999999999`. SQLite INTEGER column will store it; downstream UI sort/display logic that expects a small positive int may render garbage or trip range assertions.
+
+This is also a minor DoS surface: an attacker who controls the SomaFM API response (CR-02 already establishes that is a realistic threat) can hand the parser a `\d{100000}-mp3` slug. The regex engine will scan it in linear time, but `int()` on a 100k-digit string is a CPython quadratic-time operation (PEP 651 / CVE-2020-10735 territory pre-CPython 3.11 hardening).
+
+**Fix:** Cap the digit run and validate the parsed integer falls in `[8, 9999]` (the realistic ICE bitrate range):
+```python
+_BITRATE_FROM_URL_RE = re.compile(r"-(\d{1,5})-(?:mp3|aac|aacp)\b")
+
+def _bitrate_from_url(url: str, default: int) -> int:
+    m = _BITRATE_FROM_URL_RE.search(url)
+    if m:
+        try:
+            value = int(m.group(1))
+        except ValueError:
+            return default
+        if 8 <= value <= 9999:
+            return value
+    return default
+```
+
+### WR-04: `test_re_import_emits_no_changes_toast_via_real_thread` calls real `db_connect()` from a worker thread
+
+**File:** `tests/test_main_window_soma.py:314-361`
+**Issue:** The test stubs `soma_import.fetch_channels` and `soma_import.import_stations` but leaves `db_connect()` un-monkeypatched. `_SomaImportWorker.run()` (main_window.py:170) executes `repo = Repo(db_connect())` in the worker thread — that line runs the REAL `db_connect`, hitting the filesystem. On a CI runner with no XDG_DATA_HOME / no pre-created SQLite dir this is a real I/O dependency hidden inside a regression test, and on a developer's workstation it mutates the dev database (creates the file if missing, applies schema migrations). The test is also vulnerable to flakiness if `db_init` schema-migration takes >5s on a cold cache.
+
+**Fix:** Monkeypatch `musicstreamer.ui_qt.main_window.db_connect` and `Repo` to in-memory fakes for the duration of the test:
+```python
+import sqlite3
+monkeypatch.setattr("musicstreamer.ui_qt.main_window.db_connect",
+                    lambda: sqlite3.connect(":memory:"))
+monkeypatch.setattr("musicstreamer.ui_qt.main_window.Repo",
+                    lambda con: MagicMock())  # import_stations is also stubbed
+```
+Or inject a fake `Repo` via the worker constructor (a small refactor, but it makes the worker testable in isolation).
+
+### WR-05: `test_no_self_capturing_lambda_in_soma_action` parses source with `open(...)` and never closes the file
+
+**File:** `tests/test_main_window_soma.py:304`
+**Issue:**
+```python
+src = open("musicstreamer/ui_qt/main_window.py", encoding="utf-8").read()
+```
+The file handle is never closed; CPython reference-count GC closes it on next gc cycle, but it leaks an FD on Windows and trips `ResourceWarning` under `pytest -W error::ResourceWarning`. The sibling test `test_no_self_capturing_lambda_in_gbs_action` in `tests/test_main_window_gbs.py:234-236` has the same pattern.
+
+**Fix:**
+```python
+from pathlib import Path
+src = Path("musicstreamer/ui_qt/main_window.py").read_text(encoding="utf-8")
+```
+
+### WR-06: Codec literal "AAC" stored for both LC-AAC and HE-AAC (aacp) streams — DB cannot distinguish
+
+**File:** `musicstreamer/soma_import.py:65-67`
+**Issue:** The tier table maps `("aac", "highest") → codec="AAC"` AND `("aacp", "high") → codec="AAC"` AND `("aacp", "low") → codec="AAC"`. The comment block at line 60-62 acknowledges this and cites Phase 69 WIN-05's decision that "aacp" decodes via the same `aacparse + avdec_aac` chain — but the stored `codec` column now conflates two materially different codecs (HE-AAC v1 uses SBR; HE-AAC v2 adds Parametric Stereo). Any future UI or quality-map logic that displays "Codec: AAC" will mislead users on SomaFM 64 / 32 kbps tiers.
+
+This is not a runtime bug today, but the DB schema has no `codec_subtype` column to recover the distinction later — the data loss is permanent at insert time. Flag it now while the codec literal is still grep-replaceable.
+
+**Fix:** Either accept the precision loss and add a TODO in 74-LEARNINGS.md, or change the `aacp` tiers' codec to `"HE-AAC"` and verify the player's codec routing tolerates the new label (Phase 69 WIN-05 needs a tap before flipping the literal).
+
+### WR-07: `urllib.error` imported but never used — betrays incomplete error-handling design
+
+**File:** `musicstreamer/soma_import.py:26`
+**Issue:** `import urllib.error` is at the top of the file but `urllib.error` is not referenced anywhere. Compare to `aa_import.py` which uses `urllib.error.HTTPError` to distinguish 401/403 (invalid listen key) from other failures and surface a re-auth toast. The SomaFM module collapses every network exception into the same `_log.warning(...)` + `pass` swallow (lines 113-114, 175 try/except, 252 try/except, 293 except). The missing distinction means the user gets the same opaque "SomaFM import failed: …" toast whether the failure is recoverable (network blip, single channel down) or operator-facing (SomaFM API returned 5xx, retry in 5 min).
+
+**Fix:** Remove the import OR use it. The cleanest first step is to catch `urllib.error.HTTPError` separately in `fetch_channels` so a 5xx surfaces as `"SomaFM is temporarily unavailable — try again in a few minutes"` and a 4xx surfaces as `"SomaFM API rejected the request — please file a bug"`.
+
 ## Info
 
 ### IN-01: `_SomaImportWorker.__init__` is a no-op forward — drop it
 
 **File:** `musicstreamer/ui_qt/main_window.py:162-163`
-**Issue:** `def __init__(self, parent=None): super().__init__(parent)` adds zero behaviour over `QThread.__init__`. It's also misleading because Python tooling (mypy / pyright) will flag it as override-without-effect. The `_GbsImportWorker` has the same redundant override (line 135-136).
+**Issue:**
+```python
+def __init__(self, parent=None):
+    super().__init__(parent)
+```
+Adds zero behaviour over `QThread.__init__`. `_GbsImportWorker.__init__` (line 135-136) has the same dead override. PySide6 accepts `_SomaImportWorker(parent=self)` natively.
 
-**Fix:** Delete the `__init__` block entirely; PySide6 / `QThread` accept `_SomaImportWorker(parent=self)` natively.
+**Fix:** Delete the override.
 
-### IN-02: `urllib.error` import is unused
+### IN-02: `_bitrate_from_url` is dead-code-tested as a public API but underscore-prefixed
 
-**File:** `musicstreamer/soma_import.py:25`
-**Issue:** `import urllib.error` is imported but never referenced. The error handling uses bare `except Exception:` everywhere. (This module differs from `aa_import.py` which DOES use `urllib.error.HTTPError` for the 401/403 invalid-key path.)
+**File:** `musicstreamer/soma_import.py:77, tests/test_soma_import.py:498-522`
+**Issue:** The new helper is named with a leading underscore (Python convention: module-private) but the test file calls it as `soma_import._bitrate_from_url(...)` from outside the module. This is allowed Python and is consistent with `_resolve_pls` testing in the same file, but the convention drift makes future grep "what depends on this private?" lie. Either drop the leading underscore (promote to module-public API since it's exercised by tests + has a 3-public-test contract) or keep the underscore and route the test via a thin public wrapper.
 
-**Fix:** Remove the import line, or use it in `_resolve_pls` / `_download_logo` to distinguish HTTP errors from other failures (would also satisfy WR-01's diagnostic-line goal).
+**Fix:** Rename to `bitrate_from_url` (no leading underscore) — its contract is now a tested invariant.
 
-### IN-03: `_TIER_BY_FORMAT_QUALITY` codec annotation drift — `aacp` is HE-AAC v1 (or v2), not vanilla AAC
+### IN-03: Three near-identical worker classes — `_ExportWorker`, `_ImportPreviewWorker`, `_GbsImportWorker`, `_SomaImportWorker`
 
-**File:** `musicstreamer/soma_import.py:62-67`
-**Issue:** The comment block correctly notes "Codec for 'aacp' (HE-AAC) is 'AAC' — Phase 69 WIN-05 verified it decodes via aacparse + avdec_aac chain. 'AAC+' is intentionally absent (SOMA-15 / T-74-02)." But this means the `codec` field in the DB carries "AAC" for both true LC-AAC streams AND HE-AAC v1/v2 streams. Any future UI that displays "Codec: AAC" misleads the user. Not a runtime bug today, but a known truthiness gap.
+**File:** `musicstreamer/ui_qt/main_window.py:88-174`
+**Issue:** All four `QThread` subclasses follow the same shape: a `<verb>_finished` signal, an `error` signal, an `__init__(self, parent=None)` that just forwards, and a `run()` that calls one backend function in try/except. After the 74-06 rename the pattern is even more uniform. This is now a candidate for a single parametrised `_BackgroundWorker(QThread)` base class that takes the callable and emits a generic `done`/`error`. Not a defect — flagging because the duplication will rot the next time someone forgets to rename `finished` (root cause of CR-02 / WR-04 in the prior review).
 
-**Fix:** No code change required; document the limitation in the SUMMARY for Phase 74 and add a TODO for a future `codec_subtype` field. If a code change is desired, change the `codec` literal to `"HE-AAC"` for the `aacp` tiers and verify the player's codec-routing tolerates the new label (Phase 69 WIN-05 may need re-verification).
+**Fix:** Future refactor; out of scope for Phase 74 closeout.
+
+### IN-04: `tests/test_constants_drift.py` regex-style baseline test inflates phase-completion risk
+
+**File:** `tests/test_constants_drift.py:82-108`
+**Issue:** `test_richtext_baseline_unchanged_by_phase_71` literally counts `setTextFormat(Qt.RichText)` occurrences and asserts equality to `EXPECTED_RICHTEXT_COUNT = 3`. Any addition of a legitimate new RichText QLabel will RED-fail an unrelated test in an unrelated phase. The test docstring acknowledges the test was RED for the entirety of Phase 71. Useful as a tripwire; brittle as a permanent CI gate.
+
+**Fix:** Promote to a `# trip-wire / xfail-strict` annotation OR replace the strict equality with a documented upper-bound `assert count <= EXPECTED_RICHTEXT_COUNT`. Out of scope for Phase 74 but worth noting since Phase 74 added two new drift tests in the same file (lines 116-156).
+
+### IN-05: `_log.warning` for swallowed channel exceptions includes only `ch.get("id")` — missing `title` for diagnostic correlation
+
+**File:** `musicstreamer/soma_import.py:174, 254`
+**Issue:**
+```python
+_log.warning("Skipping SomaFM channel %s: %s", ch.get("id"), exc)
+_log.warning("SomaFM channel %s import skipped: %s", ch.get("id"), exc)
+```
+The SomaFM `id` is a short slug (`groovesalad`, `dronezone`); the `title` is the user-facing name. A user reporting "Boot Liquor is missing after import" gives the title, not the slug — the developer then has to grep the catalog to find which slug corresponds. Cheap to fix.
+
+**Fix:**
+```python
+_log.warning("SomaFM channel %r (%s) import skipped: %s",
+             ch.get("title"), ch.get("id"), exc)
+```
 
 ---
 
-_Reviewed: 2026-05-14T13:30:00Z_
+_Reviewed: 2026-05-14_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
