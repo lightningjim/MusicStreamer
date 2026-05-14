@@ -241,7 +241,13 @@ def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
                 "streams": streams,
             })
         except Exception as exc:  # noqa: BLE001
-            _log.warning("Skipping SomaFM channel %s: %s", ch.get("id"), exc)
+            # Phase 74 REVIEW IN-05: include title for diagnostic correlation
+            # (user reports use the title, not the slug — "Boot Liquor missing"
+            # not "bootliquor missing").
+            _log.warning(
+                "Skipping SomaFM channel %r (%s): %s",
+                ch.get("title"), ch.get("id"), exc,
+            )
             continue
 
     return out
@@ -345,8 +351,13 @@ def import_stations(channels: list[dict], repo, on_progress=None) -> tuple[int, 
                         "Failed to roll back partial SomaFM station %s: %s",
                         inserted_station_id, rollback_exc,
                     )
-            # D-15: bad channel increments skipped; import continues with rest
-            _log.warning("SomaFM channel %s import skipped: %s", ch.get("id"), exc)
+            # D-15: bad channel increments skipped; import continues with rest.
+            # Phase 74 REVIEW IN-05: include title for user-facing correlation —
+            # users report "Boot Liquor missing", not "bootliquor missing".
+            _log.warning(
+                "SomaFM channel %r (%s) import skipped: %s",
+                ch.get("title"), ch.get("id"), exc,
+            )
             skipped += 1
 
         if on_progress:
