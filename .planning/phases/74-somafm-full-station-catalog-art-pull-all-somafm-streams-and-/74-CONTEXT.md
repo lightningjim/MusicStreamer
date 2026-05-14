@@ -172,7 +172,7 @@ The phase touches:
 - **Toast on success: "SomaFM import: N stations added"** (not "N channels imported"). Use the project's existing "station" vocabulary in user-visible text. If `inserted == 0`, toast "SomaFM import: no changes" (mirror GBS.FM).
 - **WIN-05 / Phase 69 closure means HE-AAC is supported.** SomaFM imports AAC+ 32 kbps streams without a special path. The codec field can carry "AAC" (since AAC+ is HE-AAC, which decodes via the same `aacparse` + `avdec_aac` chain). Don't introduce an "AAC+" codec label — it'd break `stream_ordering.py:_CODEC_RANK`.
 - **Phase 74 will register new requirement IDs in REQUIREMENTS.md.** Likely `SOMA-01` through `SOMA-NN` (count TBD by planner). Mirror Phase 73's Plan 01 read-then-add Coverage-block update procedure.
-- **The OoS line in REQUIREMENTS.md for v2.1 mentions `STATION-ART-04` (note ID).** SomaFM-specific work is a strict subset of that broader note. Phase 74 does NOT close STATION-ART-04 — that's a multi-source station-art enhancement spanning more sources (favicon, ICY metadata). Note for planner: don't claim ART-04 closure on this phase.
+- **REQUIREMENTS.md `ART-04` (note: not `STATION-ART-04`).** Phase 74 is a strict subset of `ART-04` ("Station art fetching beyond YouTube/iTunes/AudioAddict (additional sources) — `.planning/notes/2026-04-03-station-art-fetching-beyond-youtube.md`"). Phase 74 does NOT close `ART-04` — that note covers multiple sources (favicon, ICY metadata, etc.). Note for planner: don't claim `ART-04` closure on this phase.
 
 </specifics>
 
