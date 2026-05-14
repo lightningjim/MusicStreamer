@@ -657,7 +657,7 @@ def test_fetch_channels_maps_three_tiers(monkeypatch, tmp_path):
    - What we know: SomaFM emits 4 playlists per channel today. AA emits 3 quality tiers. Existing `stream_ordering._QUALITY_RANK` defines exactly 3 named tiers (`hi`/`med`/`low`).
    - What's unclear: The user's tolerance for non-standard tier names like `"med2"` or `"high"` (a 4-tier scheme would need a fourth bucket).
    - Recommendation: **Ship 3 tiers in v1** (`MP3 highest → hi`, `AAC highest → med`, `aacp low → low`; drop `aacp high`). If UAT flags missing tier, follow-up phase reintroduces. The CONTEXT D-03 wording "Insert all variants the API exposes" technically requires 4; the planner must pick a side and lock it. Quality picks "Claude's Discretion" per CONTEXT — recommend 3-tier with a quick note.
-   - **RESOLVED 2026-05-13 by user (CONTEXT.md D-03, commit 3de2e3d):** **4 tiers** (`mp3,highest=hi`, `aac,highest=med`, `aacp,high=med2`, `aacp,low=low`). Reject the 3-tier recommendation; SomaFM's 4-playlist response is the source of truth, and the user prefers more granularity over forced conformance to AA's `hi/med/low` discipline. Planner adds `med2` to `_QUALITY_RANK` for this phase.
+   - **RESOLVED 2026-05-13 by user (CONTEXT.md D-03, commit 3de2e3d):** **4 tiers** (`mp3,highest=hi`, `aac,highest=hi2`, `aacp,high=med`, `aacp,low=low`). Reject the 3-tier recommendation; SomaFM's 4-playlist response is the source of truth, and the user prefers more granularity over forced conformance to AA's `hi/med/low` discipline. Planner adds `hi2` to `_QUALITY_RANK` for this phase.
 
 2. **PLS expansion: File1-only or all 5 ICE relays?**
    - What we know: AA PLS files have 2 entries; AA takes both (gap-06). SomaFM PLS files have 5 entries.
@@ -669,7 +669,7 @@ def test_fetch_channels_maps_three_tiers(monkeypatch, tmp_path):
    - What we know: Per-tier nominal constants `128 / 128 / 32` are the simplest answer.
    - What's unclear: Whether the user wants the actual delivered bitrate (e.g. 256 kbps for Boot Liquor's MP3-highest tier) to surface in the now-playing panel or the stream picker.
    - Recommendation: **Use nominal constants** (`hi=128, med=128, low=32`). The buffer-fill indicator + ICY headers already expose the actual bitrate at playback time. URL-tail parsing is brittle (26 channels have no hint at all).
-   - **RESOLVED 2026-05-13 by planner pick (no user objection during D-03 lock):** **Nominal per-tier constants.** Extended to 4 tiers: `hi=128, med=128, med2=64, low=32`. Surface the actual delivered bitrate via ICY at playback time per the recommendation rationale.
+   - **RESOLVED 2026-05-13 by planner pick (no user objection during D-03 lock):** **Nominal per-tier constants.** Extended to 4 tiers: `hi=128, hi2=128, med=64, low=32`. Surface the actual delivered bitrate via ICY at playback time per the recommendation rationale.
 
 4. **SOMA-NN requirement count?**
    - What we know: Phase 73 introduced 16 ART-MB-NN requirements. Phase 71 introduced 1 SIB-01. Phase 60 introduced ~10 GBS-01a..01e.
