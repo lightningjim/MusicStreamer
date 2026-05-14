@@ -403,6 +403,20 @@ class EditStationDialog(QDialog):
         self.icy_checkbox = QCheckBox("Disable ICY metadata")
         form.addRow("ICY metadata:", self.icy_checkbox)
 
+        # Phase 73-04 / D-06: per-station cover-art-source selector.
+        # 3 fixed modes (D-01) — Auto (default per D-05), iTunes-only (D-03),
+        # MusicBrainz-only (D-04). Placement immediately after icy_checkbox per
+        # D-06 ("close to the existing per-station ICY disable toggle feels
+        # natural"). Combo is non-editable (the 3 values are fixed) — contrast
+        # with provider_combo above which is editable for free-text providers.
+        self.cover_art_source_combo = QComboBox()
+        self.cover_art_source_combo.addItem(
+            "Auto (iTunes → MusicBrainz fallback)", "auto"
+        )
+        self.cover_art_source_combo.addItem("iTunes only", "itunes_only")
+        self.cover_art_source_combo.addItem("MusicBrainz only", "mb_only")
+        form.addRow("Cover art source:", self.cover_art_source_combo)
+
         # Streams table
         streams_container = QWidget()
         streams_vbox = QVBoxLayout(streams_container)
@@ -532,6 +546,17 @@ class EditStationDialog(QDialog):
         # ICY
         self.icy_checkbox.setChecked(bool(station.icy_disabled))
 
+        # Phase 73-04 / D-06: populate cover-art-source combo from station.
+        # The `or "auto"` defensive default handles a legacy Station built
+        # without the Phase-73 field (e.g. an in-memory Station that bypassed
+        # the dataclass default). Plan 01's dataclass default already supplies
+        # 'auto' for fresh instances; this is defense-in-depth.
+        target = getattr(station, "cover_art_source", None) or "auto"
+        for idx in range(self.cover_art_source_combo.count()):
+            if self.cover_art_source_combo.itemData(idx) == target:
+                self.cover_art_source_combo.setCurrentIndex(idx)
+                break
+
         # Streams
         for s in streams:
             self._add_stream_row(
@@ -597,6 +622,9 @@ class EditStationDialog(QDialog):
             "url": self.url_edit.text(),
             "provider": self.provider_combo.currentText(),
             "icy": self.icy_checkbox.isChecked(),
+            # Phase 73-04: flipping the cover-art-source combo must enable
+            # the Save button via the existing dirty-detection mechanism.
+            "cover_art_source": self.cover_art_source_combo.currentData(),
             "tags": tag_state,
             "streams": tuple(streams_snapshot),
         }
@@ -1380,6 +1408,13 @@ class EditStationDialog(QDialog):
             return
         provider_name = self.provider_combo.currentText().strip()
         icy_disabled = self.icy_checkbox.isChecked()
+        # Phase 73-04 / D-06: read the selected cover-art-source mode.
+        # `currentData()` returns the persisted string form ("auto" |
+        # "itunes_only" | "mb_only") per the addItem data-role used at widget
+        # creation. MUST be passed as a kwarg to repo.update_station per Plan
+        # 03's lock: omitting the kwarg silently resets the field to 'auto'
+        # (test_update_station_omitting_cover_art_source_resets_to_auto).
+        cover_art_source = self.cover_art_source_combo.currentData() or "auto"
 
         selected_tags = [
             tag for tag, chip in self._tag_chips.items()
@@ -1398,6 +1433,7 @@ class EditStationDialog(QDialog):
             self._logo_path,
             station.album_fallback_path,
             icy_disabled,
+            cover_art_source=cover_art_source,
         )
         # Keep in-memory Station consistent for any station_saved consumers.
         station.station_art_path = self._logo_path
