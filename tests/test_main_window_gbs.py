@@ -231,9 +231,11 @@ def test_import_error_long_message_truncated(main_window, monkeypatch):
 
 def test_no_self_capturing_lambda_in_gbs_action():
     """QA-05 / Pitfall 10: act_gbs_add must use a bound method, not a lambda."""
-    src = open(
-        "musicstreamer/ui_qt/main_window.py", encoding="utf-8"
-    ).read()
+    # Phase 74 REVIEW WR-05: use Path.read_text so the file handle is closed
+    # deterministically — open(...).read() leaks an FD until next GC and
+    # trips ResourceWarning under `pytest -W error::ResourceWarning`.
+    from pathlib import Path
+    src = Path("musicstreamer/ui_qt/main_window.py").read_text(encoding="utf-8")
     # The connection line must look like:
     #   act_gbs_add.triggered.connect(self._on_gbs_add_clicked)
     matches = re.findall(r"act_gbs_add\.triggered\.connect\(([^)]+)\)", src)

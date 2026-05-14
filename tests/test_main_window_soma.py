@@ -301,7 +301,11 @@ def test_no_self_capturing_lambda_in_soma_action():
     Regex: r"act_soma_import\\.triggered\\.connect\\(([^)]+)\\)"
     Maps to CONTEXT D-06 + Phase 60 QA-05 bound-method discipline.
     """
-    src = open("musicstreamer/ui_qt/main_window.py", encoding="utf-8").read()
+    # Phase 74 REVIEW WR-05: use Path.read_text so the file handle is closed
+    # deterministically — open(...).read() leaks an FD until next GC and
+    # trips ResourceWarning under `pytest -W error::ResourceWarning`.
+    from pathlib import Path
+    src = Path("musicstreamer/ui_qt/main_window.py").read_text(encoding="utf-8")
     matches = re.findall(r"act_soma_import\.triggered\.connect\(([^)]+)\)", src)
     assert matches, "Expected act_soma_import.triggered.connect(...) line in main_window.py"
     for m in matches:
