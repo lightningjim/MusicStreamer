@@ -1184,7 +1184,17 @@ class NowPlayingPanel(QWidget):
             # Pack token so _on_cover_art_ready can discard stale responses.
             emit(f"{token}:{path_or_none or ''}")
 
-        fetch_cover_art(icy_title, _cb)
+        # Phase 73-04 D-01..D-04: route per station's preference. Defensive
+        # default 'auto' for: (a) no bound station, (b) station object lacking
+        # the cover_art_source attribute (legacy in-memory Station that
+        # bypassed Plan 01's dataclass default). Plan 03's router validates
+        # the value and falls back to 'auto' for unknown strings.
+        source = (
+            getattr(self._station, "cover_art_source", "auto")
+            if self._station is not None
+            else "auto"
+        ) or "auto"
+        fetch_cover_art(icy_title, _cb, source=source)
 
     def _on_cover_art_ready(self, payload: str) -> None:
         token_str, _, path = payload.partition(":")
