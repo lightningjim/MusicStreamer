@@ -53,6 +53,7 @@ non-QThread threads.
 import json
 import logging
 import queue
+import re
 import tempfile
 import threading
 import time
@@ -186,6 +187,19 @@ def _pick_recording(data: dict) -> Optional[dict]:
     return accepted[0]
 
 
+# IN-07: MBIDs are UUIDs in canonical 8-4-4-4-12 hex form. Validate the
+# shape before f-stringing the value into the CAA URL so a malformed or
+# malicious MB payload (path-separator / control chars in r["id"]) cannot
+# synthesize a request that urlopen resolves server-side. CAA returns 404
+# on bad input today so impact is bounded, but a shape-check costs nothing
+# and also catches any future bug that mis-populates from the wrong JSON
+# path.
+_MBID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
 def _pick_release_mbid(recording: dict) -> Optional[str]:
     """Pick a release MBID from a recording's releases[] per D-10 ladder.
 
@@ -199,8 +213,20 @@ def _pick_release_mbid(recording: dict) -> Optional[str]:
 
     Pitfall 2: `date` may be None/''/'YYYY'/'YYYY-MM'/'YYYY-MM-DD' — sort
     using `... or "9999"` sentinel.
+
+    IN-07: the chosen `id` is validated against the canonical MBID UUID
+    shape before being returned — a malformed value yields None so the
+    caller falls through to callback(None) rather than synthesizing a
+    request URL from untrusted data.
     """
     releases = recording.get("releases", []) or []
+
+    def _first_valid_id(candidates: list) -> Optional[str]:
+        for r in candidates:
+            candidate_id = r.get("id")
+            if isinstance(candidate_id, str) and _MBID_RE.match(candidate_id):
+                return candidate_id
+        return None
 
     # Step 1: Official + Album, earliest date.
     candidates = [
@@ -209,14 +235,16 @@ def _pick_release_mbid(recording: dict) -> Optional[str]:
         and (r.get("release-group") or {}).get("primary-type") == "Album"
     ]
     candidates.sort(key=lambda r: r.get("date") or "9999")
-    if candidates:
-        return candidates[0]["id"]
+    chosen = _first_valid_id(candidates)
+    if chosen is not None:
+        return chosen
 
     # Step 2: any Official, earliest date.
     candidates = [r for r in releases if r.get("status") == "Official"]
     candidates.sort(key=lambda r: r.get("date") or "9999")
-    if candidates:
-        return candidates[0]["id"]
+    chosen = _first_valid_id(candidates)
+    if chosen is not None:
+        return chosen
 
     # Step 3 deferred — return None on total miss.
     return None
