@@ -165,20 +165,64 @@ def test_cover_art_source_default_is_auto(repo):
 
 
 def test_cover_art_source_round_trip(repo):
-    """D-01: a station with cover_art_source='mb_only' hydrates correctly.
+    """D-01 / Plan 03: cover_art_source round-trips through update_station.
 
-    Plan 01 does NOT extend repo.update_station — Plan 03 will. This test
-    writes the column via direct SQL UPDATE to prove the read path on
-    list_stations / get_station mappings honors the stored value.
+    Replaces the Plan-01 placeholder (direct SQL UPDATE) with the real
+    repo path: `update_station(..., cover_art_source='mb_only')` writes
+    the column, and `get_station` hydrates it back.
     """
     sid = repo.create_station()
-    repo.con.execute(
-        "UPDATE stations SET cover_art_source = ? WHERE id = ?",
-        ("mb_only", sid),
+    repo.update_station(
+        sid, "Radio", None, "tag1", None, None,
+        icy_disabled=False, cover_art_source="mb_only",
     )
-    repo.con.commit()
     st = repo.get_station(sid)
     assert st.cover_art_source == "mb_only"
+
+
+def test_update_station_persists_cover_art_source_itunes_only(repo):
+    """Sanity: each of the three valid mode strings round-trips."""
+    sid = repo.create_station()
+    repo.update_station(
+        sid, "Radio", None, "", None, None,
+        icy_disabled=False, cover_art_source="itunes_only",
+    )
+    assert repo.get_station(sid).cover_art_source == "itunes_only"
+
+    repo.update_station(
+        sid, "Radio", None, "", None, None,
+        icy_disabled=False, cover_art_source="auto",
+    )
+    assert repo.get_station(sid).cover_art_source == "auto"
+
+
+def test_update_station_omitting_cover_art_source_resets_to_auto(repo):
+    """D-05 / Plan 03 lock test: omitting the kwarg writes the default 'auto'.
+
+    This is a CONSEQUENCE of using a keyword-default on the UPDATE statement
+    (any update writes ALL columns, including the defaulted one). It locks
+    Plan 04's contract: EditStationDialog MUST always pass
+    `cover_art_source=` explicitly when calling update_station; otherwise
+    saving the dialog silently resets the user's per-station preference
+    back to 'auto'.
+
+    By codifying this in a test we prevent Plan 04 from silently regressing
+    the feature.
+    """
+    sid = repo.create_station()
+    # Set the field to a non-default value via update_station.
+    repo.update_station(
+        sid, "Radio", None, "", None, None,
+        icy_disabled=False, cover_art_source="mb_only",
+    )
+    assert repo.get_station(sid).cover_art_source == "mb_only"
+
+    # Now call update_station WITHOUT the kwarg — the default 'auto' applies.
+    repo.update_station(sid, "Radio", None, "", None, None, icy_disabled=False)
+    assert repo.get_station(sid).cover_art_source == "auto", (
+        "Omitting cover_art_source kwarg must reset the column to 'auto' "
+        "(D-05 default). Plan 04's EditStationDialog must always pass the kwarg."
+    )
 
 
 def test_cover_art_source_migration_idempotent(repo):

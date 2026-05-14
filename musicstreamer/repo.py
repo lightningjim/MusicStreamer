@@ -386,16 +386,29 @@ class Repo:
         station_art_path: Optional[str],
         album_fallback_path: Optional[str],
         icy_disabled: bool = False,
+        cover_art_source: str = "auto",  # Phase 73 D-05 — keyword default
     ):
+        """Update the editable columns on a station row.
+
+        Phase 73 D-05: `cover_art_source` is a keyword-default arg appended
+        AFTER `icy_disabled` so existing 7-positional-arg callers
+        (edit_station_dialog.py:1393-1401, current as of Plan 02) keep their
+        positional signature intact. The trade-off: a caller that omits the
+        kwarg silently RESETS the column to 'auto'. This is intentional and
+        locked by test_repo.test_update_station_omitting_cover_art_source_resets_to_auto
+        so Plan 04's EditStationDialog implementation cannot silently regress
+        — it MUST always pass the kwarg.
+        """
         self.con.execute(
             """
             UPDATE stations
             SET name = ?, provider_id = ?, tags = ?,
-                station_art_path = ?, album_fallback_path = ?, icy_disabled = ?
+                station_art_path = ?, album_fallback_path = ?, icy_disabled = ?,
+                cover_art_source = ?
             WHERE id = ?
             """,
             (name, provider_id, tags, station_art_path, album_fallback_path,
-             int(icy_disabled), station_id),
+             int(icy_disabled), cover_art_source, station_id),
         )
         self.con.commit()
 
