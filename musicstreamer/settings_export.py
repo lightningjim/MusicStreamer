@@ -112,6 +112,12 @@ def _station_to_dict(station: Station) -> dict:
         "provider": station.provider_name or "",
         "tags": station.tags or "",
         "icy_disabled": station.icy_disabled,
+        # Phase 73 D-06 / ART-MB-10: per-station cover-art-source preference
+        # round-trips through the export ZIP alongside icy_disabled. Defensive
+        # default for in-memory Stations that bypassed Plan 01's dataclass
+        # default — mirrors the `r["cover_art_source"] or "auto"` pattern in
+        # repo.py row-mapping.
+        "cover_art_source": getattr(station, "cover_art_source", None) or "auto",
         "is_favorite": station.is_favorite,
         "last_played_at": station.last_played_at,
         "logo_file": None,  # populated in build_zip when file exists
@@ -499,8 +505,10 @@ def _insert_station(repo: Repo, data: dict) -> int:
     """Insert a new station from import data; returns station_id."""
     provider_id = _ensure_provider_in_tx(repo, data.get("provider", ""))
     cur = repo.con.execute(
-        "INSERT INTO stations(name, provider_id, tags, icy_disabled, last_played_at, is_favorite) "
-        "VALUES (?,?,?,?,?,?)",
+        "INSERT INTO stations"
+        "(name, provider_id, tags, icy_disabled, last_played_at, is_favorite, "
+        "cover_art_source) "
+        "VALUES (?,?,?,?,?,?,?)",
         (
             data.get("name", ""),
             provider_id,
@@ -508,6 +516,10 @@ def _insert_station(repo: Repo, data: dict) -> int:
             int(bool(data.get("icy_disabled", False))),
             data.get("last_played_at"),
             int(bool(data.get("is_favorite", False))),
+            # Phase 73 D-06 / Pitfall 9 forward-compat: pre-Phase-73 ZIPs lack
+            # the field, default to 'auto' (D-05). The `or "auto"` form also
+            # covers an explicit-None payload value.
+            data.get("cover_art_source") or "auto",
         ),
     )
     station_id = int(cur.lastrowid)
@@ -558,7 +570,7 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
 
     repo.con.execute(
         "UPDATE stations SET name=?, provider_id=?, tags=?, icy_disabled=?, "
-        "last_played_at=?, is_favorite=? WHERE id=?",
+        "last_played_at=?, is_favorite=?, cover_art_source=? WHERE id=?",
         (
             data.get("name", ""),
             provider_id,
@@ -566,6 +578,12 @@ def _replace_station(repo: Repo, data: dict) -> Optional[int]:
             int(bool(data.get("icy_disabled", False))),
             data.get("last_played_at"),
             int(bool(data.get("is_favorite", False))),
+            # Phase 73 D-06 / Pitfall 9 forward-compat: missing key on a
+            # REPLACE path resets the column to 'auto' — uniform with the
+            # icy_disabled pattern above (data.get(field, default)). This is
+            # the documented additive-field design: a pre-73 export does not
+            # carry the field, so import always resets to 'auto'.
+            data.get("cover_art_source") or "auto",
             station_id,
         ),
     )
