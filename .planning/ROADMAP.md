@@ -640,10 +640,19 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
+**Wave 1**
 - [ ] 73-01-PLAN.md — Wave 1 foundation: register ART-MB-01..16 in REQUIREMENTS.md (remove stale OoS row), add Station.cover_art_source field + idempotent SQLite migration, scaffold 6 MB JSON fixtures + Wave 0 RED test files
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 73-02-PLAN.md — Wave 2 MB lookup core: cover_art_mb.py module (Lucene escape, 1-req/sec _MbGate via time.monotonic, recording score≥80 filter, release-ladder D-10 step 1+2, CAA-250 fetch, MB-tag-as-genre, latest-wins queue, T-73-01 injection mitigation)
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 73-03-PLAN.md — Wave 3 router: cover_art.fetch_cover_art widened with source kwarg (auto/itunes_only/mb_only dispatch + D-07 bare-title gate), Repo.update_station extended with cover_art_source persistence
+
+**Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 73-04-PLAN.md — Wave 4 UI wiring: EditStationDialog QComboBox + dirty-snapshot, settings_export ZIP round-trip with Pitfall-9 forward-compat, NowPlayingPanel._fetch_cover_art_async source pass-through
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 73-05-PLAN.md — Wave 5 UAT: 73-UAT-SCRIPT.md covering real-MB-cover, CAA-250 visual quality at 160×160, cross-machine ZIP round-trip; non-autonomous checkpoint captures verdict
 
 
