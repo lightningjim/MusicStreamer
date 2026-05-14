@@ -173,9 +173,23 @@ def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
     Per-channel exceptions during stream extraction skip that channel and continue
     (D-15 / RESEARCH Pitfall 2 mitigation).
     """
+    # Phase 74 REVIEW WR-07: distinguish HTTP error codes so the worker can
+    # surface user-actionable toasts (5xx = "try again later" vs 4xx = "file
+    # a bug"). Without this, urllib.error was imported but unused, and every
+    # network failure collapsed into the same opaque "SomaFM import failed: …"
+    # toast — recoverable blips were indistinguishable from operator bugs.
     req = _safe_urlopen_request(_API_URL)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        if 500 <= exc.code < 600:
+            raise RuntimeError(
+                "SomaFM is temporarily unavailable — try again in a few minutes"
+            ) from exc
+        raise RuntimeError(
+            f"SomaFM API rejected the request (HTTP {exc.code}) — please file a bug"
+        ) from exc
 
     raw_channels = data.get("channels", [])
     if not raw_channels:
