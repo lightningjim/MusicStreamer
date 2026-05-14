@@ -658,13 +658,16 @@ Plans:
 
 ### Phase 74: SomaFM full station catalog + art — pull all SomaFM streams and station art (parity with GBS.FM and AudioAddict); decide poll-to-install vs in-memory catalog (new stations are rare)
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Bulk-import all ~46 SomaFM channels into the library as real Station rows (provider_name="SomaFM") with 4 quality tiers × 5 ICE relays = 20 streams per channel + per-channel logos, via a hamburger-menu "Import SomaFM" action that mirrors the AudioAddict + GBS.FM importer UX (toast-driven, worker-threaded, dedup-by-URL, idempotent re-import as full no-op on URL match).
+**Requirements**: SOMA-01, SOMA-02, SOMA-03, SOMA-04, SOMA-05, SOMA-06, SOMA-07, SOMA-08, SOMA-09, SOMA-10, SOMA-11, SOMA-12, SOMA-13, SOMA-14, SOMA-15, SOMA-16, SOMA-17
 **Depends on:** Phase 73
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 74 to break down)
+- [ ] 74-01-PLAN.md — Wave 0 RED contract: test scaffolding (test_soma_import + test_main_window_soma + 2 JSON fixtures + test_constants_drift extension) + REQUIREMENTS.md registers SOMA-01..SOMA-17
+- [ ] 74-02-PLAN.md — Wave 1 GREEN tier 1: musicstreamer/soma_import.py (fetch_channels + _resolve_pls + import_stations + _download_logos)
+- [ ] 74-03-PLAN.md — Wave 1 GREEN tier 2: main_window.py hamburger wiring (_SomaImportWorker + act_soma_import + 3 handlers) + __main__.py soma_import logger registration
+- [ ] 74-04-PLAN.md — Wave 2 UAT: human-verify live import against api.somafm.com:443 (10-row UAT-LOG)
 
 ### Phase 75: Extend theme coloring to include toast colors — Phase 66 introduced preset/custom color schemes; toast notifications still use hardcoded colors and don't track the active theme
 
@@ -685,6 +688,36 @@ Plans:
 
 Plans:
 - [ ] TBD (run /gsd-plan-phase 76 to break down)
+
+### Phase 77: Test infrastructure stabilization — fix pre-existing test-double drift (FakePlayer missing Phase 62 underrun_recovery_started signal), MPRIS2 DBus name-collision in unit tests, Qt teardown aborts (test_yt_scan_passes_through, test_main_window_integration → test_now_playing_panel cross-file crash), _aa_quality orphan AttributeError carry-over from Phase 56, test_filter_strip_hidden_in_favorites_mode QStackedWidget visibility regression, test_refresh_recent_updates_list 3-vs-5 limit mismatch, and test_play_twitch_sets_plugin_option_when_token_present failure. Goal: clean full-suite pytest run so future phases stop logging the same noise into deferred-items.md (recurring across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 73).
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 76
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 77 to break down)
+
+### Phase 78: Phase 62 follow-up: Buffer underrun behavior fix — Phase 62 (BUG-09) shipped only the instrumentation half per its CONTEXT.md <deferred> section. With log data now available from the live structured-log emission (cycle_close events) and cooldown-gated 'Buffering…' toast, root-cause the dropout pattern and ship the behavior fix: buffer-duration / buffer-size adjustment, reconnect logic, low-watermark threshold, smarter underrun recovery. Phase 16 baseline (10s / 10MB) is unlocked here — any change must be logged as a CONTEXT.md decision per Phase 62 D-09 invariant. SC #3 of BUG-09 closes here: a demonstrable reduction in dropout count under repro conditions.
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 77
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 78 to break down)
+
+### Phase 79: Fix YouTube 'stream exhausted' when launched via desktop app (works via pipx/dev script)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 78
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 79 to break down)
 
 ---
 *Last updated: 2026-04-28 — Phase 52 complete (BUG-03 closed via QTimer-driven smooth gain ramp; UAT passed — no audible click); v2.1 progress 3/16*
