@@ -1517,7 +1517,17 @@ class MainWindow(QMainWindow):
         self._soma_import_worker = None
 
     def _on_soma_import_error(self, msg: str) -> None:
-        """D-14: full abort with truncated message."""
+        """D-14: full abort with truncated message.
+
+        Phase 74 REVIEW CR-05: refresh the station list even on failure. The
+        worker's try/except wraps the ENTIRE fetch_channels + import_stations
+        chain; import_stations can commit station rows BEFORE the failure
+        propagates (e.g., a MemoryError, KeyboardInterrupt, or unhandled
+        exception inside _download_logos after the per-channel loop). Without
+        a refresh, the StationListPanel lies about library state until next
+        manual interaction. Mirrors _on_soma_import_done at line 1516.
+        """
         truncated = (msg[:80] + "…") if len(msg) > 80 else msg
         self.show_toast(f"SomaFM import failed: {truncated}")
+        self._refresh_station_list()
         self._soma_import_worker = None
