@@ -671,15 +671,15 @@ Plans:
 **Goal:** Bulk-import all ~46 SomaFM channels into the library as real Station rows (provider_name="SomaFM") with 4 quality tiers × 5 ICE relays = 20 streams per channel + per-channel logos, via a hamburger-menu "Import SomaFM" action that mirrors the AudioAddict + GBS.FM importer UX (toast-driven, worker-threaded, dedup-by-URL, idempotent re-import as full no-op on URL match).
 **Requirements**: SOMA-01, SOMA-02, SOMA-03, SOMA-04, SOMA-05, SOMA-06, SOMA-07, SOMA-08, SOMA-09, SOMA-10, SOMA-11, SOMA-12, SOMA-13, SOMA-14, SOMA-15, SOMA-16, SOMA-17
 **Depends on:** Phase 73
-**Plans:** 1/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 **Wave 1**
 - [x] 74-01-PLAN.md — Wave 1 RED contract: test scaffolding (test_soma_import + test_main_window_soma + 2 JSON fixtures + test_constants_drift extension) + REQUIREMENTS.md registers SOMA-01..SOMA-17
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 74-02-PLAN.md — Wave 2 GREEN tier 1: musicstreamer/soma_import.py (fetch_channels + _resolve_pls + import_stations + _download_logos)
-- [ ] 74-03-PLAN.md — Wave 2 GREEN tier 2: main_window.py hamburger wiring (_SomaImportWorker + act_soma_import + 3 handlers) + __main__.py soma_import logger registration
+- [x] 74-02-PLAN.md — Wave 2 GREEN tier 1: musicstreamer/soma_import.py (fetch_channels + _resolve_pls + import_stations + _download_logos)
+- [x] 74-03-PLAN.md — Wave 2 GREEN tier 2: main_window.py hamburger wiring (_SomaImportWorker + act_soma_import + 3 handlers) + __main__.py soma_import logger registration
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 74-04-PLAN.md — Wave 3 UAT: human-verify live import against api.somafm.com:443 (10-row UAT-LOG)
