@@ -150,6 +150,30 @@ class _GbsImportWorker(QThread):
                 self.error.emit(str(exc))
 
 
+class _SomaImportWorker(QThread):
+    """Phase 74 D-07 / SOMA-NN: kick soma_import.import_stations() off the UI thread.
+
+    Mirrors _GbsImportWorker shape (main_window.py:124-150). SYNC-05 retention
+    on MainWindow._soma_import_worker prevents mid-run GC (Phase 60 D-02 precedent).
+    """
+    finished = Signal(int, int)   # (inserted, skipped) per import_stations signature
+    error = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def run(self):
+        try:
+            from musicstreamer.repo import Repo
+            from musicstreamer import soma_import
+            channels = soma_import.fetch_channels()
+            repo = Repo(db_connect())
+            inserted, skipped = soma_import.import_stations(channels, repo)
+            self.finished.emit(int(inserted), int(skipped))
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+
 class MainWindow(QMainWindow):
     """Main application window — station list + now-playing + toast overlay."""
 
@@ -204,6 +228,10 @@ class MainWindow(QMainWindow):
         # Phase 60 D-02 / GBS-01a: idempotent multi-quality GBS.FM import
         act_gbs_add = self._menu.addAction("Add GBS.FM")
         act_gbs_add.triggered.connect(self._on_gbs_add_clicked)  # QA-05 bound method
+
+        # Phase 74 D-06 / SOMA-NN: SomaFM bulk-catalog import
+        act_soma_import = self._menu.addAction("Import SomaFM")
+        act_soma_import.triggered.connect(self._on_soma_import_clicked)  # QA-05 bound method
 
         # Phase 60 D-08a / GBS-01e: search-and-submit dialog
         act_gbs_search = self._menu.addAction("Search GBS.FM…")  # U+2026 ellipsis
@@ -333,6 +361,8 @@ class MainWindow(QMainWindow):
 
         # Phase 60 D-02: GBS.FM import worker retention (SYNC-05)
         self._gbs_import_worker = None
+        # Phase 74 D-07: SomaFM import worker retention (SYNC-05)
+        self._soma_import_worker: QThread | None = None
 
         # ------------------------------------------------------------------
         # Status bar
@@ -1464,3 +1494,30 @@ class MainWindow(QMainWindow):
         from musicstreamer.ui_qt.gbs_search_dialog import GBSSearchDialog
         dlg = GBSSearchDialog(self._repo, self.show_toast, parent=self)
         dlg.exec()
+
+    # ------------------------------------------------------------------
+    # Phase 74 D-06 / SOMA-NN: SomaFM bulk import handlers
+    # ------------------------------------------------------------------
+
+    def _on_soma_import_clicked(self) -> None:
+        """Phase 74 D-06 / D-07: kick the SomaFM bulk import on a worker thread."""
+        self.show_toast("Importing SomaFM…")
+        self._soma_import_worker = _SomaImportWorker(parent=self)  # SYNC-05 retain
+        self._soma_import_worker.finished.connect(self._on_soma_import_done)  # QA-05
+        self._soma_import_worker.error.connect(self._on_soma_import_error)    # QA-05
+        self._soma_import_worker.start()
+
+    def _on_soma_import_done(self, inserted: int, skipped: int) -> None:
+        """D-06: 'N stations added' (or 'no changes' when all dedup-skipped)."""
+        if inserted:
+            self.show_toast(f"SomaFM import: {inserted} stations added")
+        else:
+            self.show_toast("SomaFM import: no changes")
+        self._refresh_station_list()
+        self._soma_import_worker = None
+
+    def _on_soma_import_error(self, msg: str) -> None:
+        """D-14: full abort with truncated message."""
+        truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+        self.show_toast(f"SomaFM import failed: {truncated}")
+        self._soma_import_worker = None

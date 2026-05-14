@@ -30,6 +30,8 @@ class _FakePlayer(QObject):
     cookies_cleared = Signal(str)
     elapsed_updated = Signal(int)
     buffer_percent = Signal(int)
+    underrun_recovery_started = Signal()   # Phase 62 BUG-09
+    audio_caps_detected = Signal(object)   # Phase 70 DS-01
 
     def __init__(self) -> None:
         super().__init__()
