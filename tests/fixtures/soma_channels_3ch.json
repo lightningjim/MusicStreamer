@@ -1,0 +1,67 @@
+{
+  "channels": [
+    {
+      "id": "groovesalad",
+      "title": "Groove Salad",
+      "description": "A nicely chilled plate of ambient/downtempo beats and grooves.",
+      "dj": "Rusty Hodge",
+      "djmail": "rusty@somafm.com",
+      "genre": "ambient|electronic",
+      "image": "https://api.somafm.com/img/groovesalad120.png",
+      "largeimage": "https://api.somafm.com/logos/256/groovesalad256.png",
+      "xlimage": "https://api.somafm.com/logos/512/groovesalad512.png",
+      "twitter": "SomaFM",
+      "updated": "1747167600",
+      "listeners": "1444",
+      "lastPlaying": "Sine - Take Me Higher",
+      "playlists": [
+        {"url": "https://api.somafm.com/groovesalad256.pls", "format": "mp3", "quality": "highest"},
+        {"url": "https://api.somafm.com/groovesalad130.pls", "format": "aac", "quality": "highest"},
+        {"url": "https://api.somafm.com/groovesalad64.pls", "format": "aacp", "quality": "high"},
+        {"url": "https://api.somafm.com/groovesalad32.pls", "format": "aacp", "quality": "low"}
+      ]
+    },
+    {
+      "id": "dronezone",
+      "title": "Drone Zone",
+      "description": "Served best chilled, safe with most medications. Atmospheric textures with minimal beats.",
+      "dj": "Rusty Hodge",
+      "djmail": "rusty@somafm.com",
+      "genre": "ambient|drone",
+      "image": "https://api.somafm.com/img/dronezone120.png",
+      "largeimage": "https://api.somafm.com/logos/256/dronezone256.png",
+      "xlimage": "https://api.somafm.com/logos/512/dronezone512.png",
+      "twitter": "SomaFM",
+      "updated": "1747167600",
+      "listeners": "621",
+      "lastPlaying": "Stars of the Lid - Requiem for Dying Mothers, Part 2",
+      "playlists": [
+        {"url": "https://api.somafm.com/dronezone256.pls", "format": "mp3", "quality": "highest"},
+        {"url": "https://api.somafm.com/dronezone130.pls", "format": "aac", "quality": "highest"},
+        {"url": "https://api.somafm.com/dronezone64.pls", "format": "aacp", "quality": "high"},
+        {"url": "https://api.somafm.com/dronezone32.pls", "format": "aacp", "quality": "low"}
+      ]
+    },
+    {
+      "id": "bootliquor",
+      "title": "Boot Liquor",
+      "description": "Americana Roots music for those late night besotted wranglers.",
+      "dj": "Rusty Hodge",
+      "djmail": "rusty@somafm.com",
+      "genre": "americana|country",
+      "image": "https://api.somafm.com/img/bootliquor120.png",
+      "largeimage": "https://api.somafm.com/logos/256/bootliquor256.png",
+      "xlimage": "https://api.somafm.com/logos/512/bootliquor512.png",
+      "twitter": "SomaFM",
+      "updated": "1747167600",
+      "listeners": "289",
+      "lastPlaying": "Gillian Welch - Everything Is Free",
+      "playlists": [
+        {"url": "https://api.somafm.com/bootliquor256.pls", "format": "mp3", "quality": "highest"},
+        {"url": "https://api.somafm.com/bootliquor130.pls", "format": "aac", "quality": "highest"},
+        {"url": "https://api.somafm.com/bootliquor64.pls", "format": "aacp", "quality": "high"},
+        {"url": "https://api.somafm.com/bootliquor32.pls", "format": "aacp", "quality": "low"}
+      ]
+    }
+  ]
+}
