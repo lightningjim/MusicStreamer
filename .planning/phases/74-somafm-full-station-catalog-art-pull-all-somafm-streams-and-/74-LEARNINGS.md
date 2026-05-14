@@ -5,7 +5,7 @@ project: "MusicStreamer"
 generated: "2026-05-14"
 counts:
   decisions: 6
-  lessons: 6
+  lessons: 7
   patterns: 5
   surprises: 5
 missing_artifacts: []
@@ -218,3 +218,12 @@ Once we tracked down G-01 in `_SomaImportWorker`, source-grep showed `_GbsImport
 **Impact:** Gap-closure scope expanded from "fix the SomaFM worker" to "fix all four workers" per VERIFICATION.md's `missing:` list. Reinforces the broader pattern that fixing reserved-name bugs in one class should always trigger a codebase-wide source-grep for the same pattern.
 
 **Source:** 74-VERIFICATION.md (Anti-Patterns Found rows for 4 worker classes), 74-06-SUMMARY.md
+
+---
+
+### WR-06: AAC codec literal precision loss (deferred follow-up)
+`_TIER_BY_FORMAT_QUALITY` (musicstreamer/soma_import.py) maps both `(aac, highest)` AND `(aacp, high)` AND `(aacp, low)` to `codec="AAC"`. The DB has no `codec_subtype` column, so the LC-AAC vs HE-AAC distinction is lost permanently at insert time. Any future UI that displays "Codec: AAC" on SomaFM 64/32 kbps tiers is misleading — those streams are HE-AAC v1/v2 (SBR / Parametric Stereo).
+
+**Impact:** Not a runtime bug today — Phase 69 WIN-05 verified that "aacp" decodes via the `aacparse + avdec_aac` chain, so the player still routes correctly. Flagged here while the codec literal is still grep-replaceable. To flip aacp tiers to `"HE-AAC"`, first tap Phase 69 WIN-05's player codec routing (musicstreamer/player.py codec map) to confirm the new label is tolerated before changing the literal.
+
+**Source:** 74-REVIEW.md (WR-06 codec literal "AAC" conflates LC and HE-AAC)

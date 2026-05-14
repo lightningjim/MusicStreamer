@@ -61,6 +61,14 @@ _USER_AGENT = (
 # Position formula: position = tier_base * 10 + relay_index (relay_index 1..5).
 # Codec for 'aacp' (HE-AAC) is "AAC" — Phase 69 WIN-05 verified it decodes via
 # aacparse + avdec_aac chain. "AAC+" is intentionally absent (SOMA-15 / T-74-02).
+#
+# Phase 74 REVIEW WR-06 TODO: the literal "AAC" conflates LC-AAC (aac/highest)
+# with HE-AAC v1/v2 (aacp). The DB has no `codec_subtype` column to recover the
+# distinction later — once persisted as "AAC", the precision is lost
+# permanently. Flipping aacp tiers to "HE-AAC" requires a tap on Phase 69
+# WIN-05's player codec routing first (musicstreamer/player.py codec map). See
+# 74-LEARNINGS.md "WR-06: AAC codec literal precision loss" for the deferred
+# follow-up.
 _TIER_BY_FORMAT_QUALITY: dict[tuple[str, str], dict] = {
     ("mp3",  "highest"): {"quality": "hi",  "tier_base": 1, "codec": "MP3", "bitrate_kbps": 128},
     ("aac",  "highest"): {"quality": "hi2", "tier_base": 2, "codec": "AAC", "bitrate_kbps": 128},
