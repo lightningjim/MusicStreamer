@@ -323,12 +323,31 @@ def test_re_import_emits_no_changes_toast_via_real_thread(main_window, qtbot, mo
     2-int slot with the wrong arity, raising TypeError that Qt swallows,
     causing the toast to never appear.
     """
+    import sqlite3
+
     from musicstreamer import soma_import
 
     captured_toasts: list[str] = []
     monkeypatch.setattr(main_window, "show_toast",
                         lambda text, *a, **kw: captured_toasts.append(text))
     monkeypatch.setattr(main_window, "_refresh_station_list", lambda: None)
+
+    # Phase 74 REVIEW WR-04: monkeypatch db_connect + Repo so
+    # _SomaImportWorker.run() does NOT hit the real filesystem from the
+    # worker thread. _SomaImportWorker.run does `from musicstreamer.repo
+    # import Repo` lazily, so the patch must target musicstreamer.repo.
+    # main_window.py imports db_connect at module top level, so that one
+    # is patched at the main_window path. import_stations is stubbed below
+    # so the fake Repo is never actually called — its only job is to keep
+    # Repo(db_connect()) from touching the dev database / CI runner state.
+    monkeypatch.setattr(
+        "musicstreamer.ui_qt.main_window.db_connect",
+        lambda: sqlite3.connect(":memory:"),
+    )
+    monkeypatch.setattr(
+        "musicstreamer.repo.Repo",
+        lambda con: MagicMock(),
+    )
 
     # Patch fetch_channels and import_stations so the live worker exits
     # immediately with (0, 46) — no network calls.
