@@ -353,8 +353,14 @@ def _download_logos(logo_targets: list[tuple[int, str]]) -> None:
                     os.unlink(tmp_path)
                 except OSError:
                     pass
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            # Phase 74 REVIEW WR-01: log so future "half my stations have no
+            # art" bug reports have something to grep for (404? permission
+            # denied on asset dir? Pillow/copy_asset_for_station crash?).
+            _log.warning(
+                "SomaFM logo download failed for station %s (%s): %s",
+                station_id, image_url, exc,
+            )
 
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
