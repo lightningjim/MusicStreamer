@@ -128,12 +128,12 @@ class _GbsImportWorker(QThread):
     sentinel string ``"auth_expired"`` via the error signal when the gbs_api
     raises GbsAuthExpiredError so the UI surfaces a re-auth prompt instead
     of the raw exception text.
+
+    Phase 74 REVIEW IN-01: no __init__ override — QThread accepts
+    `_GbsImportWorker(parent=...)` natively.
     """
     import_finished = Signal(int, int)   # (inserted, updated) per import_station signature (74-06: renamed from `finished` — was shadowing QThread.finished)
     error = Signal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
 
     def run(self):
         try:
@@ -155,12 +155,12 @@ class _SomaImportWorker(QThread):
 
     Mirrors _GbsImportWorker shape (main_window.py:124-150). SYNC-05 retention
     on MainWindow._soma_import_worker prevents mid-run GC (Phase 60 D-02 precedent).
+
+    Phase 74 REVIEW IN-01: no __init__ override — QThread accepts
+    `_SomaImportWorker(parent=...)` natively.
     """
     import_finished = Signal(int, int)   # (inserted, skipped) per import_stations signature (74-06: renamed from `finished` — was shadowing QThread.finished, root cause of UAT-07)
     error = Signal(str)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
 
     def run(self):
         try:
