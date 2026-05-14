@@ -22,6 +22,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 - [x] **BUG-06**: Saving an edit in `EditStationDialog` preserves the open/closed state of expandable sections (does not collapse all open sections on save)
 - [x] **BUG-08**: Linux force-quit and other WM-level dialogs display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer" — Linux parallel to WIN-02 *(surfaced during Phase 50 UAT 2026-04-28)*
 - [x] **BUG-09**: Intermittent audio dropouts/stutters when the GStreamer buffer can't keep up are observable, attributable, and (once root-caused) mitigated. Repro is unclear at filing time — phase ships diagnostic instrumentation first, then a behavior fix once root cause is observable *(surfaced 2026-04-28)*
+- [ ] **BUG-10**: SQLite `PRAGMA foreign_keys = ON` is set on every connection opened by `db_connect()` (or equivalent), making the schema's existing `ON DELETE CASCADE` constraints actually enforce at runtime. Without the PRAGMA, every `DELETE FROM stations` (and any other parent-row deletion) silently leaks orphan child rows — `station_streams`, possibly `favorites`, `station_siblings`, and any other FK child table. Phase also (a) writes a regression test that DELETEs a station and asserts the cascade fires, (b) emits a one-time INFO log if `PRAGMA foreign_keys` was OFF at connection time (drift guard for any code path that forgets), (c) ships a one-shot orphan-sweep migration that scans every child table for rows whose FK parent no longer exists, deletes them, and logs the counts, and (d) documents the per-connection requirement in `musicstreamer/db.py` (or wherever `db_connect()` lives) so future contributors don't reintroduce the gap *(surfaced 2026-05-14 during Phase 74 Plan 07 UAT, finding F-07-03 — required manual `DELETE FROM station_streams WHERE url LIKE '%synphaera%'` cleanup mid-UAT to unblock dedup re-import; full root cause in 74-LEARNINGS.md and reference-musicstreamer-db-schema memory)*
 
 ### Windows Polish (WIN)
 
@@ -187,14 +188,15 @@ Which phases cover which requirements.
 | SOMA-15 | Phase 74 | Pending |
 | SOMA-16 | Phase 74 | Pending |
 | SOMA-17 | Phase 74 | Pending |
+| BUG-10 | Phase 80 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 55 total
-- Mapped to phases: 55 ✓
+- v2.1 requirements: 56 total
+- Mapped to phases: 56 ✓
 - Unmapped: 0 ✓
 - Complete: 20
-- Pending: 35 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight)
+- Pending: 36 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-05-14 — SOMA-01..SOMA-17 (SomaFM bulk-catalog importer; 4-tier × 5-relay stream scheme; dedup-by-URL; logo failure non-fatal; hamburger menu entry; worker retention; UA source-grep gates) added for Phase 74.*
+*Last updated: 2026-05-14 — BUG-10 (SQLite PRAGMA foreign_keys enforcement + orphan-sweep migration + regression test + drift-guard log + db.py header docs) added for Phase 80. Surfaced during Phase 74 Plan 07 UAT (F-07-03).*
