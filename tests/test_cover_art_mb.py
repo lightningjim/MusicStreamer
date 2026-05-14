@@ -20,6 +20,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -134,6 +135,13 @@ def test_caa_request_carries_user_agent(monkeypatch):
     assert ua is not None
     assert ua.startswith("MusicStreamer/")
     assert "https://github.com/lightningjim/MusicStreamer" in ua
+    # D-11 lock: the CAA URL MUST hit the /front-250 variant. This pins the
+    # planner's discretion choice (250 vs 500 vs 1200) so a future drift to a
+    # different variant has to update this test.
+    assert caa_reqs[0].full_url == (
+        "https://coverartarchive.org/release/"
+        "b9ddde22-fca3-4d94-aee9-f964b34166ce/front-250"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -368,3 +376,55 @@ def test_rate_gate_uses_monotonic():
     assert pattern.search(src), (
         "time.monotonic must appear on a non-comment line in cover_art_mb.py"
     )
+
+
+# ---------------------------------------------------------------------------
+# T-73-01: Lucene-injection mitigation — escape ALL specials before urlencode
+# ---------------------------------------------------------------------------
+
+
+def test_lucene_escape_neutralizes_injection_attack():
+    """T-73-01 mitigation — Lucene-special chars in ICY-derived title MUST be
+    escaped before urlencoding so they cannot break out of the recording:"..."
+    term.
+
+    Attack input (the scenario CONTEXT D-08 + threat model warned about):
+        artist=`Britney Spears`, title=`"Title" OR *:*`
+    After _escape_lucene the title becomes `\\"Title\\" OR \\*\\:\\*`. After
+    urllib.parse.quote(..., safe='') the full query is URL-safe and the
+    Lucene-special chars are all backslash-escaped in the wire URL.
+
+    Defense-in-depth: this test pairs with the source-grep gates ART-MB-15/16
+    to ensure both behavior AND source-level invariants hold.
+    """
+    from musicstreamer import cover_art_mb
+
+    artist = "Britney Spears"
+    attack_title = '"Title" OR *:*'
+    url = cover_art_mb._build_mb_query(artist, attack_title)
+
+    # Each Lucene-special char in the title must appear as backslash-escaped
+    # in the urlencoded query — `\"` -> `%5C%22`, `\*` -> `%5C%2A`, `\:` -> `%5C%3A`.
+    # Equivalently the escaped sequence pre-urlencode is `\"` / `\*` / `\:`.
+    # urlencode the escape pair to compare to the URL:
+    assert urllib.parse.quote(r'\"', safe='') in url, (
+        "T-73-01: escaped backslash-quote `\\\"` (urlencoded) must appear in the MB URL"
+    )
+    assert urllib.parse.quote(r'\*', safe='') in url, (
+        "T-73-01: escaped backslash-star `\\*` (urlencoded) must appear in the MB URL"
+    )
+    assert urllib.parse.quote(r'\:', safe='') in url, (
+        "T-73-01: escaped backslash-colon `\\:` (urlencoded) must appear in the MB URL"
+    )
+
+    # Negative assertion: the RAW unescaped `OR *:*` substring must NOT appear
+    # anywhere in the wire URL — every special char in the attack payload was
+    # backslash-escaped BEFORE urlencoding, so urldecoding the wire would
+    # yield `\\*\\:\\*` not `*:*`.
+    assert "OR *:*" not in url, (
+        "T-73-01: unescaped attack substring `OR *:*` must not appear in the MB URL"
+    )
+
+    # Sanity: the artist field was also escaped through the same path; benign
+    # artist with no specials passes through unchanged.
+    assert urllib.parse.quote("Britney Spears", safe='') in url
