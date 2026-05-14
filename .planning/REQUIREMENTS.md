@@ -49,6 +49,27 @@ Manual user-curated cross-network/same-provider sibling linking, replacing the p
 
 - [x] **SIB-01**: Manual sibling-station linking via GUI replaces hand-DB-edits. User adds links from EditStationDialog's '+ Add sibling' button → two-step picker (provider → station). Per-chip × unlinks. Merges with AA URL-derived siblings in the 'Also on:' line on both EditStationDialog and NowPlayingPanel. ZIP export carries siblings by station name for cross-machine sync. Symmetric `station_siblings(a_id, b_id)` join table with `CHECK(a_id < b_id)`, `UNIQUE`, `ON DELETE CASCADE`.
 
+### Cover-Art Sources (ART-MB)
+
+Per-station MusicBrainz + Cover Art Archive lookup as an additive complement to the existing iTunes path. Three modes (`auto` / `itunes_only` / `mb_only`) selectable per station; default `auto` means iTunes-first with MB fallback on miss. Protocol-locked User-Agent + 1 req/sec rate gate + Lucene-escaped recording search + Official/Album release selection + ZIP round-trip. Source-grep gates (ART-MB-15/16) mirror the `feedback_gstreamer_mock_blind_spot.md` lesson — protocol-required literals must be testable at the source level.
+
+- [ ] **ART-MB-01**: User-Agent header literal on MB API request matches `MusicStreamer/<version> (https://github.com/lightningjim/MusicStreamer)`
+- [ ] **ART-MB-02**: User-Agent header literal on CAA image request
+- [ ] **ART-MB-15**: Source-grep gate: literal `MusicStreamer/` AND `https://github.com/lightningjim/MusicStreamer` appear in cover_art_mb.py source
+- [ ] **ART-MB-03**: 1 req/sec gate: 5 sequential MB calls span ≥ 4 seconds of monotonic clock
+- [ ] **ART-MB-16**: Source-grep gate: gate actually references `time.monotonic` (not just a comment)
+- [ ] **ART-MB-04**: Score=85 fixture accepted; score=79 rejected; bare-title ICY skips MB
+- [ ] **ART-MB-05**: Release selection: Official+Album+earliest wins over Bootleg with same score
+- [ ] **ART-MB-13**: MB tags → genre: highest-count tag wins; empty tags → genre=""
+- [ ] **ART-MB-06**: Latest-wins queue: 5 rapid ICY arrivals → at most 1 wasted + 1 final
+- [ ] **ART-MB-07**: MB-only mode: iTunes urlopen MUST NOT be called
+- [ ] **ART-MB-08**: iTunes-only mode: MB urlopen MUST NOT be called
+- [ ] **ART-MB-09**: Auto mode: iTunes miss → MB called → image shown via cover_art_ready signal
+- [ ] **ART-MB-10**: Settings export ZIP round-trips `cover_art_source` field; old ZIPs default to 'auto'
+- [ ] **ART-MB-11**: SQLite migration adds column with DEFAULT 'auto'; idempotent on re-run
+- [ ] **ART-MB-12**: EditStationDialog selector reads + writes `station.cover_art_source`
+- [ ] **ART-MB-14**: HTTP 503 from MB → callback(None), no raise out of worker
+
 ### Versioning Convention (VER)
 
 Project-level convention introduced 2026-04-28.
@@ -76,7 +97,6 @@ Explicitly excluded from v2.1. Carried forward from v2.0 OoS plus milestone-spec
 | Playback history distinct from favorites | Different use case; favorites are intentional stars |
 | Auto-refresh saved Radio-Browser stations | Manual management; auto-refresh is unclear value |
 | Social sharing / export of favorites | Single-user desktop app |
-| MusicBrainz cover art fallback | iTunes sufficient; revisit if gaps found |
 | Local music library / file playback | Streaming app only |
 | Multi-user / authentication | Single-user desktop app |
 | Podcast support | Different use case |
@@ -112,14 +132,30 @@ Which phases cover which requirements.
 | WIN-05 | Phase 69 | Complete |
 | HRES-01 | Phase 70 | Complete |
 | SIB-01 | Phase 71 | Complete |
+| ART-MB-01 | Phase 73 | Pending |
+| ART-MB-02 | Phase 73 | Pending |
+| ART-MB-03 | Phase 73 | Pending |
+| ART-MB-04 | Phase 73 | Pending |
+| ART-MB-05 | Phase 73 | Pending |
+| ART-MB-06 | Phase 73 | Pending |
+| ART-MB-07 | Phase 73 | Pending |
+| ART-MB-08 | Phase 73 | Pending |
+| ART-MB-09 | Phase 73 | Pending |
+| ART-MB-10 | Phase 73 | Pending |
+| ART-MB-11 | Phase 73 | Pending |
+| ART-MB-12 | Phase 73 | Pending |
+| ART-MB-13 | Phase 73 | Pending |
+| ART-MB-14 | Phase 73 | Pending |
+| ART-MB-15 | Phase 73 | Pending |
+| ART-MB-16 | Phase 73 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 22 total
-- Mapped to phases: 22 ✓
+- v2.1 requirements: 38 total
+- Mapped to phases: 38 ✓
 - Unmapped: 0 ✓
 - Complete: 20
-- Pending: 2 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT)
+- Pending: 18 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-05-12 — SIB-01 (manual sibling-station linking via GUI; symmetric station_siblings join table; merged 'Also on:' line; ZIP-by-name forward-compat) added for Phase 71.*
+*Last updated: 2026-05-13 — ART-MB-01..16 (MusicBrainz album-cover lookup; per-station 3-mode selector + 1 req/sec rate gate + Lucene-escaped recording search + Official+Album+earliest release selection + ZIP round-trip) added for Phase 73.*
