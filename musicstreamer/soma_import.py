@@ -98,8 +98,13 @@ def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str]:
     the sole behavioural deviation from the old aa_import._resolve_pls which took [0]).
     T-74-03: returned URLs are direct ice*.somafm.com URLs, NOT the .pls input URL.
 
-    Falls back to [pls_url] on any exception (mirrors AA; callers that need [0]
-    continue to work against the fallback-on-error contract).
+    Phase 74 REVIEW CR-01: returns [] on fetch failure or empty parse. The
+    caller's ``if not streams: continue`` (fetch_channels) already drops a
+    channel that produces zero recognisable tiers — that is the correct
+    behaviour. Returning [pls_url] on error (the old AA-legacy fallback
+    contract) would persist a `.pls` URL as a `station_streams.url` row that
+    the player cannot decode, and dedup-by-URL would then prevent any
+    subsequent re-import from repairing it (silent permanent data corruption).
     """
     try:
         req = urllib.request.Request(pls_url, headers={"User-Agent": _USER_AGENT})
@@ -108,11 +113,10 @@ def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str]:
             body = resp.read().decode("utf-8", errors="replace")
         from musicstreamer.playlist_parser import parse_playlist
         entries = parse_playlist(body, content_type=content_type, url_hint=pls_url)
-        if entries:
-            return [e["url"] for e in entries]
-    except Exception:  # noqa: BLE001
-        pass
-    return [pls_url]
+        return [e["url"] for e in entries if e.get("url")]
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("SomaFM PLS fetch failed for %s: %s", pls_url, exc)
+        return []
 
 
 def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
