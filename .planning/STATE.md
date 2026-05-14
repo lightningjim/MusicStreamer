@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: completed
-stopped_at: Phase 73 context gathered
-last_updated: "2026-05-14T01:15:23.855Z"
+stopped_at: Phase 74 context gathered
+last_updated: "2026-05-14T03:33:49.909Z"
 last_activity: 2026-05-14 -- Phase 73 marked complete
 progress:
-  total_phases: 32
+  total_phases: 34
   completed_phases: 28
   total_plans: 128
   completed_plans: 128
-  percent: 88
+  percent: 100
 ---
 
 # Project State
@@ -177,6 +177,9 @@ Key v2.0 decisions already settled:
 - Phase 74 added: SomaFM full station catalog + art — pull all SomaFM streams and station art (parity with GBS.FM and AudioAddict). somafm.com already exposes the catalog; decide during /gsd-discuss-phase between live-poll-to-install vs in-memory bundled catalog (new stations are rare but do happen) 2026-05-10
 - Phase 75 added: Extend theme coloring to include toast colors — follow-up to Phase 66 (Color Themes) which left toast notifications on hardcoded colors; bring toasts under the active theme so presets/custom schemes drive their palette too 2026-05-10
 - Phase 76 added: GBS.FM authentication — review both options for using the pre-existing API token AND the login-page cookie capture process (like Google/Twitch already in app); API token likely easiest for the user. Decide path(s) during /gsd-discuss-phase 2026-05-13
+- Phase 77 added: Test infrastructure stabilization — fix the recurring pre-existing failures cataloged in deferred-items.md across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 73 (FakePlayer drift, MPRIS DBus name-collision, Qt teardown aborts, _aa_quality orphan refs, station-list panel test gaps, Twitch auth failure) so future phases stop logging the same noise 2026-05-13
+- Phase 78 added: Phase 62 follow-up — Buffer underrun behavior fix; closes SC #3 of BUG-09 (instrumentation shipped in Phase 62; behavior fix gated on observable log data per Phase 62 CONTEXT.md <deferred>). Phase 16 baseline (10s / 10MB) unlocks here pending CONTEXT decision per Phase 62 D-09 2026-05-13
+- Phase 51 plans 51-04/51-05 confirmed intentionally dropped 2026-05-13 — user clarification: sibling navigation from inside Edit Station dialog was never wanted; BUG-02 closure path is Phase 64 (Now Playing only). ROADMAP entry left as-is (3/5 executed) but the two unchecked plans should be treated as abandoned, not pending.
 
 ### Pending Todos
 
@@ -228,6 +231,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-14T01:06:12.282Z
-Stopped at: Phase 73 context gathered
-Resume file: None
+Last session: 2026-05-14T03:33:49.898Z
+Stopped at: Phase 74 context gathered
+Resume file: .planning/phases/74-somafm-full-station-catalog-art-pull-all-somafm-streams-and-/74-CONTEXT.md
