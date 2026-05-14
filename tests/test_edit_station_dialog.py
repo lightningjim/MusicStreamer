@@ -253,6 +253,112 @@ def test_icy_checkbox_maps_to_icy_disabled(qtbot, dialog, repo, station):
 
 
 # ---------------------------------------------------------------------------
+# Phase 73-04 / ART-MB-12 — Cover art source QComboBox selector
+# ---------------------------------------------------------------------------
+
+
+def test_cover_art_source_combo_exists(dialog):
+    """D-06: dialog has a cover_art_source_combo with the 3 documented entries."""
+    combo = dialog.cover_art_source_combo
+    # Must NOT be editable — values are fixed per D-01
+    assert combo.isEditable() is False
+    # Three entries in the documented order: auto first (D-05), then itunes_only, then mb_only
+    assert combo.count() == 3
+    assert combo.itemData(0) == "auto"
+    assert combo.itemData(1) == "itunes_only"
+    assert combo.itemData(2) == "mb_only"
+
+
+def test_cover_art_source_combo_populates_from_station_mb_only(qtbot, player, repo):
+    """ART-MB-12 read side: dialog opened on a Station with cover_art_source='mb_only'
+    shows the combo at the mb_only entry (itemData='mb_only')."""
+    st = Station(
+        id=1, name="Radio X", provider_id=1, provider_name="TestProvider",
+        tags="", station_art_path=None, album_fallback_path=None,
+        icy_disabled=False, cover_art_source="mb_only",
+    )
+    d = EditStationDialog(st, player, repo, parent=None)
+    qtbot.addWidget(d)
+    assert d.cover_art_source_combo.currentData() == "mb_only"
+
+
+def test_cover_art_source_combo_populates_from_station_auto_default(dialog):
+    """ART-MB-12 read side default: a Station built without explicit cover_art_source
+    (uses Plan 01 dataclass default 'auto') drives the combo to its 'auto' index."""
+    # `station` fixture builds Station without cover_art_source -> default 'auto'.
+    assert dialog.cover_art_source_combo.currentData() == "auto"
+
+
+def test_cover_art_source_combo_save_passes_kwarg_to_update_station(qtbot, dialog, repo):
+    """ART-MB-12 write side: changing combo + Save passes cover_art_source kwarg."""
+    # Flip to mb_only
+    combo = dialog.cover_art_source_combo
+    for idx in range(combo.count()):
+        if combo.itemData(idx) == "mb_only":
+            combo.setCurrentIndex(idx)
+            break
+
+    dialog.button_box.accepted.emit()
+
+    kwargs = repo.update_station.call_args.kwargs
+    assert kwargs.get("cover_art_source") == "mb_only"
+
+
+def test_cover_art_source_combo_dirty_when_flipped(dialog):
+    """D-12 / dirty-snapshot: flipping the combo enables Save (dialog._is_dirty)."""
+    # Default station -> cover_art_source='auto'; baseline captured clean.
+    assert dialog._is_dirty() is False
+    combo = dialog.cover_art_source_combo
+    for idx in range(combo.count()):
+        if combo.itemData(idx) == "mb_only":
+            combo.setCurrentIndex(idx)
+            break
+    assert dialog._is_dirty() is True
+
+
+def test_every_update_station_call_passes_cover_art_source_kwarg():
+    """Warning 1 source-grep gate: every `repo.update_station(` call site in
+    edit_station_dialog.py MUST pass cover_art_source= within the same call.
+
+    Mirrors the ART-MB-15/16 source-grep idiom (memory
+    feedback_gstreamer_mock_blind_spot.md). Guards against future copy-paste
+    of an update_station call that omits the kwarg, which Plan 03's lock-test
+    would then silently regress to 'auto' on save.
+    """
+    import importlib.resources
+    src = importlib.resources.files("musicstreamer.ui_qt").joinpath(
+        "edit_station_dialog.py"
+    ).read_text()
+    lines = src.splitlines()
+    offenders: list[str] = []
+    for i, line in enumerate(lines):
+        if "repo.update_station(" not in line:
+            continue
+        # Scan forward up to 30 lines tracking paren depth.
+        depth = 0
+        seen_open = False
+        span_text_parts: list[str] = []
+        for j in range(i, min(i + 30, len(lines))):
+            seg = lines[j]
+            span_text_parts.append(seg)
+            for ch in seg:
+                if ch == "(":
+                    depth += 1
+                    seen_open = True
+                elif ch == ")":
+                    depth -= 1
+            if seen_open and depth == 0:
+                break
+        span_text = "\n".join(span_text_parts)
+        if "cover_art_source=" not in span_text:
+            offenders.append(f"line {i+1}: {line.strip()}")
+    assert not offenders, (
+        "repo.update_station(...) call sites missing cover_art_source= kwarg:\n"
+        + "\n".join(offenders)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Phase 40.1-04: Logo picker + preview + auto-fetch (D-12, D-13, D-14)
 # ---------------------------------------------------------------------------
 
