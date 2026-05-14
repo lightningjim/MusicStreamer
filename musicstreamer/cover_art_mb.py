@@ -381,20 +381,37 @@ def _worker(initial_job: tuple) -> None:
     The flag is cleared atomically when the worker exits, AFTER the final
     queue check shows empty — preventing the lost-wakeup race where a new
     submission arrives between "queue empty" and "flag cleared".
+
+    WR-01 defense-in-depth: the outer try/except guarantees `_in_flight` is
+    cleared on ANY exit path, including unexpected exceptions escaping
+    `_run_one_job` (which has its own bare-except, but logging or future
+    code edits could still raise). Without this finally-style guarantee, a
+    stuck `_in_flight=True` would render the MB pipeline permanently inert
+    until process restart.
     """
     global _in_flight
     job = initial_job
-    while True:
-        _run_one_job(job)
-        # Look for a superseded successor under the lock to close the
-        # "submitter saw _in_flight=True but worker already finished" race.
+    try:
+        while True:
+            _run_one_job(job)
+            # Look for a superseded successor under the lock to close the
+            # "submitter saw _in_flight=True but worker already finished" race.
+            with _inflight_lock:
+                try:
+                    job = _pending.get_nowait()
+                    continue  # drained a superseded job; process it
+                except queue.Empty:
+                    _in_flight = False
+                    return
+    except BaseException:
+        # WR-01: never leave the in-flight flag stuck if anything escapes
+        # the inner loop (D-20 spirit: worker never raises out, but also
+        # never wedges the pipeline). Clear the flag, log, and re-raise so
+        # the daemon-thread default handler can report it.
         with _inflight_lock:
-            try:
-                job = _pending.get_nowait()
-                continue  # drained a superseded job; process it
-            except queue.Empty:
-                _in_flight = False
-                return
+            _in_flight = False
+        _log.warning("MB worker exited unexpectedly", exc_info=True)
+        raise
 
 
 def fetch_mb_cover(
