@@ -154,6 +154,60 @@ def test_update_station_preserves_icy_disabled(repo):
     assert st.icy_disabled is True
 
 
+# --- Phase 73 / ART-MB-11: cover_art_source schema migration + dataclass mapping ---
+
+
+def test_cover_art_source_default_is_auto(repo):
+    """D-05: new station rows get cover_art_source='auto' via the column DEFAULT."""
+    sid = repo.create_station()
+    st = repo.get_station(sid)
+    assert st.cover_art_source == "auto"
+
+
+def test_cover_art_source_round_trip(repo):
+    """D-01: a station with cover_art_source='mb_only' hydrates correctly.
+
+    Plan 01 does NOT extend repo.update_station — Plan 03 will. This test
+    writes the column via direct SQL UPDATE to prove the read path on
+    list_stations / get_station mappings honors the stored value.
+    """
+    sid = repo.create_station()
+    repo.con.execute(
+        "UPDATE stations SET cover_art_source = ? WHERE id = ?",
+        ("mb_only", sid),
+    )
+    repo.con.commit()
+    st = repo.get_station(sid)
+    assert st.cover_art_source == "mb_only"
+
+
+def test_cover_art_source_migration_idempotent(repo):
+    """ART-MB-11: db_init twice must not raise; column exists with DEFAULT 'auto'.
+
+    Asserts both idempotency (Pitfall 8: ALTER TABLE wrapped in try/except
+    sqlite3.OperationalError) AND that PRAGMA table_info reports the literal
+    SQL-quoted default 'auto'. SQLite stores DEFAULT clauses verbatim, so the
+    comparison must include the single quotes.
+    """
+    # Second db_init must not raise — column already exists.
+    db_init(repo.con)
+    db_init(repo.con)  # third call for paranoia; still idempotent
+
+    # PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk).
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "cover_art_source" in by_name, (
+        f"cover_art_source column missing; got {sorted(by_name)}"
+    )
+    col = by_name["cover_art_source"]
+    # type is index 2; notnull is index 3; dflt_value is index 4
+    assert col[2] == "TEXT"
+    assert col[3] == 1, "cover_art_source must be NOT NULL"
+    assert col[4] == "'auto'", (
+        f"DEFAULT clause must be the SQL-quoted literal 'auto'; got {col[4]!r}"
+    )
+
+
 # --- last_played_at tests ---
 
 def test_last_played_migration(repo):

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 
 @dataclass
@@ -33,6 +33,7 @@ class Station:
     station_art_path: Optional[str]
     album_fallback_path: Optional[str]
     icy_disabled: bool = False
+    cover_art_source: Literal["auto", "itunes_only", "mb_only"] = "auto"  # Phase 73 D-01/D-05
     streams: List[StationStream] = field(default_factory=list)
     last_played_at: Optional[str] = None
     is_favorite: bool = False

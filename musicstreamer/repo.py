@@ -178,6 +178,21 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # url column already gone — migration already ran
 
+    # Phase 73 D-01/D-05 — per-station cover-art source routing preference.
+    # RESEARCH Pitfall 8: this ALTER MUST land AFTER the legacy URL-column rebuild
+    # block above, because the rebuild's CREATE TABLE stations_new / INSERT SELECT
+    # do NOT know about cover_art_source. Placing the ALTER here ensures the
+    # column lands on the rebuilt table (or on a fresh CREATE TABLE IF NOT EXISTS
+    # stations if no legacy rebuild was needed). Idempotent across re-runs via
+    # the try/except sqlite3.OperationalError idiom (matches repo.py:79-94 shape).
+    try:
+        con.execute(
+            "ALTER TABLE stations ADD COLUMN cover_art_source TEXT NOT NULL DEFAULT 'auto'"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent; existing rows backfilled via DEFAULT
+
 
 class Repo:
     def __init__(self, con: sqlite3.Connection):
@@ -316,6 +331,7 @@ class Repo:
                     station_art_path=r["station_art_path"],
                     album_fallback_path=r["album_fallback_path"],
                     icy_disabled=bool(r["icy_disabled"]),
+                    cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
                     last_played_at=r["last_played_at"],
                     is_favorite=bool(r["is_favorite"]),
                     streams=self.list_streams(r["id"]),
@@ -351,6 +367,7 @@ class Repo:
             station_art_path=r["station_art_path"],
             album_fallback_path=r["album_fallback_path"],
             icy_disabled=bool(r["icy_disabled"]),
+            cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
             last_played_at=r["last_played_at"],
             is_favorite=bool(r["is_favorite"]),
             streams=self.list_streams(station_id),
@@ -411,6 +428,7 @@ class Repo:
                 station_art_path=r["station_art_path"],
                 album_fallback_path=r["album_fallback_path"],
                 icy_disabled=bool(r["icy_disabled"]),
+                cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
                 last_played_at=r["last_played_at"],
                 is_favorite=bool(r["is_favorite"]),
                 streams=self.list_streams(r["id"]),
@@ -522,6 +540,7 @@ class Repo:
                 station_art_path=r["station_art_path"],
                 album_fallback_path=r["album_fallback_path"],
                 icy_disabled=bool(r["icy_disabled"]),
+                cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
                 last_played_at=r["last_played_at"],
                 is_favorite=True,
                 streams=self.list_streams(r["id"]),
