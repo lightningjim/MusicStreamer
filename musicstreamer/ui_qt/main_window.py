@@ -86,7 +86,7 @@ from musicstreamer.accent_utils import apply_accent_palette, _is_valid_hex
 
 
 class _ExportWorker(QThread):
-    finished = Signal(str)   # emits dest_path on success
+    export_finished = Signal(str)   # emits dest_path on success (74-06: renamed from `finished` — was shadowing QThread.finished)
     error = Signal(str)
 
     def __init__(self, dest_path: str, parent=None):
@@ -98,13 +98,13 @@ class _ExportWorker(QThread):
             from musicstreamer.repo import Repo
             repo = Repo(db_connect())
             settings_export.build_zip(repo, self._dest_path)
-            self.finished.emit(self._dest_path)
+            self.export_finished.emit(self._dest_path)
         except Exception as exc:
             self.error.emit(str(exc))
 
 
 class _ImportPreviewWorker(QThread):
-    finished = Signal(object)   # emits ImportPreview
+    preview_finished = Signal(object)   # emits ImportPreview (74-06: renamed from `finished` — was shadowing QThread.finished)
     error = Signal(str)
 
     def __init__(self, zip_path: str, parent=None):
@@ -116,7 +116,7 @@ class _ImportPreviewWorker(QThread):
             from musicstreamer.repo import Repo
             repo = Repo(db_connect())
             result = settings_export.preview_import(self._zip_path, repo)
-            self.finished.emit(result)
+            self.preview_finished.emit(result)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -129,7 +129,7 @@ class _GbsImportWorker(QThread):
     raises GbsAuthExpiredError so the UI surfaces a re-auth prompt instead
     of the raw exception text.
     """
-    finished = Signal(int, int)   # (inserted, updated) per import_station signature
+    import_finished = Signal(int, int)   # (inserted, updated) per import_station signature (74-06: renamed from `finished` — was shadowing QThread.finished)
     error = Signal(str)
 
     def __init__(self, parent=None):
@@ -141,7 +141,7 @@ class _GbsImportWorker(QThread):
             from musicstreamer import gbs_api
             repo = Repo(db_connect())
             inserted, updated = gbs_api.import_station(repo)
-            self.finished.emit(int(inserted), int(updated))
+            self.import_finished.emit(int(inserted), int(updated))
         except Exception as exc:
             from musicstreamer import gbs_api
             if isinstance(exc, gbs_api.GbsAuthExpiredError):
@@ -156,7 +156,7 @@ class _SomaImportWorker(QThread):
     Mirrors _GbsImportWorker shape (main_window.py:124-150). SYNC-05 retention
     on MainWindow._soma_import_worker prevents mid-run GC (Phase 60 D-02 precedent).
     """
-    finished = Signal(int, int)   # (inserted, skipped) per import_stations signature
+    import_finished = Signal(int, int)   # (inserted, skipped) per import_stations signature (74-06: renamed from `finished` — was shadowing QThread.finished, root cause of UAT-07)
     error = Signal(str)
 
     def __init__(self, parent=None):
@@ -169,7 +169,7 @@ class _SomaImportWorker(QThread):
             channels = soma_import.fetch_channels()
             repo = Repo(db_connect())
             inserted, skipped = soma_import.import_stations(channels, repo)
-            self.finished.emit(int(inserted), int(skipped))
+            self.import_finished.emit(int(inserted), int(skipped))
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -1346,7 +1346,7 @@ class MainWindow(QMainWindow):
             return
         self._begin_busy()
         self._export_worker = _ExportWorker(path, parent=self)
-        self._export_worker.finished.connect(self._on_export_done, Qt.QueuedConnection)
+        self._export_worker.export_finished.connect(self._on_export_done, Qt.QueuedConnection)
         self._export_worker.error.connect(self._on_export_error, Qt.QueuedConnection)
         self._export_worker.start()
 
@@ -1371,7 +1371,7 @@ class MainWindow(QMainWindow):
             return
         self._begin_busy()
         self._import_preview_worker = _ImportPreviewWorker(path, parent=self)
-        self._import_preview_worker.finished.connect(
+        self._import_preview_worker.preview_finished.connect(
             self._on_import_preview_ready, Qt.QueuedConnection
         )
         self._import_preview_worker.error.connect(
@@ -1459,7 +1459,7 @@ class MainWindow(QMainWindow):
         """
         self.show_toast("Importing GBS.FM…")
         self._gbs_import_worker = _GbsImportWorker(parent=self)  # SYNC-05 retain
-        self._gbs_import_worker.finished.connect(self._on_gbs_import_finished)  # QA-05
+        self._gbs_import_worker.import_finished.connect(self._on_gbs_import_finished)  # QA-05
         self._gbs_import_worker.error.connect(self._on_gbs_import_error)        # QA-05
         self._gbs_import_worker.start()
 
@@ -1503,7 +1503,7 @@ class MainWindow(QMainWindow):
         """Phase 74 D-06 / D-07: kick the SomaFM bulk import on a worker thread."""
         self.show_toast("Importing SomaFM…")
         self._soma_import_worker = _SomaImportWorker(parent=self)  # SYNC-05 retain
-        self._soma_import_worker.finished.connect(self._on_soma_import_done)  # QA-05
+        self._soma_import_worker.import_finished.connect(self._on_soma_import_done)  # QA-05
         self._soma_import_worker.error.connect(self._on_soma_import_error)    # QA-05
         self._soma_import_worker.start()
 
