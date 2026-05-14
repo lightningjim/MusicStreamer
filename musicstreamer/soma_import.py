@@ -312,8 +312,17 @@ def _download_logos(logo_targets: list[tuple[int, str]]) -> None:
                 tmp_path = tmp.name
             try:
                 art_path = copy_asset_for_station(station_id, tmp_path, "station_art")
-                thread_repo = Repo(db_connect())
-                thread_repo.update_station_art(station_id, art_path)
+                # Phase 74 REVIEW CR-03: own the sqlite3.Connection lifetime
+                # explicitly. Relying on refcount GC under ThreadPoolExecutor
+                # leaves dozens of WAL-locked connections open for the
+                # executor's lifetime; on Windows that has been observed to
+                # hold journal locks
+                # (MEMORY: reference_musicstreamer_db_schema).
+                con = db_connect()
+                try:
+                    Repo(con).update_station_art(station_id, art_path)
+                finally:
+                    con.close()
             finally:
                 try:
                     os.unlink(tmp_path)
