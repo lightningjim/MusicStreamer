@@ -68,8 +68,16 @@ _log = logging.getLogger(__name__)
 # ART-MB-15 source-grep gate asserts both substrings are present in this file.
 # VER-02 convention: pull the version via importlib.metadata (auto-bumps via
 # phase-complete hook). Do NOT hardcode the version literal like gbs_api.py:77.
+# IN-05: tolerate PackageNotFoundError so a raw-source / stripped-metadata
+# deployment cannot prevent the cover_art_mb module from importing — which
+# would in turn break cover_art.py (it eagerly imports cover_art_mb) and
+# render the entire cover-art feature unreachable.
+try:
+    _MS_VERSION = _pkg_version("musicstreamer")
+except Exception:
+    _MS_VERSION = "0.0.0"
 _USER_AGENT = (
-    f"MusicStreamer/{_pkg_version('musicstreamer')} "
+    f"MusicStreamer/{_MS_VERSION} "
     f"(https://github.com/lightningjim/MusicStreamer)"
 )
 
