@@ -1,22 +1,20 @@
-"""Unit tests for musicstreamer.cover_art_mb module — Wave 0 RED scaffolds.
+"""Unit tests for musicstreamer.cover_art_mb module.
 
-Plan 73-01 creates this file with xfail-marked tests. Plans 73-02/03/04 flip
-them GREEN by landing `musicstreamer.cover_art_mb` and its consumers. The
-xfail marks are intentional: pytest must COLLECT these tests now (for
---collect-only gating) but treat the failures as expected until the module
-exists.
+Plan 73-01 created this file with xfail-marked RED scaffolds. Plan 73-02
+landed the `musicstreamer.cover_art_mb` module and flipped the markers to
+GREEN. Plan 73-03 will flip the routing-side scaffold in test_cover_art_routing.py.
 
 Coverage:
-- ART-MB-01: User-Agent on MB API request (Plan 02)
-- ART-MB-02: User-Agent on CAA image request (Plan 02)
-- ART-MB-03: 1 req/sec gate with monotonic-floor (Plan 02)
-- ART-MB-04: score-threshold acceptance (Plan 02)
-- ART-MB-05: Release-selection ladder (Plan 02)
-- ART-MB-06: Latest-wins queue (Plan 02)
-- ART-MB-13: MB tags -> genre (Plan 02)
-- ART-MB-14: HTTP 503 -> callback(None) (Plan 02)
-- ART-MB-15: Source-grep gate, UA literal (Plan 02)
-- ART-MB-16: Source-grep gate, time.monotonic (Plan 02)
+- ART-MB-01: User-Agent on MB API request (Plan 02 GREEN)
+- ART-MB-02: User-Agent on CAA image request (Plan 02 GREEN)
+- ART-MB-03: 1 req/sec gate with monotonic-floor (Plan 02 GREEN)
+- ART-MB-04: score-threshold acceptance (Plan 02 GREEN)
+- ART-MB-05: Release-selection ladder (Plan 02 GREEN)
+- ART-MB-06: Latest-wins queue (Plan 02 GREEN)
+- ART-MB-13: MB tags -> genre (Plan 02 GREEN)
+- ART-MB-14: HTTP 503 -> callback(None) (Plan 02 GREEN)
+- ART-MB-15: Source-grep gate, UA literal (Plan 02 GREEN)
+- ART-MB-16: Source-grep gate, time.monotonic (Plan 02 GREEN)
 """
 import json
 import os
@@ -37,15 +35,50 @@ def _load_fixture(name: str) -> dict:
         return json.load(f)
 
 
+@pytest.fixture(autouse=True)
+def _reset_cover_art_mb_state():
+    """Reset module-level state (gate floor, queue, in-flight flag) per test.
+
+    The cover_art_mb module holds:
+      - _GATE: 1-req/sec gate with monotonic floor
+      - _pending: latest-wins queue
+      - _in_flight: worker-running flag
+
+    Tests run in unknown order, so each test must start fresh. Without this
+    reset, the 503 test (which spawns a real thread) will block up to 1s on
+    the gate floor left over from earlier tests that called _do_mb_search.
+    """
+    try:
+        from musicstreamer import cover_art_mb as _mb
+    except ImportError:
+        yield
+        return
+    # Pre-test: clear gate, queue, in-flight.
+    _mb._GATE._next_allowed_at = 0.0
+    _mb._reset_queue_for_tests()
+    yield
+    # Post-test: same.
+    _mb._GATE._next_allowed_at = 0.0
+    _mb._reset_queue_for_tests()
+
+
+def _join_last_worker(mb_module, timeout: float = 2.0) -> None:
+    """Wait for the most recently spawned worker thread to finish.
+
+    The module's _spawn_worker stores the live Thread on `_last_thread` so
+    failure-path tests can block until the callback fires. With monkeypatched
+    urlopen, the worker completes well under 100ms.
+    """
+    th = getattr(mb_module, "_last_thread", None)
+    if th is not None:
+        th.join(timeout=timeout)
+
+
 # ---------------------------------------------------------------------------
 # ART-MB-01: User-Agent header literal on MB API request
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; cover_art_mb module not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_mb_request_carries_user_agent(monkeypatch):
     """ART-MB-01: D-18 User-Agent on MB API request — RESEARCH Pitfall 6 header case."""
     from musicstreamer import cover_art_mb  # noqa: F401 — RED until Plan 02 lands the module
@@ -75,10 +108,6 @@ def test_mb_request_carries_user_agent(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; cover_art_mb CAA path not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_caa_request_carries_user_agent(monkeypatch):
     """ART-MB-02: D-18 User-Agent on CAA image request — symmetric with MB API."""
     from musicstreamer import cover_art_mb  # noqa: F401 — RED until Plan 02
@@ -112,10 +141,6 @@ def test_caa_request_carries_user_agent(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; _MbGate not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_mb_gate_serializes_with_1s_floor(monkeypatch):
     """ART-MB-03: D-14 rate gate — 5 sequential MB calls must space ≥ 1s apart.
 
@@ -143,10 +168,6 @@ def test_mb_gate_serializes_with_1s_floor(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; _pick_recording not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_score_threshold_rejects_below_80_accepts_at_or_above_80():
     """ART-MB-04: D-09 score >= 80 acceptance, plus D-07 bare-title short-circuit.
 
@@ -181,10 +202,6 @@ def test_score_threshold_rejects_below_80_accepts_at_or_above_80():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; _pick_release_mbid not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_release_selection_ladder_picks_official_album_over_bootleg():
     """ART-MB-05: D-10 release-selection ladder.
 
@@ -215,10 +232,6 @@ def test_release_selection_ladder_picks_official_album_over_bootleg():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; fetch_mb_cover + _spawn_worker seam not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_latest_wins_queue_drops_superseded_jobs(monkeypatch):
     """ART-MB-06: D-13 latest-wins, max 1 in-flight + 1 queued.
 
@@ -257,10 +270,6 @@ def test_latest_wins_queue_drops_superseded_jobs(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; _genre_from_tags not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_genre_from_tags_picks_highest_count():
     """ART-MB-13: D-15 highest-count tag wins; absent 'tags' key (Pitfall 3) → ""."""
     from musicstreamer import cover_art_mb  # RED until Plan 02
@@ -284,10 +293,6 @@ def test_genre_from_tags_picks_highest_count():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; D-20 fall-through not yet implemented",
-    raises=(ImportError, ModuleNotFoundError, AttributeError, AssertionError),
-)
 def test_mb_503_falls_through_to_callback_none(monkeypatch):
     """ART-MB-14: D-20 — 503 rate-limit MUST NOT escape the worker.
 
@@ -310,8 +315,12 @@ def test_mb_503_falls_through_to_callback_none(monkeypatch):
     )
 
     cb_calls: list = []
-    # Synchronous call (or the worker stub) — Plan 02 chooses the test seam.
+    # Plan 02 chose the test seam: fetch_mb_cover spawns a daemon worker
+    # thread (via the pinned _spawn_worker seam). With urlopen mocked to raise
+    # immediately, the worker completes well under 100ms. Block on _last_thread
+    # so the assertion runs AFTER the callback has fired.
     cover_art_mb.fetch_mb_cover("Daft Punk - One More Time", lambda p: cb_calls.append(p))
+    _join_last_worker(cover_art_mb, timeout=2.0)
 
     # callback invoked exactly once with None; no exception raised.
     assert cb_calls == [None]
@@ -322,10 +331,6 @@ def test_mb_503_falls_through_to_callback_none(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; cover_art_mb.py not yet created",
-    raises=(FileNotFoundError, AssertionError, ImportError, ModuleNotFoundError),
-)
 def test_user_agent_string_literals_present():
     """ART-MB-15: D-18 — source-grep guarantees the literal strings exist.
 
@@ -347,10 +352,6 @@ def test_user_agent_string_literals_present():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="Plan 02 — RED scaffold; cover_art_mb.py not yet created",
-    raises=(FileNotFoundError, AssertionError, ImportError, ModuleNotFoundError),
-)
 def test_rate_gate_uses_monotonic():
     """ART-MB-16: D-14 — rate gate must actually call time.monotonic, not just claim to.
 
