@@ -27,6 +27,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from importlib.metadata import version as _pkg_version
+from urllib.parse import urlparse
 
 from musicstreamer.assets import copy_asset_for_station
 from musicstreamer.repo import db_connect, Repo
@@ -68,6 +69,30 @@ _TIER_BY_FORMAT_QUALITY: dict[tuple[str, str], dict] = {
 }
 
 
+# Phase 74 REVIEW CR-02: SSRF / local-file-read mitigation.
+# urllib.request.urlopen accepts file://, ftp://, jar://, etc. A compromised
+# api.somafm.com (or any MitM that survives TLS) could return
+# {"image": "file:///etc/passwd"} and the import would read local files into
+# the station-art directory. Restrict to HTTP(S) — 'http' is retained for
+# legacy SomaFM ICE relays on port 80.
+_ALLOWED_SCHEMES = frozenset({"https", "http"})
+
+
+def _safe_urlopen_request(url: str) -> urllib.request.Request:
+    """Build a urllib Request after validating the URL scheme + netloc.
+
+    Raises ValueError for non-HTTP(S) schemes (file://, ftp://, jar://) or
+    URLs with an empty netloc. Callers feed the returned Request to
+    urllib.request.urlopen.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(f"Refusing non-HTTP(S) URL scheme: {parsed.scheme!r}")
+    if not parsed.netloc:
+        raise ValueError(f"Refusing URL with empty netloc: {url!r}")
+    return urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+
+
 # Phase 74.1 / G-02 / SOMA-02 / CR-01: SomaFM relay URL slugs encode the
 # actual stream bitrate (e.g. ice2.somafm.com/synphaera-256-mp3 -> 256 kbps).
 # The _TIER_BY_FORMAT_QUALITY table is only a fallback for unparseable slugs.
@@ -107,7 +132,7 @@ def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str]:
     subsequent re-import from repairing it (silent permanent data corruption).
     """
     try:
-        req = urllib.request.Request(pls_url, headers={"User-Agent": _USER_AGENT})
+        req = _safe_urlopen_request(pls_url)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             content_type = resp.headers.get("Content-Type", "")
             body = resp.read().decode("utf-8", errors="replace")
@@ -132,7 +157,7 @@ def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
     Per-channel exceptions during stream extraction skip that channel and continue
     (D-15 / RESEARCH Pitfall 2 mitigation).
     """
-    req = urllib.request.Request(_API_URL, headers={"User-Agent": _USER_AGENT})
+    req = _safe_urlopen_request(_API_URL)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.loads(resp.read())
 
@@ -278,7 +303,7 @@ def _download_logos(logo_targets: list[tuple[int, str]]) -> None:
 
     def _download_logo(station_id: int, image_url: str) -> None:
         try:
-            req = urllib.request.Request(image_url, headers={"User-Agent": _USER_AGENT})
+            req = _safe_urlopen_request(image_url)
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = resp.read()
             suffix = os.path.splitext(image_url.split("?")[0])[1] or ".png"
