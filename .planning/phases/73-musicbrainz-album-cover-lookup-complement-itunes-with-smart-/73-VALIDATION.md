@@ -3,7 +3,7 @@ phase: 73
 slug: musicbrainz-album-cover-lookup-complement-itunes-with-smart
 status: draft
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-05-13
 last_updated: 2026-05-13
 ---
@@ -49,7 +49,7 @@ last_updated: 2026-05-13
 | ART-MB-08 | 03 | 3 | iTunes-only mode: MB urlopen MUST NOT be called | unit | `pytest tests/test_cover_art.py::test_itunes_only_mode_does_not_call_mb -x` | W0→Plan 01; GREEN→Plan 03 | ⬜ pending |
 | ART-MB-09 | 03 | 3 | Auto mode: iTunes miss → MB called → image shown via cover_art_ready signal | integration (qtbot + mocked urlopen) | `pytest tests/test_cover_art_routing.py::test_auto_falls_through_to_mb -x` | W0→Plan 01; GREEN→Plan 03 | ⬜ pending |
 | ART-MB-10 | 04 | 4 | Settings export ZIP round-trips `cover_art_source` field; old ZIPs default to 'auto' | unit | `pytest tests/test_settings_export.py::test_export_payload_contains_cover_art_source tests/test_settings_export.py::test_import_insert_persists_cover_art_source tests/test_settings_export.py::test_import_replace_persists_cover_art_source tests/test_settings_export.py::test_import_insert_missing_cover_art_source_defaults_to_auto tests/test_settings_export.py::test_import_replace_missing_cover_art_source_defaults_to_auto -x` | GREEN→Plan 04 | ⬜ pending |
-| ART-MB-11 | 01 | 1 | SQLite migration adds column with DEFAULT 'auto'; idempotent on re-run | unit | `pytest tests/test_repo.py::test_cover_art_source_migration_idempotent -x` | GREEN→Plan 01 | ⬜ pending |
+| ART-MB-11 | 01 | 1 | SQLite migration adds column with DEFAULT 'auto'; idempotent on re-run | unit | `pytest tests/test_repo.py::test_cover_art_source_migration_idempotent -x` | GREEN→Plan 01 | ✅ green |
 | ART-MB-12 | 04 | 4 | EditStationDialog selector reads + writes `station.cover_art_source` | qtbot | `pytest tests/test_edit_station_dialog.py::test_cover_art_source_combo_save_passes_kwarg_to_update_station -x` | GREEN→Plan 04 | ⬜ pending |
 | ART-MB-13 | 02 | 2 | MB tags → genre: highest-count tag wins; empty tags → genre="" | unit | `pytest tests/test_cover_art_mb.py::test_genre_from_tags_picks_highest_count -x` | W0→Plan 01; GREEN→Plan 02 | ⬜ pending |
 | ART-MB-14 | 02 | 2 | HTTP 503 from MB → callback(None), no raise out of worker | unit | `pytest tests/test_cover_art_mb.py::test_mb_503_falls_through_to_callback_none -x` | W0→Plan 01; GREEN→Plan 02 | ⬜ pending |
@@ -66,11 +66,11 @@ last_updated: 2026-05-13
 
 ## Wave 0 Requirements (delivered by Plan 73-01)
 
-- [ ] `tests/test_cover_art_mb.py` — covers ART-MB-01..06, 13, 14, 15, 16 (RED scaffolds in Plan 01; GREEN in Plan 02)
-- [ ] `tests/test_cover_art_routing.py` — covers ART-MB-09 (RED scaffold in Plan 01; GREEN in Plan 03)
-- [ ] `tests/fixtures/mb_recording_search_*.json` — 6 mocked MB responses (delivered in Plan 01)
+- [x] `tests/test_cover_art_mb.py` — covers ART-MB-01..06, 13, 14, 15, 16 (RED scaffolds in Plan 01; GREEN in Plan 02)
+- [x] `tests/test_cover_art_routing.py` — covers ART-MB-09 (RED scaffold in Plan 01; GREEN in Plan 03)
+- [x] `tests/fixtures/mb_recording_search_*.json` — 6 mocked MB responses (delivered in Plan 01)
 - [ ] Extension of `tests/test_cover_art.py` for routing — covers ART-MB-07/08 (RED scaffolds added in Plan 03 inline with the router refactor)
-- [ ] Extension of `tests/test_repo.py` for migration — covers ART-MB-11 (delivered + GREEN in Plan 01)
+- [x] Extension of `tests/test_repo.py` for migration — covers ART-MB-11 (delivered + GREEN in Plan 01)
 - [ ] Extension of `tests/test_settings_export.py` for round-trip — covers ART-MB-10 (delivered + GREEN in Plan 04)
 - [ ] Extension of `tests/test_edit_station_dialog.py` for selector — covers ART-MB-12 (delivered + GREEN in Plan 04)
 - [ ] Extension of `tests/test_now_playing_panel.py` for source-aware `_fetch_cover_art_async` (delivered + GREEN in Plan 04)

@@ -1,0 +1,42 @@
+{
+  "created": "2026-05-13T23:11:21.961Z",
+  "count": 1,
+  "offset": 0,
+  "recordings": [
+    {
+      "id": "35089b45-6223-485c-871e-7b286819053a",
+      "score": 100,
+      "title": "One More Time",
+      "length": 232333,
+      "first-release-date": "2000-11-13",
+      "disambiguation": "",
+      "video": null,
+      "artist-credit": [
+        {
+          "name": "Daft Punk",
+          "artist": {
+            "id": "056e4f3e-d505-4dad-8ec1-d04f521cbb56",
+            "name": "Daft Punk",
+            "sort-name": "Daft Punk"
+          }
+        }
+      ],
+      "tags": [
+        {"count": 5, "name": "house"},
+        {"count": 1, "name": "dance"}
+      ],
+      "releases": [
+        {
+          "id": "b9ddde22-fca3-4d94-aee9-f964b34166ce",
+          "title": "Discovery",
+          "status": "Official",
+          "date": "2001-03-12",
+          "release-group": {
+            "primary-type": "Album",
+            "secondary-types": []
+          }
+        }
+      ]
+    }
+  ]
+}

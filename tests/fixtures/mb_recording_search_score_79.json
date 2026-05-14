@@ -1,0 +1,41 @@
+{
+  "created": "2026-05-13T23:11:21.961Z",
+  "count": 1,
+  "offset": 0,
+  "recordings": [
+    {
+      "id": "79797979-7979-7979-7979-797979797979",
+      "score": 79,
+      "title": "Some Song",
+      "length": 200000,
+      "first-release-date": "2010-05-05",
+      "disambiguation": "",
+      "video": null,
+      "artist-credit": [
+        {
+          "name": "Some Artist",
+          "artist": {
+            "id": "abcabcab-abca-abca-abca-abcabcabcabc",
+            "name": "Some Artist",
+            "sort-name": "Some Artist"
+          }
+        }
+      ],
+      "tags": [
+        {"count": 2, "name": "rock"}
+      ],
+      "releases": [
+        {
+          "id": "79797979-aaaa-bbbb-cccc-797979797979",
+          "title": "Some Album",
+          "status": "Official",
+          "date": "2010-05-05",
+          "release-group": {
+            "primary-type": "Album",
+            "secondary-types": []
+          }
+        }
+      ]
+    }
+  ]
+}

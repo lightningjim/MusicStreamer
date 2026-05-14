@@ -1,0 +1,41 @@
+{
+  "created": "2026-05-13T23:11:21.961Z",
+  "count": 1,
+  "offset": 0,
+  "recordings": [
+    {
+      "id": "85858585-8585-8585-8585-858585858585",
+      "score": 85,
+      "title": "Another Song",
+      "length": 215000,
+      "first-release-date": "2015-08-12",
+      "disambiguation": "",
+      "video": null,
+      "artist-credit": [
+        {
+          "name": "Another Artist",
+          "artist": {
+            "id": "fedfedfe-dfed-fedf-edfe-dfedfedfedfe",
+            "name": "Another Artist",
+            "sort-name": "Another Artist"
+          }
+        }
+      ],
+      "tags": [
+        {"count": 3, "name": "indie"}
+      ],
+      "releases": [
+        {
+          "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "title": "Another Album",
+          "status": "Official",
+          "date": "2015-08-12",
+          "release-group": {
+            "primary-type": "Album",
+            "secondary-types": []
+          }
+        }
+      ]
+    }
+  ]
+}

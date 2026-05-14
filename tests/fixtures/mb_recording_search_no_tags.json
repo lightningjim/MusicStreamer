@@ -1,0 +1,38 @@
+{
+  "created": "2026-05-13T23:11:21.961Z",
+  "count": 1,
+  "offset": 0,
+  "recordings": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "score": 100,
+      "title": "Untagged Song",
+      "length": 180000,
+      "first-release-date": "2020-01-01",
+      "disambiguation": "",
+      "video": null,
+      "artist-credit": [
+        {
+          "name": "Obscure Artist",
+          "artist": {
+            "id": "00000000-1111-2222-3333-444444444444",
+            "name": "Obscure Artist",
+            "sort-name": "Obscure Artist"
+          }
+        }
+      ],
+      "releases": [
+        {
+          "id": "11111111-2222-3333-4444-555555555555",
+          "title": "Untagged Album",
+          "status": "Official",
+          "date": "2020-01-01",
+          "release-group": {
+            "primary-type": "Album",
+            "secondary-types": []
+          }
+        }
+      ]
+    }
+  ]
+}
