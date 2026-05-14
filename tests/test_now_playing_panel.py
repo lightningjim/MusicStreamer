@@ -3244,3 +3244,122 @@ def test_now_playing_shows_merged_siblings(qtbot):
     # Manual partner station name present (cross-provider name-mismatch case
     # is rendered via the em-dash "Network — Name" branch of render_sibling_html).
     assert "Manual Drone" in text
+
+
+# ---------------------------------------------------------------------------
+# Phase 73-04 — NowPlayingPanel._fetch_cover_art_async passes
+# self._station.cover_art_source as the `source` kwarg to fetch_cover_art.
+# Mirrors test_icy_disabled_suppresses_itunes_call's double-patch idiom for
+# the re-exported `fetch_cover_art` symbol (Pitfall 6: the panel does
+# `from musicstreamer.cover_art import fetch_cover_art` so we must patch
+# BOTH the source module and the panel module).
+# ---------------------------------------------------------------------------
+
+
+def _station_with_cover_art_source(name: str, cover_art_source: str) -> Station:
+    return Station(
+        id=42,
+        name=name,
+        provider_id=1,
+        provider_name="P",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        cover_art_source=cover_art_source,
+        streams=[StationStream(id=1, station_id=42, url="http://x/s",
+                               label="hi", quality="hi", position=1,
+                               stream_type="shoutcast", codec="MP3")],
+    )
+
+
+def test_fetch_cover_art_async_passes_station_source_kwarg_mb_only(qtbot, monkeypatch):
+    """When self._station.cover_art_source='mb_only', fetch_cover_art is called
+    with source='mb_only'. Phase 73 D-04."""
+    from unittest.mock import MagicMock
+    import musicstreamer.cover_art as cover_art_mod
+    import musicstreamer.ui_qt.now_playing_panel as npp_mod
+
+    fetch_spy = MagicMock()
+    monkeypatch.setattr(cover_art_mod, "fetch_cover_art", fetch_spy)
+    monkeypatch.setattr(npp_mod, "fetch_cover_art", fetch_spy)
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_cover_art_source("Mb Station", "mb_only"))
+
+    panel._fetch_cover_art_async("Daft Punk - One More Time")
+
+    assert fetch_spy.called, "fetch_cover_art must be invoked"
+    kwargs = fetch_spy.call_args.kwargs
+    assert kwargs.get("source") == "mb_only"
+
+
+def test_fetch_cover_art_async_passes_station_source_kwarg_itunes_only(qtbot, monkeypatch):
+    """When self._station.cover_art_source='itunes_only', fetch_cover_art is
+    called with source='itunes_only'. Phase 73 D-03."""
+    from unittest.mock import MagicMock
+    import musicstreamer.cover_art as cover_art_mod
+    import musicstreamer.ui_qt.now_playing_panel as npp_mod
+
+    fetch_spy = MagicMock()
+    monkeypatch.setattr(cover_art_mod, "fetch_cover_art", fetch_spy)
+    monkeypatch.setattr(npp_mod, "fetch_cover_art", fetch_spy)
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.bind_station(_station_with_cover_art_source("iT Station", "itunes_only"))
+
+    panel._fetch_cover_art_async("Daft Punk - One More Time")
+
+    assert fetch_spy.called
+    kwargs = fetch_spy.call_args.kwargs
+    assert kwargs.get("source") == "itunes_only"
+
+
+def test_fetch_cover_art_async_defaults_to_auto_when_no_station(qtbot, monkeypatch):
+    """Defensive: when self._station is None (no station bound), source kwarg
+    defaults to 'auto' without raising. Guards against direct callers that
+    might invoke _fetch_cover_art_async before bind_station."""
+    from unittest.mock import MagicMock
+    import musicstreamer.cover_art as cover_art_mod
+    import musicstreamer.ui_qt.now_playing_panel as npp_mod
+
+    fetch_spy = MagicMock()
+    monkeypatch.setattr(cover_art_mod, "fetch_cover_art", fetch_spy)
+    monkeypatch.setattr(npp_mod, "fetch_cover_art", fetch_spy)
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    # Do NOT bind_station — self._station is None.
+
+    panel._fetch_cover_art_async("Daft Punk - One More Time")
+
+    assert fetch_spy.called
+    kwargs = fetch_spy.call_args.kwargs
+    assert kwargs.get("source") == "auto"
+
+
+def test_fetch_cover_art_async_defaults_to_auto_when_station_lacks_attribute(qtbot, monkeypatch):
+    """Defensive: when self._station has no cover_art_source attribute
+    (legacy in-memory station built without going through Plan 01's
+    dataclass), getattr default 'auto' is used."""
+    from unittest.mock import MagicMock
+    from types import SimpleNamespace
+    import musicstreamer.cover_art as cover_art_mod
+    import musicstreamer.ui_qt.now_playing_panel as npp_mod
+
+    fetch_spy = MagicMock()
+    monkeypatch.setattr(cover_art_mod, "fetch_cover_art", fetch_spy)
+    monkeypatch.setattr(npp_mod, "fetch_cover_art", fetch_spy)
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    # Inject a station-like object with NO cover_art_source attribute.
+    panel._station = SimpleNamespace(id=99, name="Legacy", icy_disabled=False)
+
+    panel._fetch_cover_art_async("Daft Punk - One More Time")
+
+    assert fetch_spy.called
+    kwargs = fetch_spy.call_args.kwargs
+    assert kwargs.get("source") == "auto"
