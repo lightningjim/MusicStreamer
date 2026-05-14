@@ -1456,7 +1456,14 @@ class MainWindow(QMainWindow):
         Idempotent: re-clicking refreshes streams in place. UI never blocks —
         worker runs the urllib calls + logo download off-thread. Pitfall 3:
         auth-expired surfaces as a re-auth toast.
+
+        Phase 74 REVIEW WR-02: guard against double-click — same rationale as
+        _on_soma_import_clicked (parallel workers race on Repo access; first
+        finisher clears the retention slot mid-run for the second worker).
         """
+        if self._gbs_import_worker is not None:
+            self.show_toast("GBS.FM import already in progress")
+            return
         self.show_toast("Importing GBS.FM…")
         self._gbs_import_worker = _GbsImportWorker(parent=self)  # SYNC-05 retain
         self._gbs_import_worker.import_finished.connect(self._on_gbs_import_finished)  # QA-05
@@ -1500,7 +1507,17 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_soma_import_clicked(self) -> None:
-        """Phase 74 D-06 / D-07: kick the SomaFM bulk import on a worker thread."""
+        """Phase 74 D-06 / D-07: kick the SomaFM bulk import on a worker thread.
+
+        Phase 74 REVIEW WR-02: guard against double-click. Spawning two
+        workers in parallel makes them race on station_exists_by_url checks
+        and lets the first worker's _on_soma_import_done clear
+        self._soma_import_worker while the second is still running (defeats
+        SYNC-05 retention and exposes the second worker to mid-run GC).
+        """
+        if self._soma_import_worker is not None:
+            self.show_toast("SomaFM import already in progress")
+            return
         self.show_toast("Importing SomaFM…")
         self._soma_import_worker = _SomaImportWorker(parent=self)  # SYNC-05 retain
         self._soma_import_worker.import_finished.connect(self._on_soma_import_done)  # QA-05
