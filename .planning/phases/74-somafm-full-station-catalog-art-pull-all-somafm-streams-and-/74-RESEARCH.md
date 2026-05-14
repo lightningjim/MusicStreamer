@@ -649,32 +649,39 @@ def test_fetch_channels_maps_three_tiers(monkeypatch, tmp_path):
 | A6 | Plan 01 will register exactly N new SOMA-NN requirements with a sensible Coverage block bump | Phase Requirements | If Plan 01 forgets the bump, the test_requirements_coverage drift-guard fires. Mirror Phase 73's procedure. `[ASSUMED]` |
 | A7 | The `id` field on a SomaFM channel is unique and stable | Architecture / dedup | If SomaFM rebrands `groovesalad` → `gs` (or vice-versa), re-import treats them as different channels and inserts a duplicate. Mitigated by D-05 stream-URL dedup since the underlying ICE URLs are also id-based. `[ASSUMED based on 1-day live probe]` |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All five open questions were resolved before planning. Decisions captured below; LOCKED decisions live in CONTEXT.md (authoritative).
 
 1. **Tier-mapping policy: 3 tiers (drop aacp-high) or 4 tiers (keep all)?**
    - What we know: SomaFM emits 4 playlists per channel today. AA emits 3 quality tiers. Existing `stream_ordering._QUALITY_RANK` defines exactly 3 named tiers (`hi`/`med`/`low`).
    - What's unclear: The user's tolerance for non-standard tier names like `"med2"` or `"high"` (a 4-tier scheme would need a fourth bucket).
    - Recommendation: **Ship 3 tiers in v1** (`MP3 highest → hi`, `AAC highest → med`, `aacp low → low`; drop `aacp high`). If UAT flags missing tier, follow-up phase reintroduces. The CONTEXT D-03 wording "Insert all variants the API exposes" technically requires 4; the planner must pick a side and lock it. Quality picks "Claude's Discretion" per CONTEXT — recommend 3-tier with a quick note.
+   - **RESOLVED 2026-05-13 by user (CONTEXT.md D-03, commit 3de2e3d):** **4 tiers** (`mp3,highest=hi`, `aac,highest=med`, `aacp,high=med2`, `aacp,low=low`). Reject the 3-tier recommendation; SomaFM's 4-playlist response is the source of truth, and the user prefers more granularity over forced conformance to AA's `hi/med/low` discipline. Planner adds `med2` to `_QUALITY_RANK` for this phase.
 
 2. **PLS expansion: File1-only or all 5 ICE relays?**
    - What we know: AA PLS files have 2 entries; AA takes both (gap-06). SomaFM PLS files have 5 entries.
    - What's unclear: Whether SomaFM's ICE rotation needs explicit failover stream rows or is handled at the relay level.
    - Recommendation: **File1 only.** Three streams per station (one per quality tier). Player-level failover already handles a single-URL outage by failing to the next quality tier. If UAT shows excessive relay-outage interruptions, a follow-up phase can extend.
+   - **RESOLVED 2026-05-13 by user (CONTEXT.md D-03, commit 3de2e3d):** **All 5 ICE relays.** Reject the File1-only recommendation; the user wants explicit per-relay rows so the player's existing failover walks them on outage. 4 tiers × 5 relays = **20 streams per station** (locked).
 
 3. **Bitrate value when the URL filename gives no hint (26/46 channels)?**
    - What we know: Per-tier nominal constants `128 / 128 / 32` are the simplest answer.
    - What's unclear: Whether the user wants the actual delivered bitrate (e.g. 256 kbps for Boot Liquor's MP3-highest tier) to surface in the now-playing panel or the stream picker.
    - Recommendation: **Use nominal constants** (`hi=128, med=128, low=32`). The buffer-fill indicator + ICY headers already expose the actual bitrate at playback time. URL-tail parsing is brittle (26 channels have no hint at all).
+   - **RESOLVED 2026-05-13 by planner pick (no user objection during D-03 lock):** **Nominal per-tier constants.** Extended to 4 tiers: `hi=128, med=128, med2=64, low=32`. Surface the actual delivered bitrate via ICY at playback time per the recommendation rationale.
 
 4. **SOMA-NN requirement count?**
    - What we know: Phase 73 introduced 16 ART-MB-NN requirements. Phase 71 introduced 1 SIB-01. Phase 60 introduced ~10 GBS-01a..01e.
    - What's unclear: How many discrete behaviors a planner wants pinned (likely between 6 and 12).
    - Recommendation: **Plan 01 picks 8-10** mapping to: (1) provider-name pin, (2) 3-tier mapping, (3) codec mapping, (4) dedup-by-URL, (5) full-no-op on re-import, (6) logo non-fatal, (7) hamburger entry exists, (8) toast strings verbatim, (9) UA literal, (10) PLS-resolution-before-store.
+   - **RESOLVED 2026-05-14 by planner pick:** **17 SOMA-NN IDs** (1:1 with the 17-row validation matrix below). Higher than the 8-10 recommendation because each test pins a discrete behavior — collapsing into 8-10 IDs would force grouped requirements like "PLS + dedup + logo failure together", which weakens drift-guard precision.
 
 5. **Endpoint choice: `api.somafm.com` vs `somafm.com`?**
    - What we know: Both return byte-identical 50,679-byte responses with same content-type today (live verified). `api.somafm.com` is the documented endpoint per `somafm.com/api`.
    - What's unclear: Whether SomaFM might EOL one of them.
    - Recommendation: **`api.somafm.com/channels.json`**, as a module-level `_API_URL` constant.
+   - **RESOLVED 2026-05-14 by planner pick:** **`https://api.somafm.com/channels.json`** as `_API_URL` in `musicstreamer/soma_import.py`. Documented endpoint preferred over the apex variant.
 
 ## Environment Availability
 
