@@ -671,7 +671,7 @@ Plans:
 **Goal:** Bulk-import all ~46 SomaFM channels into the library as real Station rows (provider_name="SomaFM") with 4 quality tiers × 5 ICE relays = 20 streams per channel + per-channel logos, via a hamburger-menu "Import SomaFM" action that mirrors the AudioAddict + GBS.FM importer UX (toast-driven, worker-threaded, dedup-by-URL, idempotent re-import as full no-op on URL match).
 **Requirements**: SOMA-01, SOMA-02, SOMA-03, SOMA-04, SOMA-05, SOMA-06, SOMA-07, SOMA-08, SOMA-09, SOMA-10, SOMA-11, SOMA-12, SOMA-13, SOMA-14, SOMA-15, SOMA-16, SOMA-17
 **Depends on:** Phase 73
-**Plans:** 4/7 plans complete (3 gap-closure plans added 2026-05-14)
+**Plans:** 6/7 plans executed
 
 Plans:
 **Wave 1**
@@ -685,8 +685,8 @@ Plans:
 - [x] 74-04-PLAN.md — Wave 3 UAT: human-verify live import against api.somafm.com:443 (10-row UAT-LOG) — 9/10 PASS; UAT-07 + Finding F-01 routed to gap-closure
 
 **Wave 4 (gap-closure, parallel)** *(2026-05-14 — closes VERIFICATION.md G-01 + G-02)*
-- [ ] 74-05-PLAN.md — G-02 / SOMA-02 closure: URL-slug bitrate parser in soma_import.py (_bitrate_from_url + per-stream override at fetch_channels streams.append site) + 4 RED unit tests
-- [ ] 74-06-PLAN.md — G-01 / SOMA-11 closure: rename QThread.finished-shadowing Signals on all 4 worker classes in main_window.py (_SomaImportWorker/_GbsImportWorker → import_finished; _ExportWorker → export_finished; _ImportPreviewWorker → preview_finished) + live qtbot regression test
+- [x] 74-05-PLAN.md — G-02 / SOMA-02 closure: URL-slug bitrate parser in soma_import.py (_bitrate_from_url + per-stream override at fetch_channels streams.append site) + 4 RED unit tests
+- [x] 74-06-PLAN.md — G-01 / SOMA-11 closure: rename QThread.finished-shadowing Signals on all 4 worker classes in main_window.py (_SomaImportWorker/_GbsImportWorker → import_finished; _ExportWorker → export_finished; _ImportPreviewWorker → preview_finished) + live qtbot regression test
 
 **Wave 5 (gap-closure UAT)** *(blocked on Waves 4 completion)*
 - [ ] 74-07-PLAN.md — Gap-closure UAT re-verification: live re-import "no changes" toast + Synphaera Radio bitrate_kbps=256 SQL verification
