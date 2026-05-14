@@ -15,13 +15,15 @@ Wave 2 (Plans 02 and 03) turned all 17 RED core tests plus the 2 drift-guard tes
 
 Before running the import, confirm how many SomaFM station rows already exist in your library (if any). This is required to observe D-05 dedup (UAT-07).
 
+DB path: `~/.local/share/musicstreamer/musicstreamer.sqlite3` (resolved by `musicstreamer/paths.py:39`). Schema: `stations.provider_id` is an FK to `providers.id`; there is NO `provider_name` column on `stations` — querying SomaFM rows requires a JOIN.
+
 **Option A — fresh dev DB (preferred):** Start the app with a clean/empty library so SomaFM stations definitely do not pre-exist.
 
 **Option B — existing library:** Run the following query and record the output before proceeding:
 
 ```bash
-sqlite3 ~/.local/share/musicstreamer/library.db \
-  "SELECT count(*) FROM stations WHERE provider_name='SomaFM'"
+sqlite3 ~/.local/share/musicstreamer/musicstreamer.sqlite3 \
+  "SELECT count(*) FROM stations s JOIN providers p ON s.provider_id=p.id WHERE p.name='SomaFM'"
 ```
 
 Record the count here: ________ (expected: 0 if clean install)
@@ -29,8 +31,8 @@ Record the count here: ________ (expected: 0 if clean install)
 **Optional backup** (recommended — protects your library from accidental pollution):
 
 ```bash
-cp ~/.local/share/musicstreamer/library.db \
-   ~/.local/share/musicstreamer/library.db.pre-phase74
+cp ~/.local/share/musicstreamer/musicstreamer.sqlite3 \
+   ~/.local/share/musicstreamer/musicstreamer.sqlite3.pre-phase74
 ```
 
 ---
@@ -87,19 +89,23 @@ Walk the following rows in order. For each row, flip `[ ]` to `[x]` if it passes
 - [ ] UAT-08 (D-13 cover_art_source default): Open EditStationDialog on any imported SomaFM station. If the dialog exposes a `cover_art_source` widget, confirm it shows `auto`. If the field is not visible in the dialog, run the sqlite3 query below and verify all rows show `auto`.
 
   ```bash
-  sqlite3 ~/.local/share/musicstreamer/library.db \
-    "SELECT cover_art_source FROM stations WHERE provider_name='SomaFM' LIMIT 5"
+  sqlite3 ~/.local/share/musicstreamer/musicstreamer.sqlite3 \
+    "SELECT s.cover_art_source
+     FROM stations s JOIN providers p ON s.provider_id=p.id
+     WHERE p.name='SomaFM' LIMIT 5"
   ```
 
   _Query output (paste verbatim):_
 
 ---
 
-- [ ] UAT-09 (D-02 provider name pin): Run the following query and verify SomaFM-imported rows show exactly `SomaFM` (CamelCase, no space, no period).
+- [ ] UAT-09 (D-02 provider name pin): Run the following query and verify SomaFM-imported rows show exactly `SomaFM` (CamelCase, no space, no period). Note: the `provider_name` is stored on the `providers` table, joined via `stations.provider_id` — `stations` has no `provider_name` column.
 
   ```bash
-  sqlite3 ~/.local/share/musicstreamer/library.db \
-    "SELECT DISTINCT provider_name FROM stations WHERE name LIKE '%Groove Salad%' OR name LIKE '%Drone Zone%'"
+  sqlite3 ~/.local/share/musicstreamer/musicstreamer.sqlite3 \
+    "SELECT DISTINCT p.name
+     FROM stations s JOIN providers p ON s.provider_id=p.id
+     WHERE s.name LIKE '%Groove Salad%' OR s.name LIKE '%Drone Zone%'"
   ```
 
   _Query output (paste verbatim):_
@@ -109,10 +115,12 @@ Walk the following rows in order. For each row, flip `[ ]` to `[x]` if it passes
 - [ ] UAT-10 (D-03 stream count): Run the following query and verify each SomaFM station has exactly 20 stream rows (4 tiers × 5 ICE relays). If any station shows fewer than 20, record which station and its actual count for follow-up triage.
 
   ```bash
-  sqlite3 ~/.local/share/musicstreamer/library.db \
-    "SELECT s.name, count(ss.id) FROM stations s \
-     JOIN station_streams ss ON ss.station_id=s.id \
-     WHERE s.provider_name='SomaFM' \
+  sqlite3 ~/.local/share/musicstreamer/musicstreamer.sqlite3 \
+    "SELECT s.name, count(ss.id)
+     FROM stations s
+     JOIN providers p ON s.provider_id=p.id
+     JOIN station_streams ss ON ss.station_id=s.id
+     WHERE p.name='SomaFM'
      GROUP BY s.id ORDER BY count(ss.id) DESC LIMIT 5"
   ```
 
