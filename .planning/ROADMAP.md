@@ -664,9 +664,14 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
+**Wave 1**
 - [ ] 74-01-PLAN.md — Wave 1 RED contract: test scaffolding (test_soma_import + test_main_window_soma + 2 JSON fixtures + test_constants_drift extension) + REQUIREMENTS.md registers SOMA-01..SOMA-17
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 74-02-PLAN.md — Wave 2 GREEN tier 1: musicstreamer/soma_import.py (fetch_channels + _resolve_pls + import_stations + _download_logos)
 - [ ] 74-03-PLAN.md — Wave 2 GREEN tier 2: main_window.py hamburger wiring (_SomaImportWorker + act_soma_import + 3 handlers) + __main__.py soma_import logger registration
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 74-04-PLAN.md — Wave 3 UAT: human-verify live import against api.somafm.com:443 (10-row UAT-LOG)
 
 ### Phase 75: Extend theme coloring to include toast colors — Phase 66 introduced preset/custom color schemes; toast notifications still use hardcoded colors and don't track the active theme

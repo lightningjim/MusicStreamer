@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: completed
+status: executing
 stopped_at: Phase 74 context gathered
-last_updated: "2026-05-14T03:33:49.909Z"
-last_activity: 2026-05-14 -- Phase 73 marked complete
+last_updated: "2026-05-14T12:51:11.002Z"
+last_activity: 2026-05-14 -- Phase 74 planning complete
 progress:
-  total_phases: 34
+  total_phases: 35
   completed_phases: 28
-  total_plans: 128
+  total_plans: 132
   completed_plans: 128
-  percent: 100
+  percent: 97
 ---
 
 # Project State
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 73 — COMPLETE
 Plan: 5 of 5
-Status: Phase 73 complete
-Last activity: 2026-05-14 -- Phase 73 marked complete
+Status: Ready to execute
+Last activity: 2026-05-14 -- Phase 74 planning complete
 
 ## Performance Metrics
 
@@ -180,6 +180,7 @@ Key v2.0 decisions already settled:
 - Phase 77 added: Test infrastructure stabilization — fix the recurring pre-existing failures cataloged in deferred-items.md across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 73 (FakePlayer drift, MPRIS DBus name-collision, Qt teardown aborts, _aa_quality orphan refs, station-list panel test gaps, Twitch auth failure) so future phases stop logging the same noise 2026-05-13
 - Phase 78 added: Phase 62 follow-up — Buffer underrun behavior fix; closes SC #3 of BUG-09 (instrumentation shipped in Phase 62; behavior fix gated on observable log data per Phase 62 CONTEXT.md <deferred>). Phase 16 baseline (10s / 10MB) unlocks here pending CONTEXT decision per Phase 62 D-09 2026-05-13
 - Phase 51 plans 51-04/51-05 confirmed intentionally dropped 2026-05-13 — user clarification: sibling navigation from inside Edit Station dialog was never wanted; BUG-02 closure path is Phase 64 (Now Playing only). ROADMAP entry left as-is (3/5 executed) but the two unchecked plans should be treated as abandoned, not pending.
+- Phase 79 added: YouTube "stream exhausted" only when launched via desktop app — same musicstreamer install works fine when launched via pipx entry point OR the dev script, fails with "stream exhausted" only when launched from the desktop entry. Repro suggests environment/PATH/env-var divergence between .desktop Exec= and shell launch paths; capture launch-env diff during /gsd-discuss-phase 2026-05-14
 
 ### Pending Todos
 
