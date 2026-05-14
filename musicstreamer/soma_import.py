@@ -224,6 +224,15 @@ def import_stations(channels: list[dict], repo, on_progress=None) -> tuple[int, 
     logo_targets: list[tuple[int, str]] = []
 
     for ch in channels:
+        # Phase 74 REVIEW CR-04: track the inserted station_id so we can roll
+        # back a half-imported channel if insert_stream raises mid-loop. Without
+        # this, a UNIQUE-constraint or OperationalError on the 7th of 20 streams
+        # left the station row + 6 stream rows in the DB; dedup-by-URL then
+        # prevented re-import from repairing the partial row (silent permanent
+        # data corruption). delete_station relies on the ON DELETE CASCADE FK
+        # between station_streams.station_id and stations.id (repo.py:72) plus
+        # PRAGMA foreign_keys = ON in db_connect (repo.py:20).
+        inserted_station_id: int | None = None
         try:
             if not ch.get("streams"):
                 skipped += 1
@@ -241,12 +250,13 @@ def import_stations(channels: list[dict], repo, on_progress=None) -> tuple[int, 
                 else:
                     first_url = ch["streams"][0]["url"]
                     # D-02: provider_name literal is "SomaFM" (CamelCase, no space, no period)
-                    station_id = repo.insert_station(
+                    inserted_station_id = repo.insert_station(
                         name=ch["title"],
                         url=first_url,
                         provider_name="SomaFM",
                         tags="",
                     )
+                    station_id = inserted_station_id
                     # D-10: insert_station auto-creates ONE stream row at position=1.
                     # Backfill codec/quality/bitrate on the auto-created row, then
                     # insert_stream for each remaining stream.
@@ -276,9 +286,24 @@ def import_stations(channels: list[dict], repo, on_progress=None) -> tuple[int, 
                                 bitrate_kbps=s["bitrate_kbps"],
                             )
                     imported += 1
+                    # All streams inserted — clear the rollback sentinel so a
+                    # later unrelated exception (e.g. inside on_progress) does
+                    # NOT erase a freshly-imported channel.
+                    inserted_station_id = None
                     if ch.get("image_url"):
                         logo_targets.append((station_id, ch["image_url"]))
         except Exception as exc:  # noqa: BLE001
+            # Phase 74 REVIEW CR-04: roll back the half-imported station so the
+            # next re-import can repair it. Without this, dedup-by-URL pins the
+            # broken row forever.
+            if inserted_station_id is not None:
+                try:
+                    repo.delete_station(inserted_station_id)
+                except Exception as rollback_exc:  # noqa: BLE001
+                    _log.warning(
+                        "Failed to roll back partial SomaFM station %s: %s",
+                        inserted_station_id, rollback_exc,
+                    )
             # D-15: bad channel increments skipped; import continues with rest
             _log.warning("SomaFM channel %s import skipped: %s", ch.get("id"), exc)
             skipped += 1
