@@ -632,6 +632,16 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 - [x] 72-05-PLAN.md — Wave 4 end-to-end integration test + Manual UAT script + user sign-off checkpoint
 
+### Phase 72.1: Stream-selector dropdown overlap persists in fullscreen mode for multi-stream stations — consider splitting into two lines on smaller screens (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 72
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 72.1 to break down)
+
 ### Phase 73: MusicBrainz album-cover lookup — complement iTunes with smart routing (fallback/primary when iTunes is off or empty) and respect MB's strict matching, 1 req/sec rate limit, and required User-Agent
 
 **Goal:** Add MusicBrainz + Cover Art Archive as an additive per-station cover-art source complementing iTunes (3-mode selector: Auto / iTunes-only / MB-only; Auto = iTunes→MB fallback) with a 1-req/sec rate gate, Lucene-escaped recording search, score≥80 acceptance + Official+Album+earliest release selection, and round-trip persistence through settings_export, while preserving the existing iTunes path unchanged for legacy stations.

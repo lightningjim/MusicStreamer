@@ -4,10 +4,10 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 74 context gathered
-last_updated: "2026-05-14T12:51:11.002Z"
-last_activity: 2026-05-14 -- Phase 74 planning complete
+last_updated: "2026-05-14T13:46:20.987Z"
+last_activity: 2026-05-14 -- Phase 74 execution started
 progress:
-  total_phases: 35
+  total_phases: 36
   completed_phases: 28
   total_plans: 132
   completed_plans: 128
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 73 — musicbrainz-album-cover-lookup-complement-itunes-with-smart
+**Current focus:** Phase 74 — SomaFM full station catalog + art
 
 ## Current Position
 
-Phase: 73 — COMPLETE
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-05-14 -- Phase 74 planning complete
+Phase: 74 (SomaFM full station catalog + art) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 74
+Last activity: 2026-05-14 -- Phase 74 execution started
 
 ## Performance Metrics
 
@@ -181,6 +181,7 @@ Key v2.0 decisions already settled:
 - Phase 78 added: Phase 62 follow-up — Buffer underrun behavior fix; closes SC #3 of BUG-09 (instrumentation shipped in Phase 62; behavior fix gated on observable log data per Phase 62 CONTEXT.md <deferred>). Phase 16 baseline (10s / 10MB) unlocks here pending CONTEXT decision per Phase 62 D-09 2026-05-13
 - Phase 51 plans 51-04/51-05 confirmed intentionally dropped 2026-05-13 — user clarification: sibling navigation from inside Edit Station dialog was never wanted; BUG-02 closure path is Phase 64 (Now Playing only). ROADMAP entry left as-is (3/5 executed) but the two unchecked plans should be treated as abandoned, not pending.
 - Phase 79 added: YouTube "stream exhausted" only when launched via desktop app — same musicstreamer install works fine when launched via pipx entry point OR the dev script, fails with "stream exhausted" only when launched from the desktop entry. Repro suggests environment/PATH/env-var divergence between .desktop Exec= and shell launch paths; capture launch-env diff during /gsd-discuss-phase 2026-05-14
+- Phase 72.1 inserted after Phase 72: Stream-selector dropdown overlap persists in fullscreen mode for multi-stream stations — consider splitting into two lines on smaller screens (URGENT)
 
 ### Pending Todos
 

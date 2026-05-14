@@ -106,3 +106,50 @@ def test_richtext_baseline_unchanged_by_phase_71():
         "Phase 71 must not add new RichText labels; Plan 71-03 removes "
         "the EditStationDialog._sibling_label QLabel (baseline 4 → 3)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 74 / SOMA-NN drift guards (appended — do NOT modify existing tests above)
+# ---------------------------------------------------------------------------
+
+
+def test_soma_import_logger_registered():
+    """D-16 / SOMA-16: __main__.py must wire musicstreamer.soma_import at logging.INFO.
+
+    RED until Plan 03 modifies musicstreamer/__main__.py to add:
+        logging.getLogger("musicstreamer.soma_import").setLevel(logging.INFO)
+
+    Per CONTEXT D-16: same INFO-level treatment as musicstreamer.player
+    (which is the only current per-logger registration in __main__.py).
+    Maps to RESEARCH test #17.
+    """
+    main_path = Path(__file__).parent.parent / "musicstreamer" / "__main__.py"
+    text = main_path.read_text(encoding="utf-8")
+    needle = 'logging.getLogger("musicstreamer.soma_import").setLevel(logging.INFO)'
+    assert needle in text, (
+        "D-16 / SOMA-16: __main__.py must register musicstreamer.soma_import logger at INFO. "
+        f"Looked for literal: {needle!r}. "
+        "This test goes GREEN when Plan 03 appends the setLevel line to main()."
+    )
+
+
+def test_soma_nn_requirements_registered():
+    """SOMA-01..SOMA-17: all 17 requirement IDs must appear in REQUIREMENTS.md.
+
+    GREEN immediately after Plan 01 Task 1 lands (this plan). Acts as a
+    self-verification that the SOMA-NN block was added correctly.
+    Maps to RESEARCH test #13.
+    """
+    req_path = Path(__file__).parent.parent / ".planning" / "REQUIREMENTS.md"
+    text = req_path.read_text(encoding="utf-8")
+    soma_ids = [
+        "SOMA-01", "SOMA-02", "SOMA-03", "SOMA-04", "SOMA-05",
+        "SOMA-06", "SOMA-07", "SOMA-08", "SOMA-09", "SOMA-10",
+        "SOMA-11", "SOMA-12", "SOMA-13", "SOMA-14", "SOMA-15",
+        "SOMA-16", "SOMA-17",
+    ]
+    for req_id in soma_ids:
+        assert req_id in text, (
+            f"REQUIREMENTS.md missing {req_id} after Phase 74. "
+            "Plan 01 Task 1 must register all SOMA-01..SOMA-17 rows."
+        )

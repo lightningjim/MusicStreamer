@@ -77,6 +77,28 @@ Project-level convention introduced 2026-04-28.
 - [x] **VER-01**: Adopt `milestone_major.milestone_minor.phase` versioning (e.g. `2.1.50` for Phase 50 of v2.1). The `pyproject.toml` `version` field is rewritten automatically on phase completion via a GSD-workflow hook, gated by a per-project config flag, and the convention is documented in PROJECT.md *(applies to all future phase completions starting Phase 51+; Phase 50 was bumped manually as the first instance)*
 - [x] **VER-02**: The running app surfaces its current version (read from `pyproject.toml` via `importlib.metadata`) as a disabled informational entry at the bottom of the hamburger menu. The Windows PyInstaller bundle ships `musicstreamer.dist-info` so the bundled exe reads the same version dev sees. *(Phase 65 — consumes Phase 63's auto-bump output)*
 
+### SomaFM Catalog Import (SOMA)
+
+Bulk importer for the SomaFM public station catalog. Maps Phase 74 decisions D-01..D-16 and STRIDE mitigations T-74-01..T-74-05 to testable requirements pinned by RED unit tests in Plans 74-01..74-03.
+
+- [ ] **SOMA-01**: Provider name pin — every imported SomaFM station has `provider_name = "SomaFM"` (CamelCase, no space, no period). Maps to CONTEXT D-02.
+- [ ] **SOMA-02**: 4-tier × 5-relay stream scheme — each channel produces 20 stream rows whose `(codec, quality, bitrate_kbps)` tuples follow D-03's LOCKED map: `(MP3, hi, 128)` × 5 + `(AAC, hi2, 128)` × 5 + `(AAC, med, 64)` × 5 + `(AAC, low, 32)` × 5. Maps to CONTEXT D-03.
+- [ ] **SOMA-03**: Position numbering — within each tier, `position = tier_base * 10 + relay_index` (`tier_base = {hi:1, hi2:2, med:3, low:4}`; `relay_index = 1..5`). Maps to CONTEXT D-03.
+- [ ] **SOMA-04**: Codec normalization — format `"aacp"` stores codec field as `"AAC"` (NOT `"AAC+"`, NOT `"aacp"`). Maps to CONTEXT D-03 + Phase 69 WIN-05 closure + `stream_ordering._CODEC_RANK`.
+- [ ] **SOMA-05**: PLS resolution before store — stored stream URLs are the direct `ice*.somafm.com` URLs returned by `playlist_parser.parse_playlist`, NOT the `.pls` URLs from the API response. Maps to T-74-03 mitigation.
+- [ ] **SOMA-06**: Dedup-by-URL skip — if ANY of a fetched channel's resolved stream URLs match an existing station's stream URL (any provider), the whole channel is skipped. Maps to CONTEXT D-05 + D-09.
+- [ ] **SOMA-07**: Full no-op on re-import — running the import a second time on an already-imported library results in `inserted=0, skipped=N`; no station/stream/logo updates fire. Maps to CONTEXT D-05.
+- [ ] **SOMA-08**: Logo failure non-fatal — when the per-channel image GET fails, the station + streams stay inserted and `update_station_art` is NOT called. Maps to CONTEXT D-11 + T-74-04 mitigation.
+- [ ] **SOMA-09**: Per-channel exception isolation — a malformed channel dict (KeyError, etc.) inside the catalog loop increments `skipped` and the import continues. Maps to CONTEXT D-15 + T-74-05 mitigation.
+- [ ] **SOMA-10**: Hamburger entry — `MainWindow._menu` contains a top-level `"Import SomaFM"` action wired to a bound method (no lambda). Maps to CONTEXT D-06 + QA-05.
+- [ ] **SOMA-11**: Toast verbatim strings — click toast `"Importing SomaFM…"` (U+2026), finished toast `"SomaFM import: {N} stations added"` or `"SomaFM import: no changes"`, error toast `"SomaFM import failed: {truncated}"` where truncation is `msg[:80] + "…"` when `len(msg) > 80`. Maps to CONTEXT D-06 + D-14.
+- [ ] **SOMA-12**: Worker retention — clicking the menu action sets `MainWindow._soma_import_worker` to a non-None `_SomaImportWorker`; both `_on_soma_import_done` and `_on_soma_import_error` reset it to `None`. Maps to CONTEXT D-07 + Phase 60 SYNC-05.
+- [ ] **SOMA-13**: User-Agent literal — outbound HTTP requests carry the literal UA `"MusicStreamer/{version} (https://github.com/lightningjim/MusicStreamer)"`. Maps to CONTEXT Discretion + Phase 73 protocol convention + T-74-01 mitigation.
+- [ ] **SOMA-14**: Source-grep gate for UA — the literal `"MusicStreamer/"` AND `"https://github.com/lightningjim/MusicStreamer"` both appear in `musicstreamer/soma_import.py` source.
+- [ ] **SOMA-15**: Source-grep gate against AAC+ literal — no STORED codec value equals `"AAC+"` inside `_TIER_BY_FORMAT_QUALITY` in `musicstreamer/soma_import.py`.
+- [ ] **SOMA-16**: Logger registration — `musicstreamer/__main__.py` registers `musicstreamer.soma_import` at `logging.INFO`. Maps to CONTEXT D-16.
+- [ ] **SOMA-17**: Network failure is a clean toast — `fetch_channels` raising `urllib.error.URLError`, `urllib.error.HTTPError`, `ValueError`, or `json.JSONDecodeError` surfaces as the error toast (D-14 full abort), NOT as a partial import. Maps to CONTEXT D-14.
+
 ## Future Requirements
 
 Acknowledged but not committed to v2.1 initial scope. Pull in opportunistically via `/gsd-add-phase` if Kyle wants to tackle them inside the milestone.
@@ -148,14 +170,31 @@ Which phases cover which requirements.
 | ART-MB-14 | Phase 73 | Pending |
 | ART-MB-15 | Phase 73 | Pending |
 | ART-MB-16 | Phase 73 | Pending |
+| SOMA-01 | Phase 74 | Pending |
+| SOMA-02 | Phase 74 | Pending |
+| SOMA-03 | Phase 74 | Pending |
+| SOMA-04 | Phase 74 | Pending |
+| SOMA-05 | Phase 74 | Pending |
+| SOMA-06 | Phase 74 | Pending |
+| SOMA-07 | Phase 74 | Pending |
+| SOMA-08 | Phase 74 | Pending |
+| SOMA-09 | Phase 74 | Pending |
+| SOMA-10 | Phase 74 | Pending |
+| SOMA-11 | Phase 74 | Pending |
+| SOMA-12 | Phase 74 | Pending |
+| SOMA-13 | Phase 74 | Pending |
+| SOMA-14 | Phase 74 | Pending |
+| SOMA-15 | Phase 74 | Pending |
+| SOMA-16 | Phase 74 | Pending |
+| SOMA-17 | Phase 74 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 38 total
-- Mapped to phases: 38 ✓
+- v2.1 requirements: 55 total
+- Mapped to phases: 55 ✓
 - Unmapped: 0 ✓
 - Complete: 20
-- Pending: 18 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT)
+- Pending: 35 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
-*Last updated: 2026-05-13 — ART-MB-01..16 (MusicBrainz album-cover lookup; per-station 3-mode selector + 1 req/sec rate gate + Lucene-escaped recording search + Official+Album+earliest release selection + ZIP round-trip) added for Phase 73.*
+*Last updated: 2026-05-14 — SOMA-01..SOMA-17 (SomaFM bulk-catalog importer; 4-tier × 5-relay stream scheme; dedup-by-URL; logo failure non-fatal; hamburger menu entry; worker retention; UA source-grep gates) added for Phase 74.*
