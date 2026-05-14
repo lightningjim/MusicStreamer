@@ -233,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     # so buffer-underrun cycle close lines surface to stderr without bumping the
     # GLOBAL level (which would surface chatter from aa_import / gbs_api / mpris2).
     logging.getLogger("musicstreamer.player").setLevel(logging.INFO)
+    logging.getLogger("musicstreamer.soma_import").setLevel(logging.INFO)
     argv = list(argv) if argv is not None else list(sys.argv)
 
     parser = argparse.ArgumentParser(
