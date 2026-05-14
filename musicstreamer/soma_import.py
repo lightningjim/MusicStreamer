@@ -110,13 +110,18 @@ def _safe_urlopen_request(url: str) -> urllib.request.Request:
 _BITRATE_FROM_URL_RE = re.compile(r"-(\d{1,5})-(?:mp3|aac|aacp)\b")
 
 
-def _bitrate_from_url(url: str, default: int) -> int:
+def bitrate_from_url(url: str, default: int) -> int:
     """Extract bitrate from SomaFM ICE URL slug like ice2.somafm.com/foo-256-mp3.
 
     Falls back to ``default`` when the slug is missing, non-numeric, or
     outside the realistic ICE bitrate range [8, 9999] kbps (Phase 74 WR-03:
     silently storing bitrate_kbps=999999999999 from a typo or malicious slug
     would corrupt downstream UI sort/display logic).
+
+    Phase 74 REVIEW IN-02: promoted from `_bitrate_from_url` (module-private)
+    to `bitrate_from_url` (module-public) since its contract is now a tested
+    invariant exercised by three tests in tests/test_soma_import.py. The
+    legacy `_bitrate_from_url` name is retained as a deprecation alias.
     """
     m = _BITRATE_FROM_URL_RE.search(url)
     if m:
@@ -127,6 +132,12 @@ def _bitrate_from_url(url: str, default: int) -> int:
         if 8 <= value <= 9999:
             return value
     return default
+
+
+# Phase 74 REVIEW IN-02: legacy underscore alias retained so the rename does
+# not break downstream callers / tests written against the private name. New
+# callers should use the public `bitrate_from_url`.
+_bitrate_from_url = bitrate_from_url
 
 
 def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str]:
@@ -209,7 +220,7 @@ def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
                     continue
                 relay_urls = _resolve_pls(pl["url"])
                 for relay_index, relay_url in enumerate(relay_urls, start=1):
-                    parsed_bitrate = _bitrate_from_url(relay_url, tier_meta["bitrate_kbps"])
+                    parsed_bitrate = bitrate_from_url(relay_url, tier_meta["bitrate_kbps"])
                     streams.append({
                         "url": relay_url,
                         "quality": tier_meta["quality"],

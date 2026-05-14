@@ -495,14 +495,14 @@ def test_bitrate_from_url_parses_256_mp3_slug():
     the URL slug encodes the actual bitrate (256), so the helper must return 256
     instead of the table default (128).
     """
-    assert soma_import._bitrate_from_url(
+    assert soma_import.bitrate_from_url(
         "https://ice2.somafm.com/synphaera-256-mp3", default=128
     ) == 256
 
 
 def test_bitrate_from_url_parses_192_mp3_slug():
     """SOMA-02 / G-02 / CR-01: _bitrate_from_url extracts 192 from a Groove Salad 192k relay URL."""
-    assert soma_import._bitrate_from_url(
+    assert soma_import.bitrate_from_url(
         "https://ice1.somafm.com/groovesalad-192-mp3", default=128
     ) == 192
 
@@ -514,10 +514,10 @@ def test_bitrate_from_url_falls_back_to_default_for_unparseable_slug():
       1. URL with no -NN-codec slug at all -> default.
       2. URL with the codec marker but a non-numeric bitrate (e.g. ``-XYZ-mp3``) -> default.
     """
-    assert soma_import._bitrate_from_url(
+    assert soma_import.bitrate_from_url(
         "https://example.com/no-slug-here", default=128
     ) == 128
-    assert soma_import._bitrate_from_url(
+    assert soma_import.bitrate_from_url(
         "https://ice1.somafm.com/foo-XYZ-mp3", default=128
     ) == 128
 
