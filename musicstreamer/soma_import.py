@@ -21,6 +21,7 @@ Phase 74 DEVIATIONS from aa_import.py:
 import json
 import logging
 import os
+import re
 import tempfile
 import urllib.error
 import urllib.request
@@ -65,6 +66,26 @@ _TIER_BY_FORMAT_QUALITY: dict[tuple[str, str], dict] = {
     ("aacp", "high"):    {"quality": "med", "tier_base": 3, "codec": "AAC", "bitrate_kbps": 64},
     ("aacp", "low"):     {"quality": "low", "tier_base": 4, "codec": "AAC", "bitrate_kbps": 32},
 }
+
+
+# Phase 74.1 / G-02 / SOMA-02 / CR-01: SomaFM relay URL slugs encode the
+# actual stream bitrate (e.g. ice2.somafm.com/synphaera-256-mp3 -> 256 kbps).
+# The _TIER_BY_FORMAT_QUALITY table is only a fallback for unparseable slugs.
+_BITRATE_FROM_URL_RE = re.compile(r"-(\d+)-(?:mp3|aac|aacp)\b")
+
+
+def _bitrate_from_url(url: str, default: int) -> int:
+    """Extract bitrate from SomaFM ICE URL slug like ice2.somafm.com/foo-256-mp3.
+
+    Falls back to ``default`` when the slug is missing or non-numeric.
+    """
+    m = _BITRATE_FROM_URL_RE.search(url)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            pass
+    return default
 
 
 def _resolve_pls(pls_url: str, timeout: int = 10) -> list[str]:
@@ -129,12 +150,13 @@ def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
                     continue
                 relay_urls = _resolve_pls(pl["url"])
                 for relay_index, relay_url in enumerate(relay_urls, start=1):
+                    parsed_bitrate = _bitrate_from_url(relay_url, tier_meta["bitrate_kbps"])
                     streams.append({
                         "url": relay_url,
                         "quality": tier_meta["quality"],
                         "position": tier_meta["tier_base"] * 10 + relay_index,
                         "codec": tier_meta["codec"],
-                        "bitrate_kbps": tier_meta["bitrate_kbps"],
+                        "bitrate_kbps": parsed_bitrate,
                     })
             if not streams:
                 # Channel produced no recognisable tiers — drop it

@@ -481,3 +481,83 @@ def test_user_agent_literal_present_in_source():
         "SOMA-14 / T-74-01: UA contact URL 'https://github.com/lightningjim/MusicStreamer' "
         "must appear in musicstreamer/soma_import.py source verbatim"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 74.1 / Plan 74-05 / G-02 / SOMA-02 / CR-01 / UAT F-01:
+# Bitrate URL-slug parser (_bitrate_from_url) — RED tests for gap closure.
+# ---------------------------------------------------------------------------
+
+def test_bitrate_from_url_parses_256_mp3_slug():
+    """SOMA-02 / G-02 / CR-01: _bitrate_from_url extracts 256 from a Synphaera-style URL.
+
+    Synphaera Radio's MP3-highest stream is ``ice2.somafm.com/synphaera-256-mp3``;
+    the URL slug encodes the actual bitrate (256), so the helper must return 256
+    instead of the table default (128).
+    """
+    assert soma_import._bitrate_from_url(
+        "https://ice2.somafm.com/synphaera-256-mp3", default=128
+    ) == 256
+
+
+def test_bitrate_from_url_parses_192_mp3_slug():
+    """SOMA-02 / G-02 / CR-01: _bitrate_from_url extracts 192 from a Groove Salad 192k relay URL."""
+    assert soma_import._bitrate_from_url(
+        "https://ice1.somafm.com/groovesalad-192-mp3", default=128
+    ) == 192
+
+
+def test_bitrate_from_url_falls_back_to_default_for_unparseable_slug():
+    """SOMA-02 / G-02 / CR-01: _bitrate_from_url returns the default for missing or non-numeric slugs.
+
+    Two cases:
+      1. URL with no -NN-codec slug at all -> default.
+      2. URL with the codec marker but a non-numeric bitrate (e.g. ``-XYZ-mp3``) -> default.
+    """
+    assert soma_import._bitrate_from_url(
+        "https://example.com/no-slug-here", default=128
+    ) == 128
+    assert soma_import._bitrate_from_url(
+        "https://ice1.somafm.com/foo-XYZ-mp3", default=128
+    ) == 128
+
+
+def test_fetch_channels_overrides_bitrate_from_relay_url_slug():
+    """SOMA-02 / G-02 / CR-01 / UAT F-01: fetch_channels overrides bitrate_kbps from the relay URL.
+
+    Integration shape (mirrors test_fetch_channels_maps_four_tiers_twenty_streams_per_channel):
+    patch urlopen with the 3-channel fixture and patch _resolve_pls with a stub that
+    returns ``-256-mp3`` URLs for the MP3-highest tier (PLS URLs that contain "256")
+    and delegates to _make_any_resolve_pls_stub for the other tiers. Assert the
+    first channel's streams include exactly 5 entries where quality=="hi" AND
+    bitrate_kbps == 256 (not the table default of 128).
+    """
+    fixture_bytes = _load_fixture("soma_channels_3ch.json")
+    fallback_stub = _make_any_resolve_pls_stub()
+
+    def _stub(pls_url: str, timeout: int = 10) -> list[str]:
+        # MP3-highest PLS URLs contain "256" (e.g. groovesalad256.pls). Force
+        # the relay URLs to carry the -256-mp3 slug so the override path executes.
+        if "256" in pls_url:
+            # Extract channel id from URL like https://api.somafm.com/groovesalad256.pls
+            import re as _re
+            m = _re.search(r"/([a-z]+)256\.pls", pls_url)
+            channel_id = m.group(1) if m else "synphaera"
+            return [
+                f"https://ice{i}.somafm.com/{channel_id}-256-mp3"
+                for i in range(1, 6)
+            ]
+        return fallback_stub(pls_url, timeout)
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=_stub):
+        channels = soma_import.fetch_channels()
+
+    hi_streams = [s for s in channels[0]["streams"] if s["quality"] == "hi"]
+    assert len(hi_streams) == 5, f"Expected 5 hi-tier streams, got {len(hi_streams)}"
+    for s in hi_streams:
+        assert s["bitrate_kbps"] == 256, (
+            f"SOMA-02 / G-02 violation: hi-tier stream must store bitrate_kbps=256 "
+            f"(from URL slug), got {s['bitrate_kbps']} for url={s['url']!r}"
+        )
