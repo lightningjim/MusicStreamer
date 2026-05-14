@@ -671,7 +671,7 @@ Plans:
 **Goal:** Bulk-import all ~46 SomaFM channels into the library as real Station rows (provider_name="SomaFM") with 4 quality tiers × 5 ICE relays = 20 streams per channel + per-channel logos, via a hamburger-menu "Import SomaFM" action that mirrors the AudioAddict + GBS.FM importer UX (toast-driven, worker-threaded, dedup-by-URL, idempotent re-import as full no-op on URL match).
 **Requirements**: SOMA-01, SOMA-02, SOMA-03, SOMA-04, SOMA-05, SOMA-06, SOMA-07, SOMA-08, SOMA-09, SOMA-10, SOMA-11, SOMA-12, SOMA-13, SOMA-14, SOMA-15, SOMA-16, SOMA-17
 **Depends on:** Phase 73
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 **Wave 1**
@@ -689,7 +689,7 @@ Plans:
 - [x] 74-06-PLAN.md — G-01 / SOMA-11 closure: rename QThread.finished-shadowing Signals on all 4 worker classes in main_window.py (_SomaImportWorker/_GbsImportWorker → import_finished; _ExportWorker → export_finished; _ImportPreviewWorker → preview_finished) + live qtbot regression test
 
 **Wave 5 (gap-closure UAT)** *(blocked on Waves 4 completion)*
-- [ ] 74-07-PLAN.md — Gap-closure UAT re-verification: live re-import "no changes" toast + Synphaera Radio bitrate_kbps=256 SQL verification
+- [x] 74-07-PLAN.md — Gap-closure UAT re-verification: live re-import "no changes" toast + Synphaera Radio bitrate_kbps=256 SQL verification
 
 ### Phase 75: Extend theme coloring to include toast colors — Phase 66 introduced preset/custom color schemes; toast notifications still use hardcoded colors and don't track the active theme
 
