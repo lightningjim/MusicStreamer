@@ -671,11 +671,11 @@ Plans:
 **Goal:** Bulk-import all ~46 SomaFM channels into the library as real Station rows (provider_name="SomaFM") with 4 quality tiers × 5 ICE relays = 20 streams per channel + per-channel logos, via a hamburger-menu "Import SomaFM" action that mirrors the AudioAddict + GBS.FM importer UX (toast-driven, worker-threaded, dedup-by-URL, idempotent re-import as full no-op on URL match).
 **Requirements**: SOMA-01, SOMA-02, SOMA-03, SOMA-04, SOMA-05, SOMA-06, SOMA-07, SOMA-08, SOMA-09, SOMA-10, SOMA-11, SOMA-12, SOMA-13, SOMA-14, SOMA-15, SOMA-16, SOMA-17
 **Depends on:** Phase 73
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 74-01-PLAN.md — Wave 1 RED contract: test scaffolding (test_soma_import + test_main_window_soma + 2 JSON fixtures + test_constants_drift extension) + REQUIREMENTS.md registers SOMA-01..SOMA-17
+- [x] 74-01-PLAN.md — Wave 1 RED contract: test scaffolding (test_soma_import + test_main_window_soma + 2 JSON fixtures + test_constants_drift extension) + REQUIREMENTS.md registers SOMA-01..SOMA-17
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 74-02-PLAN.md — Wave 2 GREEN tier 1: musicstreamer/soma_import.py (fetch_channels + _resolve_pls + import_stations + _download_logos)
