@@ -96,20 +96,28 @@ def _safe_urlopen_request(url: str) -> urllib.request.Request:
 # Phase 74.1 / G-02 / SOMA-02 / CR-01: SomaFM relay URL slugs encode the
 # actual stream bitrate (e.g. ice2.somafm.com/synphaera-256-mp3 -> 256 kbps).
 # The _TIER_BY_FORMAT_QUALITY table is only a fallback for unparseable slugs.
-_BITRATE_FROM_URL_RE = re.compile(r"-(\d+)-(?:mp3|aac|aacp)\b")
+# Phase 74 REVIEW WR-03: cap digit run at 5 chars so int() cannot be fed an
+# arbitrarily long string (pre-CPython-3.11 had quadratic-time int() —
+# CVE-2020-10735 territory). A bitrate slug should never exceed 4–5 digits.
+_BITRATE_FROM_URL_RE = re.compile(r"-(\d{1,5})-(?:mp3|aac|aacp)\b")
 
 
 def _bitrate_from_url(url: str, default: int) -> int:
     """Extract bitrate from SomaFM ICE URL slug like ice2.somafm.com/foo-256-mp3.
 
-    Falls back to ``default`` when the slug is missing or non-numeric.
+    Falls back to ``default`` when the slug is missing, non-numeric, or
+    outside the realistic ICE bitrate range [8, 9999] kbps (Phase 74 WR-03:
+    silently storing bitrate_kbps=999999999999 from a typo or malicious slug
+    would corrupt downstream UI sort/display logic).
     """
     m = _BITRATE_FROM_URL_RE.search(url)
     if m:
         try:
-            return int(m.group(1))
+            value = int(m.group(1))
         except ValueError:
-            pass
+            return default
+        if 8 <= value <= 9999:
+            return value
     return default
 
 
