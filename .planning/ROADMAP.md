@@ -693,13 +693,20 @@ Plans:
 
 ### Phase 75: Extend theme coloring to include toast colors — Phase 66 introduced preset/custom color schemes; toast notifications still use hardcoded colors and don't track the active theme
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Wire `ToastOverlay` into the Phase 66 theme system via `QPalette.ToolTipBase`/`ToolTipText` (per-preset UI-SPEC-LOCKED hex pairs at alpha=220). Toasts retint live on theme picks (preset and Custom) via a `changeEvent(PaletteChange)` handler; `theme='system'` preserves the legacy `rgba(40, 40, 40, 220)` + white QSS byte-for-byte. Custom editor grows from 9 → 11 editable roles. All 28 `show_toast()` call sites and the `accent_color` layering contract are untouched.
+**Requirements**: THEME-02
 **Depends on:** Phase 74
-**Plans:** 0 plans
+**Plans:** 8 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 75 to break down)
+- [ ] 75-01-PLAN.md — theme.py foundation: per-preset ToolTipBase/ToolTipText (12 LOCKED hex), EDITABLE_ROLES → 11, app.setProperty("theme_name") in apply_theme_palette, docstring 9→11
+- [ ] 75-02-PLAN.md — REQUIREMENTS.md: add THEME-02 entry + status row (parallel-safe with 01)
+- [ ] 75-03-PLAN.md — toast.py: _rebuild_stylesheet helper (system + non-system branches) + changeEvent(PaletteChange ONLY — recursion guard)
+- [ ] 75-04-PLAN.md — theme_picker_dialog.py: mirror app.setProperty("theme_name", theme_id) in _on_tile_clicked
+- [ ] 75-05-PLAN.md — theme_editor_dialog.py: append "Toast background"/"Toast text" to ROLE_LABELS; setProperty("custom") in _on_role_color_changed
+- [ ] 75-06-PLAN.md — tests/test_toast_overlay.py + tests/test_theme.py: gate line-143 to system, add non-system/changeEvent/invariance tests; retrofit 9→11 roles + locked-hex pins + property assertions
+- [ ] 75-07-PLAN.md — tests/test_theme_editor_dialog.py: retrofit 9→11 rows + Save/Reset/Cancel coverage for new keys + ROLE_LABELS lock
+- [ ] 75-08-PLAN.md — tests/test_theme_picker_dialog.py: property-mirror tests + end-to-end retint integration
 
 ### Phase 76: GBS.FM authentication: support both pre-existing API token and login-page cookie capture (like Google/Twitch)
 
