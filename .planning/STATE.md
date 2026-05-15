@@ -4,14 +4,14 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 75 context gathered
-last_updated: "2026-05-15T04:15:59.132Z"
-last_activity: 2026-05-14 -- Phase 74 execution started
+last_updated: "2026-05-15T18:06:19.662Z"
+last_activity: 2026-05-15 -- Phase 75 execution started
 progress:
   total_phases: 38
   completed_phases: 29
-  total_plans: 135
+  total_plans: 143
   completed_plans: 135
-  percent: 100
+  percent: 76
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 74 — somafm-full-station-catalog-art-pull-all-somafm-streams-and-
+**Current focus:** Phase 75 — extend-theme-coloring-to-include-toast-colors-phase-66-intro
 
 ## Current Position
 
-Phase: 74 (somafm-full-station-catalog-art-pull-all-somafm-streams-and-) — EXECUTING
-Plan: 1 of 7
-Status: Executing Phase 74
-Last activity: 2026-05-14 -- Phase 74 execution started
+Phase: 75 (extend-theme-coloring-to-include-toast-colors-phase-66-intro) — EXECUTING
+Plan: 1 of 8
+Status: Executing Phase 75
+Last activity: 2026-05-15 -- Phase 75 execution started
 
 ## Performance Metrics
 
