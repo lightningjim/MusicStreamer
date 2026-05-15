@@ -15,7 +15,7 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QColorDialog, QDialog
 
 from musicstreamer.theme import EDITABLE_ROLES, THEME_PRESETS
-from musicstreamer.ui_qt.theme_editor_dialog import ThemeEditorDialog
+from musicstreamer.ui_qt.theme_editor_dialog import ROLE_LABELS, ThemeEditorDialog
 
 
 # ---------------------------------------------------------------------------
@@ -83,11 +83,19 @@ def stub_color_dialog(monkeypatch):
 # Tests — UI-SPEC §State Machine + §Pre-population on open + D-08..D-14
 # ---------------------------------------------------------------------------
 
-def test_editor_shows_9_color_rows(dialog):
-    """dlg._rows has exactly 9 keys matching EDITABLE_ROLES; Highlight NOT a key (D-08)."""
+def test_editor_shows_11_color_rows(dialog):
+    """dlg._rows has exactly 11 keys matching EDITABLE_ROLES (Phase 75 D-05)."""
     assert set(dialog._rows.keys()) == set(EDITABLE_ROLES)
-    assert len(dialog._rows) == 9
+    assert len(dialog._rows) == 11
     assert "Highlight" not in dialog._rows
+    assert "ToolTipBase" in dialog._rows
+    assert "ToolTipText" in dialog._rows
+
+
+def test_role_labels_include_toast_pair():
+    """UI-SPEC §Copywriting Contract — locked Toast labels for new rows."""
+    assert ROLE_LABELS["ToolTipBase"] == "Toast background"
+    assert ROLE_LABELS["ToolTipText"] == "Toast text"
 
 
 def test_editor_prefills_from_source_preset(dialog):
@@ -165,6 +173,24 @@ def test_reset_reverts_to_source_preset(qtbot, repo, qapp, stub_color_dialog):
     assert qapp.palette().color(QPalette.ColorRole.Window).name().lower() == "#efe5ff"
 
 
+def test_reset_restores_toast_rows_to_source_preset(qtbot, repo, qapp, stub_color_dialog):
+    """Phase 75 D-14: Reset reverts ToolTipBase + ToolTipText to source-preset hex (vaporwave UI-SPEC LOCKED)."""
+    stub_color_dialog["color"] = QColor("#000000")
+    dlg = ThemeEditorDialog(repo, source_preset="vaporwave")
+    qtbot.addWidget(dlg)
+    # Mutate both new rows to black via stubbed QColorDialog.
+    qtbot.mouseClick(dlg._rows["ToolTipBase"]._swatch_btn, Qt.LeftButton)
+    qtbot.mouseClick(dlg._rows["ToolTipText"]._swatch_btn, Qt.LeftButton)
+    assert dlg._role_hex_dict["ToolTipBase"] == "#000000"
+    assert dlg._role_hex_dict["ToolTipText"] == "#000000"
+
+    dlg._on_reset()
+
+    # UI-SPEC vaporwave LOCKED pair restored.
+    assert dlg._role_hex_dict["ToolTipBase"] == "#f9d6f0"
+    assert dlg._role_hex_dict["ToolTipText"] == "#3a2845"
+
+
 def test_reset_does_not_close_dialog(dialog):
     """Reset does NOT call accept() / reject(); dialog stays open (D-14 / Phase 59 idiom)."""
     dialog._on_reset()
@@ -182,6 +208,17 @@ def test_save_persists_theme_custom_json(qtbot, repo, qapp, stub_color_dialog):
     assert saved["Window"] == "#abcdef"
     for role in EDITABLE_ROLES:
         assert role in saved
+
+
+def test_save_persists_toast_keys_when_user_edits_them(qtbot, repo, qapp, stub_color_dialog):
+    """Phase 75 D-14: editing the ToolTipBase row → Save → JSON contains the new hex."""
+    stub_color_dialog["color"] = QColor("#abc123")
+    dlg = ThemeEditorDialog(repo, source_preset="vaporwave")
+    qtbot.addWidget(dlg)
+    qtbot.mouseClick(dlg._rows["ToolTipBase"]._swatch_btn, Qt.LeftButton)
+    dlg._on_save()
+    saved = json.loads(repo.get_setting("theme_custom", ""))
+    assert saved["ToolTipBase"] == "#abc123"
 
 
 def test_save_sets_theme_to_custom(dialog, repo):
@@ -227,6 +264,21 @@ def test_cancel_restores_snapshot(qtbot, repo, qapp):
     dlg.reject()
 
     assert qapp.palette().color(QPalette.ColorRole.Window) == original_window
+
+
+def test_cancel_restores_toast_roles_in_palette(qtbot, repo, qapp):
+    """Phase 75 D-14 + Phase 66 D-12: reject() snapshot-restore covers new ToolTipBase role in QApplication.palette()."""
+    # Snapshot ToolTipBase BEFORE constructing the editor.
+    original_bg = qapp.palette().color(QPalette.ColorRole.ToolTipBase)
+    dlg = ThemeEditorDialog(repo, source_preset="vaporwave")
+    qtbot.addWidget(dlg)
+    # Mutate ToolTipBase to black via the slot directly (bypass stubbed dialog).
+    dlg._on_role_color_changed("ToolTipBase", "#000000")
+    assert qapp.palette().color(QPalette.ColorRole.ToolTipBase).name().lower() == "#000000"
+
+    dlg.reject()
+
+    assert qapp.palette().color(QPalette.ColorRole.ToolTipBase) == original_bg
 
 
 def test_cancel_does_not_persist_theme_custom(qtbot, repo, qapp, stub_color_dialog):
