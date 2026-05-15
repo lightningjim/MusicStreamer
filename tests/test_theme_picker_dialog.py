@@ -80,6 +80,22 @@ def test_tile_click_applies_palette(qtbot, repo, qapp):
     assert qapp.palette().color(QPalette.ColorRole.Window).name().lower() == "#efe5ff"
 
 
+def test_tile_click_sets_theme_name_property(qtbot, repo, qapp):
+    """Phase 75 PLAN-04: tile click mirrors apply_theme_palette by setting QApplication property."""
+    dlg = ThemePickerDialog(repo)
+    qtbot.addWidget(dlg)
+    qtbot.mouseClick(dlg._tiles["vaporwave"], Qt.LeftButton)
+    assert qapp.property("theme_name") == "vaporwave"
+
+
+def test_tile_click_system_sets_theme_name_property(qtbot, repo, qapp):
+    """Phase 75 PLAN-04: tile click sets property even for system branch (covers Linux+system early return invariant)."""
+    dlg = ThemePickerDialog(repo)
+    qtbot.addWidget(dlg)
+    qtbot.mouseClick(dlg._tiles["system"], Qt.LeftButton)
+    assert qapp.property("theme_name") == "system"
+
+
 def test_tile_click_preserves_accent_setting(qtbot, repo):
     """Picker NEVER mutates accent_color setting (T-66-07)."""
     repo.set_setting("accent_color", "#e62d42")
