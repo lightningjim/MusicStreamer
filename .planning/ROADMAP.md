@@ -751,5 +751,16 @@ Plans:
 Plans:
 - [ ] TBD (run /gsd-plan-phase 80 to break down)
 
+## Backlog
+
+### Phase 999.1: Station list alphabetical sorting is case-sensitive (A-Z then a-z) — should be case-insensitive (BACKLOG)
+
+**Goal:** [Captured for future planning] Noticed during the SomaFM full-catalog import (post-Phase 74 wipe + re-import, 2026-05-14): station-list alphabetical sort orders uppercase before lowercase (ASCII order — `A-Z` then `a-z`) instead of case-insensitive A→Z. Sort should be case-insensitive so stations like `deepSpace`, `Drone Zone`, and `Groove Salad` interleave naturally. Likely a `ORDER BY name` somewhere that needs `ORDER BY name COLLATE NOCASE` (SQLite) or an equivalent Qt model-side key. Scope during /gsd-discuss-phase: identify all sort sites (station tree, recent panel, search results, edit dialog) and pick one consistent collation.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
 ---
-*Last updated: 2026-05-14 — Phase 80 (BUG-10) added; surfaced during Phase 74 Plan 07 UAT (F-07-03). Phase 74 closed at 17/17 VERIFIED, all 7 plans complete.*
+*Last updated: 2026-05-14 — Phase 80 (BUG-10) added; surfaced during Phase 74 Plan 07 UAT (F-07-03). Phase 74 closed at 17/17 VERIFIED, all 7 plans complete. Backlog Phase 999.1 added 2026-05-14 — case-sensitive station-list sort surfaced during SomaFM re-import.*
