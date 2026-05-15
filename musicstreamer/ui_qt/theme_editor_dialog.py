@@ -44,6 +44,8 @@ ROLE_LABELS: dict[str, str] = {
     "ButtonText": "Button text",
     "HighlightedText": "Selected text",
     "Link": "Hyperlink",
+    "ToolTipBase": "Toast background",
+    "ToolTipText": "Toast text",
 }
 
 
