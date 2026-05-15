@@ -44,6 +44,8 @@ ROLE_LABELS: dict[str, str] = {
     "ButtonText": "Button text",
     "HighlightedText": "Selected text",
     "Link": "Hyperlink",
+    "ToolTipBase": "Toast background",
+    "ToolTipText": "Toast text",
 }
 
 
@@ -251,13 +253,21 @@ class ThemeEditorDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _on_role_color_changed(self, role_name: str, new_hex: str) -> None:
-        """Live preview a role change + re-impose accent override (UI-SPEC §Live preview wiring)."""
+        """Live preview a role change + re-impose accent override (UI-SPEC §Live preview wiring).
+
+        Phase 75 (RESEARCH §Risk 8 mitigation): on the FIRST role edit, flip
+        QApplication.property('theme_name') to 'custom' so the toast widget's
+        QSS branch retints to the in-progress palette. Without this, a user
+        entering the editor from theme='system' would see toasts render in
+        legacy dark-grey QSS even as the running palette diverges from system.
+        """
+        app = QApplication.instance()
+        app.setProperty("theme_name", "custom")
         if not _is_valid_hex(new_hex):
             return  # defense-in-depth (T-66-09)
         role = getattr(QPalette.ColorRole, role_name, None)
         if role is None:
             return  # defense — should never trigger because EDITABLE_ROLES is locked
-        app = QApplication.instance()
         palette = app.palette()
         palette.setColor(role, QColor(new_hex))
         app.setPalette(palette)
