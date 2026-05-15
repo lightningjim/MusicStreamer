@@ -153,6 +153,7 @@ Which phases cover which requirements.
 | VER-01 | Phase 63 | Complete |
 | VER-02 | Phase 65 | Complete |
 | THEME-01 | Phase 66 | Complete |
+| THEME-02 | Phase 75 | Pending |
 | WIN-05 | Phase 69 | Complete |
 | HRES-01 | Phase 70 | Complete |
 | SIB-01 | Phase 71 | Complete |
