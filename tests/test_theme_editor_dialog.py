@@ -15,7 +15,7 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QColorDialog, QDialog
 
 from musicstreamer.theme import EDITABLE_ROLES, THEME_PRESETS
-from musicstreamer.ui_qt.theme_editor_dialog import ThemeEditorDialog
+from musicstreamer.ui_qt.theme_editor_dialog import ROLE_LABELS, ThemeEditorDialog
 
 
 # ---------------------------------------------------------------------------
@@ -83,11 +83,19 @@ def stub_color_dialog(monkeypatch):
 # Tests — UI-SPEC §State Machine + §Pre-population on open + D-08..D-14
 # ---------------------------------------------------------------------------
 
-def test_editor_shows_9_color_rows(dialog):
-    """dlg._rows has exactly 9 keys matching EDITABLE_ROLES; Highlight NOT a key (D-08)."""
+def test_editor_shows_11_color_rows(dialog):
+    """dlg._rows has exactly 11 keys matching EDITABLE_ROLES (Phase 75 D-05)."""
     assert set(dialog._rows.keys()) == set(EDITABLE_ROLES)
-    assert len(dialog._rows) == 9
+    assert len(dialog._rows) == 11
     assert "Highlight" not in dialog._rows
+    assert "ToolTipBase" in dialog._rows
+    assert "ToolTipText" in dialog._rows
+
+
+def test_role_labels_include_toast_pair():
+    """UI-SPEC §Copywriting Contract — locked Toast labels for new rows."""
+    assert ROLE_LABELS["ToolTipBase"] == "Toast background"
+    assert ROLE_LABELS["ToolTipText"] == "Toast text"
 
 
 def test_editor_prefills_from_source_preset(dialog):
