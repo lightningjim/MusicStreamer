@@ -6,8 +6,9 @@ QSS-on-disk file analogous to paths.accent_css_path()). All theme application
 goes through QApplication.setPalette().
 
 Layering contract (Phase 59 D-02 + Phase 66 D-02):
-- Theme owns 9 QPalette primary roles (Window, WindowText, Base, AlternateBase,
-  Text, Button, ButtonText, HighlightedText, Link) plus a Highlight baseline.
+- Theme owns 11 QPalette primary roles (Window, WindowText, Base, AlternateBase,
+  Text, Button, ButtonText, HighlightedText, Link, ToolTipBase, ToolTipText)
+  plus a Highlight baseline.
 - accent_color (when non-empty) overrides Highlight on top via apply_accent_palette
   (called from main_window.py:241-245 after theme is in place at startup).
 - Picking a theme NEVER mutates accent_color setting.
