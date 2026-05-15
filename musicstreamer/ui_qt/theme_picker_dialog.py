@@ -262,6 +262,7 @@ class ThemePickerDialog(QDialog):
         self._selected_theme_id = theme_id
         self._active_tile_id = theme_id
         app = QApplication.instance()
+        app.setProperty("theme_name", theme_id)
 
         if theme_id == "system":
             app.setPalette(QPalette())  # fresh Qt-default
