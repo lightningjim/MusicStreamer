@@ -97,6 +97,12 @@ class ToastOverlay(QWidget):
 
     # --- Internal ---
 
+    def changeEvent(self, event: QEvent) -> None:  # type: ignore[override]
+        # NB: PaletteChange ONLY — setStyleSheet() re-fires StyleChange (RESEARCH Risk 1).
+        if event.type() == QEvent.PaletteChange:
+            self._rebuild_stylesheet()
+        super().changeEvent(event)
+
     def _rebuild_stylesheet(self) -> None:
         """Apply the toast QSS for the active theme.
 
