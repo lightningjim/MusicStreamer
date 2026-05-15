@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QAbstractAnimation, Qt
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 
+from musicstreamer.theme import THEME_PRESETS, build_palette_from_dict
 from musicstreamer.ui_qt.toast import ToastOverlay
 
 
@@ -137,8 +138,117 @@ def test_13_inner_label_object_name(qtbot, parent_widget):
     assert toast.label.objectName() == "ToastLabel"
 
 
-def test_14_stylesheet_color_contract(qtbot, parent_widget):
+def test_14_stylesheet_system_theme_color_contract(qtbot, parent_widget, qapp):
+    """Phase 75 D-09 / UI-SPEC §Color §System-theme legacy fallback IMMUTABLE QSS LOCK.
+
+    Gated to theme='system' explicit setup so the legacy QSS substring is locked
+    only when the system branch is active. Non-system branches are covered by
+    test_stylesheet_non_system_uses_tooltip_palette + overrun variant.
+    """
+    qapp.setProperty("theme_name", "system")
     toast = ToastOverlay(parent_widget)
     qss = toast.styleSheet()
     assert "rgba(40, 40, 40, 220)" in qss
+    assert "color: white" in qss
     assert "border-radius: 8px" in qss
+    assert "padding: 8px 12px" in qss
+
+
+def test_stylesheet_non_system_uses_tooltip_palette(qtbot, parent_widget, qapp):
+    """Phase 75 D-09 — non-system theme yields palette-driven QSS.
+
+    Vaporwave UI-SPEC LOCKED pair: ToolTipBase=#f9d6f0 → rgb(249, 214, 240);
+    ToolTipText=#3a2845. Geometry pair (border-radius / padding) invariant.
+
+    Headless test note (PLAN-03 SUMMARY): QApplication.sendPostedEvents() is
+    required after app.setPalette so the queued PaletteChange events flush to
+    the parent_widget BEFORE we construct the toast. Without the flush, the
+    parent's cached palette is stale and the toast (which reads self.palette()
+    inheriting from parent) sees Qt's default ToolTipBase.
+    """
+    qapp.setProperty("theme_name", "vaporwave")
+    qapp.setPalette(build_palette_from_dict(THEME_PRESETS["vaporwave"]))
+    QApplication.sendPostedEvents()
+    toast = ToastOverlay(parent_widget)
+    qss = toast.styleSheet()
+    assert "rgba(249, 214, 240, 220)" in qss
+    assert "color: #3a2845" in qss
+    assert "border-radius: 8px" in qss
+    assert "padding: 8px 12px" in qss
+
+
+def test_stylesheet_non_system_overrun_palette(qtbot, parent_widget, qapp):
+    """Phase 75 D-09 — overrun (dark family) palette-driven QSS.
+
+    Overrun UI-SPEC LOCKED pair: ToolTipBase=#1a0a18 → rgb(26, 10, 24);
+    ToolTipText=#ffe8f4. Bright (vaporwave) + dark (overrun) families both
+    locked → covers the two contrast regimes UI-SPEC enforces.
+    """
+    qapp.setProperty("theme_name", "overrun")
+    qapp.setPalette(build_palette_from_dict(THEME_PRESETS["overrun"]))
+    QApplication.sendPostedEvents()
+    toast = ToastOverlay(parent_widget)
+    qss = toast.styleSheet()
+    assert "rgba(26, 10, 24, 220)" in qss
+    assert "color: #ffe8f4" in qss
+
+
+def test_changeEvent_palette_change_rebuilds_qss(qtbot, parent_widget, qapp):
+    """Phase 75 D-09 / RESEARCH §Pattern 2 — changeEvent(PaletteChange) retint.
+
+    Snapshot-mutate-assert: construct with theme='system' (legacy QSS),
+    snapshot styleSheet(); flip theme + setPalette; assert qss_after differs
+    and contains the non-system substring. Qt dispatches PaletteChange to
+    existing widgets; ToastOverlay.changeEvent(PaletteChange) calls
+    _rebuild_stylesheet which re-reads QApplication.property('theme_name').
+
+    Headless note: sendPostedEvents() ensures the queued PaletteChange is
+    delivered to the toast widget BEFORE we read styleSheet().
+    """
+    qapp.setProperty("theme_name", "system")
+    toast = ToastOverlay(parent_widget)
+    qss_before = toast.styleSheet()
+    assert "rgba(40, 40, 40, 220)" in qss_before
+    # Flip to vaporwave — Qt dispatches PaletteChange via posted events.
+    qapp.setProperty("theme_name", "vaporwave")
+    qapp.setPalette(build_palette_from_dict(THEME_PRESETS["vaporwave"]))
+    QApplication.sendPostedEvents()
+    qss_after = toast.styleSheet()
+    assert qss_after != qss_before
+    assert "rgba(249, 214, 240, 220)" in qss_after
+
+
+def test_stylesheet_no_font_properties(qtbot, parent_widget, qapp):
+    """Phase 75 UI-SPEC §Typography invariance lock.
+
+    No `font-size:`, `font-family:`, or `font-weight:` in either branch.
+    Iterates across system + 3 non-system themes (vaporwave bright,
+    overrun dark, dark neutral).
+    """
+    for theme in ("system", "vaporwave", "overrun", "dark"):
+        qapp.setProperty("theme_name", theme)
+        if theme != "system":
+            qapp.setPalette(build_palette_from_dict(THEME_PRESETS[theme]))
+            QApplication.sendPostedEvents()
+        toast = ToastOverlay(parent_widget)
+        qss = toast.styleSheet()
+        assert "font-size:" not in qss, f"font-size leaked in {theme!r}"
+        assert "font-family:" not in qss, f"font-family leaked in {theme!r}"
+        assert "font-weight:" not in qss, f"font-weight leaked in {theme!r}"
+
+
+def test_stylesheet_geometry_invariant_both_branches(qtbot, parent_widget, qapp):
+    """Phase 75 UI-SPEC §Geometry invariance lock.
+
+    `border-radius: 8px` and `padding: 8px 12px` MUST appear in every branch
+    (system + every non-system theme). Geometry is decoupled from palette.
+    """
+    for theme in ("system", "vaporwave", "overrun", "dark"):
+        qapp.setProperty("theme_name", theme)
+        if theme != "system":
+            qapp.setPalette(build_palette_from_dict(THEME_PRESETS[theme]))
+            QApplication.sendPostedEvents()
+        toast = ToastOverlay(parent_widget)
+        qss = toast.styleSheet()
+        assert "border-radius: 8px" in qss, f"border-radius missing in {theme!r}"
+        assert "padding: 8px 12px" in qss, f"padding missing in {theme!r}"
