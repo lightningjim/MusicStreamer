@@ -112,6 +112,8 @@ def test_no_raw_icon_size_in_migrated_sites():
 
 
 # GBS.FM locked palette per CONTEXT.md D-05 (uppercase hex preserved verbatim).
+# Phase 75 D-08: ToolTipBase/ToolTipText appended (lowercase hex per UI-SPEC LOCKED table —
+# brand site has no ToolTip values; UI-SPEC owns these two keys).
 _GBS_LOCKED = {
     "Window": "#A1D29D",
     "WindowText": "#000000",
@@ -123,6 +125,8 @@ _GBS_LOCKED = {
     "Highlight": "#5AB253",
     "HighlightedText": "#FFFFFF",
     "Link": "#448F3F",
+    "ToolTipBase": "#2d5a2a",
+    "ToolTipText": "#f0f5e8",
 }
 
 
@@ -199,14 +203,59 @@ def test_gbs_preset_locked_hex_match():
     assert THEME_PRESETS["gbs"] == _GBS_LOCKED
 
 
-def test_all_presets_cover_9_roles():
-    """Every non-system preset must define all 9 EDITABLE_ROLES."""
+def test_all_presets_cover_11_roles():
+    """Every non-system preset must define all 11 EDITABLE_ROLES (Phase 75 D-08)."""
+    assert len(EDITABLE_ROLES) == 11
     for theme_id in ("vaporwave", "overrun", "gbs", "gbs_after_dark", "dark", "light"):
         preset = THEME_PRESETS[theme_id]
         for role in EDITABLE_ROLES:
             assert role in preset, (
                 f"preset {theme_id!r} missing role {role!r}"
             )
+
+
+def test_tooltip_role_locked_hex_per_preset():
+    """UI-SPEC §Color: 12 LOCKED ToolTipBase/ToolTipText hex assertions across 6 non-system presets."""
+    expected = {
+        "vaporwave": ("#f9d6f0", "#3a2845"),
+        "overrun": ("#1a0a18", "#ffe8f4"),
+        "gbs": ("#2d5a2a", "#f0f5e8"),
+        "gbs_after_dark": ("#d5e8d3", "#0a1a0d"),
+        "dark": ("#181820", "#f0f0f0"),
+        "light": ("#2a2a32", "#f5f5f5"),
+    }
+    for theme_id, (bg, fg) in expected.items():
+        assert THEME_PRESETS[theme_id]["ToolTipBase"] == bg, (
+            f"preset {theme_id!r} ToolTipBase expected {bg} got {THEME_PRESETS[theme_id]['ToolTipBase']}"
+        )
+        assert THEME_PRESETS[theme_id]["ToolTipText"] == fg, (
+            f"preset {theme_id!r} ToolTipText expected {fg} got {THEME_PRESETS[theme_id]['ToolTipText']}"
+        )
+
+
+def test_system_preset_stays_empty():
+    """Phase 66 D-23 invariant — system sentinel must not gain toast keys."""
+    assert THEME_PRESETS["system"] == {}
+
+
+def test_editable_roles_appends_tooltip_pair_last():
+    """Phase 75 D-05 — EDITABLE_ROLES grows to 11 with new keys APPENDED last (no reorder)."""
+    assert len(EDITABLE_ROLES) == 11
+    assert EDITABLE_ROLES[-2:] == ("ToolTipBase", "ToolTipText")
+
+
+def test_apply_theme_palette_sets_theme_name_property(qapp, repo):
+    """Phase 75 D-10 — apply_theme_palette writes QApplication.property('theme_name') for preset path."""
+    repo.set_setting("theme", "gbs")
+    apply_theme_palette(qapp, repo)
+    assert qapp.property("theme_name") == "gbs"
+
+
+def test_apply_theme_palette_sets_property_for_system(qapp, repo):
+    """Phase 75 D-10 — apply_theme_palette writes QApplication.property('theme_name') for system path."""
+    repo.set_setting("theme", "system")
+    apply_theme_palette(qapp, repo)
+    assert qapp.property("theme_name") == "system"
 
 
 def test_dark_light_use_accent_default_highlight():
