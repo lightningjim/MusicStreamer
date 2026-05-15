@@ -6,8 +6,9 @@ QSS-on-disk file analogous to paths.accent_css_path()). All theme application
 goes through QApplication.setPalette().
 
 Layering contract (Phase 59 D-02 + Phase 66 D-02):
-- Theme owns 9 QPalette primary roles (Window, WindowText, Base, AlternateBase,
-  Text, Button, ButtonText, HighlightedText, Link) plus a Highlight baseline.
+- Theme owns 11 QPalette primary roles (Window, WindowText, Base, AlternateBase,
+  Text, Button, ButtonText, HighlightedText, Link, ToolTipBase, ToolTipText)
+  plus a Highlight baseline.
 - accent_color (when non-empty) overrides Highlight on top via apply_accent_palette
   (called from main_window.py:241-245 after theme is in place at startup).
 - Picking a theme NEVER mutates accent_color setting.
@@ -50,6 +51,8 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
         "Highlight": "#ff77ff",
         "HighlightedText": "#ffffff",
         "Link": "#7b5fef",
+        "ToolTipBase": "#f9d6f0",
+        "ToolTipText": "#3a2845",
     },
 
     # Overrun — dark neon, hot magenta on near-black.
@@ -64,6 +67,8 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
         "Highlight": "#ff2dd1",
         "HighlightedText": "#ffffff",
         "Link": "#00f0ff",
+        "ToolTipBase": "#1a0a18",
+        "ToolTipText": "#ffe8f4",
     },
 
     # GBS.FM — light, sampled live from https://gbs.fm/images/style.css 2026-05-09.
@@ -79,6 +84,8 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
         "Highlight": "#5AB253",
         "HighlightedText": "#FFFFFF",
         "Link": "#448F3F",
+        "ToolTipBase": "#2d5a2a",
+        "ToolTipText": "#f0f5e8",
     },
 
     # GBS.FM After Dark — dark interpretation of brand greens (site has no dark mode).
@@ -94,6 +101,8 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
         "Highlight": "#5AB253",
         "HighlightedText": "#FFFFFF",
         "Link": "#A1D29D",
+        "ToolTipBase": "#d5e8d3",
+        "ToolTipText": "#0a1a0d",
     },
 
     # Dark — neutral utility. Highlight = ACCENT_COLOR_DEFAULT per D-07
@@ -109,6 +118,8 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
         "Highlight": ACCENT_COLOR_DEFAULT,
         "HighlightedText": "#ffffff",
         "Link": ACCENT_COLOR_DEFAULT,
+        "ToolTipBase": "#181820",
+        "ToolTipText": "#f0f0f0",
     },
 
     # Light — neutral utility. Highlight = ACCENT_COLOR_DEFAULT per D-07.
@@ -123,6 +134,8 @@ THEME_PRESETS: dict[str, dict[str, str]] = {
         "Highlight": ACCENT_COLOR_DEFAULT,
         "HighlightedText": "#ffffff",
         "Link": ACCENT_COLOR_DEFAULT,
+        "ToolTipBase": "#2a2a32",
+        "ToolTipText": "#f5f5f5",
     },
 }
 
@@ -161,6 +174,8 @@ EDITABLE_ROLES: tuple[str, ...] = (
     "ButtonText",
     "HighlightedText",
     "Link",
+    "ToolTipBase",
+    "ToolTipText",
 )
 
 
@@ -204,6 +219,7 @@ def apply_theme_palette(app: "QApplication", repo) -> None:
     custom palette renders consistently (RESEARCH Q2).
     """
     theme_name = repo.get_setting("theme", "system")
+    app.setProperty("theme_name", theme_name)
 
     if theme_name == "system":
         if sys.platform == "win32":
