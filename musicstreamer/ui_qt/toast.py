@@ -13,7 +13,14 @@ from PySide6.QtCore import (
     QTimer,
     Qt,
 )
-from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel, QVBoxLayout, QWidget
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import (
+    QApplication,
+    QGraphicsOpacityEffect,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class ToastOverlay(QWidget):
@@ -41,15 +48,10 @@ class ToastOverlay(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.label)
 
-        # Single hardcoded stylesheet — UI-SPEC Color § Toast QSS
-        self.setStyleSheet(
-            "QLabel#ToastLabel {"
-            " background-color: rgba(40, 40, 40, 220);"
-            " color: white;"
-            " border-radius: 8px;"
-            " padding: 8px 12px;"
-            "}"
-        )
+        # Palette-driven QSS — UI-SPEC §Color (Phase 75). System-theme branch
+        # preserves the legacy hardcoded QSS verbatim per D-09 / UI-SPEC
+        # IMMUTABLE QSS LOCK.
+        self._rebuild_stylesheet()
 
         # Opacity effect — windowOpacity only works on top-level windows;
         # as a child widget we use QGraphicsOpacityEffect instead.
@@ -94,6 +96,46 @@ class ToastOverlay(QWidget):
         self._hold_timer.start(duration_ms)
 
     # --- Internal ---
+
+    def _rebuild_stylesheet(self) -> None:
+        """Apply the toast QSS for the active theme.
+
+        theme='system' (or property unset/None) → IMMUTABLE legacy QSS
+        (rgba(40, 40, 40, 220) + white) per UI-SPEC §Color §System-theme legacy
+        fallback / Phase 75 D-09.
+
+        Non-system themes → palette-driven QSS interpolating ToolTipBase rgb
+        (alpha 220 verbatim integer) and ToolTipText.name() (lowercase #rrggbb).
+
+        Read lazily from QApplication.property("theme_name") at every call —
+        the picker live-preview mutates the property mid-session, so caching
+        would freeze the toast (RESEARCH §Pattern 2 / §4).
+        """
+        app = QApplication.instance()
+        theme_name = app.property("theme_name") if app is not None else None
+        if not theme_name or theme_name == "system":
+            # IMMUTABLE QSS LOCK (D-09 / UI-SPEC §Color lines 96-103). Do not edit
+            # the substring `rgba(40, 40, 40, 220)` or `color: white`.
+            self.setStyleSheet(
+                "QLabel#ToastLabel {"
+                " background-color: rgba(40, 40, 40, 220);"
+                " color: white;"
+                " border-radius: 8px;"
+                " padding: 8px 12px;"
+                "}"
+            )
+            return
+        pal = self.palette()
+        bg = pal.color(QPalette.ToolTipBase)
+        fg = pal.color(QPalette.ToolTipText).name()
+        self.setStyleSheet(
+            "QLabel#ToastLabel {"
+            f" background-color: rgba({bg.red()}, {bg.green()}, {bg.blue()}, 220);"
+            f" color: {fg};"
+            " border-radius: 8px;"
+            " padding: 8px 12px;"
+            "}"
+        )
 
     def eventFilter(self, obj, event):
         if obj is self.parent() and event.type() == QEvent.Resize:
