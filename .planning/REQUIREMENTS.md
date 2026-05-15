@@ -42,7 +42,7 @@ Small new capabilities harvested from backlog + dormant seeds.
 - [x] **ACCENT-02**: User can pick a custom accent color via a visual color picker (HSV/wheel surface), in addition to the existing 8 presets and hex entry *(harvest: SEED-006)*
 - [x] **GBS-01**: User can browse, save, and play GBS.FM streams from inside MusicStreamer (no browser bounce) *(harvest: SEED-008 — exact sub-capabilities to be refined at /gsd-discuss-phase time; may decompose into GBS-01..0N during planning)*
 - [x] **THEME-01**: User can switch between preset color themes (System default, Vaporwave, Overrun, GBS.FM, GBS.FM After Dark, Dark, Light) and one user-editable Custom palette via a Theme picker in the hamburger menu. The chosen theme drives the application QPalette's 9 primary roles (Window, WindowText, Base, AlternateBase, Text, Button, ButtonText, HighlightedText, Link). The accent_color override (Phase 59 / ACCENT-02) continues to layer on top of the theme's Highlight baseline; selecting a theme does NOT mutate `accent_color`. The Custom slot is duplicate-and-edit only with snapshot-restore-on-Cancel.
-- [ ] **THEME-02**: Toast notifications track the active theme via QPalette.ToolTipBase/ToolTipText. When user picks a theme via the Picker (preset or Custom), the next-fired and currently-visible toasts retint to the theme's tooltip colors at alpha=220. theme='system' preserves the legacy rgba(40, 40, 40, 220) + white QSS byte-for-byte (no regression on day-one default). The Custom theme editor grows from 9 -> 11 editable roles (appending ToolTipBase and ToolTipText after Link). Custom JSON additive — no SQLite schema change. *(Phase 75)*
+- [x] **THEME-02**: Toast notifications track the active theme via QPalette.ToolTipBase/ToolTipText. When user picks a theme via the Picker (preset or Custom), the next-fired and currently-visible toasts retint to the theme's tooltip colors at alpha=220. theme='system' preserves the legacy rgba(40, 40, 40, 220) + white QSS byte-for-byte (no regression on day-one default). The Custom theme editor grows from 9 -> 11 editable roles (appending ToolTipBase and ToolTipText after Link). Custom JSON additive — no SQLite schema change. *(Phase 75)*
 - [x] **HRES-01**: User sees an automatic two-tier audio-quality badge ("LOSSLESS" / "HI-RES") next to each station's now-playing panel, station-tree row, stream-picker entry, and EditStationDialog row, plus a "Hi-Res only" filter chip and a hi-res-preferring tiebreak in stream failover ordering — all driven from negotiated GStreamer caps cached per stream after first replay, mirroring moOde Audio's Hi-Res convention.
 
 ### Sibling Stations (SIB)
@@ -153,7 +153,7 @@ Which phases cover which requirements.
 | VER-01 | Phase 63 | Complete |
 | VER-02 | Phase 65 | Complete |
 | THEME-01 | Phase 66 | Complete |
-| THEME-02 | Phase 75 | Pending |
+| THEME-02 | Phase 75 | Complete |
 | WIN-05 | Phase 69 | Complete |
 | HRES-01 | Phase 70 | Complete |
 | SIB-01 | Phase 71 | Complete |
