@@ -173,6 +173,8 @@ EDITABLE_ROLES: tuple[str, ...] = (
     "ButtonText",
     "HighlightedText",
     "Link",
+    "ToolTipBase",
+    "ToolTipText",
 )
 
 
@@ -216,6 +218,7 @@ def apply_theme_palette(app: "QApplication", repo) -> None:
     custom palette renders consistently (RESEARCH Q2).
     """
     theme_name = repo.get_setting("theme", "system")
+    app.setProperty("theme_name", theme_name)
 
     if theme_name == "system":
         if sys.platform == "win32":
