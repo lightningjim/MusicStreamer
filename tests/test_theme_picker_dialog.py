@@ -10,10 +10,11 @@ import json
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from musicstreamer.theme import THEME_PRESETS  # noqa: F401 — locks plan-01 contract
 from musicstreamer.ui_qt.theme_picker_dialog import ThemePickerDialog
+from musicstreamer.ui_qt.toast import ToastOverlay
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +95,38 @@ def test_tile_click_system_sets_theme_name_property(qtbot, repo, qapp):
     qtbot.addWidget(dlg)
     qtbot.mouseClick(dlg._tiles["system"], Qt.LeftButton)
     assert qapp.property("theme_name") == "system"
+
+
+def test_tile_click_retints_toast_overlay(qtbot, repo, qapp):
+    """Phase 75 end-to-end: vaporwave tile click → live ToastOverlay rebuilds QSS via PaletteChange dispatch. Locks the full PLAN-01 + PLAN-03 + PLAN-04 chain."""
+    # Defense-in-depth: force a known starting state so a prior test leaving
+    # qapp at vaporwave does not mask a regression where the retint chain breaks.
+    qapp.setProperty("theme_name", "system")
+    qapp.setPalette(QPalette())
+
+    parent = QWidget()
+    parent.resize(800, 600)
+    qtbot.addWidget(parent)
+    parent.show()
+    qtbot.waitExposed(parent)
+
+    toast = ToastOverlay(parent)
+
+    dlg = ThemePickerDialog(repo)
+    qtbot.addWidget(dlg)
+    qtbot.mouseClick(dlg._tiles["vaporwave"], Qt.LeftButton)
+
+    # Qt 6.11 in headless tests delivers PaletteChange via the posted-events
+    # queue (not synchronously inside setPalette), so flush the queue before
+    # reading the toast stylesheet. See 75-03-SUMMARY §"Qt palette propagation
+    # requires event-queue flush in headless tests" — under a real running
+    # event loop the propagation happens naturally without this call.
+    QApplication.sendPostedEvents()
+    # ToastOverlay's changeEvent(PaletteChange) now has fired and
+    # _rebuild_stylesheet has rebuilt the QSS for vaporwave
+    # (#f9d6f0 ToolTipBase → rgba(249, 214, 240, 220)).
+    qss = toast.styleSheet()
+    assert "rgba(249, 214, 240, 220)" in qss, f"toast did not retint to vaporwave: {qss!r}"
 
 
 def test_tile_click_preserves_accent_setting(qtbot, repo):
