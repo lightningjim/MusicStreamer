@@ -101,6 +101,12 @@ Bulk importer for the SomaFM public station catalog. Maps Phase 74 decisions D-0
 - [ ] **SOMA-16**: Logger registration — `musicstreamer/__main__.py` registers `musicstreamer.soma_import` at `logging.INFO`. Maps to CONTEXT D-16.
 - [ ] **SOMA-17**: Network failure is a clean toast — `fetch_channels` raising `urllib.error.URLError`, `urllib.error.HTTPError`, `ValueError`, or `json.JSONDecodeError` surfaces as the error toast (D-14 full abort), NOT as a partial import. Maps to CONTEXT D-14.
 
+### GBS.FM Authentication (GBS-AUTH)
+
+In-app login subprocess for gbs.fm — the missing piece from Phase 60's `oauth_mode=None` deferment. Scope collapsed per Phase 76 D-03 verdict (Phase 60 RESEARCH 2026-05-04 + Phase 76 re-probe 2026-05-16 both confirm the gbs.fm Settings-page API key returns 403/302 on `/api/vote`, `/ajax`, `/add/`, `/search` across all 8 documented vectors — token half dropped).
+
+- [ ] **GBS-AUTH-01**: User can log in to GBS.FM via in-app subprocess. Clicking `[Connect to GBS.FM…]` in `AccountsDialog` launches `python -m musicstreamer.oauth_helper --mode gbs`, which loads `https://gbs.fm/accounts/login/` in a QtWebEngine subprocess. Subprocess auto-completes when BOTH `sessionid` AND `csrftoken` cookies are observed on the `gbs.fm` / `.gbs.fm` domain (lookalikes `fakegbs.fm` / `gbs.fm.evil.com` rejected). On success the full Netscape dump of every `gbs.fm`-domain cookie is written to `paths.gbs_cookies_path()` with `os.chmod(0o600)` after `gbs_api._validate_gbs_cookies` accepts the payload. Disconnect deletes the cookies file with broader-OSError tolerance (Phase 60 HIGH 2 fix preserved). A secondary `[Import cookies file…]` button keeps the existing Phase 60 `CookieImportDialog` File/Paste tabs reachable in the not-connected state. Failure paths route through the extracted `_classify_and_show_failure(provider="gbs", ...)` helper shared with the Twitch finished-handler. Anti-pitfall: `oauth_helper._emit_event` provider field refactored from hardcoded `"twitch"` to a module-level `_PROVIDER` constant set by `main()` after argparse — guard test `test_gbs_emits_provider_gbs_field` in `tests/test_oauth_helper_gbs.py`. *(Phase 76)*
+
 ## Future Requirements
 
 Acknowledged but not committed to v2.1 initial scope. Pull in opportunistically via `/gsd-add-phase` if Kyle wants to tackle them inside the milestone.
@@ -191,14 +197,17 @@ Which phases cover which requirements.
 | SOMA-16 | Phase 74 | Pending |
 | SOMA-17 | Phase 74 | Pending |
 | BUG-10 | Phase 80 | Pending |
+| GBS-AUTH-01 | Phase 76 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 56 total
-- Mapped to phases: 56 ✓
+- v2.1 requirements: 57 total
+- Mapped to phases: 57 ✓
 - Unmapped: 0 ✓
 - Complete: 20
-- Pending: 36 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80)
+- Pending: 37 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; GBS-AUTH-01 — Phase 76 in flight)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
+*Last updated: 2026-05-16 — GBS-AUTH-01 (in-app gbs.fm login subprocess via QtWebEngine, scope collapsed per Phase 76 D-03 verdict) added for Phase 76 during /gsd-plan-phase. API-token half dropped — Phase 60 RESEARCH 2026-05-04 + Phase 76 re-probe 2026-05-16 both confirm 403/302 across all 8 auth vectors on `/api/vote`, `/ajax`, `/add/`, `/search`.*
+
 *Last updated: 2026-05-14 — BUG-10 (SQLite PRAGMA foreign_keys enforcement + orphan-sweep migration + regression test + drift-guard log + db.py header docs) added for Phase 80. Surfaced during Phase 74 Plan 07 UAT (F-07-03).*

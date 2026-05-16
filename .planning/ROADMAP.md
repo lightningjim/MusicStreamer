@@ -710,13 +710,17 @@ Plans:
 
 ### Phase 76: GBS.FM authentication: in-app login subprocess (like Google/Twitch)
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Add an in-app QtWebEngine login subprocess for gbs.fm (the missing piece from Phase 60's `oauth_mode=None` deferment), mirroring `_GoogleWindow` / `_TwitchCookieWindow`. Subprocess auto-completes on `sessionid` + `csrftoken` cookies observed on the `gbs.fm` domain; cookies written to `paths.gbs_cookies_path()` with `0o600`. The existing `CookieImportDialog` File/Paste tabs remain reachable as a secondary path. Scope collapsed from the original "support both API token AND login subprocess" framing per D-03 (Phase 60 RESEARCH 2026-05-04 + Phase 76 re-probe 2026-05-16 both confirm the gbs.fm Settings-page API key returns 403/302 on `/api/vote`, `/ajax`, `/add/`, `/search` across all 8 documented vectors — the token half is dropped, no SQLite `gbs_api_token` key, no `AuthContext` dataclass, no `_open_authed` helper).
+**Requirements**: [GBS-AUTH-01]
 **Depends on:** Phase 75
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 76 to break down)
+- [ ] 76-01-PLAN.md — oauth_helper.py: _PROVIDER refactor + _GBS_LOGIN_URL/_GBS_TRIGGER_COOKIES/_cookie_domain_matches_gbs + _GbsLoginWindow class + --mode gbs argparse arm
+- [ ] 76-02-PLAN.md — tests/test_oauth_helper_gbs.py: RED stubs for constants + domain match + _GbsLoginWindow cookie-trigger + Netscape flush + timeout + closeEvent + provider-gbs regression
+- [ ] 76-03-PLAN.md — accounts_dialog.py: extract _classify_and_show_failure helper + _gbs_import_btn + _on_gbs_action_clicked rewrite + _on_gbs_import_clicked + _launch_gbs_login_subprocess + _on_gbs_login_finished
+- [ ] 76-04-PLAN.md — tests/test_accounts_dialog.py: migrate existing TestAccountsDialogGBS to new contract + status enumeration + subprocess launch + disconnect Yes/No + import-button + finished-handler success/failure/invalid-Netscape tests
+- [ ] 76-05-PLAN.md — manual UAT: live happy-path login + disconnect flow + 120s timeout + existing-user invariant + full-suite green
 
 ### Phase 77: Test infrastructure stabilization — fix pre-existing test-double drift (FakePlayer missing Phase 62 underrun_recovery_started signal), MPRIS2 DBus name-collision in unit tests, Qt teardown aborts (test_yt_scan_passes_through, test_main_window_integration → test_now_playing_panel cross-file crash), _aa_quality orphan AttributeError carry-over from Phase 56, test_filter_strip_hidden_in_favorites_mode QStackedWidget visibility regression, test_refresh_recent_updates_list 3-vs-5 limit mismatch, and test_play_twitch_sets_plugin_option_when_token_present failure. Goal: clean full-suite pytest run so future phases stop logging the same noise into deferred-items.md (recurring across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 73).
 
