@@ -708,7 +708,7 @@ Plans:
 - [x] 75-07-PLAN.md — tests/test_theme_editor_dialog.py: retrofit 9→11 rows + Save/Reset/Cancel coverage for new keys + ROLE_LABELS lock
 - [x] 75-08-PLAN.md — tests/test_theme_picker_dialog.py: property-mirror tests + end-to-end retint integration
 
-### Phase 76: GBS.FM authentication: support both pre-existing API token and login-page cookie capture (like Google/Twitch)
+### Phase 76: GBS.FM authentication: in-app login subprocess (like Google/Twitch)
 
 **Goal:** [To be planned]
 **Requirements**: TBD
