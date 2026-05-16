@@ -557,6 +557,14 @@ class NowPlayingPanel(QWidget):
         self.controls.addStretch(1)
         center.addLayout(self.controls)
 
+        # Phase 72.1 / LAYOUT-02: row 2 for the stream picker. Empty by default;
+        # _reflow_stream_picker_row reparents stream_combo here when panel is narrow
+        # AND multi-stream (D-01, D-02, D-05). Qt collapses a zero-item QHBoxLayout
+        # to zero height automatically -- no explicit hide/show needed (Pattern 1).
+        self._controls_row2 = QHBoxLayout()
+        self._controls_row2.setSpacing(8)  # match self.controls.setSpacing(8) at line 441
+        center.addLayout(self._controls_row2)
+
         # Phase 47.1 stats widget (D-07: last center-column item; D-08: always constructed)
         # Default hidden (D-05); MainWindow drives visibility after construction
         # from the QAction's checked state so menu and panel cannot desync (WR-02).
