@@ -106,6 +106,13 @@ class FakePlayer(QObject):
     def play(self, station, **kwargs) -> None:
         self.play_calls.append(station)
 
+    def play_stream(self, stream) -> None:
+        # Phase 72.1 / LAYOUT-02: required for _on_stream_selected which fires
+        # when a test calls setCurrentIndex(...) on the picker (test 5 round-trip).
+        # Plan 01 omitted this; surfaced when Plan 02's reflow allows the picker
+        # to participate in setCurrentIndex flows. [Rule 1 — missing test-double method.]
+        self.play_calls.append(stream)
+
     def set_eq_enabled(self, enabled: bool) -> None:
         self.calls.append(("enabled", bool(enabled)))
 
@@ -166,6 +173,17 @@ def _make_panel(
     repo = FakeRepo(settings or {"volume": "80"}, streams_by_station=streams_by_station)
     panel = NowPlayingPanel(FakePlayer(), repo)
     qtbot.addWidget(panel)
+    # Phase 72.1 / LAYOUT-02: show + waitExposed required for isVisible()
+    # assertions on child widgets like stream_combo. Plan 01 omitted this
+    # because it stopped at the first RED-state AttributeError on panel.controls
+    # and never reached the second assertion `assert panel.stream_combo.isVisible()`.
+    # Mirrors the precedent in tests/test_phase72_integration.py:86-88 which
+    # documents `.show() + qtbot.waitExposed() is REQUIRED for two reasons:
+    # child widget isVisible() and resizeEvent dispatch`.
+    # [Rule 1 — fix Plan 01 latent test-fixture bug; minimal change to honor
+    #  Pattern I's "direct .resize() then immediate assertion" intent.]
+    panel.show()
+    qtbot.waitExposed(panel)
     return panel
 
 
