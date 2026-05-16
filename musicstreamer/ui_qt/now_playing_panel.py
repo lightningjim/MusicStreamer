@@ -1129,6 +1129,18 @@ class NowPlayingPanel(QWidget):
         self.compact_mode_toggle_btn.setIcon(icon)
         self.compact_mode_toggle_btn.setToolTip(tooltip)
 
+    def resizeEvent(self, event):  # noqa: N802 (Qt override)
+        """Override to drive width-responsive stream-picker reparent (Phase 72.1 / LAYOUT-02 / D-05).
+
+        super's resizeEvent is MANDATORY first per Qt convention
+        (Pitfall 9 from 72.1-RESEARCH lines 523-531) -- the base implementation
+        invalidates layout and updates internal geometry. _reflow_stream_picker_row
+        is called immediately after; it never calls self.resize / setGeometry
+        (would cause infinite recursion per Qt docs).
+        """
+        super().resizeEvent(event)
+        self._reflow_stream_picker_row()
+
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
         streams = self._repo.list_streams(station.id)
@@ -1174,6 +1186,181 @@ class NowPlayingPanel(QWidget):
                 self.stream_combo.setCurrentIndex(i)
                 break
         self.stream_combo.blockSignals(False)
+
+    # ----------------------------------------------------------------------
+    # Phase 72.1 / LAYOUT-02: stream-picker reflow helpers
+    # ----------------------------------------------------------------------
+    # See 72.1-RESEARCH.md Pattern 2/3/4/5 + 72.1-PATTERNS.md Pattern B/C/D.
+    # resizeEvent (above, immediately before _populate_stream_picker) is the
+    # Qt override that drives the reflow on every panel resize. The four
+    # helpers below compose the reflow mechanism: threshold compute (cached),
+    # idempotent reparent, size-policy toggle, and the predicate that wires
+    # them together.
+
+    def _picker_row_min_width(self) -> int:
+        """Compute the panel.width() floor below which row 1 cannot fit the picker.
+
+        Sum of:
+          - row 1 (self.controls) widget minimums + inter-widget spacing + margins
+          - OUTER chrome (logo column + cover column + outer margins + outer
+            spacing) -- because panel.width() includes the chrome, not just
+            the center column where self.controls lives. Without this term
+            the threshold reports row-1-internal-min only and the predicate
+            misclassifies (panel.width() always exceeds row-1-internal-min on
+            any realistic panel size). [Rule 1 -- plan pseudo-code omitted
+            the outer-chrome term; surfaced when sample (b) failed at 560px.]
+          - +16px safety buffer for splitter handle + rounding
+            (Open Question 4 in 72.1-RESEARCH).
+
+        Lazy-cached in self._cached_row1_min on first call (Pattern 4 in
+        72.1-RESEARCH lines 305-358). Cache is invalidated by
+        _populate_stream_picker (Plan 03 hook).
+
+        Returns:
+            int: panel.width() floor below which row 1 cannot fit the picker.
+        """
+        if self._cached_row1_min is not None:
+            return self._cached_row1_min
+        # Row 1 (center column) intrinsic minimum.
+        layout = self.controls  # row 1 QHBoxLayout
+        margins = layout.contentsMargins()
+        spacing = layout.spacing()
+        total = margins.left() + margins.right()
+        widget_count = 0
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            w = item.widget()
+            if w is None:
+                # addStretch(1) -- no width contribution.
+                continue
+            wmin = max(w.minimumWidth(), w.minimumSizeHint().width())
+            total += wmin
+            widget_count += 1
+        if widget_count > 1:
+            total += spacing * (widget_count - 1)
+        # Outer chrome: panel.width() = outer.margins + logo + outer.spacing*2
+        # + center + cover; the center column is what holds self.controls.
+        # We need panel.width() floor = row_1_min + (outer - center).
+        outer = self.layout()
+        if outer is not None:
+            om = outer.contentsMargins()
+            total += om.left() + om.right()
+            # outer spacing * (number-of-non-center-items) accounts for the
+            # gaps logo<->center<->cover (2 gaps when outer has 3 items).
+            outer_widget_count = 0
+            for i in range(outer.count()):
+                item = outer.itemAt(i)
+                w = item.widget()
+                if w is not None:
+                    # logo_label / cover container -- count their minimum width.
+                    wmin = max(w.minimumWidth(), w.minimumSizeHint().width())
+                    total += wmin
+                    outer_widget_count += 1
+            # Outer spacing between every item (including center layout) is
+            # outer.count() - 1 gaps. center is one of the items so the gap
+            # count is correct.
+            if outer.count() > 1:
+                total += outer.spacing() * (outer.count() - 1)
+        # Safety buffer per Open Question 4 (splitter handle + rounding).
+        total += 16
+        self._cached_row1_min = total
+        return total
+
+    def _move_stream_picker_to(self, target_layout: QHBoxLayout) -> None:
+        """Reparent stream_combo into target_layout idempotently.
+
+        Pattern 2 (72.1-RESEARCH lines 228-263): QObject::setParent (called
+        implicitly by addWidget) does NOT disconnect signal/slot connections;
+        QComboBox.currentIndex / itemData / model survive reparent.
+
+        Pitfall 6 (72.1-PATTERNS Pattern B): the row-1-return path uses
+        insertWidget(self._picker_row1_index, ...) to preserve the picker's
+        original visual position between edit_btn and star_btn. Row-2 path
+        uses addWidget because row 2 only ever has the picker.
+        """
+        current_in_row1 = self.controls.indexOf(self.stream_combo) >= 0
+        current_in_row2 = self._controls_row2.indexOf(self.stream_combo) >= 0
+        # Idempotent early-returns (Pattern 2 -- avoids spurious reparent churn).
+        if target_layout is self.controls and current_in_row1:
+            return
+        if target_layout is self._controls_row2 and current_in_row2:
+            return
+        # Remove from whichever layout currently owns the picker.
+        if current_in_row1:
+            self.controls.removeWidget(self.stream_combo)
+        elif current_in_row2:
+            self._controls_row2.removeWidget(self.stream_combo)
+        # Add to target -- target-specific to preserve row-1 ordering.
+        if target_layout is self.controls:
+            self.controls.insertWidget(self._picker_row1_index, self.stream_combo)
+        else:
+            # target_layout is self._controls_row2
+            self._controls_row2.addWidget(self.stream_combo)
+
+    def _set_picker_size_policy(self, expanding: bool) -> None:
+        """Toggle stream_combo horizontal size policy (D-07 / D-08).
+
+        D-07: Expanding on row 2 (picker stretches to fill the row).
+        D-08: Preferred on row 1 (picker sits at 140px-min floor from line 485).
+
+        Pattern 3 (72.1-RESEARCH lines 264-302): setMinimumWidth(140) from
+        construction is a separate property from sizePolicy; the 140px floor
+        persists across setSizePolicy() calls. setSizePolicy invokes
+        updateGeometry() internally -- no explicit call needed.
+        """
+        if expanding:
+            self.stream_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            self.stream_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+
+    def _reflow_stream_picker_row(self) -> None:
+        """Width-driven reflow predicate (D-01 / D-02 / D-05 / D-06).
+
+        Dispatches to _move_stream_picker_to + _set_picker_size_policy
+        based on:
+          - Single-stream (picker hidden) -> always row 1 (D-02).
+          - Multi-stream + panel < threshold -> row 2 Expanding (D-01, D-07).
+          - Multi-stream + panel >= threshold -> row 1 Preferred (D-01, D-08).
+
+        Defensive guards (Pitfall 3 + Pitfall 5 + Open Question 5):
+          - hasattr stream_combo / _controls_row2 -- spurious resize during __init__.
+          - panel_width <= 0 -- Qt's spurious zero-size resize during teardown / first show.
+
+        Pattern 2 guarantees idempotency: spurious or duplicate calls are no-ops
+        when state is already correct.
+        """
+        # Defensive guards (Pitfalls 3, 5; Open Question 5).
+        if not hasattr(self, "stream_combo"):
+            return
+        if not hasattr(self, "_controls_row2"):
+            return
+        panel_width = self.width()
+        if panel_width <= 0:
+            return
+        # D-02: single-stream stations stay one-row at all widths.
+        # Use isHidden() (intended-visibility semantics) rather than isVisible()
+        # (actual-on-screen semantics) -- isVisible() returns False on any
+        # widget whose top-level ancestor has not been shown, regardless of
+        # the explicit setVisible() state. _populate_stream_picker is the
+        # single source of truth (Pattern E) and calls setVisible(len > 1),
+        # which sets isHidden() correctly: single-stream -> isHidden() == True,
+        # multi-stream -> isHidden() == False, BEFORE any .show() happens.
+        # This is critical for Plan 01's test pattern which deliberately omits
+        # panel.show() / qtbot.waitExposed (Pattern I direct .resize() form).
+        # [Rule 1 Bug -- plan pseudo-code assumed window-fixture semantics.]
+        if self.stream_combo.isHidden():
+            self._move_stream_picker_to(self.controls)
+            self._set_picker_size_policy(expanding=False)
+            return
+        # Width-driven branch (multi-stream).
+        threshold = self._picker_row_min_width()
+        should_wrap = panel_width < threshold
+        if should_wrap:
+            self._move_stream_picker_to(self._controls_row2)
+            self._set_picker_size_policy(expanding=True)
+        else:
+            self._move_stream_picker_to(self.controls)
+            self._set_picker_size_policy(expanding=False)
 
     def _on_edit_clicked(self) -> None:
         """Emit signal to open EditStationDialog for current station (D-08)."""
