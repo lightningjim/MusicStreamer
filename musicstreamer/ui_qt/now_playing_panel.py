@@ -1163,6 +1163,20 @@ class NowPlayingPanel(QWidget):
             self.stream_combo.addItem(label, userData=s.id)
         self.stream_combo.blockSignals(False)
         self.stream_combo.setVisible(len(streams) > 1)
+        # Phase 72.1 / LAYOUT-02: invalidate threshold cache (defensive — row-1
+        # widget count is unchanged by this phase's scope, but future widget
+        # additions would otherwise be stale; Pitfall 5 in 72.1-RESEARCH).
+        # _reflow_stream_picker_row recomputes on the next resizeEvent.
+        self._cached_row1_min = None
+        # Phase 72.1 / LAYOUT-02 / CONTEXT D-Discretion: when station change made
+        # the picker hidden (single-stream), force re-home to row 1 (its default
+        # home) so layout state stays consistent with visibility state. Multi-
+        # stream case defers to the next resizeEvent tick (resize is sampled
+        # often enough). Pattern E invariant: line above is still the SINGLE
+        # writer of stream_combo.setVisible — this block only owns layout.
+        if not self.stream_combo.isVisible():
+            self._move_stream_picker_to(self.controls)
+            self._set_picker_size_policy(expanding=False)
 
     def _on_stream_selected(self, index: int) -> None:
         """User manually selected a stream from the picker (D-21)."""
