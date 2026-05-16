@@ -4,8 +4,8 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 79 context gathered
-last_updated: "2026-05-16T17:38:56.774Z"
-last_activity: 2026-05-16 -- Phase 79 planning complete
+last_updated: "2026-05-16T17:41:35.126Z"
+last_activity: 2026-05-16 -- Phase 79 execution started
 progress:
   total_phases: 38
   completed_phases: 30
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 76 — gbs fm authentication support both pre existing api token an
+**Current focus:** Phase 79 — fix-youtube-stream-exhausted-when-launched-via-desktop-app-w
 
 ## Current Position
 
-Phase: 76
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-16 -- Phase 79 planning complete
+Phase: 79 (fix-youtube-stream-exhausted-when-launched-via-desktop-app-w) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 79
+Last activity: 2026-05-16 -- Phase 79 execution started
 
 ## Performance Metrics
 
