@@ -852,7 +852,7 @@ Plans:
 **Goal:** `.desktop`-launched MusicStreamer plays YouTube streams when Node is provided exclusively via a version-manager shim (fnm/nvm/volta/asdf). Thread the absolute `NodeRuntime.path` resolved by `runtime_check.check_node()` (commit `a06549f`) through to yt-dlp's `js_runtimes` opt at both call sites — `Player._youtube_resolve_worker` (playback) and `yt_import.scan_playlist` (playlist import) — via a shared helper `musicstreamer/yt_dlp_opts.py::build_js_runtimes`. Eliminates the "Stream exhausted" failure observed under stripped-PATH `.desktop` launch contexts.
 **Requirements**: BUG-11
 **Depends on:** Phase 78
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -867,7 +867,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 79-05-PLAN.md — Live .desktop-launch UAT (B-79-10) — closure gate for BUG-11
+- [x] 79-05-PLAN.md — Live .desktop-launch UAT (B-79-10) — closure gate for BUG-11
 
 ### Phase 80: SQLite foreign-key enforcement — set `PRAGMA foreign_keys = ON` per connection, sweep existing orphans, and add drift-guard logging so `ON DELETE CASCADE` actually fires
 
