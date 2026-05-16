@@ -437,6 +437,17 @@ def test_compact_mode_and_picker_wrap_independent(qtbot):
 
     window = MainWindow(MWFakePlayer(), repo)
     qtbot.addWidget(window)
+    # Phase 72.1 / LAYOUT-02: show + waitExposed required so panel.width()
+    # is non-zero by the time _reflow_stream_picker_row's defensive guard
+    # `if panel_width <= 0: return` runs. Mirrors the precedent in
+    # tests/test_phase72_integration.py:88 (`with qtbot.waitExposed(w): w.show()`).
+    # Without this, window.resize() does not propagate a non-zero panel.width()
+    # to the resizeEvent override; the reflow's zero-width guard returns early
+    # and the picker stays on row 1 even at narrow window widths.
+    # [Plan 03 Task 2 — test-only fix per CONTEXT D-Discretion ("sample (g)
+    #  failure modes"); no production code change.]
+    with qtbot.waitExposed(window):
+        window.show()
     panel = window.now_playing
     panel.bind_station(station)
     window.resize(560, 800)
