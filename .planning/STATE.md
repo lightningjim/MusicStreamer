@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: planning
-stopped_at: Phase 72.1 context gathered
-last_updated: "2026-05-16T20:53:05.452Z"
-last_activity: 2026-05-16
+status: executing
+stopped_at: Phase 72.1 UI-SPEC approved
+last_updated: "2026-05-16T23:05:00.463Z"
+last_activity: 2026-05-16 -- Phase 72.1 planning complete
 progress:
   total_phases: 38
   completed_phases: 31
-  total_plans: 153
+  total_plans: 156
   completed_plans: 148
   percent: 82
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 Phase: 80
 Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-16
+Status: Ready to execute
+Last activity: 2026-05-16 -- Phase 72.1 planning complete
 
 ## Performance Metrics
 
@@ -233,6 +233,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-16T20:53:05.440Z
-Stopped at: Phase 72.1 context gathered
-Resume file: .planning/phases/72.1-stream-selector-dropdown-overlap-persists-in-fullscreen-mode/72.1-CONTEXT.md
+Last session: 2026-05-16T21:15:07.495Z
+Stopped at: Phase 72.1 UI-SPEC approved
+Resume file: .planning/phases/72.1-stream-selector-dropdown-overlap-persists-in-fullscreen-mode/72.1-UI-SPEC.md
