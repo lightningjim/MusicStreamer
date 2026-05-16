@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: Phase 79 complete (5/5) — ready to discuss Phase 80
-last_updated: 2026-05-16T19:40:34.364Z
-last_activity: 2026-05-16 -- Phase 79 execution started
+status: planning
+stopped_at: Phase 72.1 context gathered
+last_updated: "2026-05-16T20:53:05.452Z"
+last_activity: 2026-05-16
 progress:
   total_phases: 38
-  completed_phases: 30
+  completed_phases: 31
   total_plans: 153
   completed_plans: 148
-  percent: 79
+  percent: 82
 ---
 
 # Project State
@@ -233,6 +233,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-16T16:58:56.097Z
-Stopped at: Phase 79 context gathered
-Resume file: .planning/phases/79-fix-youtube-stream-exhausted-when-launched-via-desktop-app-w/79-CONTEXT.md
+Last session: 2026-05-16T20:53:05.440Z
+Stopped at: Phase 72.1 context gathered
+Resume file: .planning/phases/72.1-stream-selector-dropdown-overlap-persists-in-fullscreen-mode/72.1-CONTEXT.md
