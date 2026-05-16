@@ -4,8 +4,8 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 72.1 UI-SPEC approved
-last_updated: "2026-05-16T23:05:00.463Z"
-last_activity: 2026-05-16 -- Phase 72.1 planning complete
+last_updated: "2026-05-16T23:06:37.430Z"
+last_activity: 2026-05-16 -- Phase 72.1 execution started
 progress:
   total_phases: 38
   completed_phases: 31
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 80 — sqlite foreign key enforcement set pragma foreign keys on pe
+**Current focus:** Phase 72.1 — stream-selector-dropdown-overlap-persists-in-fullscreen-mode
 
 ## Current Position
 
-Phase: 80
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-16 -- Phase 72.1 planning complete
+Phase: 72.1 (stream-selector-dropdown-overlap-persists-in-fullscreen-mode) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 72.1
+Last activity: 2026-05-16 -- Phase 72.1 execution started
 
 ## Performance Metrics
 
