@@ -8,13 +8,17 @@ Public API:
 
 Uses the yt_dlp Python library API directly (PORT-09 / D-17). No subprocess.
 """
+import logging
 import os
 import re
 from typing import Callable, Optional
 
 import yt_dlp
 
-from musicstreamer import constants, cookie_utils, paths
+from musicstreamer import constants, cookie_utils, paths, yt_dlp_opts
+from musicstreamer.runtime_check import NodeRuntime
+
+_log = logging.getLogger(__name__)
 
 
 def is_yt_playlist_url(url: str) -> bool:
@@ -39,6 +43,8 @@ def _entry_is_live(entry: dict) -> bool:
 def scan_playlist(
     url: str,
     toast_callback: Optional[Callable[[str], None]] = None,
+    *,
+    node_runtime: "NodeRuntime | None" = None,
 ) -> list[dict]:
     """Scan a YouTube playlist/channel tab and return currently-live entries.
 
@@ -59,11 +65,21 @@ def scan_playlist(
         if toast_callback is not None:
             toast_callback("YouTube cookies cleared — re-import via Accounts menu.")
 
+    node_path = node_runtime.path if node_runtime else None
+    _log.info("youtube scan: node_path=%s", node_path)
+
     opts = {
         "extract_flat": "in_playlist",
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
+        # Phase 79 / BUG-11: thread the resolved Node executable path through to
+        # yt-dlp so .desktop-stripped PATH launches don't fail JS-requiring scans.
+        # Single source of truth shared with player._youtube_resolve_worker.
+        # Note: extract_flat='in_playlist' short-circuits per-entry JS solving
+        # today (yt_dlp/YoutubeDL.py:1894-1909) so this is defensive parity for
+        # the helper invariant (D-10), not a live-bug fix on the scan path.
+        "js_runtimes": yt_dlp_opts.build_js_runtimes(node_runtime),
         # BUG-YT-COOKIES: yt-dlp 2026.03.17+ requires the EJS remote component
         # when YouTube account cookies are detected (authenticated code path).
         # Same fix as player.py::_youtube_resolve_worker.
