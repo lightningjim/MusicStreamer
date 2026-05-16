@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: planning
-stopped_at: Phase 76 context gathered — auto-advance skipped per user request
-last_updated: "2026-05-16T00:03:57.893Z"
+stopped_at: Phase 79 context gathered
+last_updated: "2026-05-16T16:58:56.108Z"
 last_activity: 2026-05-15
 progress:
   total_phases: 38
   completed_phases: 30
-  total_plans: 143
+  total_plans: 148
   completed_plans: 143
   percent: 79
 ---
@@ -233,6 +233,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-16T00:03:57.885Z
-Stopped at: Phase 76 context gathered — auto-advance skipped per user request
-Resume file: .planning/phases/76-gbs-fm-authentication-support-both-pre-existing-api-token-an/76-CONTEXT.md
+Last session: 2026-05-16T16:58:56.097Z
+Stopped at: Phase 79 context gathered
+Resume file: .planning/phases/79-fix-youtube-stream-exhausted-when-launched-via-desktop-app-w/79-CONTEXT.md
