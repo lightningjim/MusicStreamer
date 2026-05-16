@@ -17,9 +17,11 @@ amended Phase 999.9):
   Cookies (if present) are attached via cookiefile.
 - Node.js runtime required on PATH for the EJS n-challenge solver. The
   library API does NOT auto-discover JS runtimes the way the CLI does, so
-  opts must include js_runtimes={"node": {"path": None}} (Phase 999.9 fix —
-  without it extract_info returns "No video formats found!" even though
-  `uv run yt-dlp` works at the shell). No external player process is
+  opts must include js_runtimes={"node": {"path": <abs-path-or-None>}} (Phase
+  999.9 fix — without it extract_info returns "No video formats found!" even
+  though `uv run yt-dlp` works at the shell; Phase 79 / BUG-11 threads the
+  resolved absolute path through yt_dlp_opts.build_js_runtimes so .desktop
+  launches don't fall back to yt-dlp's own PATH lookup). No external player process is
   launched this phase (see 35-SPIKE-MPV.md "Superseded" section and Plan
   35-06 for the rationale that replaces the original KEEP branch).
 - yt-dlp 2026.03.17+: when YouTube account cookies are detected the
@@ -43,7 +45,8 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
-from musicstreamer import constants, cookie_utils, paths
+from musicstreamer import constants, cookie_utils, paths, yt_dlp_opts
+from musicstreamer.runtime_check import NodeRuntime
 from musicstreamer.constants import BUFFER_DURATION_S, BUFFER_SIZE_BYTES
 from musicstreamer.eq_profile import EqBand, EqProfile, parse_autoeq
 from musicstreamer.gst_bus_bridge import GstBusLoopThread
@@ -278,8 +281,9 @@ class Player(QObject):
     # (MainWindow wires the slot in Plan 70-05 — qt-glib-bus-threading.md Rule 2).
     audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth
 
-    def __init__(self, parent: QObject | None = None) -> None:
+    def __init__(self, parent: QObject | None = None, *, node_runtime: "NodeRuntime | None" = None) -> None:
         super().__init__(parent)
+        self._node_runtime = node_runtime
 
         # Ensure the bus-loop thread is running BEFORE the bus is wired
         _bridge = _ensure_bus_bridge()
@@ -1050,6 +1054,9 @@ class Player(QObject):
                     "YouTube cookies cleared — re-import via Accounts menu."
                 )
 
+            node_path = self._node_runtime.path if self._node_runtime else None
+            _log.info("youtube resolve: node_path=%s", node_path)
+
             opts = {
                 "quiet": True,
                 "no_warnings": True,
@@ -1060,7 +1067,9 @@ class Player(QObject):
                 # n-challenge solver cannot run, so extract_info returns "No video formats
                 # found!" even though `uv run yt-dlp <url>` works at the shell. Node is the
                 # runtime declared by RUNTIME-01; path=None lets yt-dlp resolve it via PATH.
-                "js_runtimes": {"node": {"path": None}},
+                # Phase 79 / BUG-11: pass the resolved absolute path so .desktop-launched
+                # instances (with stripped PATH) don't fall back to yt-dlp's own PATH lookup.
+                "js_runtimes": yt_dlp_opts.build_js_runtimes(self._node_runtime),
                 # BUG-YT-COOKIES: yt-dlp 2026.03.17+ requires the EJS remote component
                 # when YouTube account cookies are detected (authenticated code path).
                 # Without remote_components, the n-challenge solving is skipped and ALL

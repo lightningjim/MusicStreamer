@@ -217,7 +217,7 @@ def _run_gui(argv: list[str]) -> int:
         runtime_check.show_missing_node_dialog(parent=None)
 
     # con / db_init / repo already constructed above (Phase 66 hoist for theme).
-    player = Player()
+    player = Player(node_runtime=node_runtime)
 
     window = MainWindow(player, repo, node_runtime=node_runtime)
     server.activate_requested.connect(  # parameter-only lambda — captures `window`, not self
@@ -234,6 +234,9 @@ def main(argv: list[str] | None = None) -> int:
     # GLOBAL level (which would surface chatter from aa_import / gbs_api / mpris2).
     logging.getLogger("musicstreamer.player").setLevel(logging.INFO)
     logging.getLogger("musicstreamer.soma_import").setLevel(logging.INFO)
+    # Phase 79 / BUG-11: surface scan_playlist node_path INFO line at default
+    # verbosity (consumed by Plan 79-03's yt_import.scan_playlist INFO log).
+    logging.getLogger("musicstreamer.yt_import").setLevel(logging.INFO)
     argv = list(argv) if argv is not None else list(sys.argv)
 
     parser = argparse.ArgumentParser(
