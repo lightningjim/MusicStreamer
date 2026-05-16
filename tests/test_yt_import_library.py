@@ -16,6 +16,7 @@ import pytest
 import yt_dlp
 
 from musicstreamer import paths, yt_import
+from musicstreamer.runtime_check import NodeRuntime
 
 
 @pytest.fixture(autouse=True)
@@ -173,3 +174,36 @@ def test_import_stations_unchanged():
         "tags": "",
     }
     assert progress_calls == [(1, 0), (1, 1), (2, 1)]
+
+
+def test_scan_playlist_passes_node_path_when_available():
+    """B-79-07: scan_playlist threads NodeRuntime.path into yt_dlp opts."""
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return={"entries": []})
+    with p:
+        yt_import.scan_playlist(
+            "https://youtube.com/@x/streams",
+            node_runtime=NodeRuntime(available=True, path="/fake/node"),
+        )
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": "/fake/node"}}
+
+
+def test_scan_playlist_default_none_node_runtime():
+    """B-79-08: scan_playlist default (no node_runtime kwarg) yields {'path': None}."""
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return={"entries": []})
+    with p:
+        yt_import.scan_playlist("https://youtube.com/@x/streams")
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": None}}
+
+
+def test_scan_playlist_passes_none_when_unavailable():
+    """B-79-09: scan_playlist with NodeRuntime(available=False, path=None) yields {'path': None} (D-02)."""
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return={"entries": []})
+    with p:
+        yt_import.scan_playlist(
+            "https://youtube.com/@x/streams",
+            node_runtime=NodeRuntime(available=False, path=None),
+        )
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": None}}
