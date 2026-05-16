@@ -1402,7 +1402,7 @@ class MainWindow(QMainWindow):
 
     def _open_import_dialog(self) -> None:
         """D-15: Open ImportDialog from hamburger menu."""
-        dlg = ImportDialog(self.show_toast, self._repo, parent=self)
+        dlg = ImportDialog(self.show_toast, self._repo, parent=self, node_runtime=self._node_runtime)
         dlg.import_complete.connect(self._refresh_station_list)
         dlg.exec()
         # Phase 68 / B-04: re-evaluate AA listen-key state after the
