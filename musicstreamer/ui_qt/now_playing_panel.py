@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSlider,
     QToolButton,
     QVBoxLayout,
@@ -291,6 +292,9 @@ class NowPlayingPanel(QWidget):
         self._is_stopped: bool = False  # True after full stop (vs pause); cleared on bind/play
         self._last_icy_title: str = ""
         self._streams: list = []
+        # Phase 72.1 / LAYOUT-02: lazy cache for _picker_row_min_width();
+        # invalidated by _populate_stream_picker (Plan 03 hook).
+        self._cached_row1_min: Optional[int] = None
         # Phase 67 / R-01: in-memory cache of (same_provider_sample, same_tag_sample)
         # tuples keyed by station id. Populated by _refresh_similar_stations on
         # cache miss; reused on revisit (R-02). Popped by _on_refresh_similar_clicked
@@ -437,8 +441,8 @@ class NowPlayingPanel(QWidget):
         center.addWidget(self.elapsed_label)
 
         # Control row: play/pause + stop + volume slider
-        controls = QHBoxLayout()
-        controls.setSpacing(8)
+        self.controls = QHBoxLayout()
+        self.controls.setSpacing(8)
 
         self.play_pause_btn = QToolButton(self)
         self.play_pause_btn.setIconSize(QSize(24, 24))
@@ -452,7 +456,7 @@ class NowPlayingPanel(QWidget):
         )
         self.play_pause_btn.setToolTip("Play")
         self.play_pause_btn.clicked.connect(self._on_play_pause_clicked)
-        controls.addWidget(self.play_pause_btn)
+        self.controls.addWidget(self.play_pause_btn)
 
         self.stop_btn = QToolButton(self)
         self.stop_btn.setIconSize(QSize(24, 24))
@@ -466,7 +470,7 @@ class NowPlayingPanel(QWidget):
         )
         self.stop_btn.setToolTip("Stop")
         self.stop_btn.clicked.connect(self._on_stop_clicked)
-        controls.addWidget(self.stop_btn)
+        self.controls.addWidget(self.stop_btn)
 
         # Plan 39: edit button (D-08)
         self.edit_btn = QToolButton(self)
@@ -478,14 +482,20 @@ class NowPlayingPanel(QWidget):
         self.edit_btn.setToolTip("Edit station")
         self.edit_btn.setEnabled(False)
         self.edit_btn.clicked.connect(self._on_edit_clicked)
-        controls.addWidget(self.edit_btn)
+        self.controls.addWidget(self.edit_btn)
 
         # Plan 39: stream picker (D-19..D-22)
         self.stream_combo = QComboBox(self)
         self.stream_combo.setMinimumWidth(140)
         self.stream_combo.setVisible(False)
         self.stream_combo.currentIndexChanged.connect(self._on_stream_selected)
-        controls.addWidget(self.stream_combo)
+        self.controls.addWidget(self.stream_combo)
+        # Phase 72.1 / LAYOUT-02: pinned original index for insertWidget on
+        # row-1-return path (Pattern B / Pitfall 6 -- addWidget would silently
+        # swap visual order with sibling widgets added after this point).
+        # Must be captured AFTER addWidget (indexOf returns -1 before) and
+        # BEFORE any subsequent row-1 widget is added (star_btn next).
+        self._picker_row1_index: int = self.controls.indexOf(self.stream_combo)
 
         # Plan 38: track star button (D-08, D-11)
         self.star_btn = QToolButton(self)
@@ -497,7 +507,7 @@ class NowPlayingPanel(QWidget):
             QIcon.fromTheme("non-starred-symbolic", QIcon(":/icons/non-starred-symbolic.svg"))
         )
         self.star_btn.clicked.connect(self._on_star_clicked)
-        controls.addWidget(self.star_btn)
+        self.controls.addWidget(self.star_btn)
 
         # Phase 47.2 D-08: EQ toggle -- A/B compare corrected vs flat without
         # opening the dialog. Mirrors star_btn shape (28x28 checkable icon-only).
@@ -516,13 +526,13 @@ class NowPlayingPanel(QWidget):
             self._repo.get_setting("eq_enabled", "0") == "1"
         )
         self.eq_toggle_btn.clicked.connect(self._on_eq_toggled)
-        controls.addWidget(self.eq_toggle_btn)
+        self.controls.addWidget(self.eq_toggle_btn)
 
         self.volume_slider = QSlider(Qt.Horizontal, self)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setFixedWidth(120)
         self.volume_slider.setTickPosition(QSlider.NoTicks)
-        controls.addWidget(self.volume_slider)
+        self.controls.addWidget(self.volume_slider)
 
         # Phase 72 / LAYOUT-01 / D-04 (corrected per UI-SPEC §Interaction Contract):
         # compact-mode toggle inserted between volume_slider and addStretch(1).
@@ -542,10 +552,10 @@ class NowPlayingPanel(QWidget):
         )
         self.compact_mode_toggle_btn.setToolTip("Hide stations (Ctrl+B)")
         self.compact_mode_toggle_btn.toggled.connect(self._on_compact_btn_toggled)
-        controls.addWidget(self.compact_mode_toggle_btn)
+        self.controls.addWidget(self.compact_mode_toggle_btn)
 
-        controls.addStretch(1)
-        center.addLayout(controls)
+        self.controls.addStretch(1)
+        center.addLayout(self.controls)
 
         # Phase 47.1 stats widget (D-07: last center-column item; D-08: always constructed)
         # Default hidden (D-05); MainWindow drives visibility after construction
