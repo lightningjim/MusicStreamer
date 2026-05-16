@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 79 context gathered
-last_updated: "2026-05-16T17:41:35.126Z"
+status: ready_to_plan
+stopped_at: Phase 79 complete (5/5) — ready to discuss Phase 80
+last_updated: 2026-05-16T19:40:34.364Z
 last_activity: 2026-05-16 -- Phase 79 execution started
 progress:
   total_phases: 38
   completed_phases: 30
   total_plans: 153
-  completed_plans: 143
+  completed_plans: 148
   percent: 79
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 79 — fix-youtube-stream-exhausted-when-launched-via-desktop-app-w
+**Current focus:** Phase 80 — sqlite foreign key enforcement set pragma foreign keys on pe
 
 ## Current Position
 
-Phase: 79 (fix-youtube-stream-exhausted-when-launched-via-desktop-app-w) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 79
-Last activity: 2026-05-16 -- Phase 79 execution started
+Phase: 80
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-16
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 182 (v1.0–v1.5 combined)
+- Total plans completed: 187 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
