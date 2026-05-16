@@ -23,6 +23,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 - [x] **BUG-08**: Linux force-quit and other WM-level dialogs display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer" — Linux parallel to WIN-02 *(surfaced during Phase 50 UAT 2026-04-28)*
 - [x] **BUG-09**: Intermittent audio dropouts/stutters when the GStreamer buffer can't keep up are observable, attributable, and (once root-caused) mitigated. Repro is unclear at filing time — phase ships diagnostic instrumentation first, then a behavior fix once root cause is observable *(surfaced 2026-04-28)*
 - [ ] **BUG-10**: SQLite `PRAGMA foreign_keys = ON` is set on every connection opened by `db_connect()` (or equivalent), making the schema's existing `ON DELETE CASCADE` constraints actually enforce at runtime. Without the PRAGMA, every `DELETE FROM stations` (and any other parent-row deletion) silently leaks orphan child rows — `station_streams`, possibly `favorites`, `station_siblings`, and any other FK child table. Phase also (a) writes a regression test that DELETEs a station and asserts the cascade fires, (b) emits a one-time INFO log if `PRAGMA foreign_keys` was OFF at connection time (drift guard for any code path that forgets), (c) ships a one-shot orphan-sweep migration that scans every child table for rows whose FK parent no longer exists, deletes them, and logs the counts, and (d) documents the per-connection requirement in `musicstreamer/db.py` (or wherever `db_connect()` lives) so future contributors don't reintroduce the gap *(surfaced 2026-05-14 during Phase 74 Plan 07 UAT, finding F-07-03 — required manual `DELETE FROM station_streams WHERE url LIKE '%synphaera%'` cleanup mid-UAT to unblock dedup re-import; full root cause in 74-LEARNINGS.md and reference-musicstreamer-db-schema memory)*
+- [ ] **BUG-11**: YouTube live-stream playback works when MusicStreamer is launched via the GNOME `.desktop` entry (not only via pipx-from-terminal or `uv run`). Concretely: (1) `Player.__init__` accepts a `node_runtime: NodeRuntime | None = None` kwarg and `_youtube_resolve_worker` threads `node_runtime.path` into `yt_dlp.YoutubeDL`'s `js_runtimes` opt via a shared helper `musicstreamer/yt_dlp_opts.py::build_js_runtimes` (replaces the inline `{"node": {"path": None}}` literal at `player.py:1063`); (2) `yt_import.scan_playlist` accepts the same kwarg and INSERTS `js_runtimes` into its opts dict (defensive parity — single source of truth, shipping a known parity bug for the playlist-import path is rejected per D-09); (3) `__main__._run_gui` passes the existing `node_runtime` (already detected at line 215) to `Player(node_runtime=node_runtime)`; (4) one INFO log line `youtube resolve: node_path=<abs|None>` per YT play in `_youtube_resolve_worker`, and one `youtube scan: node_path=<abs|None>` per scan in `scan_playlist`, on the respective module loggers; (5) `__main__.main` adds `logging.getLogger("musicstreamer.yt_import").setLevel(logging.INFO)` alongside the existing per-logger INFO escalations for `musicstreamer.player` and `musicstreamer.soma_import`; (6) unit + integration regression tests assert the wired `opts["js_runtimes"]["node"]["path"]` value across three NodeRuntime inputs (None / available+path / unavailable+None) on BOTH call sites. Linux primary; Windows defensive parity (no live UAT required for Windows since `runtime_check._which_node` is already platform-aware and `node.exe` resolution costs nothing extra). *(surfaced 2026-05-14 — reproduction: `.desktop` Exec=musicstreamer under GNOME Shell strips fnm/nvm/volta/asdf shims from inherited PATH; commit `a06549f` 2026-04-25 added Node detection but did not thread the resolved path through to yt-dlp's `js_runtimes` opt; Phase 79 is the second half of the same fix)*
 
 ### Windows Polish (WIN)
 
@@ -197,17 +198,20 @@ Which phases cover which requirements.
 | SOMA-16 | Phase 74 | Pending |
 | SOMA-17 | Phase 74 | Pending |
 | BUG-10 | Phase 80 | Pending |
+| BUG-11 | Phase 79 | Pending |
 | GBS-AUTH-01 | Phase 76 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 57 total
-- Mapped to phases: 57 ✓
+- v2.1 requirements: 58 total
+- Mapped to phases: 58 ✓
 - Unmapped: 0 ✓
 - Complete: 20
-- Pending: 37 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; GBS-AUTH-01 — Phase 76 in flight)
+- Pending: 38 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; BUG-11 — YouTube .desktop launcher fix, Phase 79; GBS-AUTH-01 — Phase 76 in flight)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
 *Last updated: 2026-05-16 — GBS-AUTH-01 (in-app gbs.fm login subprocess via QtWebEngine, scope collapsed per Phase 76 D-03 verdict) added for Phase 76 during /gsd-plan-phase. API-token half dropped — Phase 60 RESEARCH 2026-05-04 + Phase 76 re-probe 2026-05-16 both confirm 403/302 across all 8 auth vectors on `/api/vote`, `/ajax`, `/add/`, `/search`.*
+
+*Last updated: 2026-05-16 — BUG-11 (YouTube `.desktop`-launcher fix: thread `NodeRuntime.path` through to yt-dlp's `js_runtimes` opt at BOTH `Player._youtube_resolve_worker` and `yt_import.scan_playlist` via shared helper `musicstreamer/yt_dlp_opts.build_js_runtimes`) added for Phase 79 during `/gsd:plan-phase`. Second half of commit `a06549f` 2026-04-25 fix.*
 
 *Last updated: 2026-05-14 — BUG-10 (SQLite PRAGMA foreign_keys enforcement + orphan-sweep migration + regression test + drift-guard log + db.py header docs) added for Phase 80. Surfaced during Phase 74 Plan 07 UAT (F-07-03).*
