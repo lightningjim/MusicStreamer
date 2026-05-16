@@ -728,11 +728,11 @@ Plans:
 **Goal:** [Urgent work - to be planned]
 **Requirements**: TBD
 **Depends on:** Phase 72
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 72.1 to break down)
+- [x] TBD (run /gsd-plan-phase 72.1 to break down) (completed 2026-05-16)
 
 ### Phase 73: MusicBrainz album-cover lookup — complement iTunes with smart routing (fallback/primary when iTunes is off or empty) and respect MB's strict matching, 1 req/sec rate limit, and required User-Agent
 
