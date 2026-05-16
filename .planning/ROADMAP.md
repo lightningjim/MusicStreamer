@@ -852,7 +852,7 @@ Plans:
 **Goal:** `.desktop`-launched MusicStreamer plays YouTube streams when Node is provided exclusively via a version-manager shim (fnm/nvm/volta/asdf). Thread the absolute `NodeRuntime.path` resolved by `runtime_check.check_node()` (commit `a06549f`) through to yt-dlp's `js_runtimes` opt at both call sites — `Player._youtube_resolve_worker` (playback) and `yt_import.scan_playlist` (playlist import) — via a shared helper `musicstreamer/yt_dlp_opts.py::build_js_runtimes`. Eliminates the "Stream exhausted" failure observed under stripped-PATH `.desktop` launch contexts.
 **Requirements**: BUG-11
 **Depends on:** Phase 78
-**Plans:** 1/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 **Wave 1**
@@ -861,9 +861,9 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 79-02-PLAN.md — Wire Player.__init__ node_runtime kwarg + _youtube_resolve_worker opts + INFO log; thread node_runtime in __main__._run_gui; escalate yt_import logger to INFO; ship B-79-04..B-79-06 regression tests
-- [ ] 79-03-PLAN.md — Wire scan_playlist node_runtime kwarg + INSERT js_runtimes into opts dict + INFO log; thread ImportDialog → _YtScanWorker → scan_playlist chain; MainWindow ctor; B-79-07..B-79-09 regression tests
-- [ ] 79-04-PLAN.md — Source-grep drift-guard test (positive form: build_js_runtimes( count == 1 per call-site file) — B-79-DG-1
+- [x] 79-02-PLAN.md — Wire Player.__init__ node_runtime kwarg + _youtube_resolve_worker opts + INFO log; thread node_runtime in __main__._run_gui; escalate yt_import logger to INFO; ship B-79-04..B-79-06 regression tests
+- [x] 79-03-PLAN.md — Wire scan_playlist node_runtime kwarg + INSERT js_runtimes into opts dict + INFO log; thread ImportDialog → _YtScanWorker → scan_playlist chain; MainWindow ctor; B-79-07..B-79-09 regression tests
+- [x] 79-04-PLAN.md — Source-grep drift-guard test (positive form: build_js_runtimes( count == 1 per call-site file) — B-79-DG-1
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
