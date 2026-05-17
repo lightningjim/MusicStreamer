@@ -76,4 +76,12 @@ None — all three files are production-ready drift-guards, not stubs.
 
 None — no new network endpoints, auth paths, file access patterns, or schema changes introduced. The two drift-guard tests read repo-controlled source files via `Path.read_text` (bounded to project root). No secrets or credentials involved.
 
-## Self-Check
+## Self-Check: PASSED
+
+- tests/_fake_player.py: FOUND
+- tests/test_fake_player_signal_parity.py: FOUND
+- tests/test_fake_player_no_inline.py: FOUND
+- Commit 64b69e5 (Task 1): FOUND
+- Commit a64de34 (Task 2): FOUND
+- Commit cf59f2c (Task 3): FOUND
+- Commit 8031c6d (SUMMARY): FOUND
