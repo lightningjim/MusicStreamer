@@ -126,7 +126,7 @@ skip_if_no_bus = pytest.mark.skipif(
 
 
 @skip_if_no_bus
-def test_linux_mpris_backend_constructs(tmp_path, monkeypatch, qapp):
+def test_linux_mpris_backend_constructs(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """Test 6: LinuxMprisBackend constructs and registers the MPRIS2 service."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
@@ -136,13 +136,13 @@ def test_linux_mpris_backend_constructs(tmp_path, monkeypatch, qapp):
         # Service should be registered on the bus
         bus = QDBusConnection.sessionBus()
         registered = bus.interface().registeredServiceNames().value()
-        assert "org.mpris.MediaPlayer2.musicstreamer" in registered
+        assert unique_mpris_service_name in registered
     finally:
         backend.shutdown()
 
 
 @skip_if_no_bus
-def test_linux_mpris_backend_publish_metadata(tmp_path, monkeypatch, qapp):
+def test_linux_mpris_backend_publish_metadata(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """Test 7: publish_metadata updates station/title/art_url, file is created."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
@@ -164,7 +164,7 @@ def test_linux_mpris_backend_publish_metadata(tmp_path, monkeypatch, qapp):
 
 
 @skip_if_no_bus
-def test_linux_mpris_backend_publish_metadata_none(tmp_path, monkeypatch, qapp):
+def test_linux_mpris_backend_publish_metadata_none(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """Test 8: publish_metadata(None, '', None) -> metadata dict has only NoTrack trackid."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
@@ -184,7 +184,7 @@ def test_linux_mpris_backend_publish_metadata_none(tmp_path, monkeypatch, qapp):
 
 
 @skip_if_no_bus
-def test_linux_mpris_backend_set_playback_state(tmp_path, monkeypatch, qapp):
+def test_linux_mpris_backend_set_playback_state(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """Test 9: set_playback_state updates _state; bogus state raises ValueError."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
@@ -208,7 +208,7 @@ def test_linux_mpris_backend_set_playback_state(tmp_path, monkeypatch, qapp):
 
 @pytest.mark.integration
 @skip_if_no_bus
-def test_playerctl_lists_service(tmp_path, monkeypatch, qapp):
+def test_playerctl_lists_service(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """Test 10: After construction, 'playerctl --list-all' lists 'musicstreamer'."""
     if shutil.which("playerctl") is None:
         pytest.skip("playerctl not installed")
@@ -230,7 +230,7 @@ def test_playerctl_lists_service(tmp_path, monkeypatch, qapp):
 
 
 @skip_if_no_bus
-def test_linux_mpris_backend_slot_play_pause_emits_signal(tmp_path, monkeypatch, qtbot, qapp):
+def test_linux_mpris_backend_slot_play_pause_emits_signal(tmp_path, monkeypatch, qtbot, qapp, unique_mpris_service_name):
     """Test 11: Invoking the player adaptor's PlayPause slot emits play_pause_requested."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
@@ -244,7 +244,7 @@ def test_linux_mpris_backend_slot_play_pause_emits_signal(tmp_path, monkeypatch,
 
 
 @skip_if_no_bus
-def test_linux_mpris_backend_shutdown_idempotent(tmp_path, monkeypatch, qapp):
+def test_linux_mpris_backend_shutdown_idempotent(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """Test 12: shutdown() called twice does not raise."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
@@ -260,7 +260,7 @@ def test_linux_mpris_backend_shutdown_idempotent(tmp_path, monkeypatch, qapp):
 
 
 @skip_if_no_bus
-def test_xesam_title_passthrough_verbatim(tmp_path, monkeypatch, qapp):
+def test_xesam_title_passthrough_verbatim(tmp_path, monkeypatch, qapp, unique_mpris_service_name):
     """T-41-06: xesam:title passes markup strings verbatim — no escaping or stripping."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     from musicstreamer.media_keys.mpris2 import LinuxMprisBackend
