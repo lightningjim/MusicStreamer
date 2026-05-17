@@ -23,6 +23,19 @@ from musicstreamer.ui_qt.toast import ToastOverlay
 from tests._fake_player import FakePlayer
 
 
+@pytest.fixture(autouse=True)
+def _block_real_network_for_this_file(block_real_network):
+    """Phase 77 D-12 REVISED: opt-in network block at file scope.
+
+    This file is one of the cross-file teardown-crash reproducers from
+    CONTEXT cluster 3. Daemon threads spawned by `cover_art._itunes_attempt`
+    (urlopen) and `_LogoFetchWorker` (urlretrieve) outlive the test that
+    constructed them and race the next test's QObjects under offscreen
+    platform. Blocking both primitives at the file boundary closes the race.
+    """
+    yield
+
+
 class FakeRepo:
     """Minimal repo surface."""
 

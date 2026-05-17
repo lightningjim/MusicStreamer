@@ -29,7 +29,7 @@ def fake_repo():
     return FakeRepo()
 
 
-def test_first_call_shows_toast(qtbot, fake_player, fake_repo, monkeypatch):
+def test_first_call_shows_toast(qtbot, fake_player, fake_repo, monkeypatch, block_real_network):
     """D-06: first underrun_recovery_started emission shows Buffering toast."""
     monkeypatch.setattr(
         "musicstreamer.ui_qt.main_window.time.monotonic",
