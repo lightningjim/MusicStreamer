@@ -134,28 +134,7 @@ def test_youtube_import_calls_import_stations(dialog, toast_cb):
 
 
 # ---------------------------------------------------------------------------
-# Test 6: AudioAddict tab has API key field, quality combo, Import button
-# ---------------------------------------------------------------------------
-
-
-def test_audioaddict_tab_widgets(dialog):
-    assert dialog._aa_key is not None
-    assert dialog._aa_quality is not None
-    assert dialog._aa_import_btn is not None
-
-
-# ---------------------------------------------------------------------------
-# Test 7: AudioAddict quality combo has items hi, med, low
-# ---------------------------------------------------------------------------
-
-
-def test_audioaddict_quality_combo(dialog):
-    items = [dialog._aa_quality.itemText(i) for i in range(dialog._aa_quality.count())]
-    assert items == ["hi", "med", "low"]
-
-
-# ---------------------------------------------------------------------------
-# Test 8: AudioAddict invalid API key shows inline error label
+# Test 6 (renumbered after D-04 orphan deletion): AudioAddict invalid API key shows inline error label
 # ---------------------------------------------------------------------------
 
 
