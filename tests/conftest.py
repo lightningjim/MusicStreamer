@@ -53,6 +53,33 @@ def unique_mpris_service_name(monkeypatch):
         pass  # bus already torn down or service already released
 
 
+@pytest.fixture
+def block_real_network(monkeypatch):
+    """Phase 77 D-12 (REVISED per RESEARCH §Summary 5): stub urlretrieve AND urlopen.
+
+    Closes cluster-3 cross-file teardown crashes by blocking the network
+    primitives used by:
+    - urlretrieve: edit_station_dialog.py:94,125 (logo-fetch worker)
+    - urlopen:     cover_art.py:111,119 (iTunes daemon thread)
+                   cover_art_mb.py:290,312 (MusicBrainz daemon thread)
+
+    Per RESEARCH §Pitfall 5: the daemon-thread urlopen at cover_art.py:128
+    is the cross-file race surface. Blocking urlopen too forces the daemon's
+    except-clause path (on_done(None)) instead of a real network round-trip.
+    """
+    def _stub_urlretrieve(url, filename=None, *a, **kw):
+        if filename:
+            with open(filename, "wb") as fh:
+                fh.write(b"")
+        return (filename or "/tmp/stub", {})
+
+    monkeypatch.setattr("urllib.request.urlretrieve", _stub_urlretrieve)
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        MagicMock(side_effect=OSError("blocked in test")),
+    )
+
+
 # === Phase 60 (GBS.FM) shared fixtures =====================================
 # Spec: 60-PATTERNS.md §"tests/conftest.py extension" + 60-VALIDATION.md
 # §Wave 0 Requirements row 5. These fixtures are NON-autouse — opt-in
