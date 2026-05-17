@@ -21,16 +21,15 @@
     {"id": "schema-gate", "name": "Schema push gate skipped (no ORM in scope; MusicStreamer uses raw SQLite)", "status": "skipped"}
   ],
   "remaining_tasks": [
-    {"id": "pattern-mapper", "name": "Spawn gsd-pattern-mapper → 77-PATTERNS.md (was about to spawn when user paused)", "status": "not_started"},
+    {"id": "pattern-mapper", "name": "Spawn gsd-pattern-mapper → 77-PATTERNS.md (resume here — was about to spawn when user paused to shut down)", "status": "not_started"},
     {"id": "planner", "name": "Spawn gsd-planner → 77-01..77-06 PLAN.md files", "status": "not_started"},
     {"id": "plan-checker", "name": "Spawn gsd-plan-checker (verify) + revision loop (max 3 iter)", "status": "not_started"},
     {"id": "post-gates", "name": "Requirements coverage gate (§13) + Decision coverage gate (§13a) + state.planned-phase + roadmap.annotate-dependencies + commit_docs", "status": "not_started"},
     {"id": "auto-advance", "name": "Skill(gsd-execute-phase, '77 --auto --no-transition') per chain.md", "status": "not_started"}
   ],
   "blockers": [],
-  "human_actions_pending": [
-    {"action": "Decide whether to resume the gsd-pattern-mapper spawn or skip directly to gsd-planner", "context": "User rejected the pattern-mapper Agent() spawn (likely cost/time judgment for a test-cleanup phase). The pattern-mapper is optional per workflow §7.8 (skip if PATTERN_MAPPER_CFG=false; this project has it enabled, but the spawn is non-blocking). Bypass options: (a) set workflow.pattern_mapper false in .planning/config.json then re-resume; (b) re-resume with a slimmer pattern-mapper prompt; (c) skip pattern-mapper for this phase only via orchestrator judgment (RESEARCH.md already contains the §Recommended Project Structure and §Pattern 1/2/3 code excerpts that PATTERNS.md would otherwise duplicate, so the planner has near-equivalent pattern information already).", "blocking": true}
-  ],
+  "human_actions_pending": [],
+  "pause_reason": "User needed to shut down the computer — clean pause, NOT a decision against the pattern-mapper. The Agent() rejection in the transcript was the pause mechanism, not a workflow judgment. Resume should proceed normally with pattern-mapper as the next step.",
   "decisions": [
     {"decision": "Skip discuss-phase Q&A; lock decisions inline in CONTEXT.md", "rationale": "Phase 77 is technical-cleanup heavy; gray areas were judgment calls best resolved by planner+researcher. User explicitly: 'If discuss isn't recommended, we can move onto the planning phase.'", "phase": "77"},
     {"decision": "D-05 INVERTED — test follows impl, not impl follows test", "rationale": "Streamlink removed set_plugin_option in 6.0 (PR #5033, 2023-07-20); project pins >=8.3. Production at player.py:1156 already uses correct migrated API session.set_option('twitch-api-header', ...). Phase 31 test docstring is stale 2-year-old reference to a deleted API.", "phase": "77"},
@@ -54,6 +53,6 @@
     {"hash": "0af7153", "subject": "docs(77): apply research corrections to CONTEXT.md + add RESEARCH.md"},
     {"hash": "f0460c9", "subject": "docs(phase-77): add validation strategy"}
   ],
-  "next_action": "Decide pattern-mapper disposition (skip vs slimmer prompt vs re-spawn original), then continue /gsd-plan-phase 77 --auto from §8 (gsd-planner spawn). Chain flag workflow._auto_chain_active=true is persisted, so the workflow will auto-advance to gsd-execute-phase after planning succeeds.",
-  "context_notes": "Phase 77 is a test-infrastructure cleanup phase that closes 10+ phases' accumulated deferred-items.md backlog. Decisions are well-locked across CONTEXT.md (D-00..D-18) and RESEARCH.md (764 lines, HIGH confidence). The planner has a clean shot at producing 6 plans (77-01: shared FakePlayer + drift-guards, 77-02: 11-site migration, 77-03: MPRIS2 fixture, 77-04: six test↔impl drift fixes, 77-05: network-block fixture + worker teardown, 77-06: full-suite green gate). Plan-checker should pass on first iteration given the research depth. Pattern-mapper is genuinely optional here — RESEARCH.md §Recommended Project Structure + §Pattern 1/2/3 already carries the same content PATTERNS.md would duplicate."
+  "next_action": "Re-spawn gsd-pattern-mapper with the same prompt the orchestrator drafted (the prompt body is still in the prior session transcript; reconstruct from files-to-read = CONTEXT.md + RESEARCH.md + .planning/codebase/TESTING.md). Pattern-mapper writes 77-PATTERNS.md. Then continue /gsd-plan-phase 77 --auto from §8 (gsd-planner spawn). Chain flag workflow._auto_chain_active=true is persisted, so the workflow will auto-advance to gsd-execute-phase after planning succeeds.",
+  "context_notes": "Phase 77 is a test-infrastructure cleanup phase that closes 10+ phases' accumulated deferred-items.md backlog. Decisions are well-locked across CONTEXT.md (D-00..D-18) and RESEARCH.md (764 lines, HIGH confidence). The planner has a clean shot at producing 6 plans (77-01: shared FakePlayer + drift-guards, 77-02: 11-site migration, 77-03: MPRIS2 fixture, 77-04: six test↔impl drift fixes, 77-05: network-block fixture + worker teardown, 77-06: full-suite green gate). Plan-checker should pass on first iteration given the research depth. Pause was a clean computer-shutdown pause — resume should proceed normally with the gsd-pattern-mapper as the next step (the orchestrator was mid-spawn when paused)."
 }
