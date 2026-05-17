@@ -203,7 +203,7 @@ def test_yt_scan_passes_through(qtbot, monkeypatch, dialog):
     ]
     monkeypatch.setattr(
         "musicstreamer.yt_import.scan_playlist",
-        lambda url, toast_callback=None: scan_results,
+        lambda url, toast_callback=None, node_runtime=None: scan_results,
     )
 
     # Wire worker finished signal to the dialog handler that populates the list
@@ -212,6 +212,12 @@ def test_yt_scan_passes_through(qtbot, monkeypatch, dialog):
 
     with qtbot.waitSignal(worker.finished, timeout=3000):
         worker.start()
+
+    # Phase 77 D-14: drain the QThread before fixture teardown to avoid
+    # Qt-teardown abort caused by the thread's run() epilogue racing
+    # qtbot's widget cleanup. Mirrors edit_station_dialog.py:1342
+    # `_shutdown_logo_fetch_worker` worker.wait pattern.
+    worker.wait(2000)
 
     # Both pass-through entries must reach the QListWidget
     assert dialog._yt_list.count() == 2
