@@ -830,23 +830,23 @@ Plans:
 **Goal:** `uv run pytest tests/` exits 0 across six discrete failure clusters (FakePlayer drift, MPRIS2 DBus collision, Qt teardown aborts, `_aa_quality` orphan, station_list_panel drifts, streamlink-API drift) with permanent source-introspection drift-guards installed at `tests/test_fake_player_signal_parity.py` (name + arity parity against `Player.__dict__`) and `tests/test_fake_player_no_inline.py` (only `tests/_fake_player.py` may declare `FakePlayer(QObject)`). Closes the deferred-items.md backlog accumulated across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 72.1, 73 since Phase 62 shipped. Production code byte-identical (zero changes to `musicstreamer/`). Zero new third-party dependencies.
 **Requirements**: INFRA-01
 **Depends on:** Phase 76
-**Plans:** 6 plans
+**Plans:** 5/6 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 77-01-PLAN.md — Wave 1: shared `tests/_fake_player.py` (18 Player signals, production-correct arities) + drift-guards `tests/test_fake_player_signal_parity.py` (D-16: name + arity via regex source-parse) + `tests/test_fake_player_no_inline.py` (D-17: rglob ban-list)
+- [x] 77-01-PLAN.md — Wave 1: shared `tests/_fake_player.py` (18 Player signals, production-correct arities) + drift-guards `tests/test_fake_player_signal_parity.py` (D-16: name + arity via regex source-parse) + `tests/test_fake_player_no_inline.py` (D-17: rglob ban-list)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 77-02-PLAN.md — Wave 2: migrate 11 inline `FakePlayer(QObject)` sites to `from tests._fake_player import FakePlayer` + redirect 5 transitive consumers; auto-fixes gbs/soma `audio_caps_detected = Signal(object)` arity drift; `tests/test_equalizer_dialog.py` non-QObject FakePlayer stays inline per D-09 Option A with documenting comment
-- [ ] 77-03-PLAN.md — Wave 2: `unique_mpris_service_name` fixture in `tests/conftest.py` monkeypatches `mpris2.SERVICE_NAME` per-test with `f"...test_{pid}_{uuid8}"` suffix + explicit `bus.unregisterService` teardown (D-10/D-11/D-18); wires fixture into 8 MPRIS2 tests
-- [ ] 77-04-PLAN.md — Wave 2: 4 test↔impl drift fixes in 3 files — delete `_aa_quality` orphan tests (Cluster 4 / D-04), rewrite Twitch test to assert `session.set_option("twitch-api-header", ...)` with `MagicMock(spec=Streamlink)` drift-guard (Cluster 6 / D-05 REVISED — streamlink 6.0 removed `set_plugin_option`), `isVisibleTo`→`_stack.currentIndex()` swap (Cluster 5b / D-15 REVISED), `rowCount() == min(5, len(repo._recent))` matching production (Cluster 5a / D-06)
+- [x] 77-02-PLAN.md — Wave 2: migrate 11 inline `FakePlayer(QObject)` sites to `from tests._fake_player import FakePlayer` + redirect 5 transitive consumers; auto-fixes gbs/soma `audio_caps_detected = Signal(object)` arity drift; `tests/test_equalizer_dialog.py` non-QObject FakePlayer stays inline per D-09 Option A with documenting comment
+- [x] 77-03-PLAN.md — Wave 2: `unique_mpris_service_name` fixture in `tests/conftest.py` monkeypatches `mpris2.SERVICE_NAME` per-test with `f"...test_{pid}_{uuid8}"` suffix + explicit `bus.unregisterService` teardown (D-10/D-11/D-18); wires fixture into 8 MPRIS2 tests
+- [x] 77-04-PLAN.md — Wave 2: 4 test↔impl drift fixes in 3 files — delete `_aa_quality` orphan tests (Cluster 4 / D-04), rewrite Twitch test to assert `session.set_option("twitch-api-header", ...)` with `MagicMock(spec=Streamlink)` drift-guard (Cluster 6 / D-05 REVISED — streamlink 6.0 removed `set_plugin_option`), `isVisibleTo`→`_stack.currentIndex()` swap (Cluster 5b / D-15 REVISED), `rowCount() == min(5, len(repo._recent))` matching production (Cluster 5a / D-06)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 77-05-PLAN.md — Wave 3: `block_real_network` fixture monkeypatches BOTH `urllib.request.urlretrieve` AND `urllib.request.urlopen` (D-12 REVISED — covers cover_art daemon-thread urlopen leak too) + per-test injection for `test_first_call_shows_toast` + file-autouse for 4 cross-file teardown reproducer files + `worker.wait(2000)` drain in `test_yt_scan_passes_through` (D-14)
+- [x] 77-05-PLAN.md — Wave 3: `block_real_network` fixture monkeypatches BOTH `urllib.request.urlretrieve` AND `urllib.request.urlopen` (D-12 REVISED — covers cover_art daemon-thread urlopen leak too) + per-test injection for `test_first_call_shows_toast` + file-autouse for 4 cross-file teardown reproducer files + `worker.wait(2000)` drain in `test_yt_scan_passes_through` (D-14)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 

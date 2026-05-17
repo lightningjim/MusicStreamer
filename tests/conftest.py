@@ -38,16 +38,34 @@ def unique_mpris_service_name(monkeypatch):
     Patches musicstreamer.media_keys.mpris2.SERVICE_NAME at the module level
     so LinuxMprisBackend.__init__ reads the unique name on registerService.
     Teardown unregisters explicitly (D-11) to avoid leaking bus name binds.
+
+    OBJECT_PATH cleanup: production registers `/org/mpris/MediaPlayer2` via
+    bus.registerObject. SERVICE_NAME is per-test-unique but OBJECT_PATH is
+    bus-wide and constant. A prior test that constructed LinuxMprisBackend
+    (e.g. via MainWindow in test_main_window_integration.py) without calling
+    closeEvent leaves the object registered, causing the NEXT registerObject
+    in full-suite order to collide. Teardown unregisters BOTH object path
+    AND service name to release whatever's bound at this point.
     """
+    from musicstreamer.media_keys import mpris2 as _m
     suffix = f"test_{os.getpid()}_{uuid.uuid4().hex[:8]}"
     unique = f"org.mpris.MediaPlayer2.musicstreamer.{suffix}"
-    from musicstreamer.media_keys import mpris2 as _m
     monkeypatch.setattr(_m, "SERVICE_NAME", unique)
+    # Preemptive release: if a prior test left OBJECT_PATH bound on the bus,
+    # clear it before the next registerObject runs. No-op if not registered.
+    try:
+        from PySide6.QtDBus import QDBusConnection
+        _bus = QDBusConnection.sessionBus()
+        if _bus.isConnected():
+            _bus.unregisterObject(_m.OBJECT_PATH)
+    except Exception:
+        pass  # bus not available or object not registered — both fine
     yield unique
     try:
         from PySide6.QtDBus import QDBusConnection
         bus = QDBusConnection.sessionBus()
         if bus.isConnected():
+            bus.unregisterObject(_m.OBJECT_PATH)
             bus.unregisterService(unique)
     except Exception:
         pass  # bus already torn down or service already released
