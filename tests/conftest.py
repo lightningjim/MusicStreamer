@@ -9,6 +9,7 @@ Also provides an autouse fixture that stubs
 bridge is exercised by dedicated tests for ``gst_bus_bridge.py`` only.
 """
 import os
+import uuid
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -28,6 +29,28 @@ def _stub_bus_bridge(monkeypatch):
     monkeypatch.setattr(
         _player_mod, "_ensure_bus_bridge", lambda: MagicMock()
     )
+
+
+@pytest.fixture
+def unique_mpris_service_name(monkeypatch):
+    """Per-test unique MPRIS2 bus name (Phase 77 D-10 / D-18).
+
+    Patches musicstreamer.media_keys.mpris2.SERVICE_NAME at the module level
+    so LinuxMprisBackend.__init__ reads the unique name on registerService.
+    Teardown unregisters explicitly (D-11) to avoid leaking bus name binds.
+    """
+    suffix = f"test_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+    unique = f"org.mpris.MediaPlayer2.musicstreamer.{suffix}"
+    from musicstreamer.media_keys import mpris2 as _m
+    monkeypatch.setattr(_m, "SERVICE_NAME", unique)
+    yield unique
+    try:
+        from PySide6.QtDBus import QDBusConnection
+        bus = QDBusConnection.sessionBus()
+        if bus.isConnected():
+            bus.unregisterService(unique)
+    except Exception:
+        pass  # bus already torn down or service already released
 
 
 # === Phase 60 (GBS.FM) shared fixtures =====================================
