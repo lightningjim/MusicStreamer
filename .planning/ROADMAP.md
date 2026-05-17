@@ -830,7 +830,7 @@ Plans:
 **Goal:** `uv run pytest tests/` exits 0 across six discrete failure clusters (FakePlayer drift, MPRIS2 DBus collision, Qt teardown aborts, `_aa_quality` orphan, station_list_panel drifts, streamlink-API drift) with permanent source-introspection drift-guards installed at `tests/test_fake_player_signal_parity.py` (name + arity parity against `Player.__dict__`) and `tests/test_fake_player_no_inline.py` (only `tests/_fake_player.py` may declare `FakePlayer(QObject)`). Closes the deferred-items.md backlog accumulated across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 72.1, 73 since Phase 62 shipped. Production code byte-identical (zero changes to `musicstreamer/`). Zero new third-party dependencies.
 **Requirements**: INFRA-01
 **Depends on:** Phase 76
-**Plans:** 5/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
 
@@ -850,7 +850,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 77-06-PLAN.md — Wave 4: phase gate — `uv run pytest tests/` exits 0 with no xfail/skip masking the six clusters; per-cluster verification commands all green; `.planning/PROJECT.md` `Tests:` line refreshed; user-verified checkpoint
+- [x] 77-06-PLAN.md — Wave 4: phase gate — `uv run pytest tests/` exits 0 with no xfail/skip masking the six clusters; per-cluster verification commands all green; `.planning/PROJECT.md` `Tests:` line refreshed; user-verified checkpoint
 
 ### Phase 78: Phase 62 follow-up: Buffer underrun behavior fix — Phase 62 (BUG-09) shipped only the instrumentation half per its CONTEXT.md <deferred> section. With log data now available from the live structured-log emission (cycle_close events) and cooldown-gated 'Buffering…' toast, root-cause the dropout pattern and ship the behavior fix: buffer-duration / buffer-size adjustment, reconnect logic, low-watermark threshold, smarter underrun recovery. Phase 16 baseline (10s / 10MB) is unlocked here — any change must be logged as a CONTEXT.md decision per Phase 62 D-09 invariant. SC #3 of BUG-09 closes here: a demonstrable reduction in dropout count under repro conditions.
 
