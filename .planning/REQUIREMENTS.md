@@ -87,6 +87,12 @@ Project-level convention introduced 2026-04-28.
 - [x] **VER-01**: Adopt `milestone_major.milestone_minor.phase` versioning (e.g. `2.1.50` for Phase 50 of v2.1). The `pyproject.toml` `version` field is rewritten automatically on phase completion via a GSD-workflow hook, gated by a per-project config flag, and the convention is documented in PROJECT.md *(applies to all future phase completions starting Phase 51+; Phase 50 was bumped manually as the first instance)*
 - [x] **VER-02**: The running app surfaces its current version (read from `pyproject.toml` via `importlib.metadata`) as a disabled informational entry at the bottom of the hamburger menu. The Windows PyInstaller bundle ships `musicstreamer.dist-info` so the bundled exe reads the same version dev sees. *(Phase 65 — consumes Phase 63's auto-bump output)*
 
+### Test Infrastructure (INFRA)
+
+Test-infrastructure stabilization after 10+ phases of recurring `deferred-items.md` failures across phases 51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 72.1, 73. Decomposes Phase 77 CONTEXT D-00..D-18 into a single rolling-up requirement with source-grep / source-introspection drift-guards modeled on `tests/test_yt_dlp_opts_drift.py` (Phase 79) and `tests/test_constants_drift.py` (Phase 61).
+
+- [ ] **INFRA-01**: Full-suite `uv run pytest tests/` exits 0 across six discrete failure clusters with permanent drift-guards installed. Concretely: (a) shared `tests/_fake_player.py` declares every `Signal(...)` from `musicstreamer.player.Player.__dict__` (18 signals at `player.py:241-282`) with matching argument arity (catches `audio_caps_detected = Signal(int, int, int)` vs `Signal(object)` arity drift); (b) `tests/test_fake_player_signal_parity.py` drift-guard reads BOTH `musicstreamer/player.py` AND `tests/_fake_player.py` via regex source-parse and asserts every Player signal appears on FakePlayer with identical argument list (D-16 REVISED); (c) `tests/test_fake_player_no_inline.py` source-grep drift-guard fails if any `tests/test_*.py` or `tests/ui_qt/test_*.py` file outside `tests/_fake_player.py` matches `class\s+_?FakePlayer\s*\(QObject\)` (D-17); (d) 11 inline FakePlayer(QObject) sites migrated to `from tests._fake_player import FakePlayer` (`test_stream_picker.py`, `test_discovery_dialog.py`, `test_ui_qt_scaffold.py`, `test_main_window_integration.py`, `test_main_window_media_keys.py`, `test_now_playing_panel.py`, `test_main_window_soma.py`, `test_phase72_now_playing_panel.py`, `test_main_window_gbs.py`, `test_phase72_1_stream_picker_reflow.py`, `tests/ui_qt/test_main_window_node_indicator.py`); plus 5 transitive `from tests.test_main_window_integration import FakePlayer` redirects in `test_main_window_underrun.py`, `test_phase72_integration.py`, `test_phase72_compact_toggle.py`, `test_phase72_peek_overlay.py`, `test_phase72_assumptions.py`; `tests/test_equalizer_dialog.py` non-QObject FakePlayer stays inline per CONTEXT D-09 Option A; (e) MPRIS2 `tests/test_media_keys_mpris2.py` 7 tests use `unique_mpris_service_name` fixture that monkeypatches `musicstreamer.media_keys.mpris2.SERVICE_NAME` to `f"org.mpris.MediaPlayer2.musicstreamer.test_{pid}_{uuid8}"` with explicit `bus.unregisterService` teardown (D-10/D-11/D-18); (f) `tests/test_import_dialog_qt.py:141-154` `_aa_quality` orphan assertions deleted (D-04 — widget removed in Phase 56 commit `414e236`); (g) `tests/test_twitch_auth.py` rewritten to assert `session.set_option("twitch-api-header", ...)` with `MagicMock(spec=Streamlink)` so reintroducing the removed `set_plugin_option` API raises AttributeError (D-05 REVISED — `set_plugin_option` removed in streamlink 6.0 PR #5033; production at `player.py:1156` already correct); (h) `tests/test_station_list_panel.py:504-520` `test_refresh_recent_updates_list` asserts `rowCount() == min(5, len(repo._recent))` matching production `list_recently_played(5)` at `station_list_panel.py:492` (D-06); (i) `tests/test_station_list_panel.py:326,332` `test_filter_strip_hidden_in_favorites_mode` `isVisibleTo` assertions replaced with `panel._stack.currentIndex()` (D-15 REVISED — root cause is unshown top-level widget, not offscreen platform); (j) `block_real_network` fixture monkeypatches BOTH `urllib.request.urlretrieve` AND `urllib.request.urlopen` (D-12 REVISED — covers cover_art `_itunes_attempt` daemon-thread urlopen leak in addition to logo-fetch urlretrieve race); fixture applied to `tests/test_main_window_underrun.py::test_first_call_shows_toast` plus the four cross-file teardown reproducers (`test_main_window_integration → test_now_playing_panel`, `test_phase72_now_playing_panel → test_phase72_assumptions`); (k) `_YtScanWorker` teardown in `tests/test_import_dialog_qt.py::test_yt_scan_passes_through` adds explicit `worker.wait(2000)` after `qtbot.waitSignal` (D-14); (l) full-suite `uv run pytest tests/` exits 0 with no `xfail`/`skip` masking the six clusters. Zero new third-party deps. Closes deferred-items.md backlog accumulated across 10+ phases since Phase 62 shipped *(surfaced 2026-05-13)*.
+
 ### SomaFM Catalog Import (SOMA)
 
 Bulk importer for the SomaFM public station catalog. Maps Phase 74 decisions D-01..D-16 and STRIDE mitigations T-74-01..T-74-05 to testable requirements pinned by RED unit tests in Plans 74-01..74-03.
@@ -189,6 +195,7 @@ Which phases cover which requirements.
 | ART-MB-14 | Phase 73 | Pending |
 | ART-MB-15 | Phase 73 | Pending |
 | ART-MB-16 | Phase 73 | Pending |
+| INFRA-01 | Phase 77 | Pending |
 | SOMA-01 | Phase 74 | Pending |
 | SOMA-02 | Phase 74 | Pending |
 | SOMA-03 | Phase 74 | Pending |
@@ -211,14 +218,16 @@ Which phases cover which requirements.
 | GBS-AUTH-01 | Phase 76 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 60 total
-- Mapped to phases: 60 ✓
+- v2.1 requirements: 61 total
+- Mapped to phases: 61 ✓
 - Unmapped: 0 ✓
 - Complete: 21
-- Pending: 39 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; BUG-11 — YouTube .desktop launcher fix, Phase 79; GBS-AUTH-01 — Phase 76 in flight; LAYOUT-02 — Phase 72.1 multi-stream picker reflow)
+- Pending: 40 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; BUG-11 — YouTube .desktop launcher fix, Phase 79; GBS-AUTH-01 — Phase 76 in flight; LAYOUT-02 — Phase 72.1 multi-stream picker reflow; INFRA-01 — Phase 77 test-infrastructure stabilization)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
+*Last updated: 2026-05-17 — INFRA-01 (Phase 77 test-infrastructure stabilization: shared FakePlayer + drift-guards + MPRIS2 unique-suffix + network-block fixture + 6 cluster fixes) added during `/gsd:plan-phase 77`. Closes deferred-items.md backlog accumulated across 10+ phases (51, 54, 55, 60.4, 61, 65, 66, 68, 71, 72, 72.1, 73) since Phase 62 shipped.*
+
 *Last updated: 2026-05-16 — GBS-AUTH-01 (in-app gbs.fm login subprocess via QtWebEngine, scope collapsed per Phase 76 D-03 verdict) added for Phase 76 during /gsd-plan-phase. API-token half dropped — Phase 60 RESEARCH 2026-05-04 + Phase 76 re-probe 2026-05-16 both confirm 403/302 across all 8 auth vectors on `/api/vote`, `/ajax`, `/add/`, `/search`.*
 
 *Last updated: 2026-05-16 — BUG-11 (YouTube `.desktop`-launcher fix: thread `NodeRuntime.path` through to yt-dlp's `js_runtimes` opt at BOTH `Player._youtube_resolve_worker` and `yt_import.scan_playlist` via shared helper `musicstreamer/yt_dlp_opts.build_js_runtimes`) added for Phase 79 during `/gsd:plan-phase`. Second half of commit `a06549f` 2026-04-25 fix.*

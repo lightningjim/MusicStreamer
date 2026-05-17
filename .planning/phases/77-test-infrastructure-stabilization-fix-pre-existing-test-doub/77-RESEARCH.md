@@ -601,22 +601,27 @@ Update the module docstring at lines 1-9 to match.
 | A3 | The 11 FakePlayer sites enumerated below are complete; no additional sites have been added since 2026-05-16 | D-09; `<phase_requirements>` section | If the planner finds a 12th site during execution (e.g., added by a parallel Phase 76 plan), it must be folded into the migration list. Re-grep at plan-execute time using `grep -rn "class _\?FakePlayer\s*(QObject" tests/` is the safety net. |
 | A4 | `pytest-socket` is not adopted (D-12 option b is REJECTED) | Standard Stack alternatives table | If the planner judges global network protection is worth the dep, the planner picks option (b) per CONTEXT.md `<discretion>`. Both paths are pre-approved; this assumption only locks the default recommendation. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All three questions were resolved during the 2026-05-17 CONTEXT.md revision pass (commit `0af7153`) and the 2026-05-17 planner run (commit pending). Original question text retained below for audit trail; resolution recorded inline.
 
 1. **D-05 correction — does the planner accept the inversion?**
    - What we know: streamlink 6.0 (PR #5033) removed `set_plugin_option`. Project pins `streamlink>=8.3`. Production uses correct API.
    - What's unclear: CONTEXT.md D-05 LOCKED the direction as "impl follows test". This research found that lock is based on a Phase 31 docstring that references a deleted API.
    - Recommendation: Planner amends D-05 to "test follows impl" with a 2-line CONTEXT.md update citing this research. Alternatively, the user re-opens discuss-phase if they want to re-decide. The mechanics matter: if the planner ships an "impl follows test" change, production will fail at runtime as soon as a Twitch URL is played because `session.set_plugin_option(...)` raises AttributeError on the real streamlink session.
+   - **RESOLVED:** D-05 was REVISED to "test follows impl" in CONTEXT.md (commit `0af7153`, 2026-05-17). Plan 77-04 Task 2 rewrites `tests/test_twitch_auth.py` to assert `session.set_option("twitch-api-header", ...)` with `MagicMock(spec=Streamlink)` so reintroducing the removed API raises AttributeError. Production at `player.py:1156` is unchanged.
 
 2. **Cluster 3 — Qt teardown crashes: how aggressive should the network-block fixture be?**
    - What we know: All 4 reproducers involve worker threads that call urllib. The cleanest surgical fix is per-test monkeypatch of `urllib.request.urlretrieve` and `urllib.request.urlopen`.
    - What's unclear: Should it be a session-level fixture in `conftest.py` (applies to all tests by default, requires opt-out for the integration tests), or per-file fixture (opt-in)? CONTEXT.md `<discretion>` covers this.
    - Recommendation: Per-file opt-in for Phase 77. Adopt a session-wide auto-block only after we have data on which tests legitimately need real network (none in `tests/`; the integration tests under `tests/integration/` are marked with `@pytest.mark.integration` and skipped by default per `pyproject.toml` test markers).
+   - **RESOLVED:** Per-file opt-in chosen — Plan 77-05 implements `block_real_network` fixture in `tests/conftest.py` that monkeypatches BOTH `urllib.request.urlretrieve` AND `urllib.request.urlopen` (D-12 REVISED, commit `0af7153`), then file-autouses it in the 4 cross-file teardown reproducers (`test_main_window_integration → test_now_playing_panel`, `test_phase72_now_playing_panel → test_phase72_assumptions`) plus per-test injection at `test_main_window_underrun.py::test_first_call_shows_toast`. Session-wide auto-block deferred until real-network legitimate-test data exists.
 
 3. **D-14 — `_YtScanWorker` cleanup: production fix vs. test fix?**
    - What we know: `_YtScanWorker` is a QThread at `musicstreamer/ui_qt/import_dialog.py:75-101`. The dialog stores it as `self._yt_scan_worker` (line 346). Production cleanup in the dialog's lifecycle is partially in place (other workers have `_shutdown_X_worker` methods at `edit_station_dialog.py:1327,1344`).
    - What's unclear: does `ImportDialog` have an analogous `_shutdown_yt_scan_worker` method? Quick grep needed at plan time.
    - Recommendation: Planner reads `musicstreamer/ui_qt/import_dialog.py` end-to-end during Plan 77's D-14 task. If a `_shutdown_*` helper is missing, add one mirroring `edit_station_dialog.py:1327-1342` exactly. If present, the fix is test-side (`qtbot.waitSignal` + `worker.wait(2000)`).
+   - **RESOLVED:** Test-side fix chosen — Plan 77-05 Task 3 adds explicit `worker.wait(2000)` after `qtbot.waitSignal` in `tests/test_import_dialog_qt.py::test_yt_scan_passes_through` (D-14). Production-code refactor of `cover_art_worker` is scope-deferred per CONTEXT.md `<discretion>` clause D-13 to a follow-up phase; Phase 77 only fixes the network-call leak (D-12) and the worker-teardown race (D-14) on the test side.
 
 ## Environment Availability
 
