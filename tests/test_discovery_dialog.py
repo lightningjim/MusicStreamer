@@ -10,14 +10,15 @@ Security note: url_resolved preference verified in save test (T-39-04).
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List
 from unittest.mock import MagicMock, call, patch
 
 import pytest
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QProgressBar, QTableView
 
 from musicstreamer.ui_qt.discovery_dialog import DiscoveryDialog
+from tests._fake_player import FakePlayer
 
 
 # ---------------------------------------------------------------------------
@@ -34,21 +35,6 @@ FAKE_RESULTS = [
         "bitrate": 128,
     }
 ]
-
-
-class FakePlayer(QObject):
-    failover = Signal(object)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.play_calls: List[Any] = []
-        self.stop_called: bool = False
-
-    def play(self, station, **kwargs) -> None:
-        self.play_calls.append(station)
-
-    def stop(self) -> None:
-        self.stop_called = True
 
 
 class FakeRepo:

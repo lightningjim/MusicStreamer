@@ -37,6 +37,10 @@ class FakeRepo:
         self._settings[key] = value
 
 
+# Phase 77 D-09 (Option A): intentionally non-QObject; EQ-only test double for
+# EqualizerDialog tests. The dialog calls player.set_eq_*() but does not connect
+# to player signals. The D-17 drift-guard regex `class\s+_?FakePlayer\s*\(QObject\)`
+# at tests/test_fake_player_no_inline.py excludes this declaration by design.
 class FakePlayer:
     def __init__(self):
         self.calls: list = []

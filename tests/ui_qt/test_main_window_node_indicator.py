@@ -10,64 +10,19 @@ AND Plan 03 wires the conditional QAction into MainWindow.__init__.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import pytest
-from PySide6.QtCore import QObject, Signal
 
 from musicstreamer.models import Station
 from musicstreamer.ui_qt.main_window import MainWindow
+from tests._fake_player import FakePlayer as _FakePlayer
 
 # Lazy import: musicstreamer.runtime_check lands in Plan 02 (Wave 1).
 # Tests are RED at execution (NodeRuntime missing AND MainWindow doesn't yet
 # accept node_runtime kwarg) but collection stays green so Plan 01 verification
 # passes. Plan 02 + Plan 03 turn these GREEN.
 NodeRuntime: Any  # populated lazily inside each test
-
-
-# ---------------------------------------------------------------------------
-# Test doubles — minimal versions of the FakePlayer/FakeRepo from
-# tests/test_main_window_integration.py. Kept in-file so this module is
-# self-contained (no cross-test fixture coupling).
-# ---------------------------------------------------------------------------
-
-
-class _FakePlayer(QObject):
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    cookies_cleared = Signal(str)
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.volume: Optional[float] = None
-
-    def set_volume(self, value: float) -> None:
-        self.volume = value
-
-    def play(self, station: Station, **kwargs) -> None:
-        pass
-
-    def pause(self) -> None:
-        pass
-
-    def stop(self) -> None:
-        pass
-
-    def restore_eq_from_settings(self, repo) -> None:
-        pass
-
-    def set_eq_enabled(self, enabled: bool) -> None:
-        pass
-
-    def set_eq_profile(self, profile) -> None:
-        pass
-
-    def set_eq_preamp(self, db: float) -> None:
-        pass
 
 
 class _FakeRepo:

@@ -17,52 +17,14 @@ Test doubles mirror tests/test_now_playing_panel.py:1-90 (FakePlayer + FakeRepo)
 from __future__ import annotations
 
 import inspect
-from typing import Any, List, Optional
+from typing import Any, Optional
 
-from PySide6.QtCore import QObject, QSize, Signal
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QToolButton, QWidget
 
 from musicstreamer.ui_qt import icons_rc  # noqa: F401  side-effect: registers :/icons
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
-
-
-# ---------------------------------------------------------------------------
-# Test doubles (mirror tests/test_now_playing_panel.py)
-# ---------------------------------------------------------------------------
-
-
-class FakePlayer(QObject):
-    """Minimal QObject mirroring Player's Signal surface used by NowPlayingPanel."""
-
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.set_volume_calls: List[float] = []
-        self.stop_called: bool = False
-        self.pause_called: bool = False
-        self.play_calls: list = []
-        self.calls: List[tuple] = []
-
-    def set_volume(self, v: float) -> None:
-        self.set_volume_calls.append(v)
-
-    def stop(self) -> None:
-        self.stop_called = True
-
-    def pause(self) -> None:
-        self.pause_called = True
-
-    def play(self, station, **kwargs) -> None:
-        self.play_calls.append(station)
-
-    def set_eq_enabled(self, enabled: bool) -> None:
-        self.calls.append(("enabled", bool(enabled)))
+from tests._fake_player import FakePlayer
 
 
 class FakeRepo:

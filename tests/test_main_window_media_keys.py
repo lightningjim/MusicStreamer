@@ -12,15 +12,14 @@ monkeypatching media_keys.create so no real D-Bus is needed.
 """
 from __future__ import annotations
 
-from typing import Optional
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QObject, Signal
 
 from musicstreamer.media_keys.base import NoOpMediaKeysBackend
 from musicstreamer.models import Station
 from musicstreamer.ui_qt.main_window import MainWindow
+from tests._fake_player import FakePlayer
 
 
 # ---------------------------------------------------------------------------
@@ -48,36 +47,8 @@ class _SpyBackend(NoOpMediaKeysBackend):
 
 
 # ---------------------------------------------------------------------------
-# Test doubles (mirrors test_main_window_integration.py)
+# Test doubles (FakePlayer from shared module; FakeRepo stays inline)
 # ---------------------------------------------------------------------------
-
-class FakePlayer(QObject):
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    cookies_cleared = Signal(str)  # Phase 999.7
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)  # Phase 47.1 D-12
-
-    def __init__(self):
-        super().__init__()
-        self.play_calls: list[Station] = []
-        self.pause_calls: int = 0
-        self.stop_calls: int = 0
-        self.volume: Optional[float] = None
-
-    def set_volume(self, value: float) -> None:
-        self.volume = value
-
-    def play(self, station: Station, **kwargs) -> None:
-        self.play_calls.append(station)
-
-    def pause(self) -> None:
-        self.pause_calls += 1
-
-    def stop(self) -> None:
-        self.stop_calls += 1
 
 
 class FakeRepo:

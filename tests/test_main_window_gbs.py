@@ -9,57 +9,11 @@ from __future__ import annotations
 
 import re
 from unittest.mock import MagicMock
-from typing import Optional
 
 import pytest
-from PySide6.QtCore import QObject, Signal
 
 from musicstreamer.ui_qt.main_window import MainWindow, _GbsImportWorker
-
-
-# ---------------------------------------------------------------------------
-# Test doubles — minimal versions sufficient for MainWindow construction.
-# Modeled on tests/ui_qt/test_main_window_node_indicator.py _FakePlayer/_FakeRepo.
-# ---------------------------------------------------------------------------
-
-class _FakePlayer(QObject):
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    cookies_cleared = Signal(str)
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)
-    underrun_recovery_started = Signal()   # Phase 62 BUG-09
-    audio_caps_detected = Signal(object)   # Phase 70 DS-01
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.volume: Optional[float] = None
-
-    def set_volume(self, value: float) -> None:
-        self.volume = value
-
-    def play(self, station, **kwargs) -> None:
-        pass
-
-    def pause(self) -> None:
-        pass
-
-    def stop(self) -> None:
-        pass
-
-    def restore_eq_from_settings(self, repo) -> None:
-        pass
-
-    def set_eq_enabled(self, enabled: bool) -> None:
-        pass
-
-    def set_eq_profile(self, profile) -> None:
-        pass
-
-    def set_eq_preamp(self, db: float) -> None:
-        pass
+from tests._fake_player import FakePlayer as _FakePlayer
 
 
 class _FakeRepo:

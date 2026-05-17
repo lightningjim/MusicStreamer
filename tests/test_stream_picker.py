@@ -12,50 +12,16 @@ Tests:
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List
 from unittest.mock import MagicMock
 
 import pytest
-from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 from musicstreamer.models import Station, StationStream
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
-
-
-# ---------------------------------------------------------------------------
-# Test doubles
-# ---------------------------------------------------------------------------
-
-
-class FakePlayer(QObject):
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    elapsed_updated = Signal(int)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._current_station_name: str = ""
-        self.play_stream = MagicMock()
-        self.set_volume_calls: List[float] = []
-        self.stop_called: bool = False
-        self.pause_called: bool = False
-        self.play_calls: List[Station] = []
-
-    def set_volume(self, v: float) -> None:
-        self.set_volume_calls.append(v)
-
-    def stop(self) -> None:
-        self.stop_called = True
-
-    def pause(self) -> None:
-        self.pause_called = True
-
-    def play(self, station, **kwargs) -> None:
-        self.play_calls.append(station)
+from tests._fake_player import FakePlayer
 
 
 class FakeRepo:
@@ -118,7 +84,11 @@ def app(qtbot):
 
 @pytest.fixture
 def player():
-    return FakePlayer()
+    p = FakePlayer()
+    # Override play_stream with a MagicMock so tests can assert call counts/args
+    # (player.play_stream.assert_called_once_with(...), .assert_not_called(), etc.)
+    p.play_stream = MagicMock()
+    return p
 
 
 @pytest.fixture

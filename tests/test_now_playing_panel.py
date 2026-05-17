@@ -9,57 +9,17 @@ Uses a FakePlayer(QObject) test double instead of the real GStreamer Player.
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import pytest
-from PySide6.QtCore import QObject, QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QFormLayout
 
 from musicstreamer.models import Station, StationStream
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
-
-
-# ---------------------------------------------------------------------------
-# Test doubles
-# ---------------------------------------------------------------------------
-
-
-class FakePlayer(QObject):
-    """Minimal QObject mirroring Player's Signal surface used by NowPlayingPanel."""
-
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)  # Phase 47.1 D-12
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.set_volume_calls: List[float] = []
-        self.stop_called: bool = False
-        self.pause_called: bool = False
-        self.play_calls: List[Station] = []
-        # Phase 47.2 D-08: track EQ toggle invocations as ("enabled", bool) tuples.
-        self.calls: List[tuple] = []
-
-    def set_volume(self, v: float) -> None:
-        self.set_volume_calls.append(v)
-
-    def stop(self) -> None:
-        self.stop_called = True
-
-    def pause(self) -> None:
-        self.pause_called = True
-
-    def play(self, station, **kwargs) -> None:
-        self.play_calls.append(station)
-
-    def set_eq_enabled(self, enabled: bool) -> None:
-        # Phase 47.2 D-08: mirrors Plan 03's canonical FakePlayer shape.
-        self.calls.append(("enabled", bool(enabled)))
+from tests._fake_player import FakePlayer
 
 
 class FakeRepo:

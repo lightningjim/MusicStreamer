@@ -5,27 +5,12 @@ and that the bundled .qrc icon resource loads (PORT-08 fallback verification).
 """
 from unittest.mock import MagicMock
 
-from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QMenuBar, QStatusBar, QWidget
 
 from musicstreamer.ui_qt import icons_rc  # noqa: F401  — ensure resources registered
 from musicstreamer.ui_qt.main_window import MainWindow
-
-
-class _FakePlayer(QObject):
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    cookies_cleared = Signal(str)  # Phase 999.7
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)  # Phase 47.1 D-12
-
-    def set_volume(self, v): pass
-    def play(self, station): pass
-    def pause(self): pass
-    def stop(self): pass
+from tests._fake_player import FakePlayer as _FakePlayer
 
 
 class _FakeRepo:

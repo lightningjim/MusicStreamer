@@ -81,6 +81,11 @@ class FakePlayer(QObject):
         self.pause_calls: int = 0
         self.stop_calls: int = 0
         self.volume: Optional[float] = None
+        # Extended tracking attributes used by NowPlayingPanel / media-keys consumers
+        self.set_volume_calls: list[float] = []
+        self.stop_called: bool = False
+        self.pause_called: bool = False
+        self.calls: list[tuple] = []  # EQ toggle tracking: ("enabled", bool) tuples
 
     # ------------------------------------------------------------------
     # Method stubs — API surface consumed by MainWindow / test consumers
@@ -88,15 +93,18 @@ class FakePlayer(QObject):
 
     def set_volume(self, value: float) -> None:
         self.volume = value
+        self.set_volume_calls.append(value)
 
     def play(self, station: Station, **kwargs) -> None:
         self.play_calls.append(station)
 
     def pause(self) -> None:
         self.pause_calls += 1
+        self.pause_called = True
 
     def stop(self) -> None:
         self.stop_calls += 1
+        self.stop_called = True
 
     def play_stream(self, stream) -> None:
         """Phase 72.1: NowPlayingPanel calls player.play_stream(s) on picker selection."""
@@ -108,7 +116,8 @@ class FakePlayer(QObject):
         pass
 
     def set_eq_enabled(self, enabled: bool) -> None:
-        pass
+        # Track EQ toggle calls — consumers assert on self.calls as ("enabled", bool) tuples
+        self.calls.append(("enabled", bool(enabled)))
 
     def set_eq_profile(self, profile) -> None:
         pass
