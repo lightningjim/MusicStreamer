@@ -11,10 +11,8 @@ Covers:
 """
 from __future__ import annotations
 
-from typing import Optional
-
 import pytest
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSplitter
 
 from musicstreamer.models import Station, StationStream
@@ -22,66 +20,7 @@ from musicstreamer.ui_qt.main_window import MainWindow
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
 from musicstreamer.ui_qt.toast import ToastOverlay
-
-
-# ---------------------------------------------------------------------------
-# Test doubles
-# ---------------------------------------------------------------------------
-
-class FakePlayer(QObject):
-    """Minimal Player surface — exposes the same Signals as the real Player."""
-
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    cookies_cleared = Signal(str)  # Phase 999.7
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)  # Phase 47.1 D-12
-    underrun_recovery_started = Signal()  # Phase 62 / D-07 — main→MainWindow toast trigger
-    audio_caps_detected = Signal(int, int, int)  # Phase 70 / DS-01: stream_id, rate_hz, bit_depth
-
-    def __init__(self):
-        super().__init__()
-        self.play_calls: list[Station] = []
-        self.pause_calls: int = 0
-        self.stop_calls: int = 0
-        self.volume: Optional[float] = None
-
-    def set_volume(self, value: float) -> None:
-        self.volume = value
-
-    def play(self, station: Station, **kwargs) -> None:
-        self.play_calls.append(station)
-
-    def pause(self) -> None:
-        self.pause_calls += 1
-
-    def stop(self) -> None:
-        self.stop_calls += 1
-
-    # Phase 47.2: EQ API stubs — MainWindow calls restore_eq_from_settings
-    # from __init__; the other methods are referenced by EqualizerDialog
-    # and included here for completeness.
-    def restore_eq_from_settings(self, repo) -> None:
-        pass
-
-    def set_eq_enabled(self, enabled: bool) -> None:
-        pass
-
-    def set_eq_profile(self, profile) -> None:
-        pass
-
-    def set_eq_preamp(self, db: float) -> None:
-        pass
-
-    def shutdown_underrun_tracker(self) -> None:
-        """Phase 62 / D-03: no-op stub — real Player force-closes any open cycle.
-
-        FakePlayer has no tracker so the call is a no-op; MainWindow.closeEvent
-        calls this in a try/except, but having it defined avoids the warning log.
-        """
-        pass
+from tests._fake_player import FakePlayer
 
 
 class FakeRepo:

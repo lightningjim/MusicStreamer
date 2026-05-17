@@ -29,7 +29,8 @@ from musicstreamer.ui_qt import main_window as mw_mod
 from musicstreamer.ui_qt.main_window import MainWindow
 
 # Reuse the established integration-test fixtures + doubles.
-from tests.test_main_window_integration import FakePlayer, FakeRepo, _make_station
+from tests._fake_player import FakePlayer
+from tests.test_main_window_integration import FakeRepo, _make_station
 
 
 # ---------------------------------------------------------------------------

@@ -49,7 +49,8 @@ from musicstreamer.ui_qt.main_window import MainWindow
 # Reuse the established FakePlayer / FakeRepo doubles from the integration
 # test module. This keeps the test surface aligned with the rest of the
 # main-window test suite and avoids cross-test divergence in mock shapes.
-from tests.test_main_window_integration import FakePlayer, FakeRepo, _make_station
+from tests._fake_player import FakePlayer
+from tests.test_main_window_integration import FakeRepo, _make_station
 
 
 @pytest.fixture

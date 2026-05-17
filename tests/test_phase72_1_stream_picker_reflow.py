@@ -62,59 +62,14 @@ import inspect
 from typing import Any, List, Optional
 
 import pytest
-from PySide6.QtCore import QObject, QSize, Signal
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QToolButton, QWidget
 
 from musicstreamer.ui_qt import icons_rc  # noqa: F401  side-effect: registers :/icons
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.models import Station, StationStream
-
-
-# ---------------------------------------------------------------------------
-# Test doubles (mirror tests/test_phase72_now_playing_panel.py:34-102)
-# ---------------------------------------------------------------------------
-
-
-class FakePlayer(QObject):
-    """Minimal QObject mirroring Player's Signal surface used by NowPlayingPanel."""
-
-    title_changed = Signal(str)
-    failover = Signal(object)
-    offline = Signal(str)
-    playback_error = Signal(str)
-    elapsed_updated = Signal(int)
-    buffer_percent = Signal(int)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.set_volume_calls: List[float] = []
-        self.stop_called: bool = False
-        self.pause_called: bool = False
-        self.play_calls: list = []
-        self.calls: List[tuple] = []
-
-    def set_volume(self, v: float) -> None:
-        self.set_volume_calls.append(v)
-
-    def stop(self) -> None:
-        self.stop_called = True
-
-    def pause(self) -> None:
-        self.pause_called = True
-
-    def play(self, station, **kwargs) -> None:
-        self.play_calls.append(station)
-
-    def play_stream(self, stream) -> None:
-        # Phase 72.1 / LAYOUT-02: required for _on_stream_selected which fires
-        # when a test calls setCurrentIndex(...) on the picker (test 5 round-trip).
-        # Plan 01 omitted this; surfaced when Plan 02's reflow allows the picker
-        # to participate in setCurrentIndex flows. [Rule 1 — missing test-double method.]
-        self.play_calls.append(stream)
-
-    def set_eq_enabled(self, enabled: bool) -> None:
-        self.calls.append(("enabled", bool(enabled)))
+from tests._fake_player import FakePlayer
 
 
 class FakeRepo:
@@ -419,8 +374,8 @@ def test_compact_mode_and_picker_wrap_independent(qtbot):
     picker stays in row 2 regardless of compact state when window is narrow.
     """
     from musicstreamer.ui_qt.main_window import MainWindow
+    from tests._fake_player import FakePlayer as MWFakePlayer
     from tests.test_main_window_integration import (
-        FakePlayer as MWFakePlayer,
         FakeRepo as MWFakeRepo,
         _make_station as mw_make_station,
     )

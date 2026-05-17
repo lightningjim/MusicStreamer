@@ -98,6 +98,10 @@ class FakePlayer(QObject):
     def stop(self) -> None:
         self.stop_calls += 1
 
+    def play_stream(self, stream) -> None:
+        """Phase 72.1: NowPlayingPanel calls player.play_stream(s) on picker selection."""
+        self.play_calls.append(stream)
+
     # Phase 47.2: EQ API stubs — MainWindow calls restore_eq_from_settings
     # from __init__; the others are referenced by EqualizerDialog.
     def restore_eq_from_settings(self, repo) -> None:

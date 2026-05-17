@@ -15,7 +15,8 @@ import pytest
 from PySide6.QtGui import QCloseEvent
 
 from musicstreamer.ui_qt.main_window import MainWindow
-from tests.test_main_window_integration import FakePlayer, FakeRepo
+from tests._fake_player import FakePlayer
+from tests.test_main_window_integration import FakeRepo
 
 
 @pytest.fixture
