@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: completed
-stopped_at: Phase 77 complete (verified)
-last_updated: "2026-05-17T19:15:34.471Z"
+stopped_at: Phase 78 context gathered
+last_updated: "2026-05-17T23:56:15.776Z"
 last_activity: 2026-05-17 -- Phase 77 marked complete
 progress:
   total_phases: 38
@@ -233,6 +233,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-17T01:49:26.947Z
-Stopped at: Phase 77 context gathered
-Resume file: .planning/phases/77-test-infrastructure-stabilization-fix-pre-existing-test-doub/77-CONTEXT.md
+Last session: 2026-05-17T23:56:15.764Z
+Stopped at: Phase 78 context gathered
+Resume file: .planning/phases/78-phase-62-follow-up-buffer-underrun-behavior-fix-phase-62-bug/78-CONTEXT.md
