@@ -992,6 +992,13 @@ class NowPlayingPanel(QWidget):
         self.stopped_by_user.emit()
         # Keep _station so edit button remains functional after stop (UAT #3 fix)
         self.stream_combo.setVisible(False)
+        # Phase 72.1 / LAYOUT-02 / WR-02: _on_stop_clicked is a second writer of
+        # stream_combo.setVisible(False). Without this rehome, the picker is
+        # invisible but still in row 2's layout slot until the next resize
+        # event reconciles it. Mirror _populate_stream_picker's hook (D-Discretion)
+        # so layout state stays consistent with visibility state immediately.
+        self._move_stream_picker_to(self.controls)
+        self._set_picker_size_policy(expanding=False)
         self._last_icy_title = ""
         self.star_btn.setChecked(False)
         self._update_star_enabled()
@@ -1174,7 +1181,10 @@ class NowPlayingPanel(QWidget):
         # stream case defers to the next resizeEvent tick (resize is sampled
         # often enough). Pattern E invariant: line above is still the SINGLE
         # writer of stream_combo.setVisible — this block only owns layout.
-        if not self.stream_combo.isVisible():
+        # Use isHidden() (not `not isVisible()`) to match _reflow_stream_picker_row's
+        # symmetric predicate — isVisible() returns False when an ancestor is
+        # not shown, producing false-positive rehomes in pre-show contexts.
+        if self.stream_combo.isHidden():
             self._move_stream_picker_to(self.controls)
             self._set_picker_size_policy(expanding=False)
 
@@ -1236,11 +1246,17 @@ class NowPlayingPanel(QWidget):
         if self._cached_row1_min is not None:
             return self._cached_row1_min
         # Row 1 (center column) intrinsic minimum.
+        # CR-01 fix: threshold is "what would row 1 need to fit IF the picker
+        # were here?" — a layout-agnostic question. Walking self.controls and
+        # summing whatever widgets are currently there mis-computes when the
+        # picker is currently in row 2 (would drop ~148px and self-reproduce
+        # the original overflow on the next bind_station→resize cycle).
         layout = self.controls  # row 1 QHBoxLayout
         margins = layout.contentsMargins()
         spacing = layout.spacing()
         total = margins.left() + margins.right()
         widget_count = 0
+        picker_in_row1 = layout.indexOf(self.stream_combo) >= 0
         for i in range(layout.count()):
             item = layout.itemAt(i)
             w = item.widget()
@@ -1249,6 +1265,14 @@ class NowPlayingPanel(QWidget):
                 continue
             wmin = max(w.minimumWidth(), w.minimumSizeHint().width())
             total += wmin
+            widget_count += 1
+        if not picker_in_row1:
+            # Picker currently in row 2 -- add its row-1 contribution
+            # explicitly so the threshold is layout-agnostic (CR-01).
+            total += max(
+                self.stream_combo.minimumWidth(),
+                self.stream_combo.minimumSizeHint().width(),
+            )
             widget_count += 1
         if widget_count > 1:
             total += spacing * (widget_count - 1)
@@ -1259,9 +1283,6 @@ class NowPlayingPanel(QWidget):
         if outer is not None:
             om = outer.contentsMargins()
             total += om.left() + om.right()
-            # outer spacing * (number-of-non-center-items) accounts for the
-            # gaps logo<->center<->cover (2 gaps when outer has 3 items).
-            outer_widget_count = 0
             for i in range(outer.count()):
                 item = outer.itemAt(i)
                 w = item.widget()
@@ -1269,10 +1290,8 @@ class NowPlayingPanel(QWidget):
                     # logo_label / cover container -- count their minimum width.
                     wmin = max(w.minimumWidth(), w.minimumSizeHint().width())
                     total += wmin
-                    outer_widget_count += 1
-            # Outer spacing between every item (including center layout) is
-            # outer.count() - 1 gaps. center is one of the items so the gap
-            # count is correct.
+            # Qt's QBoxLayout inserts spacing between every adjacent item
+            # (widget or sub-layout), so gap count = outer.count() - 1.
             if outer.count() > 1:
                 total += outer.spacing() * (outer.count() - 1)
         # Safety buffer per Open Question 4 (splitter handle + rounding).

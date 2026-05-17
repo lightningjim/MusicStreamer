@@ -243,9 +243,19 @@ def _assert_stream_combo_in_layout(
     membership), so cross-checking via `.parent()` always returns the panel.
     The authoritative membership check is `layout.indexOf(widget) >= 0`.
     """
+    other_layout = (
+        panel._controls_row2 if expected_layout is panel.controls else panel.controls
+    )
     assert expected_layout.indexOf(panel.stream_combo) >= 0, (
         f"{msg}stream_combo not in expected layout "
         f"(indexOf={expected_layout.indexOf(panel.stream_combo)})"
+    )
+    # WR-03: also assert the OTHER layout does not also contain the picker —
+    # a double-membership regression would produce the exact overlap bug
+    # Phase 72.1 was built to fix, and indexOf-only would not catch it.
+    assert other_layout.indexOf(panel.stream_combo) == -1, (
+        f"{msg}stream_combo unexpectedly present in the OTHER layout too "
+        f"(double-membership bug — would reproduce the overlap)"
     )
     assert panel.stream_combo.parent() is panel, (
         f"{msg}stream_combo's QObject parent should always be the NowPlayingPanel"
@@ -450,23 +460,43 @@ def test_compact_mode_and_picker_wrap_independent(qtbot):
         window.show()
     panel = window.now_playing
     panel.bind_station(station)
-    window.resize(560, 800)
 
-    # Picker should be on row 2 (width-driven trigger).
+    # WR-04 fix: a genuine independence test compares the row decision at
+    # the SAME panel width across both compact states. The old test resized
+    # to 560×800 and toggled compact, which doesn't disprove mode-coupling
+    # because compact-ON at 560px still leaves the panel narrow. Here we
+    # sweep two width regimes and assert that compact-toggle does NOT
+    # change the row decision at either regime.
+
+    # Regime 1 — narrow window: picker should be on row 2 in both compact states.
+    window.resize(560, 800)
+    qtbot.wait(0)
     _assert_stream_combo_in_layout(
         panel, panel._controls_row2, "narrow + compact-off: "
     )
-
-    # Toggle compact ON.
     panel.compact_mode_toggle_btn.click()
+    qtbot.wait(0)
     _assert_stream_combo_in_layout(
         panel, panel._controls_row2, "narrow + compact-on: "
     )
-
-    # Toggle compact OFF.
-    panel.compact_mode_toggle_btn.click()
+    panel.compact_mode_toggle_btn.click()  # reset to compact-OFF
+    qtbot.wait(0)
     _assert_stream_combo_in_layout(
         panel, panel._controls_row2, "narrow + compact-off (round-trip): "
+    )
+
+    # Regime 2 — wide window: picker should be on row 1 in both compact states.
+    # Width chosen comfortably above the panel's computed row-1-with-picker
+    # threshold so both compact states keep panel.width() above the threshold.
+    window.resize(1600, 800)
+    qtbot.wait(0)
+    _assert_stream_combo_in_layout(
+        panel, panel.controls, "wide + compact-off: "
+    )
+    panel.compact_mode_toggle_btn.click()
+    qtbot.wait(0)
+    _assert_stream_combo_in_layout(
+        panel, panel.controls, "wide + compact-on: "
     )
 
 
@@ -568,9 +598,15 @@ def test_no_lambda_in_reflow_wiring():
     regression net for Plans 02/03.
     """
     src = inspect.getsource(NowPlayingPanel)
+    # IN-03 fix: include ALL reflow helpers, not just the three above.
+    # _set_picker_size_policy and _picker_row_min_width are pure-compute
+    # today, but a future regression adding e.g. setSizePolicy_changed.connect
+    # to them would slip past this lint if they're not enumerated.
     targets = (
         "_reflow_stream_picker_row",
         "_move_stream_picker_to",
+        "_set_picker_size_policy",
+        "_picker_row_min_width",
         "resizeEvent",
     )
     for line in src.splitlines():
@@ -578,3 +614,49 @@ def test_no_lambda_in_reflow_wiring():
             assert "lambda" not in line, (
                 f"QA-05 violated — lambda on reflow-related line: {line!r}"
             )
+
+
+def test_multi_to_multi_mid_narrow_keeps_picker_on_row_2(qtbot):
+    """CR-01 regression: bind_station between two multi-stream stations while
+    narrow must NOT flip the picker back to row 1.
+
+    Scenario the original CR-01 bug: user is in narrow mode with multi-stream
+    station A → picker on row 2. User picks multi-stream station B → bind_station
+    fires _populate_stream_picker → invalidates threshold cache. On the next
+    reflow, _picker_row_min_width walks self.controls (picker is in row 2 →
+    not seen → sum drops by ~148px). Predicate misclassifies; picker flips
+    back to row 1 — reproducing the original overflow this phase was built
+    to fix.
+
+    Fix: _picker_row_min_width now adds the picker's contribution explicitly
+    when it's currently in row 2, making the threshold layout-agnostic.
+    """
+    multi_a = _make_multi_stream_station(stream_count=3, station_id=1, name="A")
+    multi_b = _make_multi_stream_station(stream_count=3, station_id=2, name="B")
+    panel = _make_panel(
+        qtbot,
+        streams_by_station={
+            multi_a.id: list(multi_a.streams),
+            multi_b.id: list(multi_b.streams),
+        },
+    )
+    panel.bind_station(multi_a)
+    panel.resize(560, 800)
+    _assert_stream_combo_in_layout(panel, panel._controls_row2, "A in row 2: ")
+
+    # Mid-narrow station change to ANOTHER multi-stream station.
+    # This invalidates the threshold cache (line 1170). The next reflow
+    # MUST keep the picker on row 2 — not flip it back due to a stale-low
+    # recomputed threshold.
+    panel.bind_station(multi_b)
+
+    # Force a no-op resize to trigger a reflow tick (some Qt paths defer).
+    panel.resize(560, 800)
+    qtbot.wait(0)
+
+    _assert_stream_combo_in_layout(
+        panel, panel._controls_row2, "B in row 2 after multi→multi switch: "
+    )
+    assert panel.stream_combo.isVisible() is True, (
+        "Picker should remain visible (still multi-stream)"
+    )
