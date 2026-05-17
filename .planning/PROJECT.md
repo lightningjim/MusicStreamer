@@ -50,7 +50,7 @@ Finding and playing a stream should take seconds — the right station should al
 ## Current State (Phase 69 complete — 2026-05-11)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
-- **LOC:** ~13,000 Python total (source + tests) | **Tests:** 399 passing, 1 pre-existing failure
+- **LOC:** ~13,000 Python total (source + tests) | **Tests:** 1462 passing, 1 skipped (Phase 77 closed 6-cluster deferred-items backlog — 2026-05-17; 12 collection errors + 34 test-item failures are env-gap requiring PyGObject/gi install; 1 carry-over failure test_hamburger_menu_actions from Phase 74/76; 7 MPRIS2 cross-file failures D-03-deferred to follow-up phase — see 77-06-SUMMARY.md)
 - **Stack:** Python + PySide6 + GStreamer + SQLite + yt-dlp + streamlink + urllib (iTunes API, Radio-Browser API, AudioAddict API). GTK4/Libadwaita deleted in Phase 36. Node.js runtime for yt-dlp EJS solver. mpv removed in Phase 35.
 - **Station list:** Provider-grouped tree + recently played section; collapsible filter strip with search box, provider/tag chip rows (FlowLayout wrapping, OR-within/AND-between), clear-all; segmented Stations/Favorites toggle; station star delegate on tree rows
 - **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop+StreamPicker | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites; edit button opens EditStationDialog; stream picker QComboBox syncs with failover
