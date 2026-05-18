@@ -176,6 +176,17 @@ def _run_gui(argv: list[str]) -> int:
     from musicstreamer import migration
     migration.run_migration()
 
+    # Phase 78 / BUG-09 Commit A: install rotating file handler on the
+    # musicstreamer.player logger so buffer_underrun lines also land at
+    # ~/.local/share/musicstreamer/buffer-events.log regardless of launch
+    # context (.desktop vs terminal). MUST run AFTER migration.run_migration()
+    # so DATA_DIR exists (Pitfall 1 — RotatingFileHandler opens eagerly). The
+    # install function is idempotent so re-entry / hot-reload is safe. The
+    # named-logger attach preserves Pitfall 5 (basicConfig WARNING is global
+    # and stays untouched at __main__.py line 231).
+    from musicstreamer.buffer_log import install_buffer_events_handler
+    install_buffer_events_handler()
+
     from PySide6.QtWidgets import QApplication
     from musicstreamer.ui_qt import icons_rc  # noqa: F401  (D-24 side-effect resource import)
     from musicstreamer.ui_qt.main_window import MainWindow
