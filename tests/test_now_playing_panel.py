@@ -663,6 +663,29 @@ def test_set_buffer_percent_updates_both(qtbot):
     assert panel.buffer_pct_label.text() == "73%"
 
 
+def test_underrun_count_row_present(qtbot):
+    """B-78A-11: Phase 78 / BUG-09 Commit A — Underruns row exists in
+    _build_stats_widget with default value text '0' (mirrors Player's
+    _underrun_event_count: int = 0 initial state from Plan 78-02).
+    """
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    assert panel._underrun_count_label.text() == "0"
+
+
+def test_set_underrun_count_updates_label(qtbot):
+    """Phase 78 / BUG-09 Commit A — set_underrun_count(int) is the receiver
+    slot for Player.underrun_count_changed. Updates the label text to the
+    integer-coerced count; idempotent on the default '0' value.
+    """
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.set_underrun_count(5)
+    assert panel._underrun_count_label.text() == "5"
+    panel.set_underrun_count(0)
+    assert panel._underrun_count_label.text() == "0"
+
+
 def test_set_stats_visible_toggles(qtbot):
     """D-07: set_stats_visible flips the wrapper hidden flag both ways."""
     panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))

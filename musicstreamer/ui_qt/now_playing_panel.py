@@ -948,6 +948,16 @@ class NowPlayingPanel(QWidget):
         self.buffer_bar.setValue(int(percent))
         self.buffer_pct_label.setText(f"{int(percent)}%")
 
+    def set_underrun_count(self, count: int) -> None:
+        """Phase 78 / BUG-09 Commit A: receiver for Player.underrun_count_changed.
+
+        Updates the Underruns stats-for-nerds row text to the new cumulative
+        cycle count. The int() coercion is defensive (mirrors set_buffer_percent's
+        pattern); the wrapper-level set_stats_visible governs visibility for
+        both this row and the Buffer row above.
+        """
+        self._underrun_count_label.setText(str(int(count)))
+
     def set_stats_visible(self, visible: bool) -> None:
         """Toggle the stats-for-nerds wrapper visibility (D-07). Phase 47.1."""
         self._stats_widget.setVisible(bool(visible))
@@ -2476,6 +2486,14 @@ class NowPlayingPanel(QWidget):
         value_layout.addStretch(1)
 
         form.addRow(buffer_row_label, value_row)
+        # Phase 78 / BUG-09 Commit A: cumulative underrun cycle count row.
+        # Two-column shape mirrors the Buffer row above (RESEARCH Open Q2);
+        # _MutedLabel preserves theme-flip readability per Phase 47.1 D-10;
+        # the wrapper-level setVisible(False) below applies to BOTH rows —
+        # no per-row visibility code is needed (set_stats_visible governs both).
+        underrun_row_label = _MutedLabel("Underruns", wrapper)
+        self._underrun_count_label = _MutedLabel("0", wrapper)
+        form.addRow(underrun_row_label, self._underrun_count_label)
         # D-05: default hidden. MainWindow drives visibility from the QAction's
         # checked state after construction (WR-02: single source of truth).
         wrapper.setVisible(False)
