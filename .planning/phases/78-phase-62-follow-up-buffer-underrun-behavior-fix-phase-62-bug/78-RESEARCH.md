@@ -547,26 +547,32 @@ def _build_stats_widget(self) -> QWidget:
 | A5 | The Phase 77 INFRA-01 drift-guards `tests/test_fake_player_signal_parity.py` and `tests/test_fake_player_no_inline.py` are currently green and will fire if the planner adds `underrun_count_changed` to Player without mirroring on `_fake_player.py`. | Pitfall 4 | Drift-guards inspected; logic confirmed. `[VERIFIED: source inspection]` |
 | A6 | The Phase 77-introduced `block_real_network` fixture's `urlopen` MagicMock side-effect (`OSError`) is safe for `test_first_call_shows_toast` and similar — no cascading errors during MainWindow construction. | Validation Architecture | Phase 77 already shipped this pattern across `tests/test_main_window_underrun.py` (line 32 in current source). `[VERIFIED: source inspection]` |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All four open questions were resolved during planning. Each entry's resolution and the implementing plan/task is cited inline.
 
 1. **Formatter prefix in the file line — `%(asctime)s` or bare `%(message)s`?**
    - What we know: CONTEXT.md `<specifics>` says "byte-for-byte the same as the existing stderr line" but the existing stderr line is prefixed with `INFO:musicstreamer.player:` (basicConfig default). The structured `buffer_underrun ...` payload is what grep actually targets — and it's identical in both sinks regardless of formatter choice.
    - What's unclear: whether the planner should add `%(asctime)s` to the file formatter (gives each line an independent ISO datestamp on top of the in-line `start_ts=%.3f`) or leave it bare.
    - Recommendation: include `%(asctime)s` so the file is self-stamping for the harvest analysis. The Discretion permits either; mention the choice in PLANS but don't block the user.
+   - **— RESOLVED:** include `%(asctime)s %(message)s` formatter on the file handler. Locked in Plan 78-01 Task 2 action.
 
 2. **Underrun count row label text — "Underruns: {N}" or just "Underruns" with value column "{N}"?**
    - What we know: CONTEXT.md `<domain>` writes "expose `Underruns: {N}` row" but the existing Buffer row uses two-column layout: label "Buffer" on left, value (`buffer_bar` + `buffer_pct_label`) on right. Using the same shape gives a clean `Underruns | 0` two-column read.
    - What's unclear: whether the user prefers the colon-formatted single-cell shape or the existing two-column shape.
    - Recommendation: match the existing Buffer row's two-column shape (label "Underruns" on left, integer string on right). Consistent with Phase 47.1 D-10's _MutedLabel pattern and the existing `QFormLayout` semantics. Visually it reads identical to "Underruns: N" if both are on the same form row.
+   - **— RESOLVED:** match the existing Buffer row's two-column `QFormLayout` shape (label "Underruns" / value `_MutedLabel("0")`). Locked in Plan 78-03 Task 1 action.
 
 3. **Should Commit A also pre-touch (create) the empty `buffer-events.log` file at install time?**
    - What we know: CONTEXT.md `<decisions>` Claude's Discretion says "No need to `touch` it at install time" — explicit not-do.
    - Recommendation: don't pre-touch. Handler opens lazily on first emit (or eagerly with `delay=False`, but only after migration ran — so DATA_DIR exists). No issue.
+   - **— RESOLVED:** no pre-touch. Honors CONTEXT.md Claude's Discretion explicit not-do. Locked in Plan 78-01 Task 2 (handler created lazily on first emit).
 
 4. **Where exactly should the `install_buffer_events_handler()` function live?**
    - What we know: `__main__.py` is the existing install site for logger config. CONTEXT.md `<code_context>` Integration Points #1 says "`musicstreamer/__main__.py:222–226` (near the existing `setLevel(INFO)` call)". But Pitfall 1 above shows the handler attach must happen AFTER `migration.run_migration()`, which is in `_run_gui` not in `main`.
    - What's unclear: whether the planner should (a) move the install call to `_run_gui` post-migration but keep the `setLevel(INFO)` in `main()`, OR (b) extract a small helper module `musicstreamer/buffer_log.py` and call it from `_run_gui`.
    - Recommendation: option (b) — extract a tiny `musicstreamer/buffer_log.py` with a single `install_buffer_events_handler()` function. This makes the test surface clean (Pitfall 6 test pattern works against the module directly) and matches the project's preference for narrow, testable helpers (cf. `cookie_utils.py`, `yt_dlp_opts.py`, `desktop_install.py`).
+   - **— RESOLVED:** option (b) — extract `musicstreamer/buffer_log.py` with `install_buffer_events_handler()` called from `_run_gui` AFTER `migration.run_migration()`. Locked in Plan 78-01 Tasks 2 (helper module + tests) and 3 (call site).
 
 ## Environment Availability
 

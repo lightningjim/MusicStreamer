@@ -1,10 +1,11 @@
 ---
 phase: 78
 slug: phase-62-follow-up-buffer-underrun-behavior-fix-phase-62-bug
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-17
+approved: 2026-05-17
 ---
 
 # Phase 78 — Validation Strategy
@@ -81,11 +82,11 @@ created: 2026-05-17
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 5s (quick command estimated ~2s)
-- [ ] `nyquist_compliant: true` set in frontmatter after planner sign-off
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies — 13 behavior IDs B-78A-01..13 each map 1:1 to a plan task acceptance criterion.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify — every task has at least one `uv run pytest` command.
+- [x] Wave 0 covers all MISSING references — 2 new test files + 3 new test cases in existing files + 1 FakePlayer parity edit.
+- [x] No watch-mode flags — every command uses `-x` or `-q`, no `--watch`.
+- [x] Feedback latency < 5s (quick command estimated ~2s) — narrow per-task suite, full suite ~30s reserved for wave-merge.
+- [x] `nyquist_compliant: true` set in frontmatter (post planner sign-off).
 
-**Approval:** pending
+**Approval:** approved 2026-05-17 (Phase 78 Commit A scope only; Commit B's VALIDATION.md will be a separate sign-off after harvest week).
