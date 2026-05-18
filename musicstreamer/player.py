@@ -275,6 +275,12 @@ class Player(QObject):
     _underrun_cycle_opened    = Signal()         # bus-loop → main: arm dwell timer
     _underrun_cycle_closed    = Signal(object)   # bus-loop → main: log + cancel dwell (object = _CycleClose)
     underrun_recovery_started = Signal()         # main → MainWindow: show_toast (D-07)
+    # Phase 78 / BUG-09 Commit A: cumulative cycle counter for stats-for-nerds row.
+    # Emitted from _on_underrun_cycle_closed (main-thread slot — the receiving end
+    # of the queued _underrun_cycle_closed connection above). Both emitter and
+    # receiver (MainWindow → NowPlayingPanel) are on the main thread, so the wire
+    # uses DirectConnection (default) — qt-glib-bus-threading.md Pitfall 2 satisfied.
+    underrun_count_changed    = Signal(int)      # main → MainWindow → NowPlayingPanel.set_underrun_count
 
     # Phase 70 / DS-01: streaming/bus thread → main: persist sample_rate_hz / bit_depth
     # for the playing stream. Emitted with QueuedConnection on the receiver side
@@ -440,6 +446,10 @@ class Player(QObject):
         # _current_station_id mirrors _current_station_name for log-line context.
         self._tracker = _BufferUnderrunTracker()
         self._current_station_id: int = 0
+        # Phase 78 / BUG-09 Commit A: cumulative cycle count (resets per launch,
+        # CONTEXT.md Discretion — the file sink from Plan 78-01 is the persistent record).
+        # Type-annotated zero — Pitfall 3 (never rely on set-on-first-write semantics).
+        self._underrun_event_count: int = 0
 
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
@@ -932,6 +942,11 @@ class Player(QObject):
             record.station_id, record.station_name, record.url,
             record.outcome, record.cause_hint,
         )
+        # Phase 78 / BUG-09 Commit A: increment + emit on EVERY cycle close
+        # (every outcome — recovered / failover / stop / pause / shutdown —
+        # mirrors the file-sink one-line-per-cycle semantics per CONTEXT <specifics>).
+        self._underrun_event_count += 1
+        self.underrun_count_changed.emit(self._underrun_event_count)
 
     def _on_underrun_dwell_elapsed(self) -> None:
         """Main-thread QTimer.timeout slot (Phase 62 / D-07). Cycle has been

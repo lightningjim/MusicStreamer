@@ -3,7 +3,7 @@
 Phase 77 D-07 / D-08 / D-16 / D-17.
 
 This module declares a single canonical ``FakePlayer(QObject)`` that mirrors
-**all 18 Signals** currently on ``musicstreamer.player.Player``.  The canonical
+**all 19 Signals** currently on ``musicstreamer.player.Player``.  The canonical
 Signal source of truth is ``musicstreamer/player.py:241-282``.
 
 Rule 1 — before any future maintenance session, re-grep the production Signal
@@ -33,7 +33,7 @@ class FakePlayer(QObject):
     """Canonical shared Player test double.
 
     Mirrors every Signal declared on ``musicstreamer.player.Player``
-    (18 signals, D-16 invariant) and provides method stubs for the API
+    (19 signals, D-16 invariant) and provides method stubs for the API
     surface touched by MainWindow, EditStationDialog, and NowPlayingPanel
     test consumers.
 
@@ -67,6 +67,7 @@ class FakePlayer(QObject):
     _underrun_cycle_opened         = Signal()
     _underrun_cycle_closed         = Signal(object)
     underrun_recovery_started      = Signal()
+    underrun_count_changed         = Signal(int)  # Phase 78 / BUG-09 Commit A
 
     # Phase 70 / DS-01 caps signal (1)
     audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth
