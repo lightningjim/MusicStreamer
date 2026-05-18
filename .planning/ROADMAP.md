@@ -857,18 +857,18 @@ Plans:
 **Goal:** Ship Phase 78 Commit A — the harvest-infrastructure half of BUG-09 SC #3. Add a size-rotated diagnostic file sink (`RotatingFileHandler`, 1MB × 3 backups) on the `musicstreamer.player` logger so the existing Phase 62 `buffer_underrun ...` INFO lines also land at `~/.local/share/musicstreamer/buffer-events.log` regardless of launch context. Promote the Phase 62 D-Discretion `_underrun_event_count` field to a live `Underruns: {N}` row in the stats-for-nerds panel via a new `underrun_count_changed = Signal(int)` on Player wired through MainWindow to NowPlayingPanel. `__main__.py` `basicConfig(WARNING)` is byte-identical (Pitfall 5 invariant); INFRA-01 FakePlayer drift-guard remains green via a parity edit shipped in the same wave as the Player Signal addition. Commit B (the actual buffer-tuning behavior fix) is deferred to a follow-up planning pass after ~1 week of real-world harvest (CONTEXT.md D-01).
 **Requirements**: BUG-09
 **Depends on:** Phase 77
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 
 **Wave 1** *(parallel-safe — no file overlap)*
 
-- [ ] 78-01-PLAN.md — File sink + path helper: musicstreamer/buffer_log.py (new) + paths.buffer_events_log_path() + __main__._run_gui install AFTER migration.run_migration() + tests (B-78A-01..06, B-78A-13)
-- [ ] 78-02-PLAN.md — Player counter + Signal + FakePlayer parity: underrun_count_changed = Signal(int) + _underrun_event_count field + emit on every cycle_close + tests/_fake_player.py mirror (INFRA-01 drift-guard) + new test_player_underrun_count.py (B-78A-07..10)
+- [x] 78-01-PLAN.md — File sink + path helper: musicstreamer/buffer_log.py (new) + paths.buffer_events_log_path() + __main__._run_gui install AFTER migration.run_migration() + tests (B-78A-01..06, B-78A-13)
+- [x] 78-02-PLAN.md — Player counter + Signal + FakePlayer parity: underrun_count_changed = Signal(int) + _underrun_event_count field + emit on every cycle_close + tests/_fake_player.py mirror (INFRA-01 drift-guard) + new test_player_underrun_count.py (B-78A-07..10)
 
 **Wave 2** *(depends on 78-02 — needs new Signal on Player)*
 
-- [ ] 78-03-PLAN.md — UI row + Signal wiring: NowPlayingPanel Underruns row + set_underrun_count(int) slot + MainWindow Player.underrun_count_changed → NowPlayingPanel.set_underrun_count (bound method, DirectConnection) + integration test (B-78A-11, B-78A-12)
+- [x] 78-03-PLAN.md — UI row + Signal wiring: NowPlayingPanel Underruns row + set_underrun_count(int) slot + MainWindow Player.underrun_count_changed → NowPlayingPanel.set_underrun_count (bound method, DirectConnection) + integration test (B-78A-11, B-78A-12)
 
 ### Phase 79: Fix YouTube 'stream exhausted' when launched via desktop app (works via pipx/dev script)
 
