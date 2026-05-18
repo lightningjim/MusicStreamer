@@ -42,6 +42,25 @@ def test_first_call_shows_toast(qtbot, fake_player, fake_repo, monkeypatch, bloc
     assert "Buffering" in w._toast.label.text()
 
 
+def test_count_changed_updates_stats_row(qtbot, fake_player, fake_repo, block_real_network):
+    """B-78A-12: Phase 78 / BUG-09 Commit A — end-to-end Signal → label.
+
+    MainWindow wires Player.underrun_count_changed →
+    NowPlayingPanel.set_underrun_count one line below the buffer_percent
+    connection at main_window.py:381 (DirectConnection — both ends on the
+    main thread, RESEARCH A3). Emitting the FakePlayer signal here mimics
+    the post-cycle-close emit from Player._on_underrun_cycle_closed.
+    """
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    fake_player.underrun_count_changed.emit(3)
+    qtbot.wait(50)  # DirectConnection is synchronous; defensive wait
+    assert w.now_playing._underrun_count_label.text() == "3"
+    fake_player.underrun_count_changed.emit(7)
+    qtbot.wait(50)
+    assert w.now_playing._underrun_count_label.text() == "7"
+
+
 def test_second_call_within_cooldown_suppressed(qtbot, fake_player, fake_repo, monkeypatch):
     """D-08: second emit within 10s does NOT update the toast (cooldown gate)."""
     times = iter([1000.0, 1005.0])  # 5s gap — within 10s cooldown

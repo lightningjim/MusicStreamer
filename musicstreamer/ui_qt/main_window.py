@@ -379,6 +379,15 @@ class MainWindow(QMainWindow):
         self._player.title_changed.connect(self.now_playing.on_title_changed)
         self._player.elapsed_updated.connect(self.now_playing.on_elapsed_updated)
         self._player.buffer_percent.connect(self.now_playing.set_buffer_percent)
+        # Phase 78 / BUG-09 Commit A: cumulative underrun cycle count → stats-for-nerds row.
+        # Bound method per QA-05 / §S-3 (no lambda). DirectConnection (default — no
+        # Qt.ConnectionType.QueuedConnection argument) is correct because the emit
+        # site is Player._on_underrun_cycle_closed (main-thread slot, RESEARCH A3) and
+        # the receiver NowPlayingPanel.set_underrun_count is a QWidget slot also on
+        # the main thread (Pitfall 2 satisfied). This differs from the Phase 62
+        # underrun_recovery_started connection below, which uses QueuedConnection
+        # defensively for unrelated reasons — do NOT harmonize the two wires.
+        self._player.underrun_count_changed.connect(self.now_playing.set_underrun_count)
 
         # Player → toast notifications (D-11)
         self._player.failover.connect(self._on_failover)
