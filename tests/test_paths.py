@@ -30,6 +30,7 @@ def test_root_override_redirects_all_accessors(tmp_path):
     assert paths.cookies_path() == os.path.join(root, "cookies.txt")
     assert paths.twitch_token_path() == os.path.join(root, "twitch-token.txt")
     assert paths.oauth_log_path() == os.path.join(root, "oauth.log")
+    assert paths.buffer_events_log_path() == os.path.join(root, "buffer-events.log")
     assert paths.accent_css_path() == os.path.join(root, "accent.css")
     assert paths.migration_marker() == os.path.join(root, ".platformdirs-migrated")
 
@@ -50,6 +51,7 @@ def test_paths_do_no_io_on_import(tmp_path):
     paths.cookies_path()
     paths.twitch_token_path()
     paths.oauth_log_path()
+    paths.buffer_events_log_path()
     paths.accent_css_path()
     paths.migration_marker()
     after = set(os.listdir(tmp_path))
@@ -66,6 +68,19 @@ def test_oauth_log_path_does_not_create_file(monkeypatch, tmp_path):
     """Purity contract: helper returns a string; does NOT touch disk."""
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     result = paths.oauth_log_path()
+    assert os.path.exists(result) is False
+
+
+def test_buffer_events_log_path(monkeypatch, tmp_path):
+    """Phase 78 / BUG-09 D-03: buffer-events.log path resolves under the override root."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    assert paths.buffer_events_log_path() == os.path.join(str(tmp_path), "buffer-events.log")
+
+
+def test_buffer_events_log_path_does_not_create_file(monkeypatch, tmp_path):
+    """Purity contract: helper returns a string; does NOT touch disk."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    result = paths.buffer_events_log_path()
     assert os.path.exists(result) is False
 
 

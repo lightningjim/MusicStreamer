@@ -65,6 +65,11 @@ def oauth_log_path() -> str:
     return os.path.join(_root(), "oauth.log")
 
 
+def buffer_events_log_path() -> str:
+    """Phase 78 / BUG-09 D-03: path to the size-rotated buffer-event diagnostic log."""
+    return os.path.join(_root(), "buffer-events.log")
+
+
 def accent_css_path() -> str:
     return os.path.join(_root(), "accent.css")
 
