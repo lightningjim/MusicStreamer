@@ -1,0 +1,23 @@
+{
+  "phase": 80,
+  "started_at": "2026-05-17",
+  "areas_total": 4,
+  "areas_completed": 2,
+  "current_area": "Drift-guard mechanism",
+  "decisions": {
+    "Orphan-sweep policy + location": {
+      "sweep_action": "Delete + INFO-log counts when N>0",
+      "sweep_home": "Separate sweep_orphans(con) function called from __main__._run_gui after db_init()",
+      "run_cadence": "Every app start (idempotent; sub-millisecond when N=0)",
+      "n0_logging": "Silent on N=0; INFO line only when N>0"
+    },
+    "Which tables to sweep": {
+      "tables": "Only real FK child tables: station_streams + station_siblings",
+      "favorites_excluded": "Favorites has no FK; v1.3 FAVES-01..04 intentionally persists track titles after station delete",
+      "station_siblings_strategy": "Single DELETE handles both a_id and b_id orphans atomically",
+      "provider_fk_skipped": "stations.provider_id is SET NULL not CASCADE; dangling ref ≠ orphan; out of scope"
+    }
+  },
+  "deferred_ideas": [],
+  "canonical_refs_accumulated": []
+}
