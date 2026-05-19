@@ -62,6 +62,15 @@ def db_connect() -> sqlite3.Connection:
     (``tests/test_db_connect_is_sole_connection_factory.py``, landing in
     Plan 80-04) asserts that no other call site of ``sqlite3.connect(...)``
     exists in the production tree.
+
+    Caller owns the connection lifecycle and is responsible for calling
+    ``con.close()`` — matching ``sweep_orphans``'s contract. Several
+    pre-existing ``Repo(db_connect())`` call sites in ``aa_import.py``,
+    ``soma_import.py``, ``ui_qt/import_dialog.py``, ``ui_qt/main_window.py``,
+    and ``ui_qt/settings_import_dialog.py`` orphan the connection today
+    (WR-03 from the Phase 80 review). A follow-up phase should introduce a
+    ``with db_session() as repo:`` context-manager wrapper and migrate
+    those call sites.
     """
     global _pragma_drift_logged
     con = sqlite3.connect(paths.db_path())
