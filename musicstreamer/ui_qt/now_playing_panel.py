@@ -1555,10 +1555,17 @@ class NowPlayingPanel(QWidget):
         if pix.isNull():
             self._show_station_logo_in_cover_slot()
             return
+        # Phase 72.3 / LAYOUT-03 / D-03: central tier size, with medium
+        # default for the brief window between __init__ and the first
+        # resizeEvent. Aspect-ratio logic is unchanged (KeepAspectRatio +
+        # SmoothTransformation -- preserves YouTube 16:9 letterbox).
+        n = self._current_art_tier or 180
         scaled = pix.scaled(
-            QSize(160, 160), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            QSize(n, n), Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
         self.cover_label.setPixmap(scaled)
+        # Pattern 4 in 72.3-RESEARCH: track for tier-change replay.
+        self._last_cover_path = path
 
     # ----------------------------------------------------------------------
     # Public accessor for cover pixmap (used by MainWindow media-keys bridge)
@@ -1583,11 +1590,18 @@ class NowPlayingPanel(QWidget):
 
     def _show_station_logo(self) -> None:
         path = self._station.station_art_path if self._station else None
-        self.logo_label.setPixmap(_load_scaled_pixmap(path, QSize(180, 180)))
+        # Phase 72.3 / LAYOUT-03 / D-03: central tier size.
+        n = self._current_art_tier or 180
+        self.logo_label.setPixmap(_load_scaled_pixmap(path, QSize(n, n)))
 
     def _show_station_logo_in_cover_slot(self) -> None:
         path = self._station.station_art_path if self._station else None
-        self.cover_label.setPixmap(_load_scaled_pixmap(path, QSize(160, 160)))
+        # Phase 72.3 / LAYOUT-03 / D-03: central tier size.
+        n = self._current_art_tier or 180
+        self.cover_label.setPixmap(_load_scaled_pixmap(path, QSize(n, n)))
+        # Pattern 4: track that we're now showing the fallback (logo-in-cover,
+        # not real cover). Lets _apply_art_tier branch correctly on tier change.
+        self._last_cover_path = None
 
     # ----------------------------------------------------------------------
     # Phase 64 / D-01..D-08 -- cross-network sibling list (BUG-02 follow-up)
