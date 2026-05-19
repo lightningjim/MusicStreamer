@@ -725,14 +725,16 @@ Plans:
 
 ### Phase 72.3: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
-**Depends on:** Phase 72
-**Plans:** 0 plans
+**Goal:** Replace the fixed 180×180 station logo and 160×160 album cover on the now-playing panel with a three-tier responsive scheme (140 / 180 / 240) driven by NowPlayingPanel.width() via the existing Phase 72.1 resizeEvent override. Logo and cover are equal-sized at every tier (D-05 — cover bumps 160→180 at the medium-tier default). Tier change is instant, no persistence, works in both compact and expanded modes.
+**Requirements**: LAYOUT-03
+**Depends on:** Phase 72, Phase 72.1
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 72.3 to break down)
+- [ ] 72.3-01-PLAN.md — Wave 0 TDD-RED scaffold (13 tests + REQUIREMENTS.md LAYOUT-03 registration)
+- [ ] 72.3-02-PLAN.md — Wave 1 helpers (_current_art_tier_size + _apply_art_tier) + sentinels + cover_label 160→180 default bump
+- [ ] 72.3-03-PLAN.md — Wave 2 render-site refactor + Phase 72.1 resizeEvent extension + _last_cover_path tracking
 
 ### Phase 72.2: Stream-selector and bottom-bar buttons still overlap on initial launch on small display; resolves only after window resize or sidebar hide — suggests issue is limited to initial layout/sizing conditions (INSERTED)
 
