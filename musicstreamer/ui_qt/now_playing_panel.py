@@ -780,6 +780,15 @@ class NowPlayingPanel(QWidget):
             self._on_cover_art_ready, Qt.ConnectionType.QueuedConnection
         )
 
+        # Phase 72.3 / LAYOUT-03 Initial-Bind Contract (UI-SPEC):
+        # Construction-time `_current_art_tier` stays None and labels remain
+        # at the medium-tier default (180) set by setFixedSize above. The
+        # first resizeEvent — fired by Qt when the panel is shown / parented
+        # into a layout — invokes _apply_art_tier and corrects to the actual
+        # tier based on self.width(). Do NOT call _apply_art_tier from inside
+        # __init__: it would read a stale (pre-show) self.width() and break
+        # the Initial-Bind Contract (PATTERNS.md §C).
+
     # ----------------------------------------------------------------------
     # Public API — station binding
     # ----------------------------------------------------------------------
@@ -1159,16 +1168,21 @@ class NowPlayingPanel(QWidget):
         self.compact_mode_toggle_btn.setToolTip(tooltip)
 
     def resizeEvent(self, event):  # noqa: N802 (Qt override)
-        """Override to drive width-responsive stream-picker reparent (Phase 72.1 / LAYOUT-02 / D-05).
+        """Override to drive width-responsive layout decisions on the panel.
+
+        Phase 72.1 / LAYOUT-02: stream-picker reparent on narrow widths.
+        Phase 72.3 / LAYOUT-03: logo/cover tier retarget.
 
         super's resizeEvent is MANDATORY first per Qt convention
         (Pitfall 9 from 72.1-RESEARCH lines 523-531) -- the base implementation
-        invalidates layout and updates internal geometry. _reflow_stream_picker_row
-        is called immediately after; it never calls self.resize / setGeometry
-        (would cause infinite recursion per Qt docs).
+        invalidates layout and updates internal geometry. Both helpers are
+        idempotent -- safe to call when state hasn't changed (each owns a
+        cached-diff early-return guard). Neither helper calls self.resize /
+        setGeometry (Qt docs: infinite recursion). Bound methods only (QA-05).
         """
         super().resizeEvent(event)
-        self._reflow_stream_picker_row()
+        self._reflow_stream_picker_row()  # Phase 72.1 / LAYOUT-02 (existing)
+        self._apply_art_tier()             # Phase 72.3 / LAYOUT-03 (NEW)
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
