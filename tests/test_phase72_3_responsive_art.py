@@ -117,6 +117,15 @@ class FakeRepo:
     def all_stations(self) -> list:
         return list(self._stations)
 
+    def list_streams(self, station_id: int) -> list:
+        """Stream-count-agnostic stub for Phase 72.3 tier tests.
+
+        bind_station() -> _populate_stream_picker() reads this; the empty list
+        keeps the picker hidden and lets the tier assertions run without
+        depending on stream content (tier is width-driven only).
+        """
+        return []
+
 
 def _make_panel(qtbot, settings: Optional[dict] = None) -> NowPlayingPanel:
     """Factory: NowPlayingPanel wired with FakePlayer + simple FakeRepo.
@@ -364,8 +373,13 @@ def test_youtube_16_9_letterbox_at_every_tier(qtbot, tmp_path):
     source produces a pixmap with width == N and height ~= N * 9/16.
 
     Tolerance for rounding (RESEARCH Open Question 3): assert width / height
-    within 1% of 16/9 (Qt rounds 180 * 9/16 = 101.25 -> 101, giving ratio
-    1.782 vs theoretical 1.778).
+    within 2% of 16/9. At tier 180 Qt rounds 180 * 9/16 = 101.25 -> 101
+    (ratio 1.782 vs theoretical 1.778). At tier 140, 140 * 9/16 = 78.75 -> 78
+    yields ratio 140/78 = 1.795 -- 0.017 off 16/9, which is just over the
+    Wave 0 scaffold's 1% threshold. The 2% tolerance bounds the worst-case
+    rounding error across the full 140/180/240 tier range while still
+    guarding against any genuine aspect-ratio loss (the un-letterboxed
+    case would jump to ratio 1.0 -- a 44% delta).
     """
     src = QPixmap(1280, 720)  # 16:9 source
     src.fill(Qt.red)
@@ -384,8 +398,8 @@ def test_youtube_16_9_letterbox_at_every_tier(qtbot, tmp_path):
             f"Pixmap width {pix.width()} != tier {tier_value} at panel width {width}"
         )
         ratio = pix.width() / pix.height()
-        assert abs(ratio - 16 / 9) < 0.01, (
-            f"Aspect ratio {ratio} not within 1% of 16/9 at panel width {width} "
+        assert abs(ratio - 16 / 9) < 0.02, (
+            f"Aspect ratio {ratio} not within 2% of 16/9 at panel width {width} "
             f"(pixmap {pix.width()}x{pix.height()})"
         )
 
@@ -409,8 +423,11 @@ def test_compact_and_expanded_modes_same_tier(qtbot):
     panel_a.resize(1200, 600)
     panel_b.resize(1200, 600)
 
-    assert panel_a._current_art_tier == 180
-    assert panel_b._current_art_tier == 180
+    # Width 1200 >= 1100 threshold -> wide tier (240) per UI-SPEC truth table.
+    # The load-bearing assertion of this test is the third one: equal panel
+    # widths produce equal tier values regardless of mode.
+    assert panel_a._current_art_tier == 240
+    assert panel_b._current_art_tier == 240
     assert panel_a._current_art_tier == panel_b._current_art_tier
 
 
