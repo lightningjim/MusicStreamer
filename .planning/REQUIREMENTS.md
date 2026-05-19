@@ -58,6 +58,7 @@ Width-responsive control-row layout follow-ups (Phase 72 era).
 
 - [x] **LAYOUT-01**: Compact-mode toggle hides the left column on small/secondary displays; session-only, no SQLite persistence; activated by `Ctrl+B` shortcut and a `compact_mode_toggle_btn` QToolButton on the now-playing pane; left-edge hover-peek overlay survives compact mode. *(Phase 72)*
 - [ ] **LAYOUT-02**: When the now-playing panel narrows below the threshold where row 1 with the stream picker can fit AND the active station has multiple streams, `stream_combo` reparents into a dedicated second row beneath the existing controls row; it returns to row 1 when width allows. Single-stream stations stay one-row at all widths. Picker signals (`currentIndexChanged.connect(self._on_stream_selected)`), model (item text + userData), and `currentIndex` survive each reparent. Trigger is width, not compact-mode (D-01). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.1)*
+- [ ] **LAYOUT-03**: When the now-playing panel's width changes, both `logo_label` and `cover_label` retarget to a width-driven tier value drawn from `{140, 180, 240}`. Trigger is `NowPlayingPanel.width()` evaluated inside the existing `resizeEvent` override (not MainWindow width, not screen geometry, not splitter handle position). Logo and cover are always equal-sized at every tier (D-05). The tier is recomputed on every `resizeEvent`; `setFixedSize` + bound-pixmap rescale fire only when the computed tier differs from the cached previous tier (cached-diff guard avoids drag-thrash). Works identically in compact and expanded modes (panel-width trigger is mode-agnostic). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.3)*
 
 ### Cover-Art Sources (ART-MB)
 
@@ -179,6 +180,7 @@ Which phases cover which requirements.
 | SIB-01 | Phase 71 | Complete |
 | LAYOUT-01 | Phase 72 | Complete |
 | LAYOUT-02 | Phase 72.1 | Pending |
+| LAYOUT-03 | Phase 72.3 | Pending |
 | ART-MB-01 | Phase 73 | Pending |
 | ART-MB-02 | Phase 73 | Pending |
 | ART-MB-03 | Phase 73 | Pending |
@@ -218,11 +220,11 @@ Which phases cover which requirements.
 | GBS-AUTH-01 | Phase 76 | Pending |
 
 **Coverage:**
-- v2.1 requirements: 61 total
-- Mapped to phases: 61 ✓
+- v2.1 requirements: 62 total
+- Mapped to phases: 62 ✓
 - Unmapped: 0 ✓
 - Complete: 21
-- Pending: 40 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; BUG-11 — YouTube .desktop launcher fix, Phase 79; GBS-AUTH-01 — Phase 76 in flight; LAYOUT-02 — Phase 72.1 multi-stream picker reflow; INFRA-01 — Phase 77 test-infrastructure stabilization)
+- Pending: 41 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; BUG-11 — YouTube .desktop launcher fix, Phase 79; GBS-AUTH-01 — Phase 76 in flight; LAYOUT-02 — Phase 72.1 multi-stream picker reflow; LAYOUT-03 — Phase 72.3 responsive logo/cover tier; INFRA-01 — Phase 77 test-infrastructure stabilization)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
@@ -235,3 +237,5 @@ Which phases cover which requirements.
 *Last updated: 2026-05-14 — BUG-10 (SQLite PRAGMA foreign_keys enforcement + orphan-sweep migration + regression test + drift-guard log + db.py header docs) added for Phase 80. Surfaced during Phase 74 Plan 07 UAT (F-07-03).*
 
 *Last updated: 2026-05-16 — LAYOUT-01 (Phase 72 compact-mode toggle, marked Complete) + LAYOUT-02 (Phase 72.1 multi-stream stream-picker reflow into row 2 when narrow) added during `/gsd:plan-phase 72.1`. Fresh-code precedent matches Phase 79 / BUG-11 (follow-up phases get their own code, not annotations under the parent).*
+
+*Last updated: 2026-05-19 — LAYOUT-03 (Phase 72.3 responsive logo + cover-art tier) added during `/gsd:plan-phase 72.3`. Fresh-code precedent matches Phase 72.1 / LAYOUT-02 -- follow-up phases get their own requirement code.*
