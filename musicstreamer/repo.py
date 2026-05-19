@@ -1,8 +1,39 @@
+import logging
 import sqlite3
 from typing import Optional, List
 
 from musicstreamer.models import Station, Provider, Favorite, StationStream
 from musicstreamer import paths
+
+
+# Phase 80 / BUG-10: module logger (first logger in repo.py).
+# Surfaced at INFO via __main__.py per-logger setLevel — see Plan 80-02.
+_log = logging.getLogger(__name__)
+
+
+# Phase 80 / BUG-10 / D-11: module-level sentinel throttling the PRAGMA
+# drift-guard WARN to once per session. Reset for tests via
+# _reset_pragma_drift_sentinel_for_tests() (Pitfall 3: pytest reuses the
+# imported module across all tests in a session, so without an explicit
+# reset the sentinel leaks and masks real drift in later tests).
+_pragma_drift_logged: bool = False
+
+
+def _reset_pragma_drift_sentinel_for_tests() -> None:
+    """Test-only helper: re-arm the drift-guard WARN throttle.
+
+    The module-level ``_pragma_drift_logged`` sentinel persists across the
+    pytest session (Phase 80 RESEARCH Pitfall 3). Tests that exercise the
+    drift-guard log surface must call this helper in their setup to ensure
+    the WARN fires deterministically rather than being swallowed by a flip
+    in an earlier test.
+
+    The ``_for_tests`` suffix is an intentional grep-discoverability
+    convention — it makes the test-only nature of this helper obvious to
+    any future reader scanning ``repo.py`` for production API.
+    """
+    global _pragma_drift_logged
+    _pragma_drift_logged = False
 
 
 # Phase 73 WR-03: valid values for the `cover_art_source` column. The
