@@ -723,6 +723,16 @@ Plans:
 
 - [x] 72-05-PLAN.md — Wave 4 end-to-end integration test + Manual UAT script + user sign-off checkpoint
 
+### Phase 72.4: I noticed the volume now, too, sometimes overlaps with the side hide/expand button, on the lower screen when the side bar is expanded (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 72
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 72.4 to break down)
+
 ### Phase 72.3: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (INSERTED)
 
 **Goal:** Replace the fixed 180×180 station logo and 160×160 album cover on the now-playing panel with a three-tier responsive scheme (140 / 180 / 240) driven by NowPlayingPanel.width() via the existing Phase 72.1 resizeEvent override. Logo and cover are equal-sized at every tier (D-05 — cover bumps 160→180 at the medium-tier default). Tier change is instant, no persistence, works in both compact and expanded modes.

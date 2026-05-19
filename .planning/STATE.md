@@ -4,13 +4,13 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 72.3 UI-SPEC approved
-last_updated: "2026-05-19T13:48:11.010Z"
+last_updated: "2026-05-19T16:53:53.124Z"
 last_activity: 2026-05-19 -- Phase 72.3 execution started
 progress:
-  total_phases: 40
-  completed_phases: 35
+  total_phases: 41
+  completed_phases: 36
   total_plans: 172
-  completed_plans: 164
+  completed_plans: 167
   percent: 88
 ---
 
@@ -184,6 +184,7 @@ Key v2.0 decisions already settled:
 - Phase 72.1 inserted after Phase 72: Stream-selector dropdown overlap persists in fullscreen mode for multi-stream stations — consider splitting into two lines on smaller screens (URGENT)
 - Phase 72.2 inserted after Phase 72: Stream-selector and bottom-bar buttons still overlap on initial launch on small display; resolves only after window resize or sidebar hide — suggests issue is limited to initial layout/sizing conditions (URGENT)
 - Phase 72.3 inserted after Phase 72: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (URGENT)
+- Phase 72.4 inserted after Phase 72: I noticed the volume now, too, sometimes overlaps with the side hide/expand button, on the lower screen when the side bar is expanded (URGENT)
 
 ### Pending Todos
 
