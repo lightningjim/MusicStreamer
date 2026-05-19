@@ -191,7 +191,7 @@ def _run_gui(argv: list[str]) -> int:
     from musicstreamer.ui_qt import icons_rc  # noqa: F401  (D-24 side-effect resource import)
     from musicstreamer.ui_qt.main_window import MainWindow
     from musicstreamer.player import Player
-    from musicstreamer.repo import Repo, db_connect, db_init
+    from musicstreamer.repo import Repo, db_connect, db_init, sweep_orphans
 
     app = QApplication(argv)
     app.setApplicationName("MusicStreamer")              # D-07: keep
@@ -207,6 +207,10 @@ def _run_gui(argv: list[str]) -> int:
     # invoked from inside theme.apply_theme_palette when theme=='system' on Windows.
     con = db_connect()
     db_init(con)
+    # Phase 80 / BUG-10 D-02: heal orphans left by manual sqlite3-shell DELETEs
+    # (Phase 74 F-07-03 Synphaera ghosts). Same con — no second connection.
+    # D-03: runs unconditionally every app start; sub-millisecond no-op when N=0.
+    sweep_orphans(con)
     repo = Repo(con)
     from musicstreamer import theme
     theme.apply_theme_palette(app, repo)
