@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: completed
-stopped_at: Phase 80 context gathered
-last_updated: "2026-05-19T02:45:13.833Z"
+stopped_at: Phase 72.3 context gathered
+last_updated: "2026-05-19T13:04:04.529Z"
 last_activity: 2026-05-19 -- Phase 80 marked complete
 progress:
   total_phases: 40
-  completed_phases: 33
-  total_plans: 170
-  completed_plans: 162
-  percent: 83
+  completed_phases: 35
+  total_plans: 169
+  completed_plans: 164
+  percent: 88
 ---
 
 # Project State
@@ -235,6 +235,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-19T00:18:03.288Z
-Stopped at: Phase 80 context gathered
-Resume file: .planning/phases/80-sqlite-foreign-key-enforcement-set-pragma-foreign-keys-on-pe/80-CONTEXT.md
+Last session: 2026-05-19T13:04:04.517Z
+Stopped at: Phase 72.3 context gathered
+Resume file: .planning/phases/72.3-make-station-tile-and-album-art-responsive-to-window-screen-/72.3-CONTEXT.md
