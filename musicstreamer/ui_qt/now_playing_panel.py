@@ -295,6 +295,16 @@ class NowPlayingPanel(QWidget):
         # Phase 72.1 / LAYOUT-02: lazy cache for _picker_row_min_width();
         # invalidated by _populate_stream_picker (Plan 03 hook).
         self._cached_row1_min: Optional[int] = None
+        # Phase 72.3 / LAYOUT-03: cached current art tier (140/180/240) and
+        # last real cover-art path. Both initialize to None — sentinel meaning
+        # "_apply_art_tier has not yet run / no real cover loaded". The
+        # medium-tier default (180) is applied at construction time on the
+        # setFixedSize lines below; the first resizeEvent corrects to the
+        # actual tier. Pitfall 4 in 72.3-RESEARCH: these MUST initialize before
+        # any setMinimumWidth / setLayout call that could fire a resizeEvent
+        # cascade. D-02 single-tier source of truth.
+        self._current_art_tier: Optional[int] = None
+        self._last_cover_path: Optional[str] = None
         # Phase 67 / R-01: in-memory cache of (same_provider_sample, same_tag_sample)
         # tuples keyed by station id. Populated by _refresh_similar_stations on
         # cache miss; reused on revisit (R-02). Popped by _on_refresh_similar_clicked
@@ -333,7 +343,8 @@ class NowPlayingPanel(QWidget):
         outer.setSpacing(24)
 
         # ------------------------------------------------------------------
-        # Left column: 180x180 station logo
+        # Left column: station logo (Phase 72.3 / LAYOUT-03 tier-driven;
+        # 180 default = medium tier per UI-SPEC Initial-Bind Contract)
         # ------------------------------------------------------------------
         self.logo_label = QLabel(self)
         self.logo_label.setFixedSize(180, 180)
@@ -739,10 +750,11 @@ class NowPlayingPanel(QWidget):
         outer.addLayout(center, 1)
 
         # ------------------------------------------------------------------
-        # Right column: 160x160 cover art slot
+        # Right column: album cover (Phase 72.3 / LAYOUT-03 / D-05
+        # equal-at-every-tier; 180 default = medium tier matches logo)
         # ------------------------------------------------------------------
         self.cover_label = QLabel(self)
-        self.cover_label.setFixedSize(160, 160)
+        self.cover_label.setFixedSize(180, 180)
         self.cover_label.setAlignment(Qt.AlignCenter)
         outer.addWidget(self.cover_label)
 
