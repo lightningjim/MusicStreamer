@@ -723,6 +723,28 @@ Plans:
 
 - [x] 72-05-PLAN.md — Wave 4 end-to-end integration test + Manual UAT script + user sign-off checkpoint
 
+### Phase 72.3: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 72
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 72.3 to break down)
+
+### Phase 72.2: Stream-selector and bottom-bar buttons still overlap on initial launch on small display; resolves only after window resize or sidebar hide — suggests issue is limited to initial layout/sizing conditions (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 72
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 72.2 to break down)
+
 ### Phase 72.1: Stream-selector dropdown overlap persists in fullscreen mode for multi-stream stations — consider splitting into two lines on smaller screens (INSERTED)
 
 **Goal:** [Urgent work - to be planned]
@@ -897,11 +919,19 @@ Plans:
 **Goal:** Every parent-row deletion in `musicstreamer.sqlite3` correctly cascades to child rows. Concretely: (1) `db_connect()` (or the equivalent connection factory) sets `PRAGMA foreign_keys = ON` on every connection it returns; (2) a regression test opens a connection through the production factory, inserts a station + its streams, DELETEs the station, and asserts zero child rows remain; (3) a one-shot orphan-sweep migration runs at app start (or via a one-shot script) that scans every FK child table (`station_streams`, `favorites`, `station_siblings`, plus any other table with a FK referencing a row that may have been deleted) for orphan rows and either deletes them or logs them — counts are surfaced via INFO log; (4) a drift-guard log line at INFO emits once per session if `PRAGMA foreign_keys` is OFF immediately after `db_connect()` returns (catches any future code path that opens its own raw connection and forgets the PRAGMA); (5) the per-connection PRAGMA requirement is documented in the header docstring of the connection-factory module so future contributors don't reintroduce the gap. Surfaced 2026-05-14 during Phase 74 Plan 07 UAT (F-07-03) — manual orphan cleanup was required mid-UAT because `DELETE FROM stations WHERE name LIKE '%Synphaera%'` left 20 orphaned `station_streams` rows that defeated dedup-by-URL on the subsequent re-import.
 **Requirements**: BUG-10
 **Depends on:** none (independent fix; can run any time after Phase 74)
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 80 to break down)
+**Wave 1**
+
+- [ ] 80-01-PLAN.md — repo.py: module logger + drift-guard sentinel + hardened db_connect() docstring/read-back + new sweep_orphans(con) function
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 80-02-PLAN.md — __main__.py: wire sweep_orphans(con) into _run_gui after db_init; escalate musicstreamer.repo logger to INFO in main()
+- [ ] 80-03-PLAN.md — tests/test_db_fk_invariants.py: 7 regression tests (cascade × 3, negative PRAGMA-off proof, sweep_orphans happy path, drift-guard WARN, throttle once-per-session)
+- [ ] 80-04-PLAN.md — tests/test_db_connect_is_sole_connection_factory.py: source-grep gate asserting sole sqlite3.connect( callsite in production lives in repo.py
 
 ## Backlog
 
@@ -914,6 +944,3 @@ Plans:
 Plans:
 
 - [ ] TBD (promote with /gsd-review-backlog when ready)
-
----
-*Last updated: 2026-05-14 — Phase 80 (BUG-10) added; surfaced during Phase 74 Plan 07 UAT (F-07-03). Phase 74 closed at 17/17 VERIFIED, all 7 plans complete. Backlog Phase 999.1 added 2026-05-14 — case-sensitive station-list sort surfaced during SomaFM re-import.*

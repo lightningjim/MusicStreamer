@@ -679,7 +679,7 @@ These are the **Claude's-discretion** items from CONTEXT that the planner picks 
 
 **All other claims in this research are tagged as VERIFIED via direct read of repo source this session (repo.py, __main__.py, conftest.py, tests/test_repo.py, tests/test_station_siblings.py, tests/test_packaging_spec.py, ROADMAP.md, REQUIREMENTS.md, CONTEXT.md).**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should the existing `test_cascade_delete` (tests/test_repo.py:584-594) be moved/renamed, or left in place alongside the new D-13 test?**
    - What we know: the test already passes and exercises the same invariant as D-13's new test.
