@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
+status: completed
 stopped_at: Phase 80 context gathered
-last_updated: "2026-05-19T02:15:50.331Z"
-last_activity: 2026-05-19 -- Phase 80 planning complete
+last_updated: "2026-05-19T02:45:13.833Z"
+last_activity: 2026-05-19 -- Phase 80 marked complete
 progress:
   total_phases: 40
-  completed_phases: 34
-  total_plans: 169
-  completed_plans: 160
-  percent: 85
+  completed_phases: 33
+  total_plans: 170
+  completed_plans: 162
+  percent: 83
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 78 — phase-62-follow-up-buffer-underrun-behavior-fix-phase-62-bug
+**Current focus:** Phase 80 — sqlite-foreign-key-enforcement-set-pragma-foreign-keys-on-pe
 
 ## Current Position
 
-Phase: 78 (phase-62-follow-up-buffer-underrun-behavior-fix-phase-62-bug) — EXECUTING
-Plan: 1 of 3
-Status: Ready to execute
-Last activity: 2026-05-19 -- Phase 80 planning complete
+Phase: 80 — COMPLETE
+Plan: 4 of 4
+Status: Phase 80 complete
+Last activity: 2026-05-19 -- Phase 80 marked complete
 
 ## Performance Metrics
 

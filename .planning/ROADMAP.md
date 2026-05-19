@@ -919,13 +919,13 @@ Plans:
 **Goal:** Every parent-row deletion in `musicstreamer.sqlite3` correctly cascades to child rows. Concretely: (1) `db_connect()` (or the equivalent connection factory) sets `PRAGMA foreign_keys = ON` on every connection it returns; (2) a regression test opens a connection through the production factory, inserts a station + its streams, DELETEs the station, and asserts zero child rows remain; (3) a one-shot orphan-sweep migration runs at app start (or via a one-shot script) that scans every FK child table (`station_streams`, `favorites`, `station_siblings`, plus any other table with a FK referencing a row that may have been deleted) for orphan rows and either deletes them or logs them — counts are surfaced via INFO log; (4) a drift-guard log line at INFO emits once per session if `PRAGMA foreign_keys` is OFF immediately after `db_connect()` returns (catches any future code path that opens its own raw connection and forgets the PRAGMA); (5) the per-connection PRAGMA requirement is documented in the header docstring of the connection-factory module so future contributors don't reintroduce the gap. Surfaced 2026-05-14 during Phase 74 Plan 07 UAT (F-07-03) — manual orphan cleanup was required mid-UAT because `DELETE FROM stations WHERE name LIKE '%Synphaera%'` left 20 orphaned `station_streams` rows that defeated dedup-by-URL on the subsequent re-import.
 **Requirements**: BUG-10
 **Depends on:** none (independent fix; can run any time after Phase 74)
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 
 **Wave 1**
 
-- [ ] 80-01-PLAN.md — repo.py: module logger + drift-guard sentinel + hardened db_connect() docstring/read-back + new sweep_orphans(con) function
+- [x] 80-01-PLAN.md — repo.py: module logger + drift-guard sentinel + hardened db_connect() docstring/read-back + new sweep_orphans(con) function
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
