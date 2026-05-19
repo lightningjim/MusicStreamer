@@ -945,14 +945,12 @@ Plans:
 - [ ] 80-03-PLAN.md — tests/test_db_fk_invariants.py: 7 regression tests (cascade × 3, negative PRAGMA-off proof, sweep_orphans happy path, drift-guard WARN, throttle once-per-session)
 - [ ] 80-04-PLAN.md — tests/test_db_connect_is_sole_connection_factory.py: source-grep gate asserting sole sqlite3.connect( callsite in production lives in repo.py
 
-## Backlog
+### Phase 81: Station list alphabetical sorting is case-sensitive (A-Z then a-z) — should be case-insensitive (PROMOTED from backlog 999.1)
 
-### Phase 999.1: Station list alphabetical sorting is case-sensitive (A-Z then a-z) — should be case-insensitive (BACKLOG)
-
-**Goal:** [Captured for future planning] Noticed during the SomaFM full-catalog import (post-Phase 74 wipe + re-import, 2026-05-14): station-list alphabetical sort orders uppercase before lowercase (ASCII order — `A-Z` then `a-z`) instead of case-insensitive A→Z. Sort should be case-insensitive so stations like `deepSpace`, `Drone Zone`, and `Groove Salad` interleave naturally. Likely a `ORDER BY name` somewhere that needs `ORDER BY name COLLATE NOCASE` (SQLite) or an equivalent Qt model-side key. Scope during /gsd-discuss-phase: identify all sort sites (station tree, recent panel, search results, edit dialog) and pick one consistent collation.
+**Goal:** Noticed during the SomaFM full-catalog import (post-Phase 74 wipe + re-import, 2026-05-14): station-list alphabetical sort orders uppercase before lowercase (ASCII order — `A-Z` then `a-z`) instead of case-insensitive A→Z. Sort should be case-insensitive so stations like `deepSpace`, `Drone Zone`, and `Groove Salad` interleave naturally. Likely a `ORDER BY name` somewhere that needs `ORDER BY name COLLATE NOCASE` (SQLite) or an equivalent Qt model-side key. Scope during /gsd-discuss-phase: identify all sort sites (station tree, recent panel, search results, edit dialog) and pick one consistent collation.
 **Requirements:** TBD
 **Plans:** 0 plans
 
 Plans:
 
-- [ ] TBD (promote with /gsd-review-backlog when ready)
+- [ ] TBD (run /gsd-plan-phase 81 to break down)
