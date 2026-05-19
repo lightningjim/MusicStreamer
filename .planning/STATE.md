@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 78 context gathered
-last_updated: "2026-05-18T00:38:17.427Z"
+stopped_at: Phase 80 context gathered
+last_updated: "2026-05-19T00:18:03.300Z"
 last_activity: 2026-05-18 -- Phase 78 execution started
 progress:
-  total_phases: 38
-  completed_phases: 33
+  total_phases: 40
+  completed_phases: 34
   total_plans: 165
-  completed_plans: 157
-  percent: 87
+  completed_plans: 160
+  percent: 85
 ---
 
 # Project State
@@ -182,6 +182,8 @@ Key v2.0 decisions already settled:
 - Phase 51 plans 51-04/51-05 confirmed intentionally dropped 2026-05-13 — user clarification: sibling navigation from inside Edit Station dialog was never wanted; BUG-02 closure path is Phase 64 (Now Playing only). ROADMAP entry left as-is (3/5 executed) but the two unchecked plans should be treated as abandoned, not pending.
 - Phase 79 added: YouTube "stream exhausted" only when launched via desktop app — same musicstreamer install works fine when launched via pipx entry point OR the dev script, fails with "stream exhausted" only when launched from the desktop entry. Repro suggests environment/PATH/env-var divergence between .desktop Exec= and shell launch paths; capture launch-env diff during /gsd-discuss-phase 2026-05-14
 - Phase 72.1 inserted after Phase 72: Stream-selector dropdown overlap persists in fullscreen mode for multi-stream stations — consider splitting into two lines on smaller screens (URGENT)
+- Phase 72.2 inserted after Phase 72: Stream-selector and bottom-bar buttons still overlap on initial launch on small display; resolves only after window resize or sidebar hide — suggests issue is limited to initial layout/sizing conditions (URGENT)
+- Phase 72.3 inserted after Phase 72: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (URGENT)
 
 ### Pending Todos
 
@@ -233,6 +235,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-17T23:56:15.764Z
-Stopped at: Phase 78 context gathered
-Resume file: .planning/phases/78-phase-62-follow-up-buffer-underrun-behavior-fix-phase-62-bug/78-CONTEXT.md
+Last session: 2026-05-19T00:18:03.288Z
+Stopped at: Phase 80 context gathered
+Resume file: .planning/phases/80-sqlite-foreign-key-enforcement-set-pragma-foreign-keys-on-pe/80-CONTEXT.md
