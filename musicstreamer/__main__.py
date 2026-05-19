@@ -28,12 +28,24 @@ def _run_smoke(argv: list[str], url: str) -> int:
     from musicstreamer import migration
     from musicstreamer.models import Station, StationStream
     from musicstreamer.player import Player
+    from musicstreamer.repo import db_connect, db_init, sweep_orphans
 
     # GStreamer must be initialized before any pipeline construction.
     Gst.init(None)
 
     # PORT-06: first-launch data migration (no-op on Linux, writes marker).
     migration.run_migration()
+
+    # Phase 80 / BUG-10 WR-01: parity with _run_gui — route the smoke
+    # harness through db_connect() + sweep_orphans() so --smoke exercises
+    # the same FK-PRAGMA + ghost-row healing invariants as --gui. The
+    # smoke harness itself does not read the DB, but running the factory
+    # here keeps `python -m musicstreamer --smoke ...` behaving identically
+    # to `--gui` w.r.t. BUG-10 sweep semantics and the PRAGMA drift-guard.
+    con = db_connect()
+    db_init(con)
+    sweep_orphans(con)
+    con.close()
 
     app = QCoreApplication(argv)
     player = Player()
