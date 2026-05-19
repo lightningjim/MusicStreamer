@@ -258,6 +258,55 @@ def db_init(con: sqlite3.Connection):
         pass  # column already exists — idempotent; existing rows backfilled via DEFAULT
 
 
+def sweep_orphans(con: sqlite3.Connection) -> None:
+    """Delete orphan FK-child rows and INFO-log per-table counts when N>0.
+
+    Heals orphan rows left behind by manual ``sqlite3``-shell DELETEs that
+    bypassed :func:`db_connect`'s PRAGMA enforcement — the failure mode
+    that produced the Phase 74 F-07-03 ``Synphaera`` ghosts (``station_streams``
+    rows whose parent station was deleted outside the app, defeating
+    dedup-by-URL on re-import).
+
+    Runs on every app start; sub-millisecond when N=0; SILENT on N=0
+    (D-04 — only emit the INFO log line when at least one table had a
+    positive rowcount).
+
+    Per D-05, only the two real FK-cascade child tables are swept:
+    ``station_streams`` (cascade on ``stations.id``) and
+    ``station_siblings`` (cascade on ``stations.id`` via both ``a_id`` and
+    ``b_id`` columns — swept symmetrically with a single DELETE per D-07).
+
+    ``favorites`` is intentionally excluded (D-06): it has no FK, uses
+    ``TEXT station_name``, and v1.3 FAVES-01..04 deliberately persists
+    track titles after a station is deleted (listening history survives
+    station turnover). Sweeping it would silently change documented
+    behavior.
+
+    ``stations.provider_id`` orphans are out of scope (D-08): the column
+    is declared ``ON DELETE SET NULL`` (not ``CASCADE``); a dangling
+    ``provider_id`` is the documented graceful-degrade path, not an
+    orphan.
+
+    Caller owns the connection lifecycle — this function does NOT close
+    ``con``.
+    """
+    cur1 = con.execute(
+        "DELETE FROM station_streams WHERE station_id NOT IN "
+        "(SELECT id FROM stations)"
+    )
+    cur2 = con.execute(
+        "DELETE FROM station_siblings WHERE a_id NOT IN "
+        "(SELECT id FROM stations) OR b_id NOT IN (SELECT id FROM stations)"
+    )
+    if cur1.rowcount > 0 or cur2.rowcount > 0:
+        _log.info(
+            "sweep_orphans: station_streams=%d station_siblings=%d",
+            cur1.rowcount,
+            cur2.rowcount,
+        )
+    con.commit()
+
+
 class Repo:
     def __init__(self, con: sqlite3.Connection):
         self.con = con
