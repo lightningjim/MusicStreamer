@@ -1417,6 +1417,85 @@ class NowPlayingPanel(QWidget):
             self._move_stream_picker_to(self.controls)
             self._set_picker_size_policy(expanding=False)
 
+    # ----------------------------------------------------------------------
+    # Phase 72.3 / LAYOUT-03: art-tier helpers
+    # ----------------------------------------------------------------------
+    # See 72.3-RESEARCH.md Pattern 2/3/4 + 72.3-UI-SPEC §Tier State Truth Table.
+    # resizeEvent (above) is the Qt override that drives the tier recompute on
+    # every panel resize (Plan 03 wires _apply_art_tier into the override).
+    # The two helpers below compose the tier mechanism: pure width-to-tier
+    # classifier (testable in isolation) + orchestrator that diffs against
+    # the cached tier and re-renders the bound pixmaps. Mirrors the cached-
+    # diff idempotence pattern of _reflow_stream_picker_row (Phase 72.1).
+
+    def _current_art_tier_size(self) -> int:
+        """Return the current art tier size in pixels (140, 180, or 240).
+
+        Pure function — reads only self.width(), returns an integer. Safe to
+        call from any context without side effects.
+
+        Thresholds (research-locked at 700 and 1100; derivation in
+        72.3-RESEARCH §Threshold Derivation):
+            width <  700           -> 140 (narrow)
+            700 <= width < 1100    -> 180 (medium / default)
+            width >= 1100          -> 240 (wide)
+
+        The narrow tier is the safe default when width < 560 (the panel's own
+        setMinimumWidth floor) — should not normally occur in production but
+        can happen during initial layout pass before the splitter has
+        assigned sizes.
+        """
+        w = self.width()
+        if w < 700:
+            return 140
+        if w < 1100:
+            return 180
+        return 240
+
+    def _apply_art_tier(self) -> None:
+        """Apply the current width-driven art tier to logo and cover labels.
+
+        Idempotent — no-op when the computed tier matches
+        self._current_art_tier (Pitfall 8 re-entrancy guard). Called from
+        resizeEvent (every panel resize) after Phase 72.1's
+        _reflow_stream_picker_row (Plan 03 wires the call).
+
+        D-02 (single-tier source of truth): both labels receive the same N.
+        D-05 (equal at every tier): logo and cover sizes are always equal.
+        D-Claude-Discretion (re-render on tier change): pixmaps are
+        re-rendered via the existing _show_station_logo / _set_cover_pixmap
+        paths so the new label size is filled correctly
+        (setScaledContents is False; Qt does not auto-rescale).
+
+        Pattern 4 (72.3-RESEARCH lines 319-365): cover slot has two
+        possible states — real cover delivered or logo-in-cover fallback.
+        Branch on self._last_cover_path to avoid clobbering real cover art
+        with the fallback render path.
+
+        Implementation notes (RESEARCH Pitfalls):
+        - The early-return guard MUST be the first mutation-related
+          statement (Pitfall 8).
+        - setFixedSize on a child label does NOT recursively fire
+          resizeEvent on the parent panel (Pitfall 1 — verified by
+          Phase 72.1 production behavior).
+        - Bound method only (QA-05). No self.resize / self.setGeometry
+          (would cause infinite recursion per Qt docs).
+        - No SQLite persistence (D-09 inheritance).
+        """
+        new_tier = self._current_art_tier_size()
+        if new_tier == self._current_art_tier:
+            return  # idempotent — no-op within a tier band
+        self._current_art_tier = new_tier
+        self.logo_label.setFixedSize(new_tier, new_tier)
+        self.cover_label.setFixedSize(new_tier, new_tier)
+        # Re-render logo (always shows station_art_path or fallback icon).
+        self._show_station_logo()
+        # Re-render cover slot: branch on whether a real cover is loaded.
+        if self._last_cover_path is not None:
+            self._set_cover_pixmap(self._last_cover_path)
+        else:
+            self._show_station_logo_in_cover_slot()
+
     def _on_edit_clicked(self) -> None:
         """Emit signal to open EditStationDialog for current station (D-08)."""
         if self._station is not None:
