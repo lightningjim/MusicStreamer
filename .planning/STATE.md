@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: completed
-stopped_at: Phase 72.3 context gathered
-last_updated: "2026-05-19T13:04:04.529Z"
-last_activity: 2026-05-19 -- Phase 80 marked complete
+status: executing
+stopped_at: Phase 72.3 UI-SPEC approved
+last_updated: "2026-05-19T13:48:11.010Z"
+last_activity: 2026-05-19 -- Phase 72.3 execution started
 progress:
   total_phases: 40
   completed_phases: 35
-  total_plans: 169
+  total_plans: 172
   completed_plans: 164
   percent: 88
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 80 — sqlite-foreign-key-enforcement-set-pragma-foreign-keys-on-pe
+**Current focus:** Phase 72.3 — make-station-tile-and-album-art-responsive-to-window-screen
 
 ## Current Position
 
-Phase: 80 — COMPLETE
-Plan: 4 of 4
-Status: Phase 80 complete
-Last activity: 2026-05-19 -- Phase 80 marked complete
+Phase: 72.3 (make-station-tile-and-album-art-responsive-to-window-screen) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 72.3
+Last activity: 2026-05-19 -- Phase 72.3 execution started
 
 ## Performance Metrics
 
@@ -235,6 +235,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-19T13:04:04.517Z
-Stopped at: Phase 72.3 context gathered
-Resume file: .planning/phases/72.3-make-station-tile-and-album-art-responsive-to-window-screen-/72.3-CONTEXT.md
+Last session: 2026-05-19T13:11:45.850Z
+Stopped at: Phase 72.3 UI-SPEC approved
+Resume file: .planning/phases/72.3-make-station-tile-and-album-art-responsive-to-window-screen-/72.3-UI-SPEC.md
