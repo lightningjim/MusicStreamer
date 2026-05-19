@@ -46,9 +46,33 @@ VALID_COVER_ART_SOURCES: frozenset[str] = frozenset({"auto", "itunes_only", "mb_
 
 
 def db_connect() -> sqlite3.Connection:
+    """Return a SQLite connection with foreign-key enforcement enabled.
+
+    The PRAGMA-foreign-keys-ON line below is load-bearing: every
+    ``ON DELETE CASCADE`` in :func:`db_init`'s schema (``station_streams``
+    on ``stations.id``; ``station_siblings`` on ``stations.id`` via both
+    ``a_id`` and ``b_id``) only fires when this PRAGMA is set on the
+    connection issuing the parent DELETE. SQLite defaults the PRAGMA to
+    OFF per connection — so removing this line would silently leak orphan
+    rows on every station deletion (BUG-10; Phase 74 F-07-03 Synphaera
+    ghosts).
+
+    Anyone needing a SQLite connection MUST go through this function; a
+    source-grep regression test
+    (``tests/test_db_connect_is_sole_connection_factory.py``, landing in
+    Plan 80-04) asserts that no other call site of ``sqlite3.connect(...)``
+    exists in the production tree.
+    """
+    global _pragma_drift_logged
     con = sqlite3.connect(paths.db_path())
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON;")
+    if not _pragma_drift_logged:
+        if con.execute("PRAGMA foreign_keys").fetchone()[0] == 0:
+            _log.warning(
+                "PRAGMA foreign_keys is OFF after SET — drift detected"
+            )
+        _pragma_drift_logged = True
     return con
 
 
