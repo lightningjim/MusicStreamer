@@ -429,3 +429,38 @@ def test_drift_guard_logs_at_most_once_per_session(monkeypatch, tmp_path, caplog
         f"calls; found {len(matching)} records: "
         f"{[rec.getMessage() for rec in caplog.records]}"
     )
+
+
+def test_drift_guard_silent_on_clean_connection(db_con, caplog):
+    """WR-02 positive control: when PRAGMA SET succeeds (read-back == 1),
+    the drift-guard MUST NOT log.
+
+    Locks in the polarity of the condition in ``db_connect()`` — a future
+    inverted check (e.g. ``if ... != 0:`` instead of ``== 0:``) would still
+    pass ``test_drift_guard_warns_when_pragma_reads_off`` and
+    ``test_drift_guard_logs_at_most_once_per_session`` (the wrapper there
+    forces read-back to ``0``, so under inverted logic the WARN still
+    wouldn't fire), but would silently flood the log on every clean
+    startup in production. This negative-control test catches that.
+    """
+    caplog.set_level(logging.WARNING, logger="musicstreamer.repo")
+    # ``db_con`` fixture already invoked ``db_connect()`` — sentinel was
+    # flipped. Re-arm and call again to capture a fresh read-back through
+    # the same Strategy-A monkeypatched paths.db_path.
+    caplog.clear()
+    _reset_pragma_drift_sentinel_for_tests()
+    con2 = db_connect()
+    try:
+        matching = [
+            rec
+            for rec in caplog.records
+            if rec.name == "musicstreamer.repo"
+            and "PRAGMA foreign_keys is OFF after SET" in rec.getMessage()
+        ]
+        assert matching == [], (
+            f"drift-guard fired on a clean connection (PRAGMA ON took effect); "
+            f"got {len(matching)} WARN records: "
+            f"{[rec.getMessage() for rec in matching]}"
+        )
+    finally:
+        con2.close()
