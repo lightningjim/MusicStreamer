@@ -1,8 +1,39 @@
+import logging
 import sqlite3
 from typing import Optional, List
 
 from musicstreamer.models import Station, Provider, Favorite, StationStream
 from musicstreamer import paths
+
+
+# Phase 80 / BUG-10: module logger (first logger in repo.py).
+# Surfaced at INFO via __main__.py per-logger setLevel — see Plan 80-02.
+_log = logging.getLogger(__name__)
+
+
+# Phase 80 / BUG-10 / D-11: module-level sentinel throttling the PRAGMA
+# drift-guard WARN to once per session. Reset for tests via
+# _reset_pragma_drift_sentinel_for_tests() (Pitfall 3: pytest reuses the
+# imported module across all tests in a session, so without an explicit
+# reset the sentinel leaks and masks real drift in later tests).
+_pragma_drift_logged: bool = False
+
+
+def _reset_pragma_drift_sentinel_for_tests() -> None:
+    """Test-only helper: re-arm the drift-guard WARN throttle.
+
+    The module-level ``_pragma_drift_logged`` sentinel persists across the
+    pytest session (Phase 80 RESEARCH Pitfall 3). Tests that exercise the
+    drift-guard log surface must call this helper in their setup to ensure
+    the WARN fires deterministically rather than being swallowed by a flip
+    in an earlier test.
+
+    The ``_for_tests`` suffix is an intentional grep-discoverability
+    convention — it makes the test-only nature of this helper obvious to
+    any future reader scanning ``repo.py`` for production API.
+    """
+    global _pragma_drift_logged
+    _pragma_drift_logged = False
 
 
 # Phase 73 WR-03: valid values for the `cover_art_source` column. The
@@ -15,9 +46,33 @@ VALID_COVER_ART_SOURCES: frozenset[str] = frozenset({"auto", "itunes_only", "mb_
 
 
 def db_connect() -> sqlite3.Connection:
+    """Return a SQLite connection with foreign-key enforcement enabled.
+
+    The PRAGMA-foreign-keys-ON line below is load-bearing: every
+    ``ON DELETE CASCADE`` in :func:`db_init`'s schema (``station_streams``
+    on ``stations.id``; ``station_siblings`` on ``stations.id`` via both
+    ``a_id`` and ``b_id``) only fires when this PRAGMA is set on the
+    connection issuing the parent DELETE. SQLite defaults the PRAGMA to
+    OFF per connection — so removing this line would silently leak orphan
+    rows on every station deletion (BUG-10; Phase 74 F-07-03 Synphaera
+    ghosts).
+
+    Anyone needing a SQLite connection MUST go through this function; a
+    source-grep regression test
+    (``tests/test_db_connect_is_sole_connection_factory.py``, landing in
+    Plan 80-04) asserts that no other call site of ``sqlite3.connect(...)``
+    exists in the production tree.
+    """
+    global _pragma_drift_logged
     con = sqlite3.connect(paths.db_path())
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON;")
+    if not _pragma_drift_logged:
+        if con.execute("PRAGMA foreign_keys").fetchone()[0] == 0:
+            _log.warning(
+                "PRAGMA foreign_keys is OFF after SET — drift detected"
+            )
+        _pragma_drift_logged = True
     return con
 
 
@@ -201,6 +256,55 @@ def db_init(con: sqlite3.Connection):
         con.commit()
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent; existing rows backfilled via DEFAULT
+
+
+def sweep_orphans(con: sqlite3.Connection) -> None:
+    """Delete orphan FK-child rows and INFO-log per-table counts when N>0.
+
+    Heals orphan rows left behind by manual ``sqlite3``-shell DELETEs that
+    bypassed :func:`db_connect`'s PRAGMA enforcement — the failure mode
+    that produced the Phase 74 F-07-03 ``Synphaera`` ghosts (``station_streams``
+    rows whose parent station was deleted outside the app, defeating
+    dedup-by-URL on re-import).
+
+    Runs on every app start; sub-millisecond when N=0; SILENT on N=0
+    (D-04 — only emit the INFO log line when at least one table had a
+    positive rowcount).
+
+    Per D-05, only the two real FK-cascade child tables are swept:
+    ``station_streams`` (cascade on ``stations.id``) and
+    ``station_siblings`` (cascade on ``stations.id`` via both ``a_id`` and
+    ``b_id`` columns — swept symmetrically with a single DELETE per D-07).
+
+    ``favorites`` is intentionally excluded (D-06): it has no FK, uses
+    ``TEXT station_name``, and v1.3 FAVES-01..04 deliberately persists
+    track titles after a station is deleted (listening history survives
+    station turnover). Sweeping it would silently change documented
+    behavior.
+
+    ``stations.provider_id`` orphans are out of scope (D-08): the column
+    is declared ``ON DELETE SET NULL`` (not ``CASCADE``); a dangling
+    ``provider_id`` is the documented graceful-degrade path, not an
+    orphan.
+
+    Caller owns the connection lifecycle — this function does NOT close
+    ``con``.
+    """
+    cur1 = con.execute(
+        "DELETE FROM station_streams WHERE station_id NOT IN "
+        "(SELECT id FROM stations)"
+    )
+    cur2 = con.execute(
+        "DELETE FROM station_siblings WHERE a_id NOT IN "
+        "(SELECT id FROM stations) OR b_id NOT IN (SELECT id FROM stations)"
+    )
+    if cur1.rowcount > 0 or cur2.rowcount > 0:
+        _log.info(
+            "sweep_orphans: station_streams=%d station_siblings=%d",
+            cur1.rowcount,
+            cur2.rowcount,
+        )
+    con.commit()
 
 
 class Repo:
