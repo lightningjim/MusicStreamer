@@ -149,7 +149,7 @@ def test_panel_construction(qtbot):
     qtbot.addWidget(panel)
     assert panel.minimumWidth() == 560
     assert panel.logo_label.size() == QSize(180, 180)
-    assert panel.cover_label.size() == QSize(160, 160)
+    assert panel.cover_label.size() == QSize(180, 180)
     assert panel.play_pause_btn.size() == QSize(36, 36)
     assert panel.stop_btn.size() == QSize(36, 36)
     assert panel.volume_slider.width() == 120
@@ -332,12 +332,12 @@ def test_cover_art_ready_signal_missing_path_falls_back(qtbot):
     # Empty path → station logo fallback, no crash
     # Token 0 matches the initial _cover_fetch_token value.
     panel._on_cover_art_ready("0:")
-    assert panel.cover_label.size() == QSize(160, 160)
+    assert panel.cover_label.size() == QSize(180, 180)
 
 
 def test_youtube_thumbnail_letterbox(qtbot, tmp_path):
-    """UI-14: a 16:9 source pixmap letterboxes to 160x90 inside the 160x160 slot,
-    and the label's fixed size is unchanged."""
+    """UI-14: a 16:9 source pixmap letterboxes inside the medium-tier 180x180
+    cover slot (D-05 equal-at-every-tier), and the label's fixed size is unchanged."""
     panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
     qtbot.addWidget(panel)
     src = QPixmap(320, 180)
@@ -345,9 +345,9 @@ def test_youtube_thumbnail_letterbox(qtbot, tmp_path):
     path = tmp_path / "yt_thumb.png"
     assert src.save(str(path), "PNG")
     panel._set_cover_pixmap(str(path))
-    assert panel.cover_label.size() == QSize(160, 160), "cover slot must stay 160x160"
+    assert panel.cover_label.size() == QSize(180, 180), "cover slot must stay 180x180"
     pm = panel.cover_label.pixmap()
-    assert pm.size() == QSize(160, 90), f"expected 160x90 letterbox, got {pm.size()}"
+    assert pm.size() == QSize(180, 101), f"expected 180x101 letterbox, got {pm.size()}"
 
 
 # ---------------------------------------------------------------------------
