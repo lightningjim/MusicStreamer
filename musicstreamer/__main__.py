@@ -252,6 +252,11 @@ def main(argv: list[str] | None = None) -> int:
     # Phase 79 / BUG-11: surface scan_playlist node_path INFO line at default
     # verbosity (consumed by Plan 79-03's yt_import.scan_playlist INFO log).
     logging.getLogger("musicstreamer.yt_import").setLevel(logging.INFO)
+    # Phase 80 / BUG-10: surface sweep_orphans INFO line + PRAGMA drift WARN
+    # line without bumping the global level. sweep_orphans is silent on N=0
+    # (D-04) so steady-state output is unchanged; the line appears only when
+    # the sweep actually removed at least one orphan row.
+    logging.getLogger("musicstreamer.repo").setLevel(logging.INFO)
     argv = list(argv) if argv is not None else list(sys.argv)
 
     parser = argparse.ArgumentParser(
