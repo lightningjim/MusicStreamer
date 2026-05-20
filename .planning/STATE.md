@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 72.4 plan 01 complete (TDD-RED scaffold + LAYOUT-04)
-last_updated: "2026-05-20T02:26:59.634Z"
-last_activity: 2026-05-19 -- Phase 72.3 execution started
+stopped_at: Session resumed, advancing to Wave 1 (/gsd-execute-phase 72.4)
+last_updated: "2026-05-20T00:00:00.000Z"
+last_activity: 2026-05-20 -- resumed Phase 72.4 at Wave 1 spawn
 progress:
   total_phases: 41
   completed_phases: 36
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 72.3 (make-station-tile-and-album-art-responsive-to-window-screen) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 72.3
-Last activity: 2026-05-19 -- Phase 72.3 execution started
+Phase: 72.4 (volume-cluster ↔ side-toggle overlap on lower display) — EXECUTING
+Plan: 2 of 3 (Wave 1 — next to spawn)
+Status: Wave 0 merged; resuming auto-chain at Wave 1 spawn
+Last activity: 2026-05-20 -- resumed Phase 72.4 at Wave 1 spawn
 
 ## Performance Metrics
 
@@ -237,6 +237,7 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-20T02:26:59.622Z
-Stopped at: Phase 72.4 plan 01 complete (TDD-RED scaffold + LAYOUT-04)
+Last session: 2026-05-20 (resumed)
+Stopped at: Session resumed, routing to /gsd-execute-phase 72.4 (Wave 1 spawn)
 Resume file: .planning/phases/72.4-i-noticed-the-volume-now-too-sometimes-overlaps-with-the-sid/72.4-02-PLAN.md
+Handoff: .planning/HANDOFF.json (delete after Wave 1 starts cleanly)
