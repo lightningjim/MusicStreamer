@@ -1201,18 +1201,28 @@ class NowPlayingPanel(QWidget):
         """Override to drive width-responsive layout decisions on the panel.
 
         Phase 72.1 / LAYOUT-02: stream-picker reparent on narrow widths.
+        Phase 72.4 / LAYOUT-04: volume-cluster reparent on very-narrow widths (NEW).
         Phase 72.3 / LAYOUT-03: logo/cover tier retarget.
 
         super's resizeEvent is MANDATORY first per Qt convention
         (Pitfall 9 from 72.1-RESEARCH lines 523-531) -- the base implementation
-        invalidates layout and updates internal geometry. Both helpers are
+        invalidates layout and updates internal geometry. All three helpers are
         idempotent -- safe to call when state hasn't changed (each owns a
-        cached-diff early-return guard). Neither helper calls self.resize /
+        cached-diff early-return guard). None of the helpers call self.resize /
         setGeometry (Qt docs: infinite recursion). Bound methods only (QA-05).
+
+        Call order (CONTEXT D-13 + Claude's Discretion / UI-SPEC §Co-existence):
+          1. picker reflow   (layout-affecting, threshold A)
+          2. volume reflow   (layout-affecting, threshold B; reads picker state
+                              via stream_combo.isHidden() but NOT via where the
+                              picker currently lives -- _row1_min_width is
+                              layout-agnostic per CR-01)
+          3. art-tier reflow (cosmetic; no dependency on row 1/2/3 membership)
         """
         super().resizeEvent(event)
-        self._reflow_stream_picker_row()  # Phase 72.1 / LAYOUT-02 (existing)
-        self._apply_art_tier()             # Phase 72.3 / LAYOUT-03 (NEW)
+        self._reflow_stream_picker_row()  # Phase 72.1 / LAYOUT-02
+        self._reflow_volume_cluster()     # Phase 72.4 / LAYOUT-04 -- NEW
+        self._apply_art_tier()             # Phase 72.3 / LAYOUT-03
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
@@ -1256,6 +1266,17 @@ class NowPlayingPanel(QWidget):
         if self.stream_combo.isHidden():
             self._move_stream_picker_to(self.controls)
             self._set_picker_size_policy(expanding=False)
+        # Phase 72.4 / LAYOUT-04: when station changes, the stream count may
+        # flip (multi→single or single→multi). A resizeEvent will fire on the
+        # next Qt event loop tick if the panel size changes, but if the panel
+        # stays the same size, Qt does NOT re-fire resizeEvent. The cluster
+        # must therefore be re-homed eagerly here — mirrors the picker's
+        # immediate re-home above (which calls _move_stream_picker_to directly
+        # when isHidden). Use the full predicate so all invariants are respected.
+        # Defensive guard: _reflow_volume_cluster has its own hasattr +
+        # panel_width <= 0 guards, so calling it here is always safe.
+        if hasattr(self, "_reflow_volume_cluster"):
+            self._reflow_volume_cluster()
 
     def _on_stream_selected(self, index: int) -> None:
         """User manually selected a stream from the picker (D-21)."""
@@ -1644,6 +1665,79 @@ class NowPlayingPanel(QWidget):
         else:
             self._move_stream_picker_to(self.controls)
             self._set_picker_size_policy(expanding=False)
+
+    def _reflow_volume_cluster(self) -> None:
+        """Width-driven reflow predicate for the volume cluster (D-01..D-14).
+
+        Phase 72.4 / LAYOUT-04: when panel.width() drops below the row-1
+        minimum WITHOUT the volume cluster, reparent (volume_slider +
+        compact_mode_toggle_btn) as an indivisible unit to a wrap row.
+        Target-row selection (UI-SPEC §Target-Row Selection):
+          - not should_wrap                 -> self.controls (row 1, Fixed-120)
+          - should_wrap + picker hidden     -> self._controls_row2 (D-07: single-stream)
+          - should_wrap + picker visible    -> self._controls_row3 (D-04: multi-stream)
+
+        Dispatcher contracts:
+          _move_volume_cluster_to(target) -- idempotent cluster reparent
+          _set_volume_size_policy(expanding=should_wrap) -- canonical Qt 6 three-call
+            round-trip (RESEARCH §Pattern 3 Pitfall 1 mitigation)
+
+        Pitfall 4 (isHidden vs isVisible): Use isHidden() (intended-visibility
+        semantics). isVisible() returns False on any widget whose top-level
+        ancestor has not been shown -- this breaks the off-screen test pattern
+        used in test_phase72_4_volume_cluster_reflow.py. Phase 72.1 burned a full
+        plan on this at _reflow_stream_picker_row. Use isHidden() exclusively.
+
+        Pitfall 5: No single-stream short-circuit return. Unlike 72.1's
+        _reflow_stream_picker_row (which returns early when picker is hidden),
+        72.4 MUST always fall through to the width-compare + dispatch because
+        D-08 supersedes 72.1 D-02 for the cluster dimension: single-stream
+        stations DO respond to width for the volume cluster.
+
+        Pitfall 6: Three defensive hasattr guards (volume_slider,
+        compact_mode_toggle_btn, _controls_row3) + panel_width <= 0 early-return.
+        Spurious resize events during __init__ and zero-width resizes during
+        teardown are real on this codepath (D-14).
+
+        QA-05 compliant: bound-method dispatch only (no inline closures). No addStretch on wrap rows (D-11).
+        No SQLite persistence (D-09 inheritance from Phase 72).
+        Width is the sole input (D-12) -- compact-mode state and sidebar
+        visibility are NOT inputs.
+        """
+        # Defensive guards (Pitfalls 5, 6 from RESEARCH / D-14).
+        if not hasattr(self, "volume_slider"):
+            return
+        if not hasattr(self, "compact_mode_toggle_btn"):
+            return
+        if not hasattr(self, "_controls_row3"):
+            return
+        panel_width = self.width()
+        if panel_width <= 0:
+            return
+        # Threshold: row-1 minimum WITHOUT the volume cluster, picker included
+        # iff the picker is currently visible (multi-stream). Uses
+        # include_picker=not isHidden() so the threshold correctly accounts for
+        # whether stream_combo contributes to row 1 width.
+        # RESEARCH §Pattern 7 Landmine: "No return after the single-stream-hidden
+        # branch -- unlike 72.1's predicate, 72.4 must always fall through to the
+        # width-compare + dispatch."
+        include_picker = not self.stream_combo.isHidden()
+        threshold = self._row1_min_width(
+            include_picker=include_picker,
+            include_volume_cluster=False,
+        )
+        should_wrap = panel_width < threshold
+        # Target-row selection (UI-SPEC §Target-Row Selection table).
+        if not should_wrap:
+            target = self.controls
+        elif self.stream_combo.isHidden():
+            # D-07: single-stream narrow -> row 2 (picker is hidden, row 2 is free)
+            target = self._controls_row2
+        else:
+            # D-04: multi-stream very narrow -> row 3 (picker owns row 2)
+            target = self._controls_row3
+        self._move_volume_cluster_to(target)
+        self._set_volume_size_policy(expanding=should_wrap)
 
     # ----------------------------------------------------------------------
     # Phase 72.3 / LAYOUT-03: art-tier helpers
