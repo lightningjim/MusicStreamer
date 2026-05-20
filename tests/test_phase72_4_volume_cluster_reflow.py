@@ -799,12 +799,22 @@ def test_show_event_defers_initial_reflow_via_singleshot():
 
     Source-grep style: pins the structural contract rather than trying
     to reproduce the Wayland/splitter timing race in a test environment.
+
+    UAT-1 hardening: ALSO require a 100ms belt-and-braces re-fire because
+    on Linux Wayland the 0ms tick has been observed to fire before the
+    panel reaches its final geometry (the compositor's frame callback
+    hasn't yet ticked the splitter to its final size). Helpers are
+    idempotent, so running both 0ms and 100ms is safe.
     """
     method = getattr(NowPlayingPanel, "showEvent", None)
     assert method is not None, "NowPlayingPanel must override showEvent"
     source = inspect.getsource(method)
-    assert "QTimer.singleShot" in source, (
+    assert "QTimer.singleShot(0" in source, (
         "showEvent must defer initial reflow via QTimer.singleShot(0, ...)"
+    )
+    assert "QTimer.singleShot(100" in source, (
+        "showEvent must include a 100ms belt-and-braces re-fire for Wayland "
+        "splitter-coalescing (UAT-1 hardening)"
     )
     assert "_reflow_stream_picker_row" in source, (
         "showEvent must defer _reflow_stream_picker_row (Phase 72.1 LAYOUT-02)"
@@ -814,6 +824,32 @@ def test_show_event_defers_initial_reflow_via_singleshot():
     )
     assert "_apply_art_tier" in source, (
         "showEvent must defer _apply_art_tier (Phase 72.3 LAYOUT-03)"
+    )
+
+
+def test_set_volume_size_policy_calls_update_geometry():
+    """UAT-1 hardening: _set_volume_size_policy must call
+    self.volume_slider.updateGeometry() after mutating the size policy.
+
+    Reason: setFixedWidth(120) clamps the widget's own min/max to 120, but
+    the parent QHBoxLayout may keep the prior Expanding-allowed cached size
+    hint and continue to render the slider at the wider width. Forcing a
+    re-query via updateGeometry() makes the layout pick up the new
+    constraints synchronously.
+
+    Observed: after a transient narrow initial-paint set the slider to
+    Expanding, the slider stayed visually Expanding on row 1 even after a
+    subsequent restore call to Fixed-120 — until the layout was forced to
+    re-query.
+    """
+    method = getattr(NowPlayingPanel, "_set_volume_size_policy", None)
+    assert method is not None, (
+        "_set_volume_size_policy does not exist on NowPlayingPanel"
+    )
+    source = inspect.getsource(method)
+    assert "updateGeometry" in source, (
+        "_set_volume_size_policy must call updateGeometry() after the "
+        "size-policy change so the parent layout re-queries the slider"
     )
 
 

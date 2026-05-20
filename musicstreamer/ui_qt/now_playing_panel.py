@@ -1262,9 +1262,24 @@ class NowPlayingPanel(QWidget):
         if self._initial_reflow_dispatched:
             return
         self._initial_reflow_dispatched = True
+        # Fast-path: next event-loop tick (catches cases where layout settled
+        # immediately, e.g. when reusing previous QWindow geometry).
         QTimer.singleShot(0, self._reflow_stream_picker_row)
         QTimer.singleShot(0, self._reflow_volume_cluster)
         QTimer.singleShot(0, self._apply_art_tier)
+        # Belt-and-braces (UAT-1 hardening): 100ms delayed re-fire. Observed
+        # on Linux Wayland that the 0ms tick can fire BEFORE the panel reaches
+        # its final geometry — the reflow then decides "wrap" against a
+        # transient narrow width, sets the slider to Expanding, and no
+        # follow-up resizeEvent ever fires once the layout actually settles
+        # (Wayland coalesces resize signals when the splitter's first paint
+        # already matches the final geometry). The 100ms tick runs after
+        # paint and the compositor's frame callback, so panel.width() reflects
+        # the actual displayed width by then. Helpers are idempotent — running
+        # twice is a no-op when state is already correct.
+        QTimer.singleShot(100, self._reflow_stream_picker_row)
+        QTimer.singleShot(100, self._reflow_volume_cluster)
+        QTimer.singleShot(100, self._apply_art_tier)
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
@@ -1654,6 +1669,12 @@ class NowPlayingPanel(QWidget):
             # but explicitly setting it documents intent and guards against Qt
             # version drift (mirrors 72.1's Preferred-on-revert at _set_picker_size_policy).
             self.volume_slider.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # UAT-1 follow-up (PySide6 / Wayland): without updateGeometry the parent
+        # QHBoxLayout may keep the prior cached size hint and continue to render
+        # the slider at the Expanding-allowed width even after setFixedWidth(120)
+        # clamps min=max=120. Forcing a re-query makes the layout pick up the
+        # new constraints synchronously.
+        self.volume_slider.updateGeometry()
         # Compact-toggle's setFixedSize(28, 28) at construction is NEVER mutated.
         # D-11: 28x28 fixed in every state.
 
