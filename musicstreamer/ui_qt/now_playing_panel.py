@@ -590,6 +590,22 @@ class NowPlayingPanel(QWidget):
         self._controls_row2.setSpacing(8)  # match self.controls.setSpacing(8) at line 441
         center.addLayout(self._controls_row2)
 
+        # Phase 72.4 / LAYOUT-04: row 3 for the volume cluster when multi-stream
+        # + very narrow (D-04). Empty by default; _reflow_volume_cluster reparents
+        # the cluster here when panel.width() < threshold AND stream_combo is
+        # visible (multi-stream). Qt collapses a zero-item QHBoxLayout to zero
+        # height automatically -- no explicit hide/show needed (mirrors 72.1
+        # _controls_row2 pattern above). Row 3 Visual Contract: setSpacing(8)
+        # mirrors row 1 and row 2; no setContentsMargins (inherits center
+        # margins). Insertion ORDER inside center is load-bearing (PATTERNS
+        # §Pattern 3 Landmine): row 3 MUST be added AFTER row 2 and BEFORE
+        # _stats_widget -- adding it after _stats_widget or _gbs_playlist_widget
+        # would break the visual row order on screen.
+        # Ref: UI-SPEC §Row 3 Visual Contract; CONTEXT D-04, D-07.
+        self._controls_row3 = QHBoxLayout()
+        self._controls_row3.setSpacing(8)  # mirror self.controls.setSpacing(8) and row 2
+        center.addLayout(self._controls_row3)
+
         # Phase 47.1 stats widget (D-07: last center-column item; D-08: always constructed)
         # Default hidden (D-05); MainWindow drives visibility after construction
         # from the QAction's checked state so menu and panel cannot desync (WR-02).
