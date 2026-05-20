@@ -784,3 +784,62 @@ def test_no_addstretch_in_wrap_path():
     assert "addStretch" not in source, (
         "D-11 violated — addStretch found inside _move_volume_cluster_to"
     )
+
+
+def test_show_event_defers_initial_reflow_via_singleshot():
+    """Initial-paint regression (UAT-1 follow-up): showEvent must defer
+    the initial reflow via QTimer.singleShot(0, ...) so the reflow runs
+    against the panel's actual displayed geometry, not the transient
+    first-paint geometry.
+
+    Without this defer, on small displays Qt's first resizeEvent fires
+    at a transient parent geometry, the reflow decides "no wrap", then
+    the layout settles to its actual (narrower) geometry without firing
+    a follow-up resizeEvent — stranding the cluster on row 1.
+
+    Source-grep style: pins the structural contract rather than trying
+    to reproduce the Wayland/splitter timing race in a test environment.
+    """
+    method = getattr(NowPlayingPanel, "showEvent", None)
+    assert method is not None, "NowPlayingPanel must override showEvent"
+    source = inspect.getsource(method)
+    assert "QTimer.singleShot" in source, (
+        "showEvent must defer initial reflow via QTimer.singleShot(0, ...)"
+    )
+    assert "_reflow_stream_picker_row" in source, (
+        "showEvent must defer _reflow_stream_picker_row (Phase 72.1 LAYOUT-02)"
+    )
+    assert "_reflow_volume_cluster" in source, (
+        "showEvent must defer _reflow_volume_cluster (Phase 72.4 LAYOUT-04)"
+    )
+    assert "_apply_art_tier" in source, (
+        "showEvent must defer _apply_art_tier (Phase 72.3 LAYOUT-03)"
+    )
+
+
+def test_narrow_initial_show_wraps_cluster_without_resize(qtbot):
+    """Initial-paint regression (UAT-1 follow-up): when the panel is
+    shown at a width below the cluster-wrap threshold, the volume
+    cluster must wrap to its target row without requiring an explicit
+    subsequent resize event.
+
+    Behavioral pin for the showEvent + QTimer.singleShot(0) deferred
+    reflow. _make_panel calls show() + waitExposed() AFTER setting the
+    panel width via the QMainWindow harness — the bug surface is the
+    same first-paint geometry the user hits on launch.
+
+    qtbot.wait(50) gives the QTimer.singleShot(0) chain one event-loop
+    tick to fire (Qt 0-delay timers fire on the next iteration, not
+    synchronously).
+    """
+    repo = FakeRepo({"volume": "80"})
+    panel = NowPlayingPanel(FakePlayer(), repo)
+    qtbot.addWidget(panel)
+    panel.resize(_W_VERY_NARROW, 800)  # narrow BEFORE show — first-paint scenario
+    panel.show()
+    qtbot.waitExposed(panel)
+    qtbot.wait(50)  # let QTimer.singleShot(0) fire
+    # No station bound → stream_combo hidden (single-stream wrap path, D-07).
+    # At very-narrow, cluster must be on _controls_row2 — NOT row 1 — without
+    # any explicit panel.resize() between show() and the assertion.
+    _assert_volume_cluster_in_layout(panel, panel._controls_row2)

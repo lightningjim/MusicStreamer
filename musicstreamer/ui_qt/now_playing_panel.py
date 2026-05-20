@@ -301,6 +301,16 @@ class NowPlayingPanel(QWidget):
         #   (False, False) — row-1-without-anything (single-stream + cluster-wrapped)
         # Invalidated by _populate_stream_picker (.clear()) — see PATTERNS §Pattern 1.
         self._row1_min_cache: dict[tuple[bool, bool], int] = {}
+        # Phase 72.4 / LAYOUT-04 follow-up (UAT-1 regression): Qt's first
+        # resizeEvent on show fires at a transient geometry (splitter default /
+        # pre-final parent size). The reflow runs there, decides "no wrap",
+        # then layout settles to the actual saved geometry without firing a
+        # follow-up resizeEvent. showEvent defers the initial reflow via
+        # QTimer.singleShot(0, ...) so it runs after layout settles. This flag
+        # is False at construction and flips True on the first showEvent so
+        # subsequent show/hide cycles do not re-dispatch (the helpers are
+        # idempotent — flag exists for clarity, not correctness).
+        self._initial_reflow_dispatched: bool = False
         # Phase 72.3 / LAYOUT-03: cached current art tier (140/180/240) and
         # last real cover-art path. Both initialize to None — sentinel meaning
         # "_apply_art_tier has not yet run / no real cover loaded". The
@@ -1223,6 +1233,38 @@ class NowPlayingPanel(QWidget):
         self._reflow_stream_picker_row()  # Phase 72.1 / LAYOUT-02
         self._reflow_volume_cluster()     # Phase 72.4 / LAYOUT-04 -- NEW
         self._apply_art_tier()             # Phase 72.3 / LAYOUT-03
+
+    def showEvent(self, event):  # noqa: N802 (Qt override)
+        """Defer initial-paint reflow via QTimer.singleShot(0, ...).
+
+        Phase 72.4 / LAYOUT-04 follow-up: Qt's first resizeEvent on show fires
+        at a transient geometry (parent splitter's default size, or before the
+        QMainWindow restores the user-saved geometry). The reflow helpers run
+        at that transient size, decide "no wrap", and the layout then settles
+        to the final geometry without firing a follow-up resizeEvent (Qt
+        deduplicates when widths match). Result: cluster strands on row 1 at
+        launch even when the final width requires it to wrap.
+
+        Fix: defer each reflow by one event-loop tick after first show. By
+        the time the QTimer fires, the panel has reached its actual displayed
+        geometry and the reflow makes the correct decision.
+
+        Why all three helpers (not just _reflow_volume_cluster): the picker
+        reflow (72.1) and art-tier reflow (72.3) share the same first-show
+        timing dependency; deferring them too is defensive and idempotent.
+
+        Subsequent show events (hide/show cycles) are no-ops at the layout
+        level (geometry already correct) — the helpers' own cached-diff
+        early-returns make re-dispatching free. _initial_reflow_dispatched
+        exists for clarity, not correctness.
+        """
+        super().showEvent(event)
+        if self._initial_reflow_dispatched:
+            return
+        self._initial_reflow_dispatched = True
+        QTimer.singleShot(0, self._reflow_stream_picker_row)
+        QTimer.singleShot(0, self._reflow_volume_cluster)
+        QTimer.singleShot(0, self._apply_art_tier)
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
