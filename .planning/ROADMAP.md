@@ -728,12 +728,12 @@ Plans:
 **Goal:** Extend the Phase 72.1 width-responsive reflow with a SECOND wrap tier on the now-playing panel: when panel.width() drops below the row-1-without-volume-cluster threshold, reparent volume_slider + compact_mode_toggle_btn as an indivisible "volume cluster" unit. Multi-stream very-narrow → cluster wraps to a new _controls_row3 beneath row 2 (which already holds the picker per LAYOUT-02). Single-stream narrow → cluster wraps to _controls_row2 directly (picker is hidden). Volume slider uses QSizePolicy(Expanding, Fixed) on wrap row; setFixedWidth(120) restored on row-1 return via the canonical Qt 6 three-call round-trip (setMinimumWidth(0) + setMaximumWidth(QWIDGETSIZE_MAX) + setSizePolicy). Compact-toggle stays 28×28 fixed. Width-driven (D-12), instant (no animation), idempotent. Picker invariant from LAYOUT-02 preserved unchanged. Closes the user's reproducer: at ~560px right-pane width with sidebar expanded, volume no longer overlaps the compact-toggle.
 **Requirements**: LAYOUT-04
 **Depends on:** Phase 72, Phase 72.1
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 72.4-01-PLAN.md — Wave 0 TDD-RED scaffold (tests/test_phase72_4_volume_cluster_reflow.py 13 behavior + 3 negatives) + REQUIREMENTS.md LAYOUT-04 registration
 - [x] 72.4-02-PLAN.md — Wave 1 GREEN helpers: _row1_min_cache dict + _volume_cluster_row1_index capture + generalized _row1_min_width(include_picker, include_volume_cluster) + _move_volume_cluster_to + _set_volume_size_policy (canonical Qt 6 three-call round-trip)
-- [ ] 72.4-03-PLAN.md — Wave 2 GREEN wiring: _controls_row3 construction + _reflow_volume_cluster predicate + resizeEvent extension between picker reflow and art-tier reflow; final UAT on user's lower display
+- [x] 72.4-03-PLAN.md — Wave 2 GREEN wiring: _controls_row3 construction + _reflow_volume_cluster predicate + resizeEvent extension between picker reflow and art-tier reflow; final UAT on user's lower display
 
 ### Phase 72.3: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (INSERTED)
 

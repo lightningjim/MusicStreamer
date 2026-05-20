@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Session resumed, advancing to Wave 1 (/gsd-execute-phase 72.4)
-last_updated: "2026-05-20T00:00:00.000Z"
-last_activity: 2026-05-20 -- resumed Phase 72.4 at Wave 1 spawn
+status: completed
+stopped_at: Session resumed, routing to /gsd-execute-phase 72.4 (Wave 1 spawn)
+last_updated: "2026-05-20T14:24:22.877Z"
+last_activity: 2026-05-20 -- Phase 72.4 marked complete
 progress:
   total_phases: 41
-  completed_phases: 36
-  total_plans: 175
+  completed_phases: 35
+  total_plans: 176
   completed_plans: 168
-  percent: 88
+  percent: 85
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 72.4 (volume-cluster ↔ side-toggle overlap on lower display) — EXECUTING
+Phase: 72.4 — COMPLETE
 Plan: 2 of 3 (Wave 1 — next to spawn)
-Status: Wave 0 merged; resuming auto-chain at Wave 1 spawn
-Last activity: 2026-05-20 -- resumed Phase 72.4 at Wave 1 spawn
+Status: Phase 72.4 complete
+Last activity: 2026-05-20 -- Phase 72.4 marked complete
 
 ## Performance Metrics
 
