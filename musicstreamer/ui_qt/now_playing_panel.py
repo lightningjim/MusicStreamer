@@ -1435,6 +1435,86 @@ class NowPlayingPanel(QWidget):
             # target_layout is self._controls_row2
             self._controls_row2.addWidget(self.stream_combo)
 
+    def _move_volume_cluster_to(self, target_layout: QHBoxLayout) -> None:
+        """Reparent the volume cluster (volume_slider + compact_mode_toggle_btn)
+        into target_layout idempotently as a single unit.
+
+        Cluster-as-unit invariant (CONTEXT D-03): both widgets move together or
+        neither does. The left-to-right order on the wrap row is volume_slider ->
+        compact_mode_toggle_btn (D-02), preserving row-1 reading order. On row-1
+        return, both widgets are inserted at their original positions via
+        insertWidget(self._volume_cluster_row1_index, ...) for volume and
+        insertWidget(self._volume_cluster_row1_index + 1, ...) for compact-toggle —
+        analogous to 72.1 Pitfall 6 / Pattern B for the picker's _picker_row1_index.
+
+        Uses volume_slider as the membership probe (cluster invariant D-03 —
+        if volume is in layout X then compact-toggle is also in layout X).
+
+        Three candidate target layouts (controls / _controls_row2 / _controls_row3).
+        If _controls_row3 does not yet exist (pre-Plan-03 state), the membership
+        probe for row 3 is defensively skipped via hasattr check — Plan 03 adds
+        that attribute.
+
+        Signal connections survive reparent per Qt 6 semantics (Pattern 2 in
+        72.1-RESEARCH and 72.4-RESEARCH §Pattern 2 §Critical):
+          - volume_slider.valueChanged -> _on_volume_changed_live (line 774)
+          - volume_slider.sliderReleased -> _on_volume_released (line 775)
+          - compact_mode_toggle_btn.toggled -> _on_compact_btn_toggled (line 565)
+
+        D-11: the trailing stretch on row 1 is NOT moved to the wrap row. Volume's
+        Expanding policy already consumes free space, pinning compact-toggle to the
+        right edge without any explicit stretch widget.
+        """
+        # Determine current home using volume_slider as the membership probe.
+        current_in_row1 = self.controls.indexOf(self.volume_slider) >= 0
+        current_in_row2 = self._controls_row2.indexOf(self.volume_slider) >= 0
+        # Defensive hasattr for _controls_row3 — Plan 03 adds this layout.
+        # Before Plan 03 lands, treat row 3 as never-containing-the-cluster.
+        current_in_row3 = (
+            hasattr(self, "_controls_row3")
+            and self._controls_row3.indexOf(self.volume_slider) >= 0
+        )
+
+        # Idempotent early-returns (Pattern 2 — avoids spurious reparent churn).
+        if target_layout is self.controls and current_in_row1:
+            return
+        if target_layout is self._controls_row2 and current_in_row2:
+            return
+        if hasattr(self, "_controls_row3") and target_layout is self._controls_row3 and current_in_row3:
+            return
+
+        # Remove BOTH cluster members from whichever layout currently owns them.
+        # Cluster-as-unit invariant: both are always in the same layout (D-03).
+        if current_in_row1:
+            current = self.controls
+        elif current_in_row2:
+            current = self._controls_row2
+        elif current_in_row3:
+            current = self._controls_row3
+        else:
+            current = None
+        if current is not None:
+            # Order doesn't matter for removal; layout repacks after.
+            current.removeWidget(self.volume_slider)
+            current.removeWidget(self.compact_mode_toggle_btn)
+
+        # Add to target — target-specific to preserve row-1 insertion position.
+        if target_layout is self.controls:
+            # Row-1 return: insert at the captured original position so the
+            # cluster sits between eq_toggle_btn and the trailing stretch widget.
+            # Insert volume_slider FIRST at index, then compact_mode_toggle_btn
+            # at index+1 (D-02 left-to-right order, Pattern 6 / RESEARCH §Pattern 2
+            # Critical insertWidget gotcha: insert volume first at N, then
+            # compact-toggle at N+1).
+            self.controls.insertWidget(self._volume_cluster_row1_index, self.volume_slider)
+            self.controls.insertWidget(self._volume_cluster_row1_index + 1, self.compact_mode_toggle_btn)
+        else:
+            # Wrap row (row 2 or row 3): addWidget in left-to-right order.
+            # D-11: no stretch widget on the wrap row — volume's Expanding policy
+            # pins compact-toggle to the right edge naturally.
+            target_layout.addWidget(self.volume_slider)
+            target_layout.addWidget(self.compact_mode_toggle_btn)
+
     def _set_picker_size_policy(self, expanding: bool) -> None:
         """Toggle stream_combo horizontal size policy (D-07 / D-08).
 
@@ -1450,6 +1530,53 @@ class NowPlayingPanel(QWidget):
             self.stream_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         else:
             self.stream_combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+
+    def _set_volume_size_policy(self, expanding: bool) -> None:
+        """Toggle volume slider horizontal sizing for row 1 (Fixed 120) vs wrap row (Expanding).
+
+        D-09: Expanding on wrap row (volume stretches to fill the row's free width
+        minus the 28px compact-toggle).
+        D-10: Fixed 120 on row 1 (restores the pre-72.4 baseline — setFixedWidth(120)
+        at construction, line ~544).
+
+        CANONICAL Qt 6 ROUND-TRIP (verified via Qt docs 2026-05-19):
+        setFixedWidth(120) at construction sets BOTH minimumWidth=120 AND
+        maximumWidth=120 internally. Undoing this requires:
+          (1) setMinimumWidth(0)               -- release the floor
+          (2) setMaximumWidth(16777215)         -- release the cap
+                                                  (QWIDGETSIZE_MAX = 2^24 - 1 per Qt 6
+                                                  QWidget docs — RESEARCH §Pattern 3 Critical
+                                                  note 1; literal is verified safe)
+          (3) setSizePolicy(Expanding, Fixed)   -- enable growth
+
+        Calling only setSizePolicy() after setFixedWidth() does NOT make the
+        widget grow — the min=max=120 constraints from setFixedWidth still
+        pin the width. This is the key Qt 6 invariant 72.4 honors that
+        72.1's _set_picker_size_policy did not need to (the picker only ever
+        called setMinimumWidth(140), not setFixedWidth).
+
+        On row-1 return, setFixedWidth(120) restores both bounds in one call
+        AND sets the QSizePolicy via Qt's internal sync; explicitly calling
+        setSizePolicy(Fixed, Fixed) is a belt-and-braces safety belt (mirrors
+        72.1's explicit Preferred-on-revert pattern at _set_picker_size_policy).
+
+        D-11: compact_mode_toggle_btn's setFixedSize(28, 28) is NEVER mutated.
+        The method body ONLY touches volume_slider.
+        """
+        if expanding:
+            # Clear the setFixedWidth(120) constraint set at construction.
+            self.volume_slider.setMinimumWidth(0)
+            self.volume_slider.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX = 2^24 - 1 per Qt 6 QWidget docs (RESEARCH §Pattern 3 Critical note 1)
+            self.volume_slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        else:
+            # Restore row-1 baseline: setFixedWidth resets both min and max to 120.
+            self.volume_slider.setFixedWidth(120)
+            # Belt and braces: setFixedWidth internally syncs policy to Fixed/Fixed,
+            # but explicitly setting it documents intent and guards against Qt
+            # version drift (mirrors 72.1's Preferred-on-revert at _set_picker_size_policy).
+            self.volume_slider.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # Compact-toggle's setFixedSize(28, 28) at construction is NEVER mutated.
+        # D-11: 28x28 fixed in every state.
 
     def _reflow_stream_picker_row(self) -> None:
         """Width-driven reflow predicate (D-01 / D-02 / D-05 / D-06).
