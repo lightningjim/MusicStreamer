@@ -1663,12 +1663,29 @@ class NowPlayingPanel(QWidget):
             self.volume_slider.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX = 2^24 - 1 per Qt 6 QWidget docs (RESEARCH §Pattern 3 Critical note 1)
             self.volume_slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         else:
-            # Restore row-1 baseline: setFixedWidth resets both min and max to 120.
+            # UAT-1 round 3 — NUCLEAR clamp. setFixedWidth(120) alone (and
+            # even setFixedWidth + updateGeometry) was insufficient on Linux
+            # Wayland: the slider remained visually Expanding even though its
+            # internal min/max read back as 120. Explicit clear-then-clamp +
+            # parent-layout invalidate + activate forces a synchronous
+            # re-pack of row 1.
+            self.volume_slider.setMinimumWidth(0)
+            self.volume_slider.setMaximumWidth(16777215)
+            self.volume_slider.setMinimumWidth(120)
+            self.volume_slider.setMaximumWidth(120)
             self.volume_slider.setFixedWidth(120)
-            # Belt and braces: setFixedWidth internally syncs policy to Fixed/Fixed,
-            # but explicitly setting it documents intent and guards against Qt
-            # version drift (mirrors 72.1's Preferred-on-revert at _set_picker_size_policy).
             self.volume_slider.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            # Force the parent QHBoxLayout (controls / _controls_row2 /
+            # _controls_row3 — whichever currently owns the slider) to
+            # synchronously re-pack against the new clamp.
+            parent_layout = self.volume_slider.parentWidget().layout() if self.volume_slider.parentWidget() else None
+            for lay in (self.controls,
+                        getattr(self, "_controls_row2", None),
+                        getattr(self, "_controls_row3", None),
+                        parent_layout):
+                if lay is not None:
+                    lay.invalidate()
+                    lay.activate()
         # UAT-1 follow-up (PySide6 / Wayland): without updateGeometry the parent
         # QHBoxLayout may keep the prior cached size hint and continue to render
         # the slider at the Expanding-allowed width even after setFixedWidth(120)
