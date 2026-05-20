@@ -1265,71 +1265,121 @@ class NowPlayingPanel(QWidget):
         self.stream_combo.blockSignals(False)
 
     # ----------------------------------------------------------------------
-    # Phase 72.1 / LAYOUT-02: stream-picker reflow helpers
+    # Phase 72.1 / LAYOUT-02 + Phase 72.4 / LAYOUT-04: stream-picker and
+    # volume-cluster reflow helpers
     # ----------------------------------------------------------------------
-    # See 72.1-RESEARCH.md Pattern 2/3/4/5 + 72.1-PATTERNS.md Pattern B/C/D.
+    # See 72.1-RESEARCH.md Pattern 2/3/4/5 + 72.1-PATTERNS.md Pattern B/C/D
+    # + 72.4-RESEARCH.md Pattern 1/2/3/4 + 72.4-PATTERNS.md Pattern 4/5/6.
     # resizeEvent (above, immediately before _populate_stream_picker) is the
-    # Qt override that drives the reflow on every panel resize. The four
-    # helpers below compose the reflow mechanism: threshold compute (cached),
-    # idempotent reparent, size-policy toggle, and the predicate that wires
-    # them together.
+    # Qt override that drives the reflow on every panel resize. The helpers
+    # below compose the reflow mechanism: generalized threshold compute (cached),
+    # idempotent reparent helpers, size-policy toggles, and the predicates that
+    # wire them together.
 
-    def _picker_row_min_width(self) -> int:
-        """Compute the panel.width() floor below which row 1 cannot fit the picker.
+    def _row1_min_width(self, include_picker: bool, include_volume_cluster: bool) -> int:
+        """Compute the panel.width() floor below which row 1 cannot fit.
+
+        Phase 72.1 / LAYOUT-02 was a single-purpose threshold helper for the picker only.
+        Phase 72.4 / LAYOUT-04 generalizes this to support FOUR thresholds:
+          - include_picker=True,  include_volume_cluster=True  -> row-1-with-everything
+            (72.1 picker-wrap threshold)
+          - include_picker=False, include_volume_cluster=True  -> row-1-without-picker,
+            with-cluster (single-stream — picker hidden)
+          - include_picker=True,  include_volume_cluster=False -> row-1-with-picker,
+            without-cluster (multi-stream cluster-wrap threshold)
+          - include_picker=False, include_volume_cluster=False -> row-1-without-anything
+            (single-stream + cluster-wrapped — the floor)
 
         Sum of:
-          - row 1 (self.controls) widget minimums + inter-widget spacing + margins
+          - row 1 (self.controls) widget minimums + inter-widget spacing + margins,
+            filtered by the include flags
+          - CR-01 layout-agnostic add-backs: if a widget is currently off row 1
+            but its include flag is True, its min-width contribution is added
+            explicitly so the threshold is layout-agnostic (Phase 72.1 CR-01 fix
+            extended to THREE widgets in Phase 72.4).
           - OUTER chrome (logo column + cover column + outer margins + outer
             spacing) -- because panel.width() includes the chrome, not just
             the center column where self.controls lives. Without this term
             the threshold reports row-1-internal-min only and the predicate
             misclassifies (panel.width() always exceeds row-1-internal-min on
             any realistic panel size). [Rule 1 -- plan pseudo-code omitted
-            the outer-chrome term; surfaced when sample (b) failed at 560px.]
+            the outer-chrome term; surfaced when sample (b) failed at 560px in 72.1.]
           - +16px safety buffer for splitter handle + rounding
             (Open Question 4 in 72.1-RESEARCH).
 
-        Lazy-cached in self._row1_min_cache[(True, True)] on first call (Pattern 4 in
-        72.1-RESEARCH lines 305-358). Cache is invalidated by
-        _populate_stream_picker (.clear() hook).
+        Lazy-cached in self._row1_min_cache[(include_picker, include_volume_cluster)]
+        on first call. Cache is invalidated by _populate_stream_picker (.clear() hook).
+
+        CR-01 layout-agnostic invariant (THREE widgets — Phase 72.1 + 72.4):
+        Phase 72.1 burned a whole compute-from-scratch revision when this was
+        missed for the picker (sample (b) failure at 560px). 72.4 has THREE such
+        widgets (stream_combo, volume_slider, compact_mode_toggle_btn) and THREE
+        corresponding add-back branches.
 
         Returns:
-            int: panel.width() floor below which row 1 cannot fit the picker.
+            int: panel.width() floor below which row 1 cannot fit the specified widgets.
         """
-        _cache_key = (True, True)
-        if _cache_key in self._row1_min_cache:
-            return self._row1_min_cache[_cache_key]
-        # Row 1 (center column) intrinsic minimum.
-        # CR-01 fix: threshold is "what would row 1 need to fit IF the picker
-        # were here?" — a layout-agnostic question. Walking self.controls and
-        # summing whatever widgets are currently there mis-computes when the
-        # picker is currently in row 2 (would drop ~148px and self-reproduce
-        # the original overflow on the next bind_station→resize cycle).
+        cache_key = (include_picker, include_volume_cluster)
+        if cache_key in self._row1_min_cache:
+            return self._row1_min_cache[cache_key]
+
         layout = self.controls  # row 1 QHBoxLayout
         margins = layout.contentsMargins()
         spacing = layout.spacing()
         total = margins.left() + margins.right()
         widget_count = 0
+
+        # Probe current layout membership for the three wrap-eligible widgets.
+        # CR-01 layout-agnostic: these flags drive the add-backs below.
         picker_in_row1 = layout.indexOf(self.stream_combo) >= 0
+        volume_in_row1 = layout.indexOf(self.volume_slider) >= 0
+        compact_in_row1 = layout.indexOf(self.compact_mode_toggle_btn) >= 0
+
         for i in range(layout.count()):
             item = layout.itemAt(i)
             w = item.widget()
             if w is None:
                 # addStretch(1) -- no width contribution.
                 continue
+            # Per-widget exclusions based on include flags.
+            if w is self.stream_combo and not include_picker:
+                continue
+            if w is self.volume_slider and not include_volume_cluster:
+                continue
+            if w is self.compact_mode_toggle_btn and not include_volume_cluster:
+                continue
             wmin = max(w.minimumWidth(), w.minimumSizeHint().width())
             total += wmin
             widget_count += 1
-        if not picker_in_row1:
-            # Picker currently in row 2 -- add its row-1 contribution
-            # explicitly so the threshold is layout-agnostic (CR-01).
+
+        # CR-01 layout-agnostic add-backs: if a widget is currently NOT in row 1
+        # but its include flag is True, add its row-1 width contribution explicitly.
+        # Extending Phase 72.1's single add-back (picker only) to THREE widgets.
+        if include_picker and not picker_in_row1:
+            # Picker currently in row 2 -- add its row-1 contribution (CR-01).
             total += max(
                 self.stream_combo.minimumWidth(),
                 self.stream_combo.minimumSizeHint().width(),
             )
             widget_count += 1
+        if include_volume_cluster and not volume_in_row1:
+            # Volume slider currently in wrap row -- add its row-1 contribution (CR-01).
+            total += max(
+                self.volume_slider.minimumWidth(),
+                self.volume_slider.minimumSizeHint().width(),
+            )
+            widget_count += 1
+        if include_volume_cluster and not compact_in_row1:
+            # Compact-toggle currently in wrap row -- add its row-1 contribution (CR-01).
+            total += max(
+                self.compact_mode_toggle_btn.minimumWidth(),
+                self.compact_mode_toggle_btn.minimumSizeHint().width(),
+            )
+            widget_count += 1
+
         if widget_count > 1:
             total += spacing * (widget_count - 1)
+
         # Outer chrome: panel.width() = outer.margins + logo + outer.spacing*2
         # + center + cover; the center column is what holds self.controls.
         # We need panel.width() floor = row_1_min + (outer - center).
@@ -1348,9 +1398,10 @@ class NowPlayingPanel(QWidget):
             # (widget or sub-layout), so gap count = outer.count() - 1.
             if outer.count() > 1:
                 total += outer.spacing() * (outer.count() - 1)
+
         # Safety buffer per Open Question 4 (splitter handle + rounding).
         total += 16
-        self._row1_min_cache[_cache_key] = total
+        self._row1_min_cache[cache_key] = total
         return total
 
     def _move_stream_picker_to(self, target_layout: QHBoxLayout) -> None:
@@ -1440,7 +1491,9 @@ class NowPlayingPanel(QWidget):
             self._set_picker_size_policy(expanding=False)
             return
         # Width-driven branch (multi-stream).
-        threshold = self._picker_row_min_width()
+        # Phase 72.4 / LAYOUT-04: generalized helper (was picker-only in 72.1).
+        # Semantically identical: row 1 with everything (picker=True, cluster=True).
+        threshold = self._row1_min_width(include_picker=True, include_volume_cluster=True)
         should_wrap = panel_width < threshold
         if should_wrap:
             self._move_stream_picker_to(self._controls_row2)
