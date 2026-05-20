@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
-stopped_at: Phase 72.3 UI-SPEC approved
-last_updated: "2026-05-19T16:55:35.702Z"
+stopped_at: Phase 72.4 context gathered
+last_updated: "2026-05-20T01:24:30.570Z"
 last_activity: 2026-05-19 -- Phase 72.3 execution started
 progress:
   total_phases: 41
@@ -237,6 +237,6 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-19T13:11:45.850Z
-Stopped at: Phase 72.3 UI-SPEC approved
-Resume file: .planning/phases/72.3-make-station-tile-and-album-art-responsive-to-window-screen-/72.3-UI-SPEC.md
+Last session: 2026-05-20T01:24:30.555Z
+Stopped at: Phase 72.4 context gathered
+Resume file: .planning/phases/72.4-i-noticed-the-volume-now-too-sometimes-overlaps-with-the-sid/72.4-CONTEXT.md
