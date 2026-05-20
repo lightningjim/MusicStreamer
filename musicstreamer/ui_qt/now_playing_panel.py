@@ -292,9 +292,15 @@ class NowPlayingPanel(QWidget):
         self._is_stopped: bool = False  # True after full stop (vs pause); cleared on bind/play
         self._last_icy_title: str = ""
         self._streams: list = []
-        # Phase 72.1 / LAYOUT-02: lazy cache for _picker_row_min_width();
-        # invalidated by _populate_stream_picker (Plan 03 hook).
-        self._cached_row1_min: Optional[int] = None
+        # Phase 72.1 / LAYOUT-02 + Phase 72.4 / LAYOUT-04: generalized lazy cache
+        # for _row1_min_width(include_picker, include_volume_cluster).
+        # Keyed by (include_picker, include_volume_cluster) tuple — four variants:
+        #   (True,  True)  — row-1-with-everything (72.1 picker-wrap threshold)
+        #   (False, True)  — row-1-without-picker, with-cluster (single-stream)
+        #   (True,  False) — row-1-with-picker, without-cluster (multi-stream cluster-wrap threshold)
+        #   (False, False) — row-1-without-anything (single-stream + cluster-wrapped)
+        # Invalidated by _populate_stream_picker (.clear()) — see PATTERNS §Pattern 1.
+        self._row1_min_cache: dict[tuple[bool, bool], int] = {}
         # Phase 72.3 / LAYOUT-03: cached current art tier (140/180/240) and
         # last real cover-art path. Both initialize to None — sentinel meaning
         # "_apply_art_tier has not yet run / no real cover loaded". The
@@ -544,6 +550,14 @@ class NowPlayingPanel(QWidget):
         self.volume_slider.setFixedWidth(120)
         self.volume_slider.setTickPosition(QSlider.NoTicks)
         self.controls.addWidget(self.volume_slider)
+        # Phase 72.4 / LAYOUT-04: pinned original index for insertWidget on the
+        # row-1-return path (Pattern 6 — mirrors 72.1 _picker_row1_index at line 509).
+        # Must be captured AFTER addWidget (indexOf returns -1 before) and BEFORE any
+        # subsequent row-1 widget is added (compact_mode_toggle_btn next). On reparent
+        # back, both cluster widgets insertWidget at this index (volume_slider) and
+        # index+1 (compact_mode_toggle_btn) to land in their original visual slot
+        # between eq_toggle_btn and addStretch(1). CONTEXT D-02/D-03.
+        self._volume_cluster_row1_index: int = self.controls.indexOf(self.volume_slider)
 
         # Phase 72 / LAYOUT-01 / D-04 (corrected per UI-SPEC §Interaction Contract):
         # compact-mode toggle inserted between volume_slider and addStretch(1).
@@ -1206,11 +1220,14 @@ class NowPlayingPanel(QWidget):
             self.stream_combo.addItem(label, userData=s.id)
         self.stream_combo.blockSignals(False)
         self.stream_combo.setVisible(len(streams) > 1)
-        # Phase 72.1 / LAYOUT-02: invalidate threshold cache (defensive — row-1
-        # widget count is unchanged by this phase's scope, but future widget
-        # additions would otherwise be stale; Pitfall 5 in 72.1-RESEARCH).
+        # Phase 72.1 / LAYOUT-02 + Phase 72.4 / LAYOUT-04: invalidate the
+        # generalized threshold cache (defensive — row-1 widget count is unchanged
+        # by population, but future widget additions would otherwise be stale;
+        # Pitfall 5 in 72.1-RESEARCH). Clearing the dict invalidates ALL four
+        # (include_picker, include_volume_cluster) variants at once. PATTERNS §Pattern 1
+        # Landmine 1: missed rename here re-introduces CR-01 stale-threshold bug.
         # _reflow_stream_picker_row recomputes on the next resizeEvent.
-        self._cached_row1_min = None
+        self._row1_min_cache.clear()
         # Phase 72.1 / LAYOUT-02 / CONTEXT D-Discretion: when station change made
         # the picker hidden (single-stream), force re-home to row 1 (its default
         # home) so layout state stays consistent with visibility state. Multi-
@@ -1272,15 +1289,16 @@ class NowPlayingPanel(QWidget):
           - +16px safety buffer for splitter handle + rounding
             (Open Question 4 in 72.1-RESEARCH).
 
-        Lazy-cached in self._cached_row1_min on first call (Pattern 4 in
+        Lazy-cached in self._row1_min_cache[(True, True)] on first call (Pattern 4 in
         72.1-RESEARCH lines 305-358). Cache is invalidated by
-        _populate_stream_picker (Plan 03 hook).
+        _populate_stream_picker (.clear() hook).
 
         Returns:
             int: panel.width() floor below which row 1 cannot fit the picker.
         """
-        if self._cached_row1_min is not None:
-            return self._cached_row1_min
+        _cache_key = (True, True)
+        if _cache_key in self._row1_min_cache:
+            return self._row1_min_cache[_cache_key]
         # Row 1 (center column) intrinsic minimum.
         # CR-01 fix: threshold is "what would row 1 need to fit IF the picker
         # were here?" — a layout-agnostic question. Walking self.controls and
@@ -1332,7 +1350,7 @@ class NowPlayingPanel(QWidget):
                 total += outer.spacing() * (outer.count() - 1)
         # Safety buffer per Open Question 4 (splitter handle + rounding).
         total += 16
-        self._cached_row1_min = total
+        self._row1_min_cache[_cache_key] = total
         return total
 
     def _move_stream_picker_to(self, target_layout: QHBoxLayout) -> None:
