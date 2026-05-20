@@ -956,3 +956,13 @@ Plans:
 Plans:
 
 - [ ] TBD (run /gsd-plan-phase 81 to break down)
+
+### Phase 82: Twitch-only station still tries to play YouTube stream first — lofi girl station has only one stream (Twitch) but player attempts YT first; can't fix at YT source due to false copyright claims on Lofi Girl's channel
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 81
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 82 to break down)

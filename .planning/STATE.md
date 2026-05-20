@@ -186,6 +186,7 @@ Key v2.0 decisions already settled:
 - Phase 72.3 inserted after Phase 72: Make station tile and album art responsive to window/screen size — currently fixed sizing makes art appear small on high-resolution small-screen displays (URGENT)
 - Phase 72.4 inserted after Phase 72: I noticed the volume now, too, sometimes overlaps with the side hide/expand button, on the lower screen when the side bar is expanded (URGENT)
 - Phase 81 moved: Promoted from backlog (was 999.1): station list case-insensitive sort
+- Phase 82 added: Twitch-only station still tries to play YouTube stream first — lofi girl station has only one (Twitch) stream but player attempts YT first; can't fix at YT source due to false copyright claims on Lofi Girl's channel 2026-05-20
 
 ### Pending Todos
 
