@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: completed
-stopped_at: Session resumed, routing to /gsd-execute-phase 72.4 (Wave 1 spawn)
-last_updated: "2026-05-20T14:24:22.877Z"
+stopped_at: Phase 81 context gathered
+last_updated: "2026-05-21T17:50:09.752Z"
 last_activity: 2026-05-20 -- Phase 72.4 marked complete
 progress:
-  total_phases: 41
-  completed_phases: 35
-  total_plans: 176
-  completed_plans: 168
-  percent: 85
+  total_phases: 42
+  completed_phases: 37
+  total_plans: 175
+  completed_plans: 170
+  percent: 88
 ---
 
 # Project State
@@ -238,7 +238,7 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-20 (resumed)
-Stopped at: Session resumed, routing to /gsd-execute-phase 72.4 (Wave 1 spawn)
-Resume file: .planning/phases/72.4-i-noticed-the-volume-now-too-sometimes-overlaps-with-the-sid/72.4-02-PLAN.md
+Last session: 2026-05-21T17:50:09.740Z
+Stopped at: Phase 81 context gathered
+Resume file: .planning/phases/81-station-list-alphabetical-sorting-is-case-sensitive-a-z-then/81-CONTEXT.md
 Handoff: .planning/HANDOFF.json (delete after Wave 1 starts cleanly)
