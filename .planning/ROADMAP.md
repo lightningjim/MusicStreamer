@@ -951,13 +951,13 @@ Plans:
 
 **Goal:** Noticed during the SomaFM full-catalog import (post-Phase 74 wipe + re-import, 2026-05-14): station-list alphabetical sort orders uppercase before lowercase (ASCII order — `A-Z` then `a-z`) instead of case-insensitive A→Z. Sort should be case-insensitive so stations like `deepSpace`, `Drone Zone`, and `Groove Salad` interleave naturally. Likely a `ORDER BY name` somewhere that needs `ORDER BY name COLLATE NOCASE` (SQLite) or an equivalent Qt model-side key. Scope during /gsd-discuss-phase: identify all sort sites (station tree, recent panel, search results, edit dialog) and pick one consistent collation.
 **Requirements:** TBD
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 81 to break down)
+- [ ] 81-01-PLAN.md — repo.py: append COLLATE NOCASE to both ORDER BY columns in list_stations + list_favorite_stations; add behavioral interleave tests + source-grep drift-guard in tests/test_repo.py
 
-### Phase 82: Twitch-only station still tries to play YouTube stream first — lofi girl station has only one stream (Twitch) but player attempts YT first; can't fix at YT source due to false copyright claims on Lofi Girl's channel
+### Phase 82: User-selected stream provider is ignored — when a station has multiple streams (e.g. YT + Twitch) and the user picks Twitch from the dropdown, the player still attempts YT first instead of honoring the selection
 
 **Goal:** [To be planned]
 **Requirements**: TBD
