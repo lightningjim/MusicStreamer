@@ -820,3 +820,49 @@ def test_db_init_idempotent_for_sample_rate_hz():
 
     # Idempotency — second db_init must not raise
     db_init(con)
+
+
+# ---------------------------------------------------------------------------
+# Phase 81: case-insensitive station sort (D-01 / D-02 / D-03 / D-05)
+# ---------------------------------------------------------------------------
+
+def _seed_mixed_case_stations(repo, names):
+    ids = []
+    for n in names:
+        sid = repo.create_station()
+        repo.update_station(sid, n, None, "", None, None)
+        ids.append(sid)
+    return ids
+
+
+def test_list_stations_case_insensitive_order(repo):
+    names = ["Zenith", "deepSpace", "aardvark", "Groove Salad", "Drone Zone"]
+    _seed_mixed_case_stations(repo, names)
+    result = repo.list_stations()
+    # D-01/D-02/D-03/D-05: SQLite NOCASE collation interleaves case-insensitively
+    assert [s.name for s in result] == ["aardvark", "deepSpace", "Drone Zone", "Groove Salad", "Zenith"]
+
+
+def test_list_favorite_stations_case_insensitive_order(repo):
+    names = ["Zenith", "deepSpace", "aardvark", "Groove Salad", "Drone Zone"]
+    ids = _seed_mixed_case_stations(repo, names)
+    # Mark 1st, 3rd, and 5th seeded stations as favorites
+    favorite_indices = [0, 2, 4]
+    favorite_names = [names[i] for i in favorite_indices]
+    for i in favorite_indices:
+        repo.set_station_favorite(ids[i], True)
+    result = repo.list_favorite_stations()
+    # D-02/D-03: ORDER BY ... COLLATE NOCASE applies to favorites query too
+    expected = sorted(favorite_names, key=str.casefold)
+    assert [s.name for s in result] == expected
+
+
+def test_collate_nocase_drift_guard(repo):
+    # Source-grep drift-guard precedent: Phase 51 / 55 / 61 / 63
+    from pathlib import Path
+    source = (Path(__file__).resolve().parent.parent / "musicstreamer" / "repo.py").read_text()
+    lines = [ln for ln in source.splitlines() if not ln.lstrip().startswith("#")]
+    body = "\n".join(lines)
+    assert body.count("ORDER BY COALESCE(p.name,'') COLLATE NOCASE, s.name COLLATE NOCASE") == 2, (
+        "Phase 81 D-03: both list_stations and list_favorite_stations must keep COLLATE NOCASE on both ORDER BY columns"
+    )
