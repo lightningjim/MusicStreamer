@@ -301,16 +301,6 @@ class NowPlayingPanel(QWidget):
         #   (False, False) — row-1-without-anything (single-stream + cluster-wrapped)
         # Invalidated by _populate_stream_picker (.clear()) — see PATTERNS §Pattern 1.
         self._row1_min_cache: dict[tuple[bool, bool], int] = {}
-        # Phase 72.4 / LAYOUT-04 follow-up (UAT-1 regression): Qt's first
-        # resizeEvent on show fires at a transient geometry (splitter default /
-        # pre-final parent size). The reflow runs there, decides "no wrap",
-        # then layout settles to the actual saved geometry without firing a
-        # follow-up resizeEvent. showEvent defers the initial reflow via
-        # QTimer.singleShot(0, ...) so it runs after layout settles. This flag
-        # is False at construction and flips True on the first showEvent so
-        # subsequent show/hide cycles do not re-dispatch (the helpers are
-        # idempotent — flag exists for clarity, not correctness).
-        self._initial_reflow_dispatched: bool = False
         # Phase 72.3 / LAYOUT-03: cached current art tier (140/180/240) and
         # last real cover-art path. Both initialize to None — sentinel meaning
         # "_apply_art_tier has not yet run / no real cover loaded". The
@@ -1230,97 +1220,9 @@ class NowPlayingPanel(QWidget):
           3. art-tier reflow (cosmetic; no dependency on row 1/2/3 membership)
         """
         super().resizeEvent(event)
-        self._diag_volume_state("resizeEvent.pre")
         self._reflow_stream_picker_row()  # Phase 72.1 / LAYOUT-02
         self._reflow_volume_cluster()     # Phase 72.4 / LAYOUT-04 -- NEW
         self._apply_art_tier()             # Phase 72.3 / LAYOUT-03
-        self._diag_volume_state("resizeEvent.post")
-
-    def _diag_volume_state(self, where: str) -> None:
-        """UAT-1 diagnostic: print slider/layout state to stderr.
-
-        Temporary instrumentation to identify why setFixedWidth(120) does not
-        clamp the slider on Linux Wayland in some startup sequences. Remove
-        once root cause is identified.
-        """
-        import sys
-        try:
-            sp = self.volume_slider.sizePolicy().horizontalPolicy()
-            sp_name = getattr(sp, "name", None) or str(sp)
-        except Exception as e:
-            sp_name = f"ERR({e})"
-        row1 = self.controls.indexOf(self.volume_slider) if hasattr(self, "controls") else -1
-        row2 = self._controls_row2.indexOf(self.volume_slider) if hasattr(self, "_controls_row2") else -1
-        row3 = self._controls_row3.indexOf(self.volume_slider) if hasattr(self, "_controls_row3") else -1
-        loc = "row1" if row1 >= 0 else "row2" if row2 >= 0 else "row3" if row3 >= 0 else "ORPHAN"
-        print(
-            f"[72.4-DIAG {where}] panel.w={self.width()} slider.w={self.volume_slider.width()} "
-            f"sliderMin/Max=({self.volume_slider.minimumWidth()},{self.volume_slider.maximumWidth()}) "
-            f"policy={sp_name} loc={loc} (idx r1={row1},r2={row2},r3={row3})",
-            file=sys.stderr,
-            flush=True,
-        )
-
-    def showEvent(self, event):  # noqa: N802 (Qt override)
-        """Defer initial-paint reflow via QTimer.singleShot(0, ...).
-
-        Phase 72.4 / LAYOUT-04 follow-up: Qt's first resizeEvent on show fires
-        at a transient geometry (parent splitter's default size, or before the
-        QMainWindow restores the user-saved geometry). The reflow helpers run
-        at that transient size, decide "no wrap", and the layout then settles
-        to the final geometry without firing a follow-up resizeEvent (Qt
-        deduplicates when widths match). Result: cluster strands on row 1 at
-        launch even when the final width requires it to wrap.
-
-        Fix: defer each reflow by one event-loop tick after first show. By
-        the time the QTimer fires, the panel has reached its actual displayed
-        geometry and the reflow makes the correct decision.
-
-        Why all three helpers (not just _reflow_volume_cluster): the picker
-        reflow (72.1) and art-tier reflow (72.3) share the same first-show
-        timing dependency; deferring them too is defensive and idempotent.
-
-        Subsequent show events (hide/show cycles) are no-ops at the layout
-        level (geometry already correct) — the helpers' own cached-diff
-        early-returns make re-dispatching free. _initial_reflow_dispatched
-        exists for clarity, not correctness.
-        """
-        super().showEvent(event)
-        self._diag_volume_state("showEvent")
-        if self._initial_reflow_dispatched:
-            return
-        self._initial_reflow_dispatched = True
-        # Diagnostic timers at multiple intervals so we can see when the
-        # layout actually settles. Each callback dumps state before+after.
-        QTimer.singleShot(0, self._diagnostic_deferred_reflow)
-        QTimer.singleShot(50, self._diagnostic_deferred_reflow)
-        QTimer.singleShot(100, self._diagnostic_deferred_reflow)
-        QTimer.singleShot(250, self._diagnostic_deferred_reflow)
-        QTimer.singleShot(500, self._diagnostic_deferred_reflow)
-        QTimer.singleShot(1000, self._diagnostic_deferred_reflow)
-        # Keep the named-helper references alive for the regression tests:
-        # _reflow_stream_picker_row / _reflow_volume_cluster / _apply_art_tier
-        # are invoked via _diagnostic_deferred_reflow above. The grep-pin tests
-        # check substrings, so re-mention them in this no-op tuple to keep the
-        # source contract intact during the diagnostic phase.
-        _diagnostic_method_references = (
-            self._reflow_stream_picker_row,
-            self._reflow_volume_cluster,
-            self._apply_art_tier,
-        )
-        del _diagnostic_method_references
-
-    def _diagnostic_deferred_reflow(self) -> None:
-        """UAT-1 diagnostic: deferred-reflow callback used by showEvent.
-
-        Logs slider/layout state at each interval, runs the reflow,
-        logs again to show what changed.
-        """
-        self._diag_volume_state("deferred.pre")
-        self._reflow_stream_picker_row()
-        self._reflow_volume_cluster()
-        self._apply_art_tier()
-        self._diag_volume_state("deferred.post")
 
     def _populate_stream_picker(self, station) -> None:
         """Populate stream picker combo for the bound station (D-19, D-20)."""
@@ -1704,35 +1606,12 @@ class NowPlayingPanel(QWidget):
             self.volume_slider.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX = 2^24 - 1 per Qt 6 QWidget docs (RESEARCH §Pattern 3 Critical note 1)
             self.volume_slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         else:
-            # UAT-1 round 3 — NUCLEAR clamp. setFixedWidth(120) alone (and
-            # even setFixedWidth + updateGeometry) was insufficient on Linux
-            # Wayland: the slider remained visually Expanding even though its
-            # internal min/max read back as 120. Explicit clear-then-clamp +
-            # parent-layout invalidate + activate forces a synchronous
-            # re-pack of row 1.
-            self.volume_slider.setMinimumWidth(0)
-            self.volume_slider.setMaximumWidth(16777215)
-            self.volume_slider.setMinimumWidth(120)
-            self.volume_slider.setMaximumWidth(120)
+            # Restore row-1 baseline: setFixedWidth resets both min and max to 120.
             self.volume_slider.setFixedWidth(120)
+            # Belt and braces: setFixedWidth internally syncs policy to Fixed/Fixed,
+            # but explicitly setting it documents intent and guards against Qt
+            # version drift (mirrors 72.1's Preferred-on-revert at _set_picker_size_policy).
             self.volume_slider.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            # Force the parent QHBoxLayout (controls / _controls_row2 /
-            # _controls_row3 — whichever currently owns the slider) to
-            # synchronously re-pack against the new clamp.
-            parent_layout = self.volume_slider.parentWidget().layout() if self.volume_slider.parentWidget() else None
-            for lay in (self.controls,
-                        getattr(self, "_controls_row2", None),
-                        getattr(self, "_controls_row3", None),
-                        parent_layout):
-                if lay is not None:
-                    lay.invalidate()
-                    lay.activate()
-        # UAT-1 follow-up (PySide6 / Wayland): without updateGeometry the parent
-        # QHBoxLayout may keep the prior cached size hint and continue to render
-        # the slider at the Expanding-allowed width even after setFixedWidth(120)
-        # clamps min=max=120. Forcing a re-query makes the layout pick up the
-        # new constraints synchronously.
-        self.volume_slider.updateGeometry()
         # Compact-toggle's setFixedSize(28, 28) at construction is NEVER mutated.
         # D-11: 28x28 fixed in every state.
 
@@ -1857,10 +1736,8 @@ class NowPlayingPanel(QWidget):
         else:
             # D-04: multi-stream very narrow -> row 3 (picker owns row 2)
             target = self._controls_row3
-        self._diag_volume_state(f"reflow.dispatch should_wrap={should_wrap}")
         self._move_volume_cluster_to(target)
         self._set_volume_size_policy(expanding=should_wrap)
-        self._diag_volume_state(f"reflow.after should_wrap={should_wrap}")
 
     # ----------------------------------------------------------------------
     # Phase 72.3 / LAYOUT-03: art-tier helpers
