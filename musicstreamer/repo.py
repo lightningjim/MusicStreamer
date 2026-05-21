@@ -438,7 +438,7 @@ class Repo:
             SELECT s.*, p.name AS provider_name
             FROM stations s
             LEFT JOIN providers p ON p.id = s.provider_id
-            ORDER BY COALESCE(p.name,''), s.name
+            ORDER BY COALESCE(p.name,'') COLLATE NOCASE, s.name COLLATE NOCASE
             """
         ).fetchall()
         out = []
@@ -675,7 +675,7 @@ class Repo:
             FROM stations s
             LEFT JOIN providers p ON p.id = s.provider_id
             WHERE s.is_favorite = 1
-            ORDER BY COALESCE(p.name,''), s.name
+            ORDER BY COALESCE(p.name,'') COLLATE NOCASE, s.name COLLATE NOCASE
             """
         ).fetchall()
         return [
