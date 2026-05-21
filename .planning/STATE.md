@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 81 context gathered
-last_updated: "2026-05-21T21:44:19.511Z"
+status: ready_to_plan
+stopped_at: Phase 81 complete (1/1) — ready to discuss Phase 82
+last_updated: 2026-05-21T21:58:56.865Z
 last_activity: 2026-05-21 -- Phase 81 execution started
 progress:
   total_phases: 42
   completed_phases: 37
   total_plans: 176
-  completed_plans: 170
+  completed_plans: 171
   percent: 88
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 81 — Station list alphabetical sorting is case-sensitive (A-Z then a-z) — should be case-insensitive (PROMOTED from backlog 999.1)
+**Current focus:** Phase 82 — twitch only station still tries to play youtube stream first
 
 ## Current Position
 
-Phase: 81 (Station list alphabetical sorting is case-sensitive (A-Z then a-z) — should be case-insensitive (PROMOTED from backlog 999.1)) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 81
-Last activity: 2026-05-21 -- Phase 81 execution started
+Phase: 82
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-21
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 187 (v1.0–v1.5 combined)
+- Total plans completed: 188 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
