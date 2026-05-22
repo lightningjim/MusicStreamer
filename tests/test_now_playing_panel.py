@@ -92,6 +92,10 @@ class FakeRepo:
     def list_sibling_links(self, station_id: int) -> list:
         return []
 
+    def set_preferred_stream(self, station_id: int, stream_id) -> None:
+        """Phase 82 no-op shield — prevents AttributeError once Plan 82-03 wires the call into _on_stream_selected. Plan 82-03 adds a behavioral test elsewhere."""
+        pass
+
 
 def _station(name: str = "Drone Zone", provider: Optional[str] = "SomaFM",
              art: Optional[str] = None) -> Station:

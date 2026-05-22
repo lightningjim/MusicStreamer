@@ -471,6 +471,7 @@ class Repo:
                     cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
                     last_played_at=r["last_played_at"],
                     is_favorite=bool(r["is_favorite"]),
+                    preferred_stream_id=r["preferred_stream_id"],
                     streams=self.list_streams(r["id"]),
                 )
             )
@@ -507,6 +508,7 @@ class Repo:
             cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
             last_played_at=r["last_played_at"],
             is_favorite=bool(r["is_favorite"]),
+            preferred_stream_id=r["preferred_stream_id"],
             streams=self.list_streams(station_id),
         )
 
@@ -569,6 +571,14 @@ class Repo:
         )
         self.con.commit()
 
+    def set_preferred_stream(self, station_id: int, stream_id: Optional[int]) -> None:
+        """Phase 82 D-02: persist the user's stream pick. None clears the pick."""
+        self.con.execute(
+            "UPDATE stations SET preferred_stream_id = ? WHERE id = ?",
+            (stream_id, station_id),
+        )
+        self.con.commit()
+
     def list_recently_played(self, n: int = 5) -> List[Station]:
         rows = self.con.execute(
             """
@@ -594,6 +604,7 @@ class Repo:
                 cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
                 last_played_at=r["last_played_at"],
                 is_favorite=bool(r["is_favorite"]),
+                preferred_stream_id=r["preferred_stream_id"],
                 streams=self.list_streams(r["id"]),
             )
             for r in rows
@@ -706,6 +717,7 @@ class Repo:
                 cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
                 last_played_at=r["last_played_at"],
                 is_favorite=True,
+                preferred_stream_id=r["preferred_stream_id"],
                 streams=self.list_streams(r["id"]),
             )
             for r in rows
