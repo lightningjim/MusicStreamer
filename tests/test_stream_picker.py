@@ -29,6 +29,7 @@ class FakeRepo:
         self._streams: dict = dict(streams_by_station_id or {})
         self._settings: dict = dict(settings or {})
         self._favorites: list = []
+        self.set_preferred_stream_calls: list = []
 
     def list_streams(self, station_id: int) -> List[StationStream]:
         return self._streams.get(station_id, [])
@@ -53,8 +54,8 @@ class FakeRepo:
             self._favorites.remove(key)
 
     def set_preferred_stream(self, station_id: int, stream_id) -> None:
-        """Phase 82 no-op shield — prevents AttributeError once Plan 82-03 wires the call into _on_stream_selected. Plan 82-03 adds a behavioral test elsewhere."""
-        pass
+        """Phase 82 D-02: record the call so behavioral tests can assert on args."""
+        self.set_preferred_stream_calls.append((station_id, stream_id))
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +79,13 @@ MULTI_STREAMS = [
     StationStream(id=20, station_id=2, url="http://s1", quality="hi", codec="AAC", position=1),
     StationStream(id=21, station_id=2, url="http://s2", quality="med", codec="MP3", position=2),
 ]
+
+# Re-declare with streams populated so behavioral tests can use multi_stream_station.streams[N].id
+multi_stream_station = Station(
+    id=2, name="FM2", provider_id=1, provider_name="P",
+    tags="", station_art_path=None, album_fallback_path=None,
+    streams=MULTI_STREAMS,
+)
 
 
 @pytest.fixture
@@ -196,3 +204,67 @@ def test_failover_sync_does_not_call_play_stream(qtbot, player, repo):
     )
     # play_stream must NOT have been called (blockSignals prevented it)
     player.play_stream.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Phase 82 D-02 behavioral tests + drift-guard
+# ---------------------------------------------------------------------------
+
+
+def test_on_stream_selected_persists_preferred_stream_id(qtbot, player, repo):
+    """Phase 82 D-02: picking a stream persists to the DB."""
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(multi_stream_station)
+    repo.set_preferred_stream_calls.clear()  # discard any bind_station noise
+    panel.stream_combo.setCurrentIndex(1)
+    assert len(repo.set_preferred_stream_calls) == 1
+    station_id_arg, stream_id_arg = repo.set_preferred_stream_calls[0]
+    assert station_id_arg == multi_stream_station.id
+    assert stream_id_arg == multi_stream_station.streams[1].id
+
+
+def test_bind_station_does_not_persist_preferred_stream_id(qtbot, player, repo):
+    """Phase 82: blockSignals invariant — bind_station must NOT trigger persistence."""
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(multi_stream_station)
+    assert repo.set_preferred_stream_calls == []
+
+
+def test_on_stream_selected_with_invalid_index_does_not_persist(qtbot, player, repo):
+    """Phase 82: early-return guard — invalid index must NOT trigger persistence."""
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(multi_stream_station)
+    repo.set_preferred_stream_calls.clear()
+    panel._on_stream_selected(-1)
+    assert repo.set_preferred_stream_calls == []
+
+
+def test_on_stream_selected_persists_even_when_reselecting_default(qtbot, player, repo):
+    """Phase 82 D-02: every invocation persists, including reselection of the default."""
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(multi_stream_station)
+    repo.set_preferred_stream_calls.clear()
+    panel.stream_combo.setCurrentIndex(1)
+    panel.stream_combo.setCurrentIndex(0)
+    assert len(repo.set_preferred_stream_calls) == 2
+    assert repo.set_preferred_stream_calls[1][1] == multi_stream_station.streams[0].id
+
+
+def test_set_preferred_stream_drift_guard_now_playing_panel():
+    """Phase 82 D-02 drift-guard (Phase 51/55/61/63/81 precedent)."""
+    from pathlib import Path
+    source = (
+        Path(__file__).resolve().parent.parent
+        / "musicstreamer" / "ui_qt" / "now_playing_panel.py"
+    ).read_text()
+    non_comments = "\n".join(
+        ln for ln in source.splitlines() if not ln.lstrip().startswith("#")
+    )
+    assert "set_preferred_stream" in non_comments, (
+        "Phase 82 D-02: self._repo.set_preferred_stream call must exist in "
+        "now_playing_panel.py (_on_stream_selected). Do not remove silently."
+    )
