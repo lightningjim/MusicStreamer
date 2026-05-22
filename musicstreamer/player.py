@@ -735,6 +735,20 @@ class Player(QObject):
             return
         self._recovery_in_flight = True
         self._cancel_timers()
+        # Phase 83 D-09 — preroll error path. Don't retry a different preroll;
+        # immediately advance to the station's actual stream. No second preroll
+        # selection — user experience is "slightly faster intro than expected."
+        if self._preroll_in_flight:
+            if self._preroll_handler_id:
+                try:
+                    self._pipeline.disconnect(self._preroll_handler_id)
+                except (TypeError, RuntimeError):
+                    pass
+                self._preroll_handler_id = 0
+            self._preroll_in_flight = False
+            self._try_next_stream()
+            QTimer.singleShot(0, self._clear_recovery_guard)
+            return
         if self._current_stream and "twitch.tv" in self._current_stream.url:
             if self._twitch_resolve_attempts < 1:
                 self._twitch_resolve_attempts += 1
@@ -762,6 +776,15 @@ class Player(QObject):
         # signal. Bus-loop thread has no Qt event loop, so singleShot vanishes.
         self._cancel_timers_requested.emit()
         if not found:
+            return
+        # Phase 83 D-07 — suppress preroll's m4a title tag so Now Playing keeps
+        # showing the station name through the ~5s ID. Set on main in Player.play
+        # (before set_uri to the preroll URL) and cleared in _on_preroll_about_to_finish
+        # (also main). This read is cross-thread; Python bool read is atomic. Worst
+        # case (Pitfall 2 — m4a tag arrives between disconnect and flag clear) is
+        # one frame of preroll title leaked, ~30ms, acceptable per D-07's
+        # "no UI flicker" intent (not "zero leak").
+        if self._preroll_in_flight:
             return
         title = _fix_icy_encoding(value)
         self.title_changed.emit(title)  # auto-queued cross-thread to main
