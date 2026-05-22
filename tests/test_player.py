@@ -1115,9 +1115,11 @@ def test_preroll_in_flight_pause_does_not_clear_flag(qtbot):
 
 
 def test_streams_queue_failover_after_preroll_handoff(qtbot):
-    """Phase 83 D-10 (WARNING-4): after the about-to-finish handoff
-    completes, a subsequent bus-error on the station stream advances
-    _streams_queue exactly as Phase 82 — no preroll-handler regression."""
+    """Phase 83 D-10 (WARNING-4, UAT-updated): after the gapless URI
+    handoff completes (set_property on still-PLAYING pipeline), a
+    subsequent bus-error on the station stream advances _streams_queue
+    exactly as Phase 82 — the preroll handler does NOT regress D-10
+    failover semantics."""
     p = _make_player_mock(qtbot)
     s0 = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
     s1 = _make_stream_ph82(2, 2, "med", "http://stream.test/")
@@ -1130,26 +1132,28 @@ def test_streams_queue_failover_after_preroll_handoff(qtbot):
          patch.object(p, "_try_next_stream"):
         p.play(station)
     assert p._preroll_in_flight is True
-    # Simulate the about-to-finish main-thread slot firing.
-    with patch.object(p, "_set_uri"):
+    # Simulate the about-to-finish main-thread slot firing (gapless path).
+    with patch.object(p, "_tracker", MagicMock()), \
+         patch.object(p, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(p, "_failover_timer", MagicMock()), \
+         patch.object(p, "_elapsed_timer", MagicMock()):
         p._on_preroll_about_to_finish()
-    # After handoff: flag cleared, _try_next_stream advanced to head.
+    # After gapless handoff: flag cleared, _current_stream is queue head.
     assert p._preroll_in_flight is False
     assert p._current_stream is not None
-    # Phase 82 head-of-queue: first stream in queue plays now.
     first_played_id = p._current_stream.id
     assert first_played_id in (1, 2)
-    # Reset recovery guard so the next call exercises the post-preroll path,
-    # not the preroll branch (which is what D-09 covers separately).
+    # Reset recovery guard so the next call exercises the post-handoff
+    # path, not the preroll-error branch (which D-09 covers separately).
     p._recovery_in_flight = False
     with patch.object(p, "_set_uri"), \
          patch.object(p, "_clear_recovery_guard"):
         p._handle_gst_error_recovery()
-    # Post-handoff failover ran via the pre-Phase-83 path; _current_stream
-    # advanced to the OTHER stream in the queue (or queue drained to None).
+    # Post-handoff failover: _current_stream advanced via Phase 82
+    # head-of-queue path; preroll handler did NOT regress failover.
     assert p._current_stream is None or p._current_stream.id != first_played_id, (
-        "Phase 83 D-10: post-preroll failover must advance _current_stream "
-        "via Phase 82 head-of-queue path (preroll handler must NOT regress)."
+        "Phase 83 D-10 (UAT-updated): post-gapless-handoff failover must "
+        "advance _current_stream via Phase 82 head-of-queue path."
     )
 
 
@@ -1211,4 +1215,264 @@ def test_phase_83_preroll_drift_guard():
     assert "_last_preroll_played_at" in non_comments, (
         "Phase 83 D-12: throttle-state token must remain in Player. "
         "Do not remove silently."
+    )
+    # Phase 83 D-05 (UAT-corrected) — gapless URI handoff invariant,
+    # SLICE-ANCHORED to the _on_preroll_about_to_finish method body.
+    #
+    # WHY SLICE EXTRACTION: a global non-comment grep for
+    # `set_property("uri", ...)` would false-negative on the exact
+    # regression this drift-guard exists to catch — a refactor that
+    # reverts ONLY the slot to call _try_next_stream() removes the slot's
+    # set_property("uri", ...) literal, BUT _set_uri retains its own
+    # set_property("uri", ...) elsewhere in the file. A global grep would
+    # still pass. Extracting the method body and asserting the literal
+    # appears INSIDE the slice fails loudly in that scenario (focus
+    # area 6 from the checker BLOCKER).
+    slot_match = re.search(
+        r'def _on_preroll_about_to_finish\(.*?\)(.*?)(?=\n    def |\Z)',
+        non_comments,
+        re.DOTALL,
+    )
+    assert slot_match, (
+        "test_phase_83_preroll_drift_guard: _on_preroll_about_to_finish "
+        "method removed from musicstreamer/player.py — regression scenario."
+    )
+    slot_body = slot_match.group(1)
+    assert re.search(r'set_property\([^)]{0,80}["\']uri["\']', slot_body), (
+        "test_phase_83_preroll_drift_guard: "
+        "_on_preroll_about_to_finish must call set_property('uri', ...) "
+        "directly to invoke playbin3's gapless URI handoff. A regression "
+        "that reverts the slot to _try_next_stream() / _set_uri() would "
+        "tear down the preroll mid-playback via set_state(NULL). The "
+        "shipped slot body must contain the set_property('uri', ...) "
+        "literal so a future refactor that removes it fails loudly."
+    )
+
+
+def test_preroll_about_to_finish_uses_gapless_uri_swap(qtbot):
+    """Phase 83 D-05 (UAT-corrected): the about-to-finish slot performs a
+    GAPLESS URI handoff via pipeline.set_property("uri", ...) on the
+    still-PLAYING pipeline. set_state(NULL) is NOT called between preroll
+    start and the stream URI swap; _try_next_stream() is NOT called on
+    the direct-URL path."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream") as mock_try_next:
+        p.play(station)
+    assert p._preroll_in_flight is True
+    # Capture pre-slot set_state call count to verify the slot adds none.
+    pre_set_state_calls = p._pipeline.set_state.call_count
+    # Stub tracker + timers so the slot's bookkeeping calls are no-ops in test.
+    with patch.object(p, "_tracker", MagicMock()), \
+         patch.object(p, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(p, "_failover_timer", MagicMock()), \
+         patch.object(p, "_elapsed_timer", MagicMock()):
+        p._on_preroll_about_to_finish()
+    # Gapless invariant: set_property called once with the stream URL.
+    set_property_calls = [
+        c for c in p._pipeline.set_property.call_args_list
+        if c.args and c.args[0] == "uri"
+    ]
+    assert len(set_property_calls) >= 1, (
+        "Phase 83 D-05 (UAT fix): _on_preroll_about_to_finish must call "
+        "pipeline.set_property('uri', ...) on the gapless path."
+    )
+    # The most-recent set_property('uri', ...) call carries the stream URL
+    # (URI funnel normalization preserves the http(s):// scheme — Phase
+    # 70 / WIN-01 only rewrites DI.fm-style URLs; stream.test passes through).
+    last_uri = set_property_calls[-1].args[1]
+    assert "stream.test" in last_uri, (
+        f"Phase 83 D-05 (UAT fix): gapless set_property must receive the "
+        f"station stream URL; got {last_uri!r}"
+    )
+    # No state-cycle: set_state call count UNCHANGED by the slot.
+    assert p._pipeline.set_state.call_count == pre_set_state_calls, (
+        "Phase 83 D-05 (UAT fix): _on_preroll_about_to_finish must NOT "
+        "call pipeline.set_state on the gapless path (state cycle is "
+        "exactly what 83-UAT identified as the bug)."
+    )
+    # _try_next_stream is NOT called on the direct-URL gapless path.
+    assert mock_try_next.call_count == 0, (
+        "Phase 83 D-05 (UAT fix): _try_next_stream must NOT be called "
+        "from _on_preroll_about_to_finish on the direct-URL gapless path."
+    )
+    assert p._preroll_in_flight is False
+    assert p._preroll_handler_id == 0
+    # _streams_queue head consumed; tail (if any) remains for failover.
+    assert s not in p._streams_queue, (
+        "Phase 83 D-05 (UAT fix): gapless handoff must pop _streams_queue[0]."
+    )
+    # _current_stream now points to the consumed head.
+    assert p._current_stream is s
+
+
+def test_preroll_handoff_normalizes_url_via_aa_normalize(qtbot):
+    """Phase 83 D-05 (UAT fix) drift-guard: the gapless set_property call
+    routes through aa_normalize_stream_url (the project URI funnel —
+    Phase 70 / WIN-01 / D-01 DI.fm HTTPS->HTTP rewrite). Bypassing the
+    funnel would be a regression even though SomaFM URLs pass through
+    unchanged."""
+    from musicstreamer.url_helpers import aa_normalize_stream_url
+    p = _make_player_mock(qtbot)
+    # Use a DI.fm-style URL to make the funnel observable (https→http).
+    s = _make_stream_ph82(1, 1, "hi", "https://prem4.di.fm/foo")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    with patch.object(p, "_tracker", MagicMock()), \
+         patch.object(p, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(p, "_failover_timer", MagicMock()), \
+         patch.object(p, "_elapsed_timer", MagicMock()):
+        p._on_preroll_about_to_finish()
+    set_property_calls = [
+        c for c in p._pipeline.set_property.call_args_list
+        if c.args and c.args[0] == "uri"
+    ]
+    assert set_property_calls, (
+        "Phase 83 D-05 (UAT fix): set_property('uri', ...) must be called."
+    )
+    last_uri = set_property_calls[-1].args[1]
+    expected = aa_normalize_stream_url(s.url)
+    assert last_uri == expected, (
+        f"Phase 83 D-05 (UAT fix): gapless set_property must route the "
+        f"URL through aa_normalize_stream_url (URI funnel); got "
+        f"{last_uri!r}, expected {expected!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "url_fragment", ["youtube.com", "youtu.be", "twitch.tv"]
+)
+def test_preroll_handoff_falls_back_for_youtube_url(qtbot, url_fragment):
+    """Phase 83 D-05 (UAT fix) scope guard: if _streams_queue[0] is a
+    YouTube/Twitch URL, the gapless path falls back to _try_next_stream()
+    (the legacy path with async resolution via _play_youtube/_play_twitch)
+    instead of set_property — playbin3 cannot stream a YouTube watch URL
+    or Twitch channel URL directly."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", f"https://{url_fragment}/fake")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    # Slot invocation: should NOT directly set_property; should call
+    # _try_next_stream() (the legacy fallback).
+    with patch.object(p, "_try_next_stream") as mock_try_next_slot:
+        p._on_preroll_about_to_finish()
+    assert mock_try_next_slot.call_count == 1, (
+        f"Phase 83 D-05 (UAT fix): {url_fragment} URL must route through "
+        f"_try_next_stream() fallback (async resolution path)."
+    )
+    # set_property('uri', ...) must NOT have been called with the
+    # async-resolution URL by the slot itself.
+    matching_set_property_calls = [
+        c for c in p._pipeline.set_property.call_args_list
+        if c.args
+        and c.args[0] == "uri"
+        and url_fragment in str(c.args[1])
+    ]
+    assert not matching_set_property_calls, (
+        f"Phase 83 D-05 (UAT fix): gapless set_property must NOT be "
+        f"called with a {url_fragment} URL — async resolution required."
+    )
+    # Flag + handler-id cleared before the fallback (so the inner
+    # _try_next_stream's bookkeeping sees clean state).
+    assert p._preroll_in_flight is False
+    assert p._preroll_handler_id == 0
+
+
+def test_preroll_handoff_invokes_tracker_bind_and_failover_timer_arm(qtbot):
+    """Phase 83 D-05 (UAT fix) bookkeeping parity: the gapless slot
+    mirrors _try_next_stream's tracker bind + failover-timer arm + elapsed-
+    timer first-attempt seeding so underrun analytics + failover-timeout
+    watchdog + elapsed-time display don't silently regress. force_close
+    uses the 'preroll' outcome token (NOT 'failover') so analytics
+    distinguish gapless handoff from a true stream failover."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    mock_tracker = MagicMock()
+    mock_tracker.force_close.return_value = None  # no prior cycle to close
+    mock_failover_timer = MagicMock()
+    mock_elapsed_timer = MagicMock()
+    # Sanity: the preroll path enters the slot with _is_first_attempt True
+    # (neither _start_preroll nor the bus-error preroll path touches it).
+    assert p._is_first_attempt is True, (
+        "Phase 83 D-05 (UAT fix) precondition: preroll path enters the "
+        "about-to-finish slot with _is_first_attempt == True."
+    )
+    # Pre-seed elapsed_seconds to a sentinel so we can confirm the slot
+    # resets it to 0 (mirror of _try_next_stream:1076).
+    p._elapsed_seconds = 999
+    with patch.object(p, "_tracker", mock_tracker), \
+         patch.object(p, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(p, "_failover_timer", mock_failover_timer), \
+         patch.object(p, "_elapsed_timer", mock_elapsed_timer):
+        p._on_preroll_about_to_finish()
+    # Tracker.force_close called with outcome="preroll" (NOT "failover")
+    # so analytics see this is a gapless handoff close, not a true failover.
+    force_close_calls = mock_tracker.force_close.call_args_list
+    assert force_close_calls, (
+        "Phase 83 D-05 (UAT fix): tracker.force_close must run before "
+        "tracker.bind_url (mirror of _try_next_stream:1060)."
+    )
+    force_close_arg = force_close_calls[0].args[0]
+    assert force_close_arg == "preroll", (
+        f"Phase 83 D-05 (UAT fix): force_close outcome token must be "
+        f"'preroll' so analytics distinguish gapless handoff from true "
+        f"failover; got {force_close_arg!r}"
+    )
+    # Tracker.bind_url called with the new stream URL (mirror of
+    # _try_next_stream:1064-1068).
+    bind_calls = mock_tracker.bind_url.call_args_list
+    assert bind_calls, (
+        "Phase 83 D-05 (UAT fix): tracker.bind_url must be called on the "
+        "new stream URL after gapless handoff."
+    )
+    bind_kwargs = bind_calls[0].kwargs
+    assert bind_kwargs.get("url") == s.url, (
+        f"Phase 83 D-05 (UAT fix): tracker.bind_url must receive the "
+        f"new stream's URL; got {bind_kwargs!r}"
+    )
+    # Failover-timer armed (mirror of _try_next_stream:1087).
+    mock_failover_timer.start.assert_called_once()
+    # The timer is armed with BUFFER_DURATION_S * 1000 ms (canonical value).
+    from musicstreamer.constants import BUFFER_DURATION_S
+    timer_arg = mock_failover_timer.start.call_args.args[0]
+    assert timer_arg == BUFFER_DURATION_S * 1000, (
+        f"Phase 83 D-05 (UAT fix): _failover_timer must be armed with "
+        f"BUFFER_DURATION_S * 1000 = {BUFFER_DURATION_S * 1000}ms; got "
+        f"{timer_arg}"
+    )
+    # Elapsed-timer seeding (mirror of _try_next_stream:1073-1077). The
+    # checker WARNING called this out: without the seeding block, the
+    # user-facing elapsed-time display freezes at 0 across the preroll→
+    # stream handoff (analytics regression).
+    mock_elapsed_timer.start.assert_called_once()
+    assert p._elapsed_seconds == 0, (
+        f"Phase 83 D-05 (UAT fix): _elapsed_seconds must reset to 0 at "
+        f"the gapless handoff (mirror of _try_next_stream:1076); got "
+        f"{p._elapsed_seconds}. Without this reset the elapsed-time "
+        f"display freezes at the pre-handoff value."
+    )
+    # _is_first_attempt flipped to False AFTER the seeding block (mirror
+    # of _try_next_stream:1078); a second handoff in the same Player
+    # instance would not re-seed the timer.
+    assert p._is_first_attempt is False, (
+        "Phase 83 D-05 (UAT fix): _is_first_attempt must flip to False "
+        "after the gapless handoff (mirror of _try_next_stream:1078)."
     )
