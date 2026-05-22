@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: milestone_complete
-stopped_at: Milestone complete (Phase 82 was final phase)
-last_updated: 2026-05-22T14:13:33.682Z
-last_activity: 2026-05-22 -- Phase 82 execution started
+status: completed
+stopped_at: Phase 83 context gathered
+last_updated: "2026-05-22T16:25:17.084Z"
+last_activity: 2026-05-22
 progress:
-  total_phases: 42
-  completed_phases: 38
+  total_phases: 43
+  completed_phases: 39
   total_plans: 179
   completed_plans: 174
-  percent: 90
+  percent: 91
 ---
 
 # Project State
@@ -187,6 +187,7 @@ Key v2.0 decisions already settled:
 - Phase 72.4 inserted after Phase 72: I noticed the volume now, too, sometimes overlaps with the side hide/expand button, on the lower screen when the side bar is expanded (URGENT)
 - Phase 81 moved: Promoted from backlog (was 999.1): station list case-insensitive sort
 - Phase 82 added: Twitch-only station still tries to play YouTube stream first — lofi girl station has only one (Twitch) stream but player attempts YT first; can't fix at YT source due to false copyright claims on Lofi Girl's channel 2026-05-20
+- Phase 83 added: At start of playing a station, randomly select and play one of the SomaFM station prerolls (from https://api.somafm.com/channels.json) for stations that have them 2026-05-22
 
 ### Pending Todos
 
@@ -238,7 +239,7 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-22T01:57:45.651Z
-Stopped at: Phase 82 context gathered
-Resume file: .planning/phases/82-twitch-only-station-still-tries-to-play-youtube-stream-first/82-CONTEXT.md
+Last session: 2026-05-22T16:25:17.070Z
+Stopped at: Phase 83 context gathered
+Resume file: .planning/phases/83-at-start-of-playing-a-station-randomly-select-and-play-one-o/83-CONTEXT.md
 Handoff: .planning/HANDOFF.json (delete after Wave 1 starts cleanly)
