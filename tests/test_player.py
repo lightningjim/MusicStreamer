@@ -575,3 +575,190 @@ def test_player_eq_ramp_set_eq_profile_stops_in_flight_ramp(player):
     assert player._eq_ramp_state is None, (
         "set_eq_profile must clear ramp state (T-52-01)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 82 D-01/D-03/D-05: preferred_stream_id behavioral tests + drift-guard
+#
+# Task 1 minimal RED contract + Task 2 full behavioral suite.
+# All tests assert on _streams_queue / _current_stream per MEMORY.md
+# GStreamer-mock-blind-spot (do NOT assert on pipeline.emit(...)).
+# ---------------------------------------------------------------------------
+
+
+def _make_player_mock(qtbot):
+    """Create a Player with pipeline mocked (mirrors make_player in this file)."""
+    from musicstreamer.player import Player
+    from unittest.mock import MagicMock, patch
+    mock_pipeline = MagicMock()
+    mock_bus = MagicMock()
+    mock_pipeline.get_bus.return_value = mock_bus
+    with patch(
+        "musicstreamer.player.Gst.ElementFactory.make",
+        return_value=mock_pipeline,
+    ):
+        player = Player()
+    player._pipeline = MagicMock()
+    return player
+
+
+def _make_stream_ph82(id_, position, quality, url="http://stream.test/"):
+    """Construct a minimal StationStream for Phase 82 preferred_stream_id tests."""
+    from musicstreamer.models import StationStream
+    return StationStream(
+        id=id_,
+        station_id=1,
+        url=f"{url}{id_}",
+        quality=quality,
+        position=position,
+    )
+
+
+def _make_station_ph82(streams, preferred_stream_id=None):
+    """Construct a minimal Station for Phase 82 preferred_stream_id tests."""
+    from musicstreamer.models import Station
+    return Station(
+        id=1,
+        name="Test Station",
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        streams=streams,
+        preferred_stream_id=preferred_stream_id,
+    )
+
+
+def test_preferred_stream_id_minimal_red(qtbot):
+    """Phase 82 D-01/D-03 RED gate (Task 1): preferred_stream_id places
+    the user-picked stream at queue head despite lower quality rank.
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi", "http://yt/")
+    s_med = _make_stream_ph82(2, 2, "med", "http://twitch/")
+    station = _make_station_ph82([s_hi, s_med], preferred_stream_id=2)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert p._current_stream.id == 2, (
+        "Phase 82 D-03: preferred_stream_id=2 must place stream id=2 at queue "
+        "head; got id=%d instead" % p._current_stream.id
+    )
+
+
+def test_preferred_stream_id_at_queue_head(qtbot):
+    """Phase 82 D-01/D-03: preferred_stream_id places that stream at queue head
+    and remaining stream in _streams_queue.
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi", "http://yt/")
+    s_med = _make_stream_ph82(2, 2, "med", "http://twitch/")
+    station = _make_station_ph82([s_hi, s_med], preferred_stream_id=2)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert p._current_stream.id == 2
+    assert len(p._streams_queue) == 1
+    assert p._streams_queue[0].id == 1
+
+
+def test_preferred_stream_id_not_duplicated(qtbot):
+    """Phase 82 D-03: picked stream appears exactly once across _current_stream
+    and _streams_queue (no duplicate via identity vs equality pitfall).
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s1 = _make_stream_ph82(1, 1, "hi")
+    s2 = _make_stream_ph82(2, 2, "med")
+    station = _make_station_ph82([s1, s2], preferred_stream_id=2)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    all_ids = [p._current_stream.id] + [s.id for s in p._streams_queue]
+    assert all_ids.count(2) == 1
+
+
+def test_preferred_stream_id_none_falls_back_to_order_streams(qtbot):
+    """Phase 82 D-03: when preferred_stream_id is None, order_streams ordering
+    applies (existing Phase 47 behavior unchanged).
+
+    Both streams have bitrate_kbps=0 (unknown), so order_streams sorts by
+    position asc — stream at position=1 comes first regardless of quality.
+    This matches order_streams D-07: unknown bitrates partitioned LAST and
+    sorted by position asc among themselves.
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    # Streams with no bitrate: order_streams sorts by position asc (D-07).
+    s_pos1 = _make_stream_ph82(1, 1, "low", "http://x/")
+    s_pos2 = _make_stream_ph82(2, 2, "hi", "http://x/")
+    station = _make_station_ph82([s_pos2, s_pos1], preferred_stream_id=None)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    # order_streams puts position=1 first (unknown-bitrate partition, sorted by pos)
+    assert p._current_stream.id == 1
+
+
+def test_preferred_stream_id_stale_resolves_to_none_falls_back(qtbot):
+    """Phase 82 RQ4: stale preferred_stream_id (id not in station.streams) falls
+    back gracefully to order_streams ordering — D-05 'preferred first, not only'.
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s1 = _make_stream_ph82(1, 1, "hi")
+    station = _make_station_ph82([s1], preferred_stream_id=999)  # stale
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert p._current_stream.id == 1  # falls back to order_streams
+
+
+def test_preferred_stream_id_beats_preferred_quality(qtbot):
+    """Phase 82 D-03 precedence: explicit DB pick wins over programmatic kwarg
+    hint when both are set and they point to different streams.
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi")
+    s_med = _make_stream_ph82(2, 2, "med")
+    station = _make_station_ph82([s_hi, s_med], preferred_stream_id=2)
+    with patch.object(p, "_set_uri"):
+        p.play(station, preferred_quality="hi")  # kwarg says hi
+    assert p._current_stream.id == 2  # DB pick wins
+
+
+def test_failover_after_preferred_stream_advances_queue(qtbot):
+    """Phase 82 D-05 regression: user's picked stream fails → queue advances
+    through the rest in order_streams order (existing failover semantics intact).
+    """
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi")
+    s_med = _make_stream_ph82(2, 2, "med")
+    station = _make_station_ph82([s_hi, s_med], preferred_stream_id=2)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert p._current_stream.id == 2  # preferred_stream_id pick at head
+    with patch.object(p, "_set_uri"):
+        p._try_next_stream()  # simulate stream 2 failing
+    assert p._current_stream.id == 1  # queue advanced to next in order_streams
+
+
+def test_preferred_stream_id_drift_guard():
+    """Phase 82 D-03 drift-guard (Phase 51/55/61/63/81 precedent).
+
+    Reads musicstreamer/player.py, filters non-comment lines, asserts the
+    literal 'preferred_stream_id' appears at least once. Without the
+    non-comment filter this test would pass trivially by matching a comment
+    line — defeating the drift-guard purpose.
+    """
+    from pathlib import Path
+    source = (
+        Path(__file__).resolve().parent.parent / "musicstreamer" / "player.py"
+    ).read_text()
+    non_comments = "\n".join(
+        ln for ln in source.splitlines() if not ln.lstrip().startswith("#")
+    )
+    assert "preferred_stream_id" in non_comments, (
+        "Phase 82 D-03: preferred_stream_id lookup must exist in player.py "
+        "(Player.play queue-build block). Do not remove silently."
+    )
