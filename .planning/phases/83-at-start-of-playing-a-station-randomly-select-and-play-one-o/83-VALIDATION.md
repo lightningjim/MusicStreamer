@@ -48,12 +48,15 @@ created: 2026-05-22
 | D-05 | 83-03 | preroll URI set on playbin3; about-to-finish handler connected; queue built but not yet played | behavioral | `uv run pytest tests/test_player.py::test_preroll_sets_uri_and_connects_handler -q` | ✅ | ⬜ pending |
 | D-06 | 83-03 | `_streams_queue` unchanged by preroll path (no preroll URLs in queue) | behavioral | `uv run pytest tests/test_player.py::test_preroll_does_not_pollute_streams_queue -q` | ✅ | ⬜ pending |
 | D-07 | 83-03 | `title_changed` NOT emitted while `_preroll_in_flight` (m4a TAG suppressed) | behavioral | `uv run pytest tests/test_player.py::test_title_tag_suppressed_during_preroll -q` | ✅ | ⬜ pending |
+| D-08 | 83-03 | Pause / Stop / Resume during preroll do not clear `_preroll_in_flight` and do not invoke `_try_next_stream` (added per checker WARNING-4) | behavioral | `uv run pytest tests/test_player.py::test_preroll_in_flight_pause_does_not_clear_flag -q` | ✅ | ⬜ pending |
 | D-09 | 83-03 | Preroll bus error → `_try_next_stream` invoked; queue advances to `_streams_queue[0]` | behavioral | `uv run pytest tests/test_player.py::test_preroll_bus_error_advances_to_stream -q` | ✅ | ⬜ pending |
+| D-10 | 83-03 | `_streams_queue` failover advances exactly as Phase 82 once preroll handoff completes (added per checker WARNING-4) | behavioral | `uv run pytest tests/test_player.py::test_streams_queue_failover_after_preroll_handoff -q` | ✅ | ⬜ pending |
 | D-11 | 83-03 | Non-SomaFM station with synthetic preroll rows → preroll path NOT taken | behavioral | `uv run pytest tests/test_player.py::test_non_somafm_provider_bypasses_preroll -q` | ✅ | ⬜ pending |
 | D-12 (window) | 83-03 | Throttle window NOT expired → preroll path NOT taken | behavioral | `uv run pytest tests/test_player.py::test_throttle_window_suppresses_preroll -q` | ✅ | ⬜ pending |
 | D-12 (timestamp) | 83-03 | `_last_preroll_played_at` updated at preroll START (not handoff) | behavioral | `uv run pytest tests/test_player.py::test_throttle_timestamp_set_on_start -q` | ✅ | ⬜ pending |
 | D-13 | 83-03 | Background fetch is non-blocking — play proceeds to stream without waiting | behavioral | `uv run pytest tests/test_player.py::test_backfill_non_blocking -q` | ✅ | ⬜ pending |
 | D-14 | 83-03 | Source-grep drift-guard pins `"SomaFM"` literal AND `_last_preroll_played_at` in non-comment lines of `musicstreamer/player.py` | source-grep | `uv run pytest tests/test_player.py::test_phase_83_preroll_drift_guard -q` | ✅ | ⬜ pending |
+| Q3-EOS | 83-03 | Malformed-preroll EOS (no about-to-finish) → `_try_next_stream_requested.emit()` from streaming-thread bus handler; False branch is a no-op (live-spike Q3 RESOLVED, added per checker WARNING-5) | behavioral | `uv run pytest tests/test_player.py::test_preroll_eos_without_about_to_finish_advances_to_stream -q` | ✅ | ⬜ pending |
 
 ---
 
