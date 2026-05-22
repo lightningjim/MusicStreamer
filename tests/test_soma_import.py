@@ -561,3 +561,424 @@ def test_fetch_channels_overrides_bitrate_from_relay_url_slug():
             f"SOMA-02 / G-02 violation: hi-tier stream must store bitrate_kbps=256 "
             f"(from URL slug), got {s['bitrate_kbps']} for url={s['url']!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 83 / Plan 83-02: preroll capture + insert + D-04 marker + per-channel cap
+# + CASCADE-rollback. Eight new tests anchored to VALIDATION.md row names
+# verbatim. The D-04 canonical test
+# (`test_import_sets_prerolls_fetched_at_for_empty_preroll`) is required by
+# VALIDATION.md row 47 and pinned by the source-grep done-criterion in
+# 83-02-PLAN.md.
+# ---------------------------------------------------------------------------
+
+import logging
+
+from musicstreamer.repo import Repo
+
+
+def _make_channel_with_preroll(
+    channel_id: str,
+    title: str,
+    preroll: list[str] | None = None,
+) -> dict:
+    """Build a single SomaFM channel dict in the upstream `channels.json` shape.
+
+    The four-tier `playlists` block mirrors the structure in
+    `tests/fixtures/soma_channels_3ch.json`. ``preroll=None`` omits the key
+    entirely (the legitimately-empty channel — 25 of 46 channels per RESEARCH);
+    ``preroll=[]`` writes an explicit empty list.
+    """
+    ch: dict = {
+        "id": channel_id,
+        "title": title,
+        "description": f"{title} description",
+        "image": f"https://api.somafm.com/img/{channel_id}120.png",
+        "playlists": [
+            {"url": f"https://api.somafm.com/{channel_id}256.pls",
+             "format": "mp3", "quality": "highest"},
+            {"url": f"https://api.somafm.com/{channel_id}130.pls",
+             "format": "aac", "quality": "highest"},
+            {"url": f"https://api.somafm.com/{channel_id}64.pls",
+             "format": "aacp", "quality": "high"},
+            {"url": f"https://api.somafm.com/{channel_id}32.pls",
+             "format": "aacp", "quality": "low"},
+        ],
+    }
+    if preroll is not None:
+        ch["preroll"] = preroll
+    return ch
+
+
+def test_fetch_channels_returns_preroll_urls_when_upstream_has_preroll():
+    """Phase 83 D-02: fetch_channels surfaces `preroll[]` verbatim as `preroll_urls`.
+
+    Uses Beat Blender's real shape (3 preroll m4a URLs per live SomaFM API
+    audit 2026-05-22). The returned channel dict carries the same list in
+    the same order under the `preroll_urls` key.
+    """
+    preroll_list = [
+        "https://somafm.com/prerolls/beatblender/BeatBlenderID1.m4a",
+        "https://somafm.com/prerolls/beatblender/BeatBlenderID2.m4a",
+        "https://somafm.com/prerolls/beatblender/BeatBlenderID3.m4a",
+    ]
+    data = {"channels": [_make_channel_with_preroll(
+        "beatblender", "Beat Blender", preroll=preroll_list,
+    )]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    assert len(channels) == 1
+    assert "preroll_urls" in channels[0], "fetch_channels must surface preroll_urls"
+    assert channels[0]["preroll_urls"] == preroll_list, (
+        f"Phase 83 D-02 violation: expected verbatim preroll list, got "
+        f"{channels[0]['preroll_urls']!r}"
+    )
+
+
+def test_fetch_channels_returns_empty_preroll_urls_for_channels_without_preroll():
+    """Phase 83 D-02: fetch_channels defaults preroll_urls to [] when upstream omits the key.
+
+    25 of 46 live SomaFM channels have no `preroll` field at all (per RESEARCH §
+    Sources). The importer must default to an empty list, not raise KeyError.
+    """
+    data = {"channels": [_make_channel_with_preroll("7soul", "Seven Inch Soul", preroll=None)]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    assert len(channels) == 1
+    assert channels[0]["preroll_urls"] == [], (
+        f"Phase 83 D-02: channels with no upstream `preroll` key must default "
+        f"to []; got {channels[0]['preroll_urls']!r}"
+    )
+
+
+def test_fetch_channels_preserves_url_encoded_spaces_in_preroll():
+    """Phase 83 Pitfall 7: preroll URLs are stored VERBATIM — no %20 decode.
+
+    SomaFM-style preroll filenames sometimes contain `%20` (URL-encoded space).
+    The importer never normalizes; playbin3 + souphttpsrc handles encoded
+    URLs correctly. Decoding here would create a mismatch between what's
+    stored and what plays.
+    """
+    encoded_url = "https://somafm.com/prerolls/bootliquor/Boot%20Liquor%20ID1.m4a"
+    data = {"channels": [_make_channel_with_preroll(
+        "bootliquor", "Boot Liquor", preroll=[encoded_url],
+    )]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    assert channels[0]["preroll_urls"] == [encoded_url], (
+        f"Phase 83 Pitfall 7 violation: URL must be stored verbatim. "
+        f"Got {channels[0]['preroll_urls']!r}"
+    )
+    # Belt-and-suspenders: the raw %20 token survives unchanged.
+    assert "%20" in channels[0]["preroll_urls"][0], (
+        "Phase 83 Pitfall 7: %20 sequence must NOT be decoded to ' '"
+    )
+
+
+def test_import_calls_insert_preroll_per_url_in_position_order():
+    """Phase 83 D-02: insert_preroll fires per URL, position monotone from 1.
+
+    3-channel fixture: channel 1 has 2 prerolls; channels 2 and 3 have no
+    preroll key. Assert insert_preroll is called only for channel 1, with
+    (station_id=101, url1, position=1) and (101, url2, 2) — never for the
+    empty channels.
+    """
+    preroll_list = [
+        "https://somafm.com/prerolls/groovesalad/GrooveSaladID1.m4a",
+        "https://somafm.com/prerolls/groovesalad/GrooveSaladID2.m4a",
+    ]
+    data = {"channels": [
+        _make_channel_with_preroll("groovesalad", "Groove Salad", preroll=preroll_list),
+        _make_channel_with_preroll("dronezone", "Drone Zone", preroll=None),
+        _make_channel_with_preroll("bootliquor", "Boot Liquor", preroll=None),
+    ]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    mock_repo = MagicMock(spec=Repo)
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.side_effect = [101, 102, 103]
+    mock_repo.list_streams.side_effect = [
+        [MagicMock(id=1010)],
+        [MagicMock(id=1020)],
+        [MagicMock(id=1030)],
+    ]
+
+    inserted, skipped = soma_import.import_stations(channels, mock_repo)
+
+    assert (inserted, skipped) == (3, 0)
+    # insert_preroll fires exactly twice — only for channel 1.
+    assert mock_repo.insert_preroll.call_count == 2, (
+        f"Expected 2 insert_preroll calls (only channel 1), got "
+        f"{mock_repo.insert_preroll.call_count}"
+    )
+    # Positional args: (station_id, url, position) — monotone from 1.
+    actual_calls = [
+        (c.args[0], c.args[1], c.args[2])
+        for c in mock_repo.insert_preroll.call_args_list
+    ]
+    assert actual_calls == [
+        (101, preroll_list[0], 1),
+        (101, preroll_list[1], 2),
+    ], f"Phase 83 D-02 ordering violation: got {actual_calls!r}"
+
+
+def test_import_sets_prerolls_fetched_at_for_empty_preroll():
+    """Phase 83 D-04 (canonical anchor — name matches VALIDATION.md verbatim).
+
+    Single-channel fixture where the channel has NO `preroll` key
+    (legitimately-empty — 25 of 46 channels in the live API).
+    set_prerolls_fetched_at MUST be called exactly once even though no
+    insert_preroll fires — without this marker, the throttle gate would
+    re-fetch on every Play, hammering the SomaFM API.
+    """
+    data = {"channels": [_make_channel_with_preroll(
+        "7soul", "Seven Inch Soul", preroll=None,
+    )]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    mock_repo = MagicMock(spec=Repo)
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 42
+    mock_repo.list_streams.return_value = [MagicMock(id=420)]
+
+    inserted, skipped = soma_import.import_stations(channels, mock_repo)
+
+    assert (inserted, skipped) == (1, 0)
+    assert mock_repo.set_prerolls_fetched_at.call_count == 1, (
+        "Phase 83 D-04 violation: set_prerolls_fetched_at must fire even for "
+        "legitimately-empty channels (otherwise throttle gate re-fetches "
+        f"forever). Got call_count={mock_repo.set_prerolls_fetched_at.call_count}"
+    )
+    assert mock_repo.insert_preroll.call_count == 0, (
+        "Empty preroll list must NOT call insert_preroll. Got "
+        f"{mock_repo.insert_preroll.call_count} calls."
+    )
+    # Verify the call shape: (station_id, epoch_seconds:int).
+    call = mock_repo.set_prerolls_fetched_at.call_args
+    assert call.args[0] == 42, f"Expected station_id=42, got {call.args[0]!r}"
+    assert isinstance(call.args[1], int), (
+        f"epoch arg must be int (from int(time.time())); got {type(call.args[1])}"
+    )
+
+
+def test_import_sets_prerolls_fetched_at_for_every_imported_channel():
+    """Phase 83 D-04 companion guard: every IMPORTED channel gets the marker.
+
+    3-channel fixture: channel 1 populated (2 prerolls); channels 2 and 3
+    empty. Assert set_prerolls_fetched_at.call_count == 3 — the marker
+    fires for populated AND empty alike. Defends against regression where
+    a future refactor scopes the call to `if preroll_urls:` only.
+    """
+    data = {"channels": [
+        _make_channel_with_preroll("groovesalad", "Groove Salad", preroll=[
+            "https://somafm.com/prerolls/groovesalad/GrooveSaladID1.m4a",
+            "https://somafm.com/prerolls/groovesalad/GrooveSaladID2.m4a",
+        ]),
+        _make_channel_with_preroll("dronezone", "Drone Zone", preroll=None),
+        _make_channel_with_preroll("bootliquor", "Boot Liquor", preroll=[]),
+    ]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    mock_repo = MagicMock(spec=Repo)
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.side_effect = [201, 202, 203]
+    mock_repo.list_streams.side_effect = [
+        [MagicMock(id=2010)],
+        [MagicMock(id=2020)],
+        [MagicMock(id=2030)],
+    ]
+
+    inserted, skipped = soma_import.import_stations(channels, mock_repo)
+
+    assert (inserted, skipped) == (3, 0)
+    assert mock_repo.set_prerolls_fetched_at.call_count == 3, (
+        "Phase 83 D-04 companion guard: marker must fire for populated AND "
+        f"empty channels alike. Got call_count="
+        f"{mock_repo.set_prerolls_fetched_at.call_count}"
+    )
+    # Each call should target a distinct station_id (201, 202, 203 in order).
+    station_ids = [c.args[0] for c in mock_repo.set_prerolls_fetched_at.call_args_list]
+    assert station_ids == [201, 202, 203], (
+        f"Marker must target the imported station_ids in order; got {station_ids!r}"
+    )
+
+
+def test_import_caps_preroll_at_50_per_channel_and_emits_warning(caplog):
+    """Phase 83 T-83-02 / DoS hardening: importer caps preroll inserts at 50 per channel.
+
+    A hostile / compromised SomaFM response with 55 preroll entries for a
+    single channel must result in exactly 50 insert_preroll calls AND a
+    single _log.warning citing the original length. The channel still
+    imports cleanly (the warning is non-fatal).
+    """
+    preroll_list = [
+        f"https://somafm.com/prerolls/bigchannel/ID{i:03d}.m4a"
+        for i in range(1, 56)
+    ]
+    assert len(preroll_list) == 55
+    data = {"channels": [_make_channel_with_preroll(
+        "bigchannel", "Big Channel", preroll=preroll_list,
+    )]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    mock_repo = MagicMock(spec=Repo)
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.return_value = 777
+    mock_repo.list_streams.return_value = [MagicMock(id=7770)]
+
+    with caplog.at_level(logging.WARNING, logger="musicstreamer.soma_import"):
+        inserted, skipped = soma_import.import_stations(channels, mock_repo)
+
+    # Channel still imports (warning is non-fatal).
+    assert (inserted, skipped) == (1, 0), (
+        f"Channel exceeding 50 prerolls must still import; got ({inserted}, {skipped})"
+    )
+    # Cap enforced: exactly 50 calls, never 55.
+    assert mock_repo.insert_preroll.call_count == 50, (
+        f"T-83-02 violation: insert_preroll must be capped at 50 per channel. "
+        f"Got {mock_repo.insert_preroll.call_count} calls."
+    )
+    # Positions 1..50 in order.
+    positions = [c.args[2] for c in mock_repo.insert_preroll.call_args_list]
+    assert positions == list(range(1, 51)), (
+        f"Positions must be 1..50 monotone after cap; got {positions[:3]}...{positions[-3:]}"
+    )
+    # Warning emitted once with the original length in the message.
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+    cap_warnings = [r for r in warning_records if "capping at 50" in r.getMessage()]
+    assert len(cap_warnings) == 1, (
+        f"Expected exactly one cap-truncation warning; got {len(cap_warnings)}. "
+        f"All warnings: {[r.getMessage() for r in warning_records]}"
+    )
+    msg = cap_warnings[0].getMessage()
+    assert "55" in msg, (
+        f"Cap warning must cite original length (55); got: {msg!r}"
+    )
+    # The marker still fires for this channel.
+    assert mock_repo.set_prerolls_fetched_at.call_count == 1
+
+
+def test_import_rolls_back_prerolls_via_cascade_when_stream_insert_raises_mid_channel():
+    """Phase 83 Pitfall 4 ordering invariant: preroll INSERTs happen AFTER stream INSERTs.
+
+    2-channel fixture: channel 1 imports cleanly (with 2 prerolls); channel 2
+    raises mid-streams-loop. Assertions:
+      - channel 1 prerolls are inserted normally.
+      - channel 2: insert_preroll NEVER called (the streams loop raised
+        BEFORE the preroll block).
+      - channel 2: delete_station was called with channel 2's station_id
+        (rollback fired; CASCADE on station_prerolls is the real-DB cleanup
+        path — verified separately in test_repo.py).
+
+    The MagicMock cannot replicate FK CASCADE, but this test proves the
+    structural invariant that makes Pitfall 4 mitigation correct: prerolls
+    are written INSIDE the rollback window, after streams.
+    """
+    preroll_ch1 = [
+        "https://somafm.com/prerolls/groovesalad/GrooveSaladID1.m4a",
+        "https://somafm.com/prerolls/groovesalad/GrooveSaladID2.m4a",
+    ]
+    preroll_ch2 = [
+        "https://somafm.com/prerolls/dronezone/DroneZoneID1.m4a",
+    ]
+    data = {"channels": [
+        _make_channel_with_preroll("groovesalad", "Groove Salad", preroll=preroll_ch1),
+        _make_channel_with_preroll("dronezone", "Drone Zone", preroll=preroll_ch2),
+    ]}
+    fixture_bytes = json.dumps(data).encode("utf-8")
+    resolve_stub = _make_any_resolve_pls_stub()
+
+    with patch("musicstreamer.soma_import.urllib.request.urlopen",
+               side_effect=lambda *a, **kw: _urlopen_factory(fixture_bytes, "application/json")), \
+         patch("musicstreamer.soma_import._resolve_pls", side_effect=resolve_stub):
+        channels = soma_import.fetch_channels()
+
+    # Channel 1 needs 19 successful insert_stream calls (20 streams - 1 auto).
+    # Channel 2's first insert_stream raises.
+    insert_stream_side_effects: list = [None] * 19 + [RuntimeError("simulated DB error on ch2")]
+
+    mock_repo = MagicMock(spec=Repo)
+    mock_repo.station_exists_by_url.return_value = False
+    mock_repo.insert_station.side_effect = [501, 502]
+    mock_repo.list_streams.side_effect = [
+        [MagicMock(id=5010)],
+        [MagicMock(id=5020)],
+    ]
+    mock_repo.insert_stream.side_effect = insert_stream_side_effects
+
+    inserted, skipped = soma_import.import_stations(channels, mock_repo)
+
+    # Channel 1 succeeded, channel 2 skipped.
+    assert (inserted, skipped) == (1, 1), (
+        f"Phase 83 Pitfall 4: ch1 imports, ch2 rolls back. Got ({inserted}, {skipped})"
+    )
+    # Channel 2 rollback fired with its station_id.
+    mock_repo.delete_station.assert_called_once_with(502)
+    # Channel 1's prerolls were inserted normally (station_id=501, monotone positions).
+    ch1_preroll_calls = [
+        c for c in mock_repo.insert_preroll.call_args_list
+        if c.args[0] == 501
+    ]
+    assert len(ch1_preroll_calls) == 2, (
+        f"Channel 1 must have 2 preroll inserts; got {len(ch1_preroll_calls)}"
+    )
+    # Channel 2's prerolls were NEVER inserted (streams loop raised first).
+    ch2_preroll_calls = [
+        c for c in mock_repo.insert_preroll.call_args_list
+        if c.args[0] == 502
+    ]
+    assert ch2_preroll_calls == [], (
+        f"Phase 83 Pitfall 4 ordering invariant violated: ch2 preroll inserts "
+        f"happened before the streams-loop raise. Found: {ch2_preroll_calls!r}"
+    )
+    # Channel 1 also got the D-04 marker; channel 2 did NOT (raised before the
+    # marker line).
+    marker_station_ids = [
+        c.args[0] for c in mock_repo.set_prerolls_fetched_at.call_args_list
+    ]
+    assert marker_station_ids == [501], (
+        f"Only the cleanly-imported channel should get the D-04 marker; got "
+        f"{marker_station_ids!r}"
+    )
