@@ -980,12 +980,12 @@ Plans:
 **Goal:** When a SomaFM station starts playing, randomly pick one of its prerolls (short station-ID m4a clips from `api.somafm.com/channels.json`'s `preroll[]` array) and play it before transitioning gaplessly into the station's actual stream. SomaFM stations with empty `preroll[]` (Seven Inch Soul etc.) behave exactly as today. Provider-gated to `"SomaFM"` (Phase 74 D-02 CamelCase literal); 10-minute global throttle; lazy on-demand backfill for pre-Phase-83 SomaFM stations already in the library.
 **Requirements**: TBD (no fixed phase_req_ids — CONTEXT D-01..D-15 + RESEARCH §Security Domain additions are the acceptance contract)
 **Depends on:** Phase 82
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 83-01-PLAN.md — Schema additions in `repo.py db_init` (NEW `station_prerolls` table CREATE + `prerolls_fetched_at` ALTER); `Station` dataclass extension in `models.py`; 3 new `Repo` methods (`insert_preroll` with URL-scheme validation + per-call cap, `list_prerolls`, `set_prerolls_fetched_at`); 4 Station-build sites eager-load prerolls + `prerolls_fetched_at`; 10 tests in `tests/test_repo.py`
+- [x] 83-01-PLAN.md — Schema additions in `repo.py db_init` (NEW `station_prerolls` table CREATE + `prerolls_fetched_at` ALTER); `Station` dataclass extension in `models.py`; 3 new `Repo` methods (`insert_preroll` with URL-scheme validation + per-call cap, `list_prerolls`, `set_prerolls_fetched_at`); 4 Station-build sites eager-load prerolls + `prerolls_fetched_at`; 10 tests in `tests/test_repo.py`
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
