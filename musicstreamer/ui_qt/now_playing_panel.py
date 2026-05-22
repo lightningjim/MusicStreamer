@@ -1279,13 +1279,15 @@ class NowPlayingPanel(QWidget):
             self._reflow_volume_cluster()
 
     def _on_stream_selected(self, index: int) -> None:
-        """User manually selected a stream from the picker (D-21)."""
+        """User manually selected a stream from the picker (D-21 / Phase 82 D-02)."""
         if index < 0 or not self._streams:
             return
         stream_id = self.stream_combo.itemData(index)
         for s in self._streams:
             if s.id == stream_id:
                 self._player.play_stream(s)
+                if self._station is not None:
+                    self._repo.set_preferred_stream(self._station.id, s.id)
                 break
         # Phase 70 / Plan 70-06: refresh quality badge for the newly-selected stream.
         self._refresh_quality_badge()
