@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: Phase 81 complete (1/1) — ready to discuss Phase 82
-last_updated: 2026-05-21T21:58:56.865Z
-last_activity: 2026-05-21 -- Phase 81 execution started
+status: planning
+stopped_at: Phase 82 context gathered
+last_updated: "2026-05-22T01:57:45.663Z"
+last_activity: 2026-05-21
 progress:
   total_phases: 42
-  completed_phases: 37
+  completed_phases: 38
   total_plans: 176
   completed_plans: 171
-  percent: 88
+  percent: 90
 ---
 
 # Project State
@@ -238,7 +238,7 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-21T17:50:09.740Z
-Stopped at: Phase 81 context gathered
-Resume file: .planning/phases/81-station-list-alphabetical-sorting-is-case-sensitive-a-z-then/81-CONTEXT.md
+Last session: 2026-05-22T01:57:45.651Z
+Stopped at: Phase 82 context gathered
+Resume file: .planning/phases/82-twitch-only-station-still-tries-to-play-youtube-stream-first/82-CONTEXT.md
 Handoff: .planning/HANDOFF.json (delete after Wave 1 starts cleanly)
