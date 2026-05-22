@@ -266,6 +266,21 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent; existing rows backfilled via DEFAULT
 
+    # Phase 82 D-01/D-08 — per-station sticky preferred stream FK.
+    # MUST land AFTER the legacy URL-column rebuild block (Pitfall 2): the
+    # rebuild's CREATE TABLE stations_new / INSERT SELECT does not carry
+    # dynamically-added columns, so placing the ALTER here ensures the column
+    # lands on the rebuilt (or fresh) table. Nullable INTEGER with no DEFAULT
+    # (D-01 — NULL means no preference set; no backfill needed). Idempotent
+    # via the same try/except sqlite3.OperationalError idiom as above.
+    try:
+        con.execute(
+            "ALTER TABLE stations ADD COLUMN preferred_stream_id INTEGER REFERENCES station_streams(id) ON DELETE SET NULL"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
 
 def sweep_orphans(con: sqlite3.Connection) -> None:
     """Delete orphan FK-child rows and INFO-log per-table counts when N>0.
