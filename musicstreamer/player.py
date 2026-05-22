@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import logging
 import os
+import random
 import threading
 import time
 from dataclasses import dataclass
@@ -261,6 +262,11 @@ class Player(QObject):
     # and the callback never runs. Queued signal marshals _try_next_stream
     # onto the main thread -- same pattern as _cancel_timers_requested.
     _try_next_stream_requested = Signal()        # worker → main: advance failover queue
+    # Phase 83 D-05 / Pattern 1 — playbin3 about-to-finish fires on the GStreamer
+    # streaming thread. Marshal to main via queued Signal so the disconnect +
+    # _try_next_stream() call runs on the QThread (per qt-glib-bus-threading
+    # Rule 2; Phase 43.1 fix commit f1333ed).
+    _preroll_about_to_finish_requested = Signal()
     # Phase 57 / WIN-03 D-12: bus-loop -> main: re-apply self._volume after every
     # transition to PLAYING (catches NULL->PLAYING from pause/resume / failover /
     # station switch AND playbin3-internal PAUSED->PLAYING auto-rebuffer recovery
@@ -335,6 +341,7 @@ class Player(QObject):
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
         bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
         bus.connect("message::state-changed", self._on_gst_state_changed)  # Phase 57 / WIN-03 D-12
+        bus.connect("message::eos", self._on_gst_eos_during_preroll)  # Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED)
         # NOTE: no sync-message handler is registered -- it would stall the
         # GStreamer streaming thread (Pitfall 5). Both handlers above run on
         # the GstBusLoopThread daemon and may only emit Qt signals.
@@ -404,6 +411,10 @@ class Player(QObject):
         self._try_next_stream_requested.connect(
             self._try_next_stream, Qt.ConnectionType.QueuedConnection
         )
+        # Phase 83 D-05 / Pattern 1 — queue streaming-thread → main for preroll handoff.
+        self._preroll_about_to_finish_requested.connect(
+            self._on_preroll_about_to_finish, Qt.ConnectionType.QueuedConnection
+        )
         # Phase 57 / WIN-03 D-12: queue bus-loop -> main re-apply on PLAYING.
         self._playbin_playing_state_reached.connect(
             self._on_playbin_state_changed, Qt.ConnectionType.QueuedConnection
@@ -439,6 +450,14 @@ class Player(QObject):
         self._twitch_resolve_attempts: int = 0
         self._recovery_in_flight: bool = False  # gap-05: coalesce cascading bus errors per URL
         self._last_buffer_percent: int = -1  # 47.1 D-14: sentinel so first real 0-100 always emits
+
+        # Phase 83 D-12 / D-13 / D-07 / T-83-10 — SomaFM preroll state.
+        # Set/cleared on the main thread. _preroll_in_flight is read cross-thread
+        # by _on_gst_tag (Pattern 2 — Python bool read is atomic in CPython).
+        self._preroll_in_flight: bool = False
+        self._last_preroll_played_at: Optional[float] = None  # D-12 throttle (monotonic; resets per launch)
+        self._preroll_handler_id: int = 0  # 0 = no handler connected
+        self._backfill_in_flight: set[int] = set()  # D-13 single-flight guard (T-83-10)
 
         # Phase 62 / BUG-09: cycle-tracker instance + station_id field.
         # Tracker mirrors Phase 47.1 D-14 sentinel reset lifecycle (Pitfall 3 —
@@ -544,6 +563,32 @@ class Player(QObject):
             queue = list(streams_by_position)
 
         self._streams_queue = queue
+        # Phase 83 D-11 / D-12 / D-13 — SomaFM preroll gate.
+        # The literal "SomaFM" is the drift-guard pin (Phase 74 D-02 CamelCase
+        # convention; Phase 83 D-14 test pins this literal in non-comment lines).
+        if (
+            station.provider_name == "SomaFM"
+            and (self._last_preroll_played_at is None
+                 or time.monotonic() - self._last_preroll_played_at > 600)
+        ):
+            urls = list(getattr(station, "prerolls", []) or [])
+            if urls:
+                preroll_url = random.choice(urls)
+                self._start_preroll(preroll_url)
+                return  # _on_preroll_about_to_finish triggers _try_next_stream
+            elif (
+                getattr(station, "prerolls_fetched_at", None) is None
+                and station.id not in self._backfill_in_flight
+            ):
+                # D-13 lazy backfill; non-blocking. Worker discards station.id from
+                # _backfill_in_flight in its finally clause (T-83-10 single-flight).
+                self._backfill_in_flight.add(station.id)
+                threading.Thread(
+                    target=self._preroll_backfill_worker,
+                    args=(station.id, station.name),
+                    daemon=True,
+                ).start()
+            # else (D-04 / Pitfall 5): fetched, genuinely-empty channel — skip silently.
         self._try_next_stream()
 
     def play_stream(self, stream: StationStream, on_title=None,
@@ -1027,6 +1072,73 @@ class Player(QObject):
         # Phase 70 / DS-01: install a fresh caps watch on the new pipeline lifecycle.
         # MUST happen AFTER set_state(PLAYING) so playbin3 starts negotiating streams.
         self._arm_caps_watch_for_current_stream()
+
+    # ------------------------------------------------------------------ #
+    # Phase 83 — SomaFM preroll cluster (D-05, D-09, D-12; live-spike Q3 bridge)
+    # ------------------------------------------------------------------ #
+
+    def _start_preroll(self, preroll_url: str) -> None:
+        """Phase 83 D-05 / D-12. Main-thread call. Wires playbin3 to play
+        ``preroll_url``, attaches a one-shot about-to-finish handler that
+        schedules the station-stream handoff via queued Signal.
+
+        ``_last_preroll_played_at`` is set HERE (preroll START), not in the
+        about-to-finish slot — D-12 explicit anti-pattern is "update on
+        handoff" (rapid replay would let a second preroll start)."""
+        self._preroll_in_flight = True
+        self._last_preroll_played_at = time.monotonic()
+        self._preroll_handler_id = self._pipeline.connect(
+            "about-to-finish", self._on_preroll_about_to_finish_callback
+        )
+        self._set_uri(preroll_url)
+
+    def _on_preroll_about_to_finish_callback(self, pipeline) -> None:
+        """Phase 83 D-05 / Pattern 1 — GStreamer streaming-thread callback.
+        ONLY emits the queued Signal. NEVER call set_property or any Qt API
+        from this body (qt-glib-bus-threading Rule 2; Phase 43.1 f1333ed)."""
+        self._preroll_about_to_finish_requested.emit()
+
+    def _on_preroll_about_to_finish(self) -> None:
+        """Phase 83 D-05 — main-thread slot wired via QueuedConnection.
+        Disconnects the one-shot handler, clears the in-flight flag, and
+        kicks ``_try_next_stream()`` to play ``_streams_queue[0]``."""
+        if self._preroll_handler_id:
+            try:
+                self._pipeline.disconnect(self._preroll_handler_id)
+            except (TypeError, RuntimeError):
+                pass  # already disconnected (e.g. bus-error path took it)
+            self._preroll_handler_id = 0
+        self._preroll_in_flight = False
+        self._try_next_stream()
+
+    def _on_gst_eos_during_preroll(self, bus, msg) -> None:
+        """Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED).
+
+        On the GstBusLoopThread. Bridges the (rare) case where a preroll
+        reaches EOS WITHOUT firing about-to-finish first — e.g. a 0-byte
+        response, a truncated m4a, or a non-decodable container. The
+        live-spike (2026-05-22 Linux GStreamer 1.28.2) confirms this path
+        is NOT reached on the normal happy path (about-to-finish fires at
+        +7.849s before EOS), so this handler is defense-in-depth only.
+
+        When ``_preroll_in_flight is False``, returns immediately so that
+        today's EOS semantics (i.e. none on the streaming/looping path)
+        are unchanged. When True, emits the existing
+        ``_try_next_stream_requested`` queued Signal — the SAME fall-through
+        Signal D-09's bus-error path uses — which marshals to main, runs
+        ``_try_next_stream()``, and advances to ``_streams_queue[0]``.
+
+        Plain-bool cross-thread read of ``_preroll_in_flight`` is atomic in
+        CPython (mirrors ``_on_gst_tag``'s guard read; Pattern 2).
+        """
+        if not self._preroll_in_flight:
+            return
+        # Same fall-through path as D-09 bus-error. _try_next_stream_requested
+        # is the existing class-level Signal wired with QueuedConnection in
+        # __init__ (Phase 82 / 43.1 pattern); the handler does NOT itself touch
+        # the pipeline, the handler-id, or the flag (those are main-thread
+        # concerns; qt-glib-bus-threading Rule 2).
+        self._try_next_stream_requested.emit()
 
     # ------------------------------------------------------------------ #
     # YouTube -- yt_dlp library API with EJS JS challenge solver (Plan 35-06)
