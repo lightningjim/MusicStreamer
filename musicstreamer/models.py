@@ -37,6 +37,7 @@ class Station:
     streams: List[StationStream] = field(default_factory=list)
     last_played_at: Optional[str] = None
     is_favorite: bool = False
+    preferred_stream_id: Optional[int] = None  # Phase 82 D-01: per-station sticky preferred stream
 
 
 @dataclass

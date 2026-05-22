@@ -52,6 +52,10 @@ class FakeRepo:
         if key in self._favorites:
             self._favorites.remove(key)
 
+    def set_preferred_stream(self, station_id: int, stream_id) -> None:
+        """Phase 82 no-op shield — prevents AttributeError once Plan 82-03 wires the call into _on_stream_selected. Plan 82-03 adds a behavioral test elsewhere."""
+        pass
+
 
 # ---------------------------------------------------------------------------
 # Fixtures

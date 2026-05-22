@@ -866,3 +866,127 @@ def test_collate_nocase_drift_guard(repo):
     assert body.count("ORDER BY COALESCE(p.name,'') COLLATE NOCASE, s.name COLLATE NOCASE") == 2, (
         "Phase 81 D-03: both list_stations and list_favorite_stations must keep COLLATE NOCASE on both ORDER BY columns"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 82 Plan 01: preferred_stream_id DB + Repo layer (D-01, D-02, D-08)
+# ---------------------------------------------------------------------------
+
+def test_preferred_stream_id_migration_idempotent(repo):
+    """D-08: db_init is idempotent across multiple calls; column has expected schema.
+
+    PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk).
+    preferred_stream_id must be INTEGER, nullable (notnull=0), no default (None).
+    """
+    # Second and third db_init calls must not raise.
+    db_init(repo.con)
+    db_init(repo.con)
+
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "preferred_stream_id" in by_name, (
+        f"preferred_stream_id column missing; got {sorted(by_name)}"
+    )
+    col = by_name["preferred_stream_id"]
+    # type is index 2; notnull is index 3; dflt_value is index 4
+    assert col[2] == "INTEGER", f"column type must be INTEGER; got {col[2]!r}"
+    assert col[3] == 0, "preferred_stream_id must be nullable (notnull=0)"
+    assert col[4] is None, (
+        f"preferred_stream_id must have no DEFAULT; got {col[4]!r}"
+    )
+
+
+def test_preferred_stream_id_default_none_on_fresh_station(repo):
+    """D-01: a freshly created station has preferred_stream_id == None."""
+    sid = repo.create_station()
+    assert repo.get_station(sid).preferred_stream_id is None
+
+
+def test_preferred_stream_id_survives_db_init_replay(repo):
+    """D-08: value set via direct SQL UPDATE survives a subsequent db_init replay.
+
+    NOTE: This test passes only after Task 2 wires preferred_stream_id into
+    the Station-builder kwarg in get_station(). Placed here alongside the
+    migration tests for discoverability; it exercises the DB layer, not the
+    Repo setter (which lands in Task 2).
+    """
+    sid = repo.create_station()
+    stream_id = repo.insert_stream(sid, "http://twitch.tv/lofi")
+    repo.con.execute(
+        "UPDATE stations SET preferred_stream_id = ? WHERE id = ?",
+        (stream_id, sid),
+    )
+    repo.con.commit()
+    # Re-run db_init — value must survive.
+    db_init(repo.con)
+    assert repo.get_station(sid).preferred_stream_id == stream_id
+
+
+# ---------------------------------------------------------------------------
+# Phase 82 Plan 01 Task 2: Station-builders + set_preferred_stream + round-trips
+# ---------------------------------------------------------------------------
+
+def _seed_two_stream_station(repo):
+    """Helper: insert a station with a YT stream and a Twitch stream, return (sid, yt_id, twitch_id)."""
+    sid = repo.create_station()
+    yt_id = repo.insert_stream(sid, "https://youtube.com/lofi", label="YouTube", stream_type="youtube")
+    twitch_id = repo.insert_stream(sid, "https://twitch.tv/lofi", label="Twitch", stream_type="twitch")
+    return sid, yt_id, twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_list_stations(repo):
+    """D-02: set_preferred_stream persists and list_stations reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    stations = repo.list_stations()
+    match = next(s for s in stations if s.id == sid)
+    assert match.preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_get_station(repo):
+    """D-02: set_preferred_stream persists and get_station reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    assert repo.get_station(sid).preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_list_recently_played(repo):
+    """D-02: set_preferred_stream persists and list_recently_played reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    repo.update_last_played(sid)
+    rp = repo.list_recently_played()
+    match = next(s for s in rp if s.id == sid)
+    assert match.preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_list_favorite_stations(repo):
+    """D-02: set_preferred_stream persists and list_favorite_stations reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    repo.set_station_favorite(sid, True)
+    favs = repo.list_favorite_stations()
+    match = next(s for s in favs if s.id == sid)
+    assert match.preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_clears_to_none(repo):
+    """D-02: set_preferred_stream(None) clears the pick back to NULL."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    assert repo.get_station(sid).preferred_stream_id == twitch_id
+    repo.set_preferred_stream(sid, None)
+    assert repo.get_station(sid).preferred_stream_id is None
+
+
+def test_set_preferred_stream_on_delete_set_null(repo):
+    """D-01: deleting the stream FK-target auto-NULLs preferred_stream_id (ON DELETE SET NULL).
+
+    Requires PRAGMA foreign_keys = ON — already enforced by the repo fixture.
+    """
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    assert repo.get_station(sid).preferred_stream_id == twitch_id
+    # Delete the stream — FK ON DELETE SET NULL must fire.
+    repo.delete_stream(twitch_id)
+    assert repo.get_station(sid).preferred_stream_id is None
