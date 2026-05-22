@@ -119,6 +119,10 @@ class FakeRepo:
     def list_streams(self, station_id: int) -> list:
         return list(self._streams_by_station.get(station_id, []))
 
+    def set_preferred_stream(self, station_id: int, stream_id) -> None:
+        """Phase 82 no-op shield — prevents AttributeError once Plan 82-03 wires the call into _on_stream_selected. Plan 82-03 adds a behavioral test elsewhere."""
+        pass
+
 
 def _make_panel(
     qtbot,
