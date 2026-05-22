@@ -59,11 +59,12 @@ class FakePlayer(QObject):
     elapsed_updated            = Signal(int)
     buffer_percent             = Signal(int)
 
-    # Internal cross-thread marshaling signals (7 — underscore-prefixed)
-    _cancel_timers_requested       = Signal()
-    _error_recovery_requested      = Signal()
-    _try_next_stream_requested     = Signal()
-    _playbin_playing_state_reached = Signal()
+    # Internal cross-thread marshaling signals (8 — underscore-prefixed)
+    _cancel_timers_requested           = Signal()
+    _error_recovery_requested          = Signal()
+    _try_next_stream_requested         = Signal()
+    _preroll_about_to_finish_requested = Signal()  # Phase 83 D-05 — preroll about-to-finish handoff
+    _playbin_playing_state_reached     = Signal()
     _underrun_cycle_opened         = Signal()
     _underrun_cycle_closed         = Signal(object)
     underrun_recovery_started      = Signal()
