@@ -23,6 +23,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -239,6 +240,8 @@ def fetch_channels(timeout: int = _TIMEOUT_S) -> list[dict]:
                 # (RESEARCH "Alternatives Considered" — NOT "xlimage" / 512 px)
                 "image_url": ch.get("image"),
                 "streams": streams,
+                # Phase 83 D-02: capture upstream preroll[] verbatim (Pitfall 7 — no URL decode).
+                "preroll_urls": ch.get("preroll", []),
             })
         except Exception as exc:  # noqa: BLE001
             # Phase 74 REVIEW IN-05: include title for diagnostic correlation
