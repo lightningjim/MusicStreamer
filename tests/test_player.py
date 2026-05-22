@@ -575,3 +575,53 @@ def test_player_eq_ramp_set_eq_profile_stops_in_flight_ramp(player):
     assert player._eq_ramp_state is None, (
         "set_eq_profile must clear ramp state (T-52-01)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 82 D-01/D-03: preferred_stream_id head-of-queue RED contract
+# Full behavioral suite lands in Task 2; this minimal test drives Task 1 TDD.
+# ---------------------------------------------------------------------------
+
+def _make_player_mock(qtbot):
+    """Create a Player with pipeline mocked (mirrors make_player in this file)."""
+    from musicstreamer.player import Player
+    from unittest.mock import MagicMock, patch
+    mock_pipeline = MagicMock()
+    mock_bus = MagicMock()
+    mock_pipeline.get_bus.return_value = mock_bus
+    with patch(
+        "musicstreamer.player.Gst.ElementFactory.make",
+        return_value=mock_pipeline,
+    ):
+        player = Player()
+    player._pipeline = MagicMock()
+    return player
+
+
+def test_preferred_stream_id_minimal_red(qtbot):
+    """Phase 82 D-01/D-03 RED: preferred_stream_id not yet honored — must fail
+    against unmodified Player.play() (Task 1 TDD gate).
+
+    2-stream station where stream id=2 is lower-ranked by quality.
+    After play(), _current_stream.id must equal 2 (preferred_stream_id pick),
+    not 1 (order_streams winner). This test fails until Task 1 GREEN.
+    """
+    from musicstreamer.models import Station, StationStream
+    from unittest.mock import patch
+    p = _make_player_mock(qtbot)
+    s_hi = StationStream(id=1, station_id=1, url="http://yt/1",
+                         quality="hi", position=1)
+    s_med = StationStream(id=2, station_id=1, url="http://twitch/2",
+                          quality="med", position=2)
+    station = Station(
+        id=1, name="Lofi Girl", provider_id=None, provider_name=None,
+        tags="", station_art_path=None, album_fallback_path=None,
+        streams=[s_hi, s_med],
+        preferred_stream_id=2,  # user picked Twitch (lower quality rank)
+    )
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert p._current_stream.id == 2, (
+        "Phase 82 D-03: preferred_stream_id=2 must place stream id=2 at queue "
+        "head; got id=%d instead" % p._current_stream.id
+    )
