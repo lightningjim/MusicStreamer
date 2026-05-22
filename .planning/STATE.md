@@ -4,8 +4,8 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 82 context gathered
-last_updated: "2026-05-22T02:21:42.535Z"
-last_activity: 2026-05-22 -- Phase 82 planning complete
+last_updated: "2026-05-22T12:58:00.012Z"
+last_activity: 2026-05-22 -- Phase 82 execution started
 progress:
   total_phases: 42
   completed_phases: 38
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 82 — twitch only station still tries to play youtube stream first
+**Current focus:** Phase 82 — User-selected stream provider is honored on next Play
 
 ## Current Position
 
-Phase: 82
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-22 -- Phase 82 planning complete
+Phase: 82 (User-selected stream provider is honored on next Play) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 82
+Last activity: 2026-05-22 -- Phase 82 execution started
 
 ## Performance Metrics
 

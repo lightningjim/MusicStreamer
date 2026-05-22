@@ -963,14 +963,14 @@ Plans:
 **Goal:** When a station has multiple streams (e.g. YT + Twitch) and the user picks a non-default stream from the Now-Playing dropdown, every subsequent `Player.play(station)` honors that pick (sticky, DB-persisted via `stations.preferred_stream_id` FK to `streams(id)` ON DELETE SET NULL). Failover semantics unchanged — picked stream errors fall back through remaining `order_streams` ordering (D-05). Silent UX (D-07) — no pin icon, no tooltip, no menu action.
 **Requirements**: TBD (coverage contract: CONTEXT.md D-01..D-08)
 **Depends on:** Phase 81
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
 **Wave 1**
 
-- [ ] 82-01-PLAN.md — DB schema migration (`preferred_stream_id` column via Phase 73 `db_init()` try/except ALTER idiom) + `Station` dataclass field + propagation through 4 Repo Station-builders + `Repo.set_preferred_stream` setter + FakeRepo no-op shields in tests/test_stream_picker.py + tests/test_now_playing_panel.py
+- [x] 82-01-PLAN.md — DB schema migration (`preferred_stream_id` column via Phase 73 `db_init()` try/except ALTER idiom) + `Station` dataclass field + propagation through 4 Repo Station-builders + `Repo.set_preferred_stream` setter + FakeRepo no-op shields in tests/test_stream_picker.py + tests/test_now_playing_panel.py
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 82-02-PLAN.md — `Player.play(station)` head-of-queue logic for `preferred_stream_id` (wins over `preferred_quality` kwarg, falls back to `order_streams` on None/stale) + 6 behavioral tests + 1 source-grep drift-guard in tests/test_player.py
-- [ ] 82-03-PLAN.md — `_on_stream_selected` persistence call (`self._repo.set_preferred_stream(self._station.id, s.id)` after `play_stream`) + FakeRepo upgrade from no-op to call-recorder + 4 behavioral tests + 1 source-grep drift-guard in tests/test_stream_picker.py
+- [x] 82-02-PLAN.md — `Player.play(station)` head-of-queue logic for `preferred_stream_id` (wins over `preferred_quality` kwarg, falls back to `order_streams` on None/stale) + 6 behavioral tests + 1 source-grep drift-guard in tests/test_player.py
+- [x] 82-03-PLAN.md — `_on_stream_selected` persistence call (`self._repo.set_preferred_stream(self._station.id, s.id)` after `play_stream`) + FakeRepo upgrade from no-op to call-recorder + 4 behavioral tests + 1 source-grep drift-guard in tests/test_stream_picker.py
