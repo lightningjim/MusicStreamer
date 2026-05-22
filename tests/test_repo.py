@@ -920,3 +920,73 @@ def test_preferred_stream_id_survives_db_init_replay(repo):
     # Re-run db_init — value must survive.
     db_init(repo.con)
     assert repo.get_station(sid).preferred_stream_id == stream_id
+
+
+# ---------------------------------------------------------------------------
+# Phase 82 Plan 01 Task 2: Station-builders + set_preferred_stream + round-trips
+# ---------------------------------------------------------------------------
+
+def _seed_two_stream_station(repo):
+    """Helper: insert a station with a YT stream and a Twitch stream, return (sid, yt_id, twitch_id)."""
+    sid = repo.create_station()
+    yt_id = repo.insert_stream(sid, "https://youtube.com/lofi", label="YouTube", stream_type="youtube")
+    twitch_id = repo.insert_stream(sid, "https://twitch.tv/lofi", label="Twitch", stream_type="twitch")
+    return sid, yt_id, twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_list_stations(repo):
+    """D-02: set_preferred_stream persists and list_stations reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    stations = repo.list_stations()
+    match = next(s for s in stations if s.id == sid)
+    assert match.preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_get_station(repo):
+    """D-02: set_preferred_stream persists and get_station reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    assert repo.get_station(sid).preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_list_recently_played(repo):
+    """D-02: set_preferred_stream persists and list_recently_played reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    repo.update_last_played(sid)
+    rp = repo.list_recently_played()
+    match = next(s for s in rp if s.id == sid)
+    assert match.preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_round_trips_via_list_favorite_stations(repo):
+    """D-02: set_preferred_stream persists and list_favorite_stations reflects it."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    repo.set_station_favorite(sid, True)
+    favs = repo.list_favorite_stations()
+    match = next(s for s in favs if s.id == sid)
+    assert match.preferred_stream_id == twitch_id
+
+
+def test_set_preferred_stream_clears_to_none(repo):
+    """D-02: set_preferred_stream(None) clears the pick back to NULL."""
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    assert repo.get_station(sid).preferred_stream_id == twitch_id
+    repo.set_preferred_stream(sid, None)
+    assert repo.get_station(sid).preferred_stream_id is None
+
+
+def test_set_preferred_stream_on_delete_set_null(repo):
+    """D-01: deleting the stream FK-target auto-NULLs preferred_stream_id (ON DELETE SET NULL).
+
+    Requires PRAGMA foreign_keys = ON — already enforced by the repo fixture.
+    """
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_preferred_stream(sid, twitch_id)
+    assert repo.get_station(sid).preferred_stream_id == twitch_id
+    # Delete the stream — FK ON DELETE SET NULL must fire.
+    repo.delete_stream(twitch_id)
+    assert repo.get_station(sid).preferred_stream_id is None
