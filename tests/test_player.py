@@ -762,3 +762,453 @@ def test_preferred_stream_id_drift_guard():
         "Phase 82 D-03: preferred_stream_id lookup must exist in player.py "
         "(Player.play queue-build block). Do not remove silently."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 83 D-03/D-05/D-06/D-07/D-08/D-09/D-10/D-11/D-12/D-13/D-14 + live-spike Q3
+# behavioral tests + source-grep drift-guard.
+#
+# All tests use _make_player_mock (mocked pipeline) and patch _set_uri to
+# suppress real I/O — same idiom as Phase 82 tests above. Do NOT assert on
+# pipeline.emit(...) (MEMORY feedback_gstreamer_mock_blind_spot.md).
+# ---------------------------------------------------------------------------
+
+
+def _make_station_ph83(
+    streams,
+    *,
+    id_=1,
+    name="Test SomaFM Station",
+    provider_name="SomaFM",
+    prerolls=None,
+    prerolls_fetched_at=None,
+):
+    """Construct a minimal Station for Phase 83 preroll tests. Default
+    provider_name='SomaFM' because most Phase 83 tests use it; the bypass
+    test (D-11) overrides to e.g. 'DI.fm'."""
+    from musicstreamer.models import Station
+    return Station(
+        id=id_,
+        name=name,
+        provider_id=None,
+        provider_name=provider_name,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        streams=streams,
+        prerolls=list(prerolls or []),
+        prerolls_fetched_at=prerolls_fetched_at,
+    )
+
+
+def _connect_calls_include_about_to_finish(p):
+    """Helper: True if any p._pipeline.connect(...) call had 'about-to-finish'
+    as its first positional arg."""
+    for c in p._pipeline.connect.call_args_list:
+        if c.args and c.args[0] == "about-to-finish":
+            return True
+    return False
+
+
+def test_preroll_sets_uri_and_connects_handler(qtbot):
+    """Phase 83 D-05: SomaFM + prerolls + throttle expired → _set_uri gets
+    a preroll URL, _pipeline.connect('about-to-finish', ...) is attached,
+    _preroll_in_flight is True, _streams_queue == order_streams(streams),
+    _try_next_stream is NOT called from play()."""
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    s_med = _make_stream_ph82(2, 2, "med", "http://stream.test/")
+    preroll_urls = [
+        "https://somafm.com/preroll1.m4a",
+        "https://somafm.com/preroll2.m4a",
+    ]
+    station = _make_station_ph83(
+        [s_hi, s_med], prerolls=preroll_urls, prerolls_fetched_at=12345
+    )
+    with patch.object(p, "_set_uri") as mock_set_uri, \
+         patch.object(p, "_try_next_stream") as mock_try_next:
+        p.play(station)
+    # _set_uri called with one of the preroll URLs (random pick).
+    assert mock_set_uri.call_count == 1
+    chosen = mock_set_uri.call_args[0][0]
+    assert chosen in preroll_urls, (
+        f"Phase 83 D-05: _set_uri must be called with a preroll URL; "
+        f"got {chosen!r}"
+    )
+    # about-to-finish handler attached.
+    assert _connect_calls_include_about_to_finish(p), (
+        "Phase 83 D-05: _pipeline.connect('about-to-finish', ...) must be "
+        "called when a preroll fires."
+    )
+    assert p._preroll_in_flight is True
+    assert p._last_preroll_played_at is not None
+    # _try_next_stream NOT called from play() — about-to-finish slot triggers it.
+    assert mock_try_next.call_count == 0
+    # _streams_queue content unchanged by preroll path (D-06).
+    assert len(p._streams_queue) == len(station.streams)
+
+
+def test_throttle_window_suppresses_preroll(qtbot):
+    """Phase 83 D-12 (window): SomaFM + prerolls + throttle window NOT expired
+    → preroll skipped; _set_uri called with the stream URL (not a preroll)."""
+    import time
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s],
+        prerolls=["https://somafm.com/preroll.m4a"],
+        prerolls_fetched_at=12345,
+    )
+    # Pretend a preroll just played: throttle window NOT yet elapsed.
+    p._last_preroll_played_at = time.monotonic()
+    with patch.object(p, "_set_uri") as mock_set_uri:
+        p.play(station)
+    chosen = mock_set_uri.call_args[0][0]
+    assert "preroll" not in chosen, (
+        "Phase 83 D-12 window: preroll must be suppressed when window not "
+        f"elapsed; got {chosen!r}"
+    )
+    assert not _connect_calls_include_about_to_finish(p), (
+        "Phase 83 D-12 window: _pipeline.connect('about-to-finish', ...) "
+        "must NOT be called when throttle suppresses preroll."
+    )
+    assert p._preroll_in_flight is False
+
+
+def test_throttle_timestamp_set_on_start(qtbot, monkeypatch):
+    """Phase 83 D-12 (timestamp): _last_preroll_played_at is set at preroll
+    START (in _start_preroll), NOT at handoff (about-to-finish slot)."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/preroll.m4a"], prerolls_fetched_at=1
+    )
+    # Patch musicstreamer.player.time.monotonic to a fixed value.
+    import musicstreamer.player as player_mod
+    fake_monotonic = MagicMock(return_value=1000.0)
+    monkeypatch.setattr(player_mod.time, "monotonic", fake_monotonic)
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._last_preroll_played_at == 1000.0, (
+        "Phase 83 D-12 timestamp: _last_preroll_played_at must be set at "
+        "preroll START via time.monotonic(); got "
+        f"{p._last_preroll_played_at!r}"
+    )
+
+
+def test_preroll_does_not_pollute_streams_queue(qtbot):
+    """Phase 83 D-06: preroll URLs NEVER enter _streams_queue; queue equals
+    order_streams(streams) exactly."""
+    from musicstreamer.stream_ordering import order_streams
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    s_med = _make_stream_ph82(2, 2, "med", "http://stream.test/")
+    station = _make_station_ph83(
+        [s_hi, s_med],
+        prerolls=["https://somafm.com/p1.m4a", "https://somafm.com/p2.m4a"],
+        prerolls_fetched_at=1,
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    expected = list(order_streams(station.streams))
+    assert p._streams_queue == expected, (
+        "Phase 83 D-06: _streams_queue must equal order_streams(streams); "
+        "preroll URLs must NEVER enter the queue."
+    )
+    assert len(p._streams_queue) == len(station.streams)
+
+
+def test_preroll_backfill_scheduled_when_unfetched(qtbot, monkeypatch):
+    """Phase 83 D-03/D-13: SomaFM + prerolls=[] + prerolls_fetched_at=None
+    AND station.id not in _backfill_in_flight → daemon Thread spawned with
+    target=_preroll_backfill_worker, daemon=True, args=(station.id, name);
+    station.id added to _backfill_in_flight; play proceeds to stream."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], id_=42, name="Beat Blender",
+        prerolls=[], prerolls_fetched_at=None,
+    )
+    captured = {}
+
+    class MockThread:
+        def __init__(self, target=None, args=(), daemon=None, **kwargs):
+            captured["target"] = target
+            captured["args"] = args
+            captured["daemon"] = daemon
+            captured["kwargs"] = kwargs
+
+        def start(self):
+            captured["started"] = True
+
+    import musicstreamer.player as player_mod
+    monkeypatch.setattr(player_mod.threading, "Thread", MockThread)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert captured.get("target") == p._preroll_backfill_worker, (
+        "Phase 83 D-13: Thread target must be _preroll_backfill_worker; "
+        f"got {captured.get('target')!r}"
+    )
+    assert captured.get("daemon") is True, (
+        "Phase 83 D-13: backfill Thread must be daemon=True; got "
+        f"{captured.get('daemon')!r}"
+    )
+    assert captured.get("args") == (42, "Beat Blender")
+    assert captured.get("started") is True
+    assert 42 in p._backfill_in_flight, (
+        "Phase 83 T-83-10: station.id must be added to _backfill_in_flight "
+        "before Thread.start (single-flight)."
+    )
+
+
+def test_backfill_non_blocking(qtbot, monkeypatch):
+    """Phase 83 D-13: play() does NOT block on the backfill — _set_uri is
+    invoked synchronously after the Thread is scheduled; play returns
+    without waiting."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=[], prerolls_fetched_at=None,
+    )
+
+    class MockThread:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    import musicstreamer.player as player_mod
+    monkeypatch.setattr(player_mod.threading, "Thread", MockThread)
+    with patch.object(p, "_set_uri") as mock_set_uri:
+        p.play(station)
+    # Play returned synchronously and called _set_uri exactly once with
+    # the stream URL (NOT a preroll URL — prerolls=[]).
+    assert mock_set_uri.call_count == 1, (
+        "Phase 83 D-13: play() must call _set_uri exactly once (non-blocking; "
+        "the stream URL goes out immediately while backfill runs in background)."
+    )
+    chosen = mock_set_uri.call_args[0][0]
+    assert "stream.test" in chosen
+
+
+def test_non_somafm_provider_bypasses_preroll(qtbot):
+    """Phase 83 D-11: non-SomaFM station (e.g. provider_name='DI.fm') with
+    SYNTHETIC prerolls — preroll codepath is bypassed entirely; _set_uri
+    called with stream URL; _pipeline.connect NOT called with
+    'about-to-finish'; _preroll_in_flight stays False."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s],
+        provider_name="DI.fm",
+        prerolls=["https://example.com/synthetic.m4a"],
+        prerolls_fetched_at=1,
+    )
+    with patch.object(p, "_set_uri") as mock_set_uri:
+        p.play(station)
+    chosen = mock_set_uri.call_args[0][0]
+    assert "stream.test" in chosen, (
+        "Phase 83 D-11: non-SomaFM provider must bypass preroll codepath; "
+        f"_set_uri got {chosen!r} (expected the stream URL)."
+    )
+    assert not _connect_calls_include_about_to_finish(p), (
+        "Phase 83 D-11: _pipeline.connect('about-to-finish', ...) must NOT "
+        "be called for non-SomaFM providers."
+    )
+    assert p._preroll_in_flight is False
+
+
+def test_title_tag_suppressed_during_preroll(qtbot):
+    """Phase 83 D-07: while _preroll_in_flight is True, _on_gst_tag MUST NOT
+    emit title_changed (the preroll's m4a TAG_TITLE is suppressed so Now
+    Playing keeps showing the station name). Once cleared, title_changed
+    fires again (proves the guard is gated, not unconditional)."""
+    p = _make_player_mock(qtbot)
+    # Build a mock msg whose parse_tag().get_string(TAG_TITLE) returns
+    # (True, "BeatBlenderID1").
+    mock_taglist = MagicMock()
+    mock_taglist.get_string.return_value = (True, "BeatBlenderID1")
+    mock_msg = MagicMock()
+    mock_msg.parse_tag.return_value = mock_taglist
+    mock_bus = MagicMock()
+    # Phase 83 D-07: in-flight → no title_changed.
+    p._preroll_in_flight = True
+    with patch.object(p, "title_changed") as mock_title_changed:
+        p._on_gst_tag(mock_bus, mock_msg)
+        assert mock_title_changed.emit.call_count == 0, (
+            "Phase 83 D-07: title_changed.emit must NOT fire while "
+            "_preroll_in_flight is True."
+        )
+    # Gate cleared → title_changed fires again.
+    p._preroll_in_flight = False
+    with patch.object(p, "title_changed") as mock_title_changed:
+        p._on_gst_tag(mock_bus, mock_msg)
+        assert mock_title_changed.emit.call_count == 1, (
+            "Phase 83 D-07: title_changed.emit must fire once _preroll_in_flight "
+            "is cleared (proves the guard is gated, not unconditional)."
+        )
+
+
+def test_preroll_bus_error_advances_to_stream(qtbot):
+    """Phase 83 D-09: _handle_gst_error_recovery during preroll → disconnect
+    handler, clear flag, advance via _try_next_stream; NO retry of a
+    different preroll (no second 'about-to-finish' connect)."""
+    p = _make_player_mock(qtbot)
+    s_hi = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s_hi], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    # Snapshot how many about-to-finish connects happened before the error.
+    connects_before = sum(
+        1 for c in p._pipeline.connect.call_args_list
+        if c.args and c.args[0] == "about-to-finish"
+    )
+    with patch.object(p, "_try_next_stream") as mock_try_next, \
+         patch.object(p, "_clear_recovery_guard"):
+        p._handle_gst_error_recovery()
+    assert p._preroll_in_flight is False, (
+        "Phase 83 D-09: _preroll_in_flight must be cleared after bus-error."
+    )
+    assert p._preroll_handler_id == 0
+    assert mock_try_next.called, (
+        "Phase 83 D-09: _try_next_stream must run after preroll bus-error."
+    )
+    # No second about-to-finish connect — D-09 says NO retry of a different preroll.
+    connects_after = sum(
+        1 for c in p._pipeline.connect.call_args_list
+        if c.args and c.args[0] == "about-to-finish"
+    )
+    assert connects_after == connects_before, (
+        "Phase 83 D-09: must NOT retry a different preroll on bus-error "
+        f"(about-to-finish connects: before={connects_before}, after={connects_after})."
+    )
+
+
+def test_preroll_in_flight_pause_does_not_clear_flag(qtbot):
+    """Phase 83 D-08 (WARNING-4): pause during preroll behaves as today —
+    _preroll_in_flight stays True, _try_next_stream is NOT invoked from
+    pause(), pipeline state transitions follow today's pause semantics."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    with patch.object(p, "_try_next_stream") as mock_try_next:
+        p.pause()
+    assert p._preroll_in_flight is True, (
+        "Phase 83 D-08: pause() must NOT clear _preroll_in_flight."
+    )
+    assert mock_try_next.call_count == 0, (
+        "Phase 83 D-08: pause() must NOT invoke _try_next_stream."
+    )
+
+
+def test_streams_queue_failover_after_preroll_handoff(qtbot):
+    """Phase 83 D-10 (WARNING-4): after the about-to-finish handoff
+    completes, a subsequent bus-error on the station stream advances
+    _streams_queue exactly as Phase 82 — no preroll-handler regression."""
+    p = _make_player_mock(qtbot)
+    s0 = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    s1 = _make_stream_ph82(2, 2, "med", "http://stream.test/")
+    station = _make_station_ph83(
+        [s0, s1],
+        prerolls=["https://somafm.com/p.m4a"],
+        prerolls_fetched_at=1,
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    # Simulate the about-to-finish main-thread slot firing.
+    with patch.object(p, "_set_uri"):
+        p._on_preroll_about_to_finish()
+    # After handoff: flag cleared, _try_next_stream advanced to head.
+    assert p._preroll_in_flight is False
+    assert p._current_stream is not None
+    # Phase 82 head-of-queue: first stream in queue plays now.
+    first_played_id = p._current_stream.id
+    assert first_played_id in (1, 2)
+    # Reset recovery guard so the next call exercises the post-preroll path,
+    # not the preroll branch (which is what D-09 covers separately).
+    p._recovery_in_flight = False
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_clear_recovery_guard"):
+        p._handle_gst_error_recovery()
+    # Post-handoff failover ran via the pre-Phase-83 path; _current_stream
+    # advanced to the OTHER stream in the queue (or queue drained to None).
+    assert p._current_stream is None or p._current_stream.id != first_played_id, (
+        "Phase 83 D-10: post-preroll failover must advance _current_stream "
+        "via Phase 82 head-of-queue path (preroll handler must NOT regress)."
+    )
+
+
+def test_preroll_eos_without_about_to_finish_advances_to_stream(qtbot):
+    """Phase 83 live-spike Q3 RESOLVED (WARNING-5): malformed-preroll EOS
+    bridge — bus.connect('message::eos', _on_gst_eos_during_preroll) fires
+    the existing _try_next_stream_requested queued Signal when
+    _preroll_in_flight is True; no-op when False (preserves today's EOS
+    semantics)."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    mock_bus = MagicMock()
+    mock_msg = MagicMock()
+    # True branch: in-flight → emit the existing queued Signal.
+    with patch.object(p, "_try_next_stream_requested") as mock_signal:
+        p._on_gst_eos_during_preroll(mock_bus, mock_msg)
+        assert mock_signal.emit.call_count == 1, (
+            "Phase 83 Q3: _on_gst_eos_during_preroll must emit "
+            "_try_next_stream_requested when _preroll_in_flight is True."
+        )
+    # Flag stays True — the streaming-thread handler does NOT touch the flag;
+    # the main-thread slot (or D-09 recovery branch) clears it.
+    assert p._preroll_in_flight is True
+    # False branch: no-op (preserves today's EOS semantics, which is none).
+    p._preroll_in_flight = False
+    with patch.object(p, "_try_next_stream_requested") as mock_signal:
+        p._on_gst_eos_during_preroll(mock_bus, mock_msg)
+        assert mock_signal.emit.call_count == 0, (
+            "Phase 83 Q3: _on_gst_eos_during_preroll must be a no-op when "
+            "_preroll_in_flight is False (today's EOS semantics unchanged)."
+        )
+
+
+def test_phase_83_preroll_drift_guard():
+    """Phase 83 D-11 / D-14 drift-guard (Phase 51/55/61/63/81/82 precedent).
+    Pins both the provider-gate literal '"SomaFM"' and the throttle-state
+    token '_last_preroll_played_at' in non-comment text of player.py.
+    Non-comment filter is REQUIRED (Pitfall 8 — a comment-only literal
+    would satisfy the assert even after the gate code is removed)."""
+    from pathlib import Path
+    import re
+    source = (
+        Path(__file__).resolve().parent.parent / "musicstreamer" / "player.py"
+    ).read_text()
+    non_comments = "\n".join(
+        re.sub(r"^\s*#.*$", "", ln) for ln in source.splitlines()
+    )
+    assert '"SomaFM"' in non_comments, (
+        "Phase 83 D-11: SomaFM provider-gate literal must remain in Player. "
+        "Do not remove silently."
+    )
+    assert "_last_preroll_played_at" in non_comments, (
+        "Phase 83 D-12: throttle-state token must remain in Player. "
+        "Do not remove silently."
+    )
