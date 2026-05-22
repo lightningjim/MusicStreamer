@@ -2,8 +2,8 @@
 phase: 82-twitch-only-station-still-tries-to-play-youtube-stream-first
 verified: 2026-05-22T13:24:00Z
 reverified: 2026-05-22T13:45:00Z
-status: human_needed
-score: 15/15 must-haves verified
+status: passed
+score: 15/15 must-haves verified; both HUMAN-UAT items pass (live confirmed 2026-05-22)
 overrides_applied: 0
 gaps_closed:
   - truth: "FakeRepo regression-shield: pre-existing UI suites keep passing because their inline FakeRepo gains a set_preferred_stream no-op"
@@ -24,9 +24,10 @@ human_verification:
 
 **Phase Goal:** Twitch-only station still tries to play YouTube stream first — lofi girl station has only one (Twitch) stream but player attempts YT first; can't fix at YT source due to false copyright claims on Lofi Girl's channel. User's selected stream provider should be honored on the next Play action.
 **Verified:** 2026-05-22T13:24:00Z
-**Re-verified:** 2026-05-22T13:45:00Z — gap closed inline (commit 6755a03)
-**Status:** human_needed — all 15 must-haves verified; live UAT items below remain
-**Re-verification:** Yes — sole gap (FakeRepo shield miss) patched inline
+**Re-verified:** 2026-05-22T13:45:00Z — FakeRepo shield gap closed (commit 6755a03)
+**Re-verified:** 2026-05-22T14:20:00Z — HUMAN-UAT GAP-01 closed (commit c01b134), both live UAT items now pass
+**Status:** passed — all 15 must-haves verified; both HUMAN-UAT items resolved
+**Re-verification:** Yes — two inline gap closures (FakeRepo shield + combo sync)
 
 ## Goal Achievement
 

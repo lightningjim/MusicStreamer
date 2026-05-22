@@ -1,44 +1,45 @@
 ---
-status: diagnosed
+status: resolved
 phase: 82-twitch-only-station-still-tries-to-play-youtube-stream-first
 source: [82-VERIFICATION.md]
 started: 2026-05-22T13:50:00Z
-updated: 2026-05-22T14:05:00Z
+updated: 2026-05-22T14:20:00Z
 ---
 
 ## Current Test
 
-[diagnosed — see Gaps]
+[all resolved]
 
 ## Tests
 
 ### 1. Real-world Lofi Girl repro
 expected: Pick Twitch stream in dropdown, pause player, resume — Twitch plays (not YT). Restart app, re-pick Lofi Girl — Twitch still selected and plays.
 why_human: Requires live YT-resolution-failure path + Twitch stream; cannot be exercised with mocked GStreamer pipeline.
-result: partial
-issue: "Playback honors preferred_stream_id correctly (Twitch plays after restart) — but the stream-picker combo box visually shows YouTube as selected instead of Twitch. Audio is correct; UI is desynced."
+result: pass
+note: "Initial run was partial (audio correct, UI desynced — GAP-01); user-re-tested after fix commit c01b134 and confirmed dropdown now syncs to Twitch on restart."
 
 ### 2. Dropdown survives station re-click
 expected: After picking Twitch on Lofi Girl, click a different station then click Lofi Girl again — Twitch plays, not YT.
 why_human: Visual confirmation that all `_on_station_activated` entry points (D-03) honor the sticky pick; requires a live DB state with a real `preferred_stream_id` persisted.
 result: pass
-note: "User confirmed 'otherwise everything else works as intended' — playback half of test 2 implicit-passes since test 1 already confirmed Twitch is what plays."
+note: "User confirmed 'otherwise everything else works as intended' on initial run."
 
 ## Summary
 
 total: 2
-passed: 1
-issues: 1
+passed: 2
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
 
 ## Gaps
 
-### GAP-01: Stream-picker combo box doesn't sync currentIndex to station.preferred_stream_id on bind_station
+### GAP-01: Stream-picker combo box doesn't sync currentIndex to station.preferred_stream_id on bind_station — RESOLVED (commit c01b134)
 
 **Severity:** minor (UI visual desync; functional behavior correct)
 **Surface:** `musicstreamer/ui_qt/now_playing_panel.py::_populate_stream_picker`
+**Fix:** commit c01b134 — sync currentIndex inside the existing blockSignals(True) window after addItem loop. 4 new tests (preferred set / None / stale / blockSignals invariant). User-verified live on 2026-05-22.
 
 **Root cause:**
 `_sync_stream_picker` is wired only to `player.failover` (main_window.py:455). When the preferred stream succeeds first try (no failover), `_sync_stream_picker` never fires. `_populate_stream_picker` populates the combo and leaves `currentIndex` at its default (0 = whichever stream `order_streams` ranks first — YouTube on Lofi Girl). Player picks Twitch at queue head (Plan 82-02), playback is correct, but the UI dropdown still shows YouTube.
