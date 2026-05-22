@@ -12,7 +12,7 @@ updated: 2026-05-22
 
 ## Current Test
 
-[testing complete — 3 pass, 1 minor issue (D-07 partial gapless), 0 blocked]
+[testing complete — 4 pass, 0 issues, 0 blocked]
 
 ## Tests
 
@@ -21,30 +21,23 @@ expected: |
   Bind SomaFM Beat Blender. Click Play. Hear one of three station-ID voiceover clips
   (~5-8s), then deep-house stream begins gaplessly. Now Playing shows "Beat Blender"
   throughout (no preroll title flicker). Covers D-05 + D-07.
-result: issue
-reported: "It wasn't quite gaplessly but it definitely happened."
-severity: minor
+result: pass
 notes: |
-  D-05 (preroll plays audibly) is CLOSED — user confirmed preroll → stream
-  transition occurred. D-07 (gapless handoff) is partial — user heard a
-  perceptible discontinuity at the preroll→stream boundary. Plan 83-04's
-  `set_property("uri", ...)` on the still-PLAYING pipeline is the canonical
-  playbin3 gapless idiom; an audible gap here suggests one of:
-    (a) about-to-finish fires slightly late vs the preroll EOS, leaving
-        a brief silence (playbin3's lookahead buffer for the new URI is
-        not arriving in time),
-    (b) the new URI's first audio packets are delayed (ICE-relay TCP
-        connect latency for the SomaFM stream),
-    (c) codec/sample-rate transition between the m4a preroll and the
-        AAC/MP3 SomaFM stream forces a brief audiosink reconfigure.
-  Treat as observation; not a regression vs the prior (broken) behavior.
+  Initial reading was "wasn't quite gaplessly but it definitely happened" — diagnosed
+  as content, not code. User cross-checked with other SomaFM stations: those preroll
+  m4a files transition immediately, while Beat Blender's specific preroll has a
+  longer trailing silence in the audio file itself. playbin3's gapless handoff is
+  working correctly (set_property on still-PLAYING pipeline). D-05 + D-07 ✓.
 history: |
   2026-05-22 (pre-83-04): result=issue (blocker). `_on_preroll_about_to_finish` called
   `_try_next_stream()` which set_state(NULL) — preroll torn down before reaching
   speakers. Closed by Plan 83-04: gapless URI handoff via `set_property("uri", ...)` on
   still-PLAYING pipeline (player.py:1124-1205). Commits: 6994b3d, 72a0ebf, fef340e.
-  2026-05-22 (post-83-04): preroll plays audibly (D-05 ✓); transition not fully
-  gapless (D-07 partial — minor).
+  2026-05-22 (post-83-04, pass 1): user reported "not quite gaplessly" — initially
+  logged as minor D-07 issue.
+  2026-05-22 (post-83-04, pass 2): user cross-checked other stations — discontinuity
+  is content-level silence in Beat Blender's preroll audio file, not a code-level
+  gapless failure. Reclassified to pass.
 
 ### 2. Seven Inch Soul (no preroll) — straight to stream
 expected: |
@@ -85,22 +78,14 @@ history: |
 ## Summary
 
 total: 4
-passed: 3
-issues: 1
+passed: 4
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
 
 ## Gaps
 
-- truth: "D-07: SomaFM preroll transitions gaplessly into the station stream."
-  status: failed
-  reason: "User reported: It wasn't quite gaplessly but it definitely happened. D-05 audibility ✓, D-07 gapless quality partial."
-  severity: minor
-  test: 1
-  artifacts:
-    - musicstreamer/player.py:1124-1205 (_on_preroll_about_to_finish — gapless handoff implementation)
-  missing:
-    - "Investigate whether about-to-finish lookahead timing leaves a brief silence vs the canonical playbin3 gapless behavior (preroll EOS → stream first-sample latency)."
-    - "Possibly: per-codec audiosink reconfigure cost between m4a preroll and AAC/MP3 stream (codec transition stall)."
-    - "Possibly: ICE-relay TCP connect latency for the SomaFM stream URL — first audio packet may arrive after preroll EOS."
+[none — Test 1 initial "not gapless" reading reclassified to content-level
+silence in Beat Blender's preroll audio file (other stations transition cleanly).
+playbin3 gapless handoff verified working.]
