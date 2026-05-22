@@ -518,10 +518,21 @@ class Player(QObject):
             self.title_changed.emit("(no streams configured)")
             return
 
-        # Build ordered stream queue: preferred quality first, then rest in order_streams order (Phase 47)
+        # Phase 82 D-01/D-03: honor per-station sticky preferred stream.
+        # Explicit user pick (station.preferred_stream_id) wins over programmatic
+        # preferred_quality hint per RESEARCH.md RQ4 precedence rule. If the id
+        # is stale (no matching stream in station.streams), fall through to the
+        # preferred_quality / order_streams default — D-05 "preferred first, not only".
         streams_by_position = order_streams(station.streams)
-        preferred = None
-        if preferred_quality:
+        preferred_by_id = None
+        preferred_stream_id = getattr(station, "preferred_stream_id", None)
+        if preferred_stream_id is not None:
+            preferred_by_id = next(
+                (s for s in station.streams if s.id == preferred_stream_id), None
+            )
+
+        preferred = preferred_by_id  # may be None
+        if preferred is None and preferred_quality:
             preferred = next(
                 (s for s in streams_by_position if s.quality == preferred_quality),
                 None,
