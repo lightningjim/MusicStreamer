@@ -980,7 +980,7 @@ Plans:
 **Goal:** When a SomaFM station starts playing, randomly pick one of its prerolls (short station-ID m4a clips from `api.somafm.com/channels.json`'s `preroll[]` array) and play it before transitioning gaplessly into the station's actual stream. SomaFM stations with empty `preroll[]` (Seven Inch Soul etc.) behave exactly as today. Provider-gated to `"SomaFM"` (Phase 74 D-02 CamelCase literal); 10-minute global throttle; lazy on-demand backfill for pre-Phase-83 SomaFM stations already in the library.
 **Requirements**: TBD (no fixed phase_req_ids — CONTEXT D-01..D-15 + RESEARCH §Security Domain additions are the acceptance contract)
 **Depends on:** Phase 82
-**Plans:** 3/3 plans complete
+**Plans:** 4/4 plans complete
 
 Plans:
 **Wave 1**
@@ -991,3 +991,7 @@ Plans:
 
 - [x] 83-02-PLAN.md — `soma_import.fetch_channels` extension (`preroll_urls` field); `soma_import.import_stations` extension (insert prerolls + set `prerolls_fetched_at` inside per-channel try block BEFORE the rollback sentinel clear; per-channel cap of 50 with `_log.warning`); ~6 tests in `tests/test_soma_import.py`
 - [x] 83-03-PLAN.md — Player layer: new `_preroll_about_to_finish_requested` Signal + 4 fields; `Player.play` preroll gate (provider gate + throttle gate + random selection + URI set + handler connect); `_start_preroll` + `_on_preroll_about_to_finish_callback` (streaming thread) + `_on_preroll_about_to_finish` (main thread) slot; `_on_gst_tag` D-07 early-return guard; preroll-error path in `_handle_gst_error_recovery`; lazy-backfill worker thread with thread-local `Repo(db_connect())`; single-flight `_backfill_in_flight` guard; 7 behavioral tests + 1 source-grep drift-guard pinning both `"SomaFM"` and `_last_preroll_played_at` in `tests/test_player.py`
+
+**Wave 3 — gap closure** *(blocked on 83-03 ship; closes 83-UAT.md Test 1 blocker)*
+
+- [x] 83-04-PLAN.md — UAT gap closure: rewrite `_on_preroll_about_to_finish` (player.py:1124-1135) to perform a GAPLESS URI handoff via `pipeline.set_property("uri", aa_normalize_stream_url(stream.url))` on the still-PLAYING pipeline (instead of calling `_try_next_stream()` which cycles state via `set_state(NULL)` and tears down the preroll mid-playback). Mirrors `_try_next_stream`'s bookkeeping (tracker bind with "preroll" outcome token, failover-timer arm, `_last_buffer_percent` reset, `_streams_queue` pop, `_current_stream` update) but NOT its state cycle. Falls back to legacy `_try_next_stream()` for YouTube/Twitch URLs (async-resolution providers cannot use the gapless idiom) and for the empty-queue defensive case. 4 new tests + 2 updated tests (incl. broadened drift-guard pinning `set_property("uri", ...)`) in `tests/test_player.py`.
