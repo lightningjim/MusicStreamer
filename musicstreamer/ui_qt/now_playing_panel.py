@@ -1244,6 +1244,19 @@ class NowPlayingPanel(QWidget):
             tier_suffix = TIER_LABEL_BADGE.get(tier, "")
             label = f"{base_label} \u2014 {tier_suffix}" if tier_suffix else base_label
             self.stream_combo.addItem(label, userData=s.id)
+        # Phase 82 GAP-01: UI counterpart to Plan 82-02 queue-build. When the
+        # station carries a preferred_stream_id, point the combo's currentIndex
+        # at the matching item so the dropdown reflects the same stream the
+        # Player is playing at queue head. Defaults to index 0 when None or
+        # stale — preserves pre-Phase-82 behavior. Done inside the existing
+        # blockSignals(True) window so currentIndexChanged does NOT fire and
+        # _on_stream_selected does NOT double-call play_stream / set_preferred.
+        preferred_id = getattr(station, "preferred_stream_id", None)
+        if preferred_id is not None:
+            for i in range(self.stream_combo.count()):
+                if self.stream_combo.itemData(i) == preferred_id:
+                    self.stream_combo.setCurrentIndex(i)
+                    break
         self.stream_combo.blockSignals(False)
         self.stream_combo.setVisible(len(streams) > 1)
         # Phase 72.1 / LAYOUT-02 + Phase 72.4 / LAYOUT-04: invalidate the

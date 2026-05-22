@@ -254,6 +254,73 @@ def test_on_stream_selected_persists_even_when_reselecting_default(qtbot, player
     assert repo.set_preferred_stream_calls[1][1] == multi_stream_station.streams[0].id
 
 
+def test_bind_station_syncs_combo_to_preferred_stream_id(qtbot, player, repo):
+    """Phase 82 GAP-01: bind_station with preferred_stream_id set must point the combo's
+    currentIndex at the matching item, NOT default to index 0. UI counterpart to
+    Plan 82-02 queue-build precedence."""
+    station_with_preferred = Station(
+        id=2, name="FM2", provider_id=1, provider_name="P",
+        tags="", station_art_path=None, album_fallback_path=None,
+        streams=MULTI_STREAMS,
+        preferred_stream_id=MULTI_STREAMS[1].id,  # 21 — second stream
+    )
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(station_with_preferred)
+    assert panel.stream_combo.currentIndex() == 1, (
+        "Phase 82 GAP-01: combo must select preferred_stream_id's index on bind, "
+        f"got index {panel.stream_combo.currentIndex()} instead of 1"
+    )
+    assert panel.stream_combo.itemData(panel.stream_combo.currentIndex()) == MULTI_STREAMS[1].id
+
+
+def test_bind_station_without_preferred_stream_id_defaults_to_index_zero(qtbot, player, repo):
+    """Phase 82 GAP-01: bind_station with preferred_stream_id=None preserves pre-Phase-82
+    default behavior (combo lands on index 0)."""
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(multi_stream_station)  # preferred_stream_id is None
+    assert panel.stream_combo.currentIndex() == 0, (
+        "preferred_stream_id=None must leave combo at default index 0"
+    )
+
+
+def test_bind_station_with_stale_preferred_stream_id_defaults_to_index_zero(qtbot, player, repo):
+    """Phase 82 GAP-01: preferred_stream_id pointing at a non-existent stream falls back
+    to default behavior (combo lands on index 0) rather than raising or selecting -1."""
+    station_with_stale = Station(
+        id=2, name="FM2", provider_id=1, provider_name="P",
+        tags="", station_art_path=None, album_fallback_path=None,
+        streams=MULTI_STREAMS,
+        preferred_stream_id=99999,  # not in MULTI_STREAMS
+    )
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    panel.bind_station(station_with_stale)
+    assert panel.stream_combo.currentIndex() == 0, (
+        "stale preferred_stream_id must fall back to combo default (index 0)"
+    )
+
+
+def test_bind_station_with_preferred_does_not_trigger_play_stream(qtbot, player, repo):
+    """Phase 82 GAP-01: the bind-time sync MUST stay inside blockSignals(True) — picking
+    the preferred currentIndex must NOT fire _on_stream_selected (which would double-play
+    and double-persist)."""
+    station_with_preferred = Station(
+        id=2, name="FM2", provider_id=1, provider_name="P",
+        tags="", station_art_path=None, album_fallback_path=None,
+        streams=MULTI_STREAMS,
+        preferred_stream_id=MULTI_STREAMS[1].id,
+    )
+    panel = NowPlayingPanel(player, repo)
+    qtbot.addWidget(panel)
+    player.play_stream.reset_mock()
+    repo.set_preferred_stream_calls.clear()
+    panel.bind_station(station_with_preferred)
+    player.play_stream.assert_not_called()
+    assert repo.set_preferred_stream_calls == []
+
+
 def test_set_preferred_stream_drift_guard_now_playing_panel():
     """Phase 82 D-02 drift-guard (Phase 51/55/61/63/81 precedent)."""
     from pathlib import Path
