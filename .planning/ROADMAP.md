@@ -974,3 +974,15 @@ Plans:
 
 - [x] 82-02-PLAN.md — `Player.play(station)` head-of-queue logic for `preferred_stream_id` (wins over `preferred_quality` kwarg, falls back to `order_streams` on None/stale) + 6 behavioral tests + 1 source-grep drift-guard in tests/test_player.py
 - [x] 82-03-PLAN.md — `_on_stream_selected` persistence call (`self._repo.set_preferred_stream(self._station.id, s.id)` after `play_stream`) + FakeRepo upgrade from no-op to call-recorder + 4 behavioral tests + 1 source-grep drift-guard in tests/test_stream_picker.py
+
+### Phase 83: At start of playing a station, randomly select and play one of the SomaFM station prerolls (from https://api.somafm.com/channels.json) for stations that have them
+
+**Goal:** When a SomaFM station starts playing, randomly pick one of its prerolls (short station-ID m4a clips from `api.somafm.com/channels.json`'s `preroll[]` array) and play it before transitioning gaplessly into the station's actual stream. SomaFM stations with empty `preroll[]` (Seven Inch Soul etc.) behave exactly as today. Provider-gated to `"SomaFM"` (Phase 74 D-02 CamelCase literal); 10-minute global throttle; lazy on-demand backfill for pre-Phase-83 SomaFM stations already in the library.
+**Requirements**: TBD (no fixed phase_req_ids — CONTEXT D-01..D-15 + RESEARCH §Security Domain additions are the acceptance contract)
+**Depends on:** Phase 82
+**Plans:** 3 plans
+
+Plans:
+- [ ] 83-01-PLAN.md — Schema additions in `repo.py db_init` (NEW `station_prerolls` table CREATE + `prerolls_fetched_at` ALTER); `Station` dataclass extension in `models.py`; 3 new `Repo` methods (`insert_preroll` with URL-scheme validation + per-call cap, `list_prerolls`, `set_prerolls_fetched_at`); 4 Station-build sites eager-load prerolls + `prerolls_fetched_at`; 10 tests in `tests/test_repo.py`
+- [ ] 83-02-PLAN.md — `soma_import.fetch_channels` extension (`preroll_urls` field); `soma_import.import_stations` extension (insert prerolls + set `prerolls_fetched_at` inside per-channel try block BEFORE the rollback sentinel clear; per-channel cap of 50 with `_log.warning`); ~6 tests in `tests/test_soma_import.py`
+- [ ] 83-03-PLAN.md — Player layer: new `_preroll_about_to_finish_requested` Signal + 4 fields; `Player.play` preroll gate (provider gate + throttle gate + random selection + URI set + handler connect); `_start_preroll` + `_on_preroll_about_to_finish_callback` (streaming thread) + `_on_preroll_about_to_finish` (main thread) slot; `_on_gst_tag` D-07 early-return guard; preroll-error path in `_handle_gst_error_recovery`; lazy-backfill worker thread with thread-local `Repo(db_connect())`; single-flight `_backfill_in_flight` guard; 7 behavioral tests + 1 source-grep drift-guard pinning both `"SomaFM"` and `_last_preroll_played_at` in `tests/test_player.py`
