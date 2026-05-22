@@ -983,6 +983,11 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 83-01-PLAN.md — Schema additions in `repo.py db_init` (NEW `station_prerolls` table CREATE + `prerolls_fetched_at` ALTER); `Station` dataclass extension in `models.py`; 3 new `Repo` methods (`insert_preroll` with URL-scheme validation + per-call cap, `list_prerolls`, `set_prerolls_fetched_at`); 4 Station-build sites eager-load prerolls + `prerolls_fetched_at`; 10 tests in `tests/test_repo.py`
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 83-02-PLAN.md — `soma_import.fetch_channels` extension (`preroll_urls` field); `soma_import.import_stations` extension (insert prerolls + set `prerolls_fetched_at` inside per-channel try block BEFORE the rollback sentinel clear; per-channel cap of 50 with `_log.warning`); ~6 tests in `tests/test_soma_import.py`
 - [ ] 83-03-PLAN.md — Player layer: new `_preroll_about_to_finish_requested` Signal + 4 fields; `Player.play` preroll gate (provider gate + throttle gate + random selection + URI set + handler connect); `_start_preroll` + `_on_preroll_about_to_finish_callback` (streaming thread) + `_on_preroll_about_to_finish` (main thread) slot; `_on_gst_tag` D-07 early-return guard; preroll-error path in `_handle_gst_error_recovery`; lazy-backfill worker thread with thread-local `Repo(db_connect())`; single-flight `_backfill_in_flight` guard; 7 behavioral tests + 1 source-grep drift-guard pinning both `"SomaFM"` and `_last_preroll_played_at` in `tests/test_player.py`
