@@ -990,3 +990,163 @@ def test_set_preferred_stream_on_delete_set_null(repo):
     # Delete the stream — FK ON DELETE SET NULL must fire.
     repo.delete_stream(twitch_id)
     assert repo.get_station(sid).preferred_stream_id is None
+
+
+# ============================================================
+# Phase 83 Plan 01: SomaFM preroll schema, CRUD, eager-load, CASCADE
+# (D-01, D-04, D-15 + ASVS V5 URL scheme + DoS cap)
+# ============================================================
+
+
+def test_station_prerolls_table_schema_after_db_init(repo):
+    """D-01: station_prerolls has {id, station_id, url, position} with FK CASCADE on station_id."""
+    cols = repo.con.execute("PRAGMA table_info('station_prerolls')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert set(by_name) == {"id", "station_id", "url", "position"}, f"got {sorted(by_name)}"
+    assert by_name["station_id"][3] == 1, "station_id must be NOT NULL"
+    assert by_name["url"][3] == 1, "url must be NOT NULL"
+    assert by_name["position"][3] == 1, "position must be NOT NULL"
+    fks = repo.con.execute("PRAGMA foreign_key_list('station_prerolls')").fetchall()
+    assert len(fks) == 1, f"expected 1 FK, got {fks}"
+    fk = fks[0]
+    # PRAGMA foreign_key_list cols: (id, seq, table, from, to, on_update, on_delete, match)
+    assert fk[2] == "stations", f"FK target table: {fk[2]}"
+    assert fk[3] == "station_id", f"FK from col: {fk[3]}"
+    assert fk[4] == "id", f"FK to col: {fk[4]}"
+    assert fk[6] == "CASCADE", f"FK on_delete: {fk[6]}"
+
+
+def test_prerolls_fetched_at_column_after_db_init(repo):
+    """D-04: stations.prerolls_fetched_at exists as INTEGER, nullable, no DEFAULT."""
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "prerolls_fetched_at" in by_name, f"missing column: {sorted(by_name)}"
+    col = by_name["prerolls_fetched_at"]
+    # PRAGMA table_info cols: (cid, name, type, notnull, dflt_value, pk)
+    assert col[2] == "INTEGER", f"type: {col[2]}"
+    assert col[3] == 0, f"must be nullable (notnull=0); got {col[3]}"
+    assert col[4] is None, f"must have no DEFAULT; got {col[4]!r}"
+
+
+def test_db_init_is_idempotent_for_phase_83_additions(repo):
+    """D-15: second db_init() raises no exception and leaves schema unchanged."""
+    from musicstreamer.repo import db_init
+    before = repo.con.execute("PRAGMA table_info('station_prerolls')").fetchall()
+    db_init(repo.con)  # second call must not raise
+    after = repo.con.execute("PRAGMA table_info('station_prerolls')").fetchall()
+    assert before == after, "second db_init mutated station_prerolls schema"
+
+
+def test_insert_preroll_and_list_prerolls_round_trip(repo):
+    """D-01/D-03: insert 3 prerolls, list_prerolls returns them in position order."""
+    sid = repo.create_station()
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/a.m4a", 1)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/b.m4a", 2)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/c.m4a", 3)
+    urls = repo.list_prerolls(sid)
+    assert urls == [
+        "https://somafm.com/prerolls/a.m4a",
+        "https://somafm.com/prerolls/b.m4a",
+        "https://somafm.com/prerolls/c.m4a",
+    ]
+    other_sid = repo.create_station()
+    assert repo.list_prerolls(other_sid) == []
+
+
+def test_list_prerolls_orders_by_position_not_insert_order(repo):
+    """D-01/D-03: ORDER BY position is load-bearing — insert out of order, expect position order."""
+    sid = repo.create_station()
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/three.m4a", 3)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/one.m4a", 1)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/two.m4a", 2)
+    urls = repo.list_prerolls(sid)
+    assert urls == [
+        "https://somafm.com/prerolls/one.m4a",
+        "https://somafm.com/prerolls/two.m4a",
+        "https://somafm.com/prerolls/three.m4a",
+    ]
+
+
+def test_insert_preroll_rejects_non_http_scheme(repo):
+    """T-83-01 ASVS V5: file:///, javascript:, ftp:// must be rejected. No partial write."""
+    import pytest
+    sid = repo.create_station()
+    for bad in ("file:///etc/passwd", "javascript:alert(1)", "ftp://host/x.m4a"):
+        with pytest.raises(ValueError):
+            repo.insert_preroll(sid, bad, 1)
+    assert repo.list_prerolls(sid) == [], "non-HTTP(S) URL was persisted"
+
+
+def test_insert_preroll_rejects_position_over_cap(repo):
+    """T-83-02 DoS cap: position > 50 raises ValueError; position == 50 still succeeds."""
+    import pytest
+    sid = repo.create_station()
+    with pytest.raises(ValueError):
+        repo.insert_preroll(sid, "https://somafm.com/prerolls/x.m4a", 51)
+    rid = repo.insert_preroll(sid, "https://somafm.com/prerolls/y.m4a", 50)
+    assert rid > 0
+    assert repo.list_prerolls(sid) == ["https://somafm.com/prerolls/y.m4a"]
+
+
+def test_set_prerolls_fetched_at_round_trips_via_all_4_station_builders(repo):
+    """D-04: set_prerolls_fetched_at + all 4 Station-builders reflect the value.
+
+    Replicates Phase 82's setter-round-trip-via-all-4-builders test shape
+    (tests/test_repo.py:937-971 precedent).
+    """
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_prerolls_fetched_at(sid, 1700000000)
+    # 1) list_stations
+    match = next(s for s in repo.list_stations() if s.id == sid)
+    assert match.prerolls_fetched_at == 1700000000
+    # 2) get_station
+    assert repo.get_station(sid).prerolls_fetched_at == 1700000000
+    # 3) list_recently_played
+    repo.update_last_played(sid)
+    match = next(s for s in repo.list_recently_played() if s.id == sid)
+    assert match.prerolls_fetched_at == 1700000000
+    # 4) list_favorite_stations
+    repo.set_station_favorite(sid, True)
+    match = next(s for s in repo.list_favorite_stations() if s.id == sid)
+    assert match.prerolls_fetched_at == 1700000000
+
+
+def test_eager_load_prerolls_via_all_4_station_builders(repo):
+    """D-01 + Pitfall 6 option 3a: every Station-builder eager-loads prerolls.
+
+    Missing one builder would leave Station.prerolls=[] silently — the Player
+    layer (Plan 83-03) cannot detect that, hence this multi-builder test.
+    """
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/a.m4a", 1)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/b.m4a", 2)
+    expected = [
+        "https://somafm.com/prerolls/a.m4a",
+        "https://somafm.com/prerolls/b.m4a",
+    ]
+    # list_stations
+    match = next(s for s in repo.list_stations() if s.id == sid)
+    assert match.prerolls == expected
+    # get_station
+    assert repo.get_station(sid).prerolls == expected
+    # list_recently_played
+    repo.update_last_played(sid)
+    match = next(s for s in repo.list_recently_played() if s.id == sid)
+    assert match.prerolls == expected
+    # list_favorite_stations
+    repo.set_station_favorite(sid, True)
+    match = next(s for s in repo.list_favorite_stations() if s.id == sid)
+    assert match.prerolls == expected
+
+
+def test_delete_station_cascades_station_prerolls(repo):
+    """D-01 CASCADE: deleting a station also deletes its station_prerolls rows."""
+    sid = repo.create_station()
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/a.m4a", 1)
+    repo.insert_preroll(sid, "https://somafm.com/prerolls/b.m4a", 2)
+    assert len(repo.list_prerolls(sid)) == 2
+    repo.delete_station(sid)
+    rows = repo.con.execute(
+        "SELECT * FROM station_prerolls WHERE station_id=?", (sid,)
+    ).fetchall()
+    assert len(rows) == 0
