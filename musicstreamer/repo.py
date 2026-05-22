@@ -144,6 +144,19 @@ def db_init(con: sqlite3.Connection):
           UNIQUE(a_id, b_id),
           CHECK(a_id < b_id)
         );
+
+        -- Phase 83 D-01/D-15 — SomaFM station prerolls. Additive table mirroring
+        -- the station_streams shape (Phase 47); FK ON DELETE CASCADE cleans up
+        -- rows when the parent station is deleted (also keeps Phase 74 re-import
+        -- wipe-and-replace flow clean per RESEARCH §"Re-import edge case").
+        -- Idempotent via CREATE TABLE IF NOT EXISTS — second db_init is a no-op.
+        CREATE TABLE IF NOT EXISTS station_prerolls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            station_id INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE CASCADE
+        );
         """
     )
     con.commit()
@@ -281,6 +294,22 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent
 
+    # Phase 83 D-04/D-15 — lazy-backfill timestamp; nullable INTEGER no DEFAULT;
+    # idempotent via OperationalError catch; lands AFTER the stations_new rebuild
+    # block for the same Pitfall 2 reason called out in the Phase 82 comment
+    # above. Epoch seconds; NULL means "never fetched"; non-NULL means
+    # "fetched, even if 0 prerolls returned" — distinguishes legitimately-empty
+    # SomaFM channels from never-fetched ones (D-04, RESEARCH §Background fetch
+    # gate). The on-demand backfill gate becomes: 0 prerolls AND fetched_at IS
+    # NULL → schedule fetch; otherwise skip.
+    try:
+        con.execute(
+            "ALTER TABLE stations ADD COLUMN prerolls_fetched_at INTEGER"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
 
 def sweep_orphans(con: sqlite3.Connection) -> None:
     """Delete orphan FK-child rows and INFO-log per-table counts when N>0.
@@ -367,6 +396,58 @@ class Repo:
             "INSERT INTO station_streams(station_id,url,label,quality,position,stream_type,codec,bitrate_kbps,sample_rate_hz,bit_depth) VALUES(?,?,?,?,?,?,?,?,?,?)",
             (station_id, url, label, quality, position, stream_type, codec, bitrate_kbps,
              sample_rate_hz, bit_depth))
+        self.con.commit()
+        return int(cur.lastrowid)
+
+    # ------------------------------------------------------------------
+    # Phase 83 D-01/D-03 — SomaFM preroll CRUD.
+    # ------------------------------------------------------------------
+
+    def list_prerolls(self, station_id: int) -> List[str]:
+        """Return preroll URLs for the station in ``position`` order.
+
+        Empty list if the station has no prerolls (the majority of SomaFM
+        channels — live audit 2026-05-22: 25 of 46 SomaFM channels have an
+        empty preroll[] array). The ORDER BY position is load-bearing —
+        Player.play uses ``random.choice`` on the returned list (Plan 83-03),
+        but other callers expect deterministic position-order iteration.
+        """
+        rows = self.con.execute(
+            "SELECT url FROM station_prerolls WHERE station_id = ? ORDER BY position",
+            (station_id,),
+        ).fetchall()
+        return [r["url"] for r in rows]
+
+    def insert_preroll(self, station_id: int, url: str, position: int) -> int:
+        """Insert one preroll row and return the new row id.
+
+        Phase 83 D-01/D-02. Defense in depth at the persistence boundary
+        (RESEARCH §Security Domain ASVS V5 Input Validation):
+
+        - **T-83-01 (Tampering):** reject non-HTTP(S) URL schemes. The
+          SomaFM importer's ``_safe_urlopen_request`` is the primary gate,
+          but the Repo layer is the last gate before bytes hit SQLite —
+          a hostile / compromised SomaFM response that injects
+          ``file:///`` or ``javascript:`` URLs would otherwise persist and
+          later be fed to ``playbin3``'s souphttpsrc.
+        - **T-83-02 (DoS):** cap ``position`` at 50. The live SomaFM API
+          maximum is 5 prerolls per channel; 50 is 10× headroom. Defends
+          against a hostile API response that injects 1M preroll entries.
+        - **T-83-03 (SQLi):** parameterized query — same idiom as every
+          other Repo method.
+        """
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"insert_preroll: refusing non-HTTP(S) scheme: {url!r}"
+            )
+        if position > 50:
+            raise ValueError(
+                f"insert_preroll: per-channel cap is 50; got position={position}"
+            )
+        cur = self.con.execute(
+            "INSERT INTO station_prerolls(station_id, url, position) VALUES (?, ?, ?)",
+            (station_id, url, position),
+        )
         self.con.commit()
         return int(cur.lastrowid)
 
@@ -473,6 +554,8 @@ class Repo:
                     is_favorite=bool(r["is_favorite"]),
                     preferred_stream_id=r["preferred_stream_id"],
                     streams=self.list_streams(r["id"]),
+                    prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
+                    prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
                 )
             )
         return out
@@ -510,6 +593,8 @@ class Repo:
             is_favorite=bool(r["is_favorite"]),
             preferred_stream_id=r["preferred_stream_id"],
             streams=self.list_streams(station_id),
+            prerolls=self.list_prerolls(station_id),               # Phase 83 D-01/D-03
+            prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
         )
 
     def delete_station(self, station_id: int):
@@ -579,6 +664,17 @@ class Repo:
         )
         self.con.commit()
 
+    def set_prerolls_fetched_at(self, station_id: int, epoch_seconds: int) -> None:
+        """Phase 83 D-04: marks a SomaFM station as 'fetched' so the lazy backfill
+        gate does not re-fetch. Set on both happy path (>=1 preroll) and 0-preroll
+        path so legitimately-empty channels (Seven Inch Soul etc.) do not hammer
+        the API on every Play press."""
+        self.con.execute(
+            "UPDATE stations SET prerolls_fetched_at = ? WHERE id = ?",
+            (epoch_seconds, station_id),
+        )
+        self.con.commit()
+
     def list_recently_played(self, n: int = 5) -> List[Station]:
         rows = self.con.execute(
             """
@@ -606,6 +702,8 @@ class Repo:
                 is_favorite=bool(r["is_favorite"]),
                 preferred_stream_id=r["preferred_stream_id"],
                 streams=self.list_streams(r["id"]),
+                prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
+                prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
             )
             for r in rows
         ]
@@ -719,6 +817,8 @@ class Repo:
                 is_favorite=True,
                 preferred_stream_id=r["preferred_stream_id"],
                 streams=self.list_streams(r["id"]),
+                prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
+                prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
             )
             for r in rows
         ]

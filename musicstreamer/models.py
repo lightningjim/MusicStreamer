@@ -38,6 +38,8 @@ class Station:
     last_played_at: Optional[str] = None
     is_favorite: bool = False
     preferred_stream_id: Optional[int] = None  # Phase 82 D-01: per-station sticky preferred stream
+    prerolls: List[str] = field(default_factory=list)              # Phase 83 D-01/D-03
+    prerolls_fetched_at: Optional[int] = None                      # Phase 83 D-04
 
 
 @dataclass
