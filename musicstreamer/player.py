@@ -1122,9 +1122,25 @@ class Player(QObject):
         self._preroll_about_to_finish_requested.emit()
 
     def _on_preroll_about_to_finish(self) -> None:
-        """Phase 83 D-05 — main-thread slot wired via QueuedConnection.
-        Disconnects the one-shot handler, clears the in-flight flag, and
-        kicks ``_try_next_stream()`` to play ``_streams_queue[0]``."""
+        """Phase 83 D-05 (UAT-corrected) — main-thread slot wired via
+        QueuedConnection.
+
+        Performs a GAPLESS URI handoff on playbin3's still-PLAYING pipeline:
+        pops _streams_queue[0], mirrors _try_next_stream's bookkeeping
+        (tracker bind, failover-timer arm, _last_buffer_percent reset,
+        elapsed-timer first-attempt seeding), and sets the next URI via a
+        plain pipeline.set_property("uri", ...) — NO set_state(NULL), NO
+        set_state(PLAYING). playbin3 plays the preroll to EOS and transitions
+        seamlessly to the station stream.
+
+        For YouTube/Twitch URLs (which require async resolution via
+        _play_youtube / _play_twitch), the slot falls back to the legacy
+        _try_next_stream() path — the gapless set_property idiom only works
+        for URLs playbin3 can stream directly.
+
+        For empty _streams_queue (defensive), falls back to
+        _try_next_stream() which emits failover(None) as today.
+        """
         if self._preroll_handler_id:
             try:
                 self._pipeline.disconnect(self._preroll_handler_id)
@@ -1132,7 +1148,61 @@ class Player(QObject):
                 pass  # already disconnected (e.g. bus-error path took it)
             self._preroll_handler_id = 0
         self._preroll_in_flight = False
-        self._try_next_stream()
+        # Empty-queue defensive: fall back to legacy path (emits failover(None)).
+        if not self._streams_queue:
+            self._try_next_stream()
+            return
+        head_url = self._streams_queue[0].url.strip()
+        # Async-resolution providers cannot use the gapless set_property idiom
+        # (playbin3 needs a streamable URL, not a YouTube/Twitch page URL).
+        # Fall back to the legacy _try_next_stream path which dispatches to
+        # _play_youtube / _play_twitch.
+        if (
+            "youtube.com" in head_url
+            or "youtu.be" in head_url
+            or "twitch.tv" in head_url
+        ):
+            self._try_next_stream()
+            return
+        # Gapless URI handoff for direct HTTP(S) streams (the SomaFM ICE-relay
+        # case — D-11 provider gate guarantees this codepath only fires for
+        # SomaFM, and SomaFM streams are direct HTTP(S) URLs).
+        stream = self._streams_queue.pop(0)
+        self._current_stream = stream
+        self._last_buffer_percent = -1  # Pitfall 3 — mirror _try_next_stream:1056
+        # Force-close any cycle on the OUTGOING URL with a "preroll" outcome
+        # (distinguish from "failover" so analytics see this is a gapless
+        # handoff, not a stream-error failover). Ordering load-bearing:
+        # close record must carry the OLD url; bind to NEW url comes after.
+        prior_close = self._tracker.force_close("preroll")
+        if prior_close is not None:
+            self._underrun_cycle_closed.emit(prior_close)
+        self._tracker.bind_url(
+            station_id=self._current_station_id,
+            station_name=self._current_station_name,
+            url=stream.url,
+        )
+        self._underrun_dwell_timer.stop()
+        # Elapsed-timer first-attempt seeding (mirror of _try_next_stream:1073-1077).
+        # Without this block the user-facing elapsed-time display freezes at 0
+        # across the preroll→stream handoff (analytics regression). The preroll
+        # path enters this slot with _is_first_attempt == True; neither
+        # _start_preroll nor _on_preroll_about_to_finish_callback touches it.
+        if self._is_first_attempt:
+            self._elapsed_seconds = 0
+            self._elapsed_timer.start()
+        self._is_first_attempt = False
+        # Gapless: set URI on the still-PLAYING pipeline. NO set_state(NULL),
+        # NO set_state(PLAYING) — playbin3 transitions to the new URI at the
+        # preroll's EOS automatically. This is the canonical playbin3 gapless
+        # idiom; live-spike (2026-05-22 Linux GStreamer 1.28.2) confirms
+        # about-to-finish + plain set_property("uri", ...) works under the
+        # MusicStreamer playbin3 configuration (83-RESEARCH §Q1 RESOLVED).
+        self._pipeline.set_property("uri", aa_normalize_stream_url(stream.url))
+        # Arm failover-timeout watchdog for the new URL (mirrors
+        # _try_next_stream:1087 — BUFFER_DURATION_S window before we give up
+        # and advance through _streams_queue).
+        self._failover_timer.start(BUFFER_DURATION_S * 1000)
 
     def _on_gst_eos_during_preroll(self, bus, msg) -> None:
         """Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED).
