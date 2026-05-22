@@ -1351,6 +1351,57 @@ class Player(QObject):
         self._failover_timer.start(BUFFER_DURATION_S * 1000)
 
     # ------------------------------------------------------------------ #
+    # Phase 83 — SomaFM preroll backfill (D-13 daemon worker, Pattern 4)
+    # ------------------------------------------------------------------ #
+
+    def _preroll_backfill_worker(self, station_id: int, station_name: str) -> None:
+        """Phase 83 D-13 daemon backfill worker (Pattern 4 thread-local Repo).
+
+        Fetches SomaFM channels.json off the main thread, matches the
+        upstream channel by title (Pitfall 3 option 1), opens its own
+        ``Repo`` via ``db_connect()`` (Pattern 4 — never share the main-thread
+        Repo across threads), inserts ``station_prerolls`` rows + sets
+        ``prerolls_fetched_at``. Silent on all failures (D-04). Single-flight
+        via ``self._backfill_in_flight`` (T-83-10) — discarded in finally so
+        a later play retries on a fresh attempt.
+
+        Per Pitfall 3: matches by title because Phase 74 does not persist
+        the SomaFM slug. A user-renamed station silently never gets a
+        preroll (acceptable per D-04 silent failure caps).
+        """
+        from musicstreamer.soma_import import fetch_channels
+        from musicstreamer.repo import db_connect, Repo
+        try:
+            channels = fetch_channels()
+            match = next(
+                (c for c in channels if c.get("title") == station_name), None
+            )
+            preroll_urls = list((match or {}).get("preroll_urls", []) or [])
+            if len(preroll_urls) > 50:
+                preroll_urls = preroll_urls[:50]  # T-83-02 double-defense
+            con = db_connect()
+            try:
+                repo = Repo(con)
+                for pos, url in enumerate(preroll_urls, start=1):
+                    try:
+                        repo.insert_preroll(station_id, url, pos)
+                    except ValueError:
+                        # URL-scheme rejection from Plan 83-01; skip and continue.
+                        continue
+                # D-04: mark fetched regardless of count (legitimately-empty
+                # channels must not re-trigger backfill on every Play).
+                repo.set_prerolls_fetched_at(station_id, int(time.time()))
+            finally:
+                con.close()
+        except Exception as exc:  # noqa: BLE001 — D-04 silent failure path
+            _log.warning(
+                "Phase 83 preroll backfill failed for station %d (%r): %s",
+                station_id, station_name, exc,
+            )
+        finally:
+            self._backfill_in_flight.discard(station_id)
+
+    # ------------------------------------------------------------------ #
     # EQ internals (Phase 47.2)
     # ------------------------------------------------------------------ #
 
