@@ -336,9 +336,27 @@ def import_stations(channels: list[dict], repo, on_progress=None) -> tuple[int, 
                                 bitrate_kbps=s["bitrate_kbps"],
                             )
                     imported += 1
-                    # All streams inserted — clear the rollback sentinel so a
-                    # later unrelated exception (e.g. inside on_progress) does
-                    # NOT erase a freshly-imported channel.
+                    # Phase 83 D-02 / D-04 / T-83-02 / Pitfall 4: capture
+                    # prerolls + mark fetched INSIDE the rollback window so a
+                    # later step (logo enqueue, on_progress callback) raising
+                    # still triggers delete_station + CASCADE on station_prerolls.
+                    preroll_urls = ch.get("preroll_urls", [])
+                    if len(preroll_urls) > 50:
+                        _log.warning(
+                            "SomaFM channel %r preroll list has %d entries; "
+                            "capping at 50 (Phase 83 T-83-02)",
+                            ch.get("title"), len(preroll_urls),
+                        )
+                        preroll_urls = preroll_urls[:50]
+                    for pos, preroll_url in enumerate(preroll_urls, start=1):
+                        repo.insert_preroll(station_id, preroll_url, pos)
+                    # D-04: mark fetched even if preroll_urls was empty so the
+                    # throttle gate does not re-fetch legitimately-empty
+                    # channels on every Play (25 of 46 channels per RESEARCH).
+                    repo.set_prerolls_fetched_at(station_id, int(time.time()))
+                    # All streams + prerolls inserted — clear the rollback
+                    # sentinel so a later unrelated exception (e.g. inside
+                    # on_progress) does NOT erase a freshly-imported channel.
                     inserted_station_id = None
                     if ch.get("image_url"):
                         logo_targets.append((station_id, ch["image_url"]))
