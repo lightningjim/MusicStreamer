@@ -731,6 +731,7 @@ Plans:
 **Plans:** 3/3 plans complete
 
 Plans:
+
 - [x] 72.4-01-PLAN.md — Wave 0 TDD-RED scaffold (tests/test_phase72_4_volume_cluster_reflow.py 13 behavior + 3 negatives) + REQUIREMENTS.md LAYOUT-04 registration
 - [x] 72.4-02-PLAN.md — Wave 1 GREEN helpers: _row1_min_cache dict + _volume_cluster_row1_index capture + generalized _row1_min_width(include_picker, include_volume_cluster) + _move_volume_cluster_to + _set_volume_size_policy (canonical Qt 6 three-call round-trip)
 - [x] 72.4-03-PLAN.md — Wave 2 GREEN wiring: _controls_row3 construction + _reflow_volume_cluster predicate + resizeEvent extension between picker reflow and art-tier reflow; final UAT on user's lower display
@@ -959,10 +960,17 @@ Plans:
 
 ### Phase 82: User-selected stream provider is ignored — when a station has multiple streams (e.g. YT + Twitch) and the user picks Twitch from the dropdown, the player still attempts YT first instead of honoring the selection
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** When a station has multiple streams (e.g. YT + Twitch) and the user picks a non-default stream from the Now-Playing dropdown, every subsequent `Player.play(station)` honors that pick (sticky, DB-persisted via `stations.preferred_stream_id` FK to `streams(id)` ON DELETE SET NULL). Failover semantics unchanged — picked stream errors fall back through remaining `order_streams` ordering (D-05). Silent UX (D-07) — no pin icon, no tooltip, no menu action.
+**Requirements**: TBD (coverage contract: CONTEXT.md D-01..D-08)
 **Depends on:** Phase 81
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 82 to break down)
+**Wave 1**
+
+- [ ] 82-01-PLAN.md — DB schema migration (`preferred_stream_id` column via Phase 73 `db_init()` try/except ALTER idiom) + `Station` dataclass field + propagation through 4 Repo Station-builders + `Repo.set_preferred_stream` setter + FakeRepo no-op shields in tests/test_stream_picker.py + tests/test_now_playing_panel.py
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 82-02-PLAN.md — `Player.play(station)` head-of-queue logic for `preferred_stream_id` (wins over `preferred_quality` kwarg, falls back to `order_streams` on None/stale) + 6 behavioral tests + 1 source-grep drift-guard in tests/test_player.py
+- [ ] 82-03-PLAN.md — `_on_stream_selected` persistence call (`self._repo.set_preferred_stream(self._station.id, s.id)` after `play_stream`) + FakeRepo upgrade from no-op to call-recorder + 4 behavioral tests + 1 source-grep drift-guard in tests/test_stream_picker.py

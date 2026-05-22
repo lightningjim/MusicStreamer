@@ -28,8 +28,13 @@ Real-world repro: Lofi Girl with both YT and Twitch streams while the main Lofi 
 ### Failover Behavior
 - **D-05:** If the user-picked stream itself fails, **fall back through the rest of `order_streams`'s ordering** (current default `_try_next_stream` semantics). User's pick is "preferred first", not "only". Existing `_failover_timer` and `_handle_gst_error_recovery` flows stay unchanged. Reason: when the user's pick is also unavailable, having *something* play is better than stopping; the user can always re-pick.
 
-### Out-of-Scope (within scope of D-05 default)
-- **D-06:** No "stop and toast" mode, no "offer retry-with-default" toast button, no cross-device sync, no per-quality fallback policy beyond the existing `preferred_quality` kwarg on `Player.play`.
+### Out-of-Scope (informational only — not a coverage target)
+The following items are explicit non-goals; they appear under `<deferred>` Deferred Ideas and do NOT require a plan-side mention.
+
+- No "stop and toast" mode (alternative to D-05).
+- No "offer retry-with-default" toast button.
+- No cross-device sync of preferred-stream picks.
+- No per-quality fallback policy beyond the existing `preferred_quality` kwarg on `Player.play`.
 
 ### Dropdown UX
 - **D-07:** Behavior is **silent** — no pin icon, no "Using Twitch" tooltip, no "Reset to default" menu action. The combo's current text already shows the active selection; persistence is invisible-by-design. Reason: minimum visual noise, and the user opted for the no-extra-UI path.
