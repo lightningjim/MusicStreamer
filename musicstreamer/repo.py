@@ -144,6 +144,19 @@ def db_init(con: sqlite3.Connection):
           UNIQUE(a_id, b_id),
           CHECK(a_id < b_id)
         );
+
+        -- Phase 83 D-01/D-15 — SomaFM station prerolls. Additive table mirroring
+        -- the station_streams shape (Phase 47); FK ON DELETE CASCADE cleans up
+        -- rows when the parent station is deleted (also keeps Phase 74 re-import
+        -- wipe-and-replace flow clean per RESEARCH §"Re-import edge case").
+        -- Idempotent via CREATE TABLE IF NOT EXISTS — second db_init is a no-op.
+        CREATE TABLE IF NOT EXISTS station_prerolls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            station_id INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            FOREIGN KEY(station_id) REFERENCES stations(id) ON DELETE CASCADE
+        );
         """
     )
     con.commit()
@@ -276,6 +289,22 @@ def db_init(con: sqlite3.Connection):
     try:
         con.execute(
             "ALTER TABLE stations ADD COLUMN preferred_stream_id INTEGER REFERENCES station_streams(id) ON DELETE SET NULL"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
+    # Phase 83 D-04/D-15 — lazy-backfill timestamp; nullable INTEGER no DEFAULT;
+    # idempotent via OperationalError catch; lands AFTER the stations_new rebuild
+    # block for the same Pitfall 2 reason called out in the Phase 82 comment
+    # above. Epoch seconds; NULL means "never fetched"; non-NULL means
+    # "fetched, even if 0 prerolls returned" — distinguishes legitimately-empty
+    # SomaFM channels from never-fetched ones (D-04, RESEARCH §Background fetch
+    # gate). The on-demand backfill gate becomes: 0 prerolls AND fetched_at IS
+    # NULL → schedule fetch; otherwise skip.
+    try:
+        con.execute(
+            "ALTER TABLE stations ADD COLUMN prerolls_fetched_at INTEGER"
         )
         con.commit()
     except sqlite3.OperationalError:
