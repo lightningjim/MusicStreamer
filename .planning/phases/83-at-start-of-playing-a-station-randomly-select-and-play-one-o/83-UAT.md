@@ -1,17 +1,18 @@
 ---
-status: partial
+status: complete
 phase: 83-at-start-of-playing-a-station-randomly-select-and-play-one-o
 source:
   - 83-01-SUMMARY.md
   - 83-02-SUMMARY.md
   - 83-03-SUMMARY.md
+  - 83-04-SUMMARY.md
 started: 2026-05-22
 updated: 2026-05-22
 ---
 
 ## Current Test
 
-[testing complete — 1 pass, 1 issue (blocker), 2 blocked-by-prior]
+[testing complete — 3 pass, 1 minor issue (D-07 partial gapless), 0 blocked]
 
 ## Tests
 
@@ -21,37 +22,29 @@ expected: |
   (~5-8s), then deep-house stream begins gaplessly. Now Playing shows "Beat Blender"
   throughout (no preroll title flicker). Covers D-05 + D-07.
 result: issue
-reported: "Going straight to the stream — no preroll voiceover at all. DB has the 4 preroll URLs for Beat Blender stored correctly; provider_name is 'SomaFM'; eager-load returns 4 URLs in the Station object. The preroll gate fires, but the pipeline never plays the preroll audibly."
-severity: blocker
-root_cause: |
-  `_on_preroll_about_to_finish` (musicstreamer/player.py:1124-1135) calls
-  `_try_next_stream()` which immediately does `set_state(NULL)` →
-  `set_property("uri", stream_url)` → `set_state(PLAYING)` (player.py:1043,1091-1094).
-  That tears down the preroll mid-playback and restarts the pipeline on the stream
-  URL from scratch.
-
-  The playbin3 `about-to-finish` signal is the *gapless* handoff mechanism: the
-  next URI must be set on the still-PLAYING pipeline via a plain
-  `pipeline.set_property("uri", next_url)` — playbin3 then plays the current
-  track to EOS and transitions seamlessly. Setting `set_state(NULL)` defeats
-  this entirely; the live spike confirmed `about-to-finish` fires very early
-  (before PLAYING is even reached), so the pipeline is torn down before any
-  preroll audio reaches the speakers.
-
-  The 83-RESEARCH §Open Questions Q1 spike measured a `+7.849s STREAM_START`
-  for the stream URI, which matched the preroll's 7.99s duration — but that
-  was with a SINGLE pipeline using gapless URI handoff (`set_property` only,
-  no state change). The shipped code does state cycling instead, so the
-  preroll never reaches audible playback.
-artifacts:
-  - musicstreamer/player.py:1124-1135 (_on_preroll_about_to_finish — wrong: calls _try_next_stream)
-  - musicstreamer/player.py:1040-1087 (_try_next_stream — sets state NULL)
-  - musicstreamer/player.py:1089-1094 (_set_uri — sets state NULL then PLAYING)
-missing:
-  - "Gapless URI handoff: in the about-to-finish path, set pipeline `uri` property directly on the still-PLAYING pipeline — do NOT cycle through NULL."
-  - "Streaming-thread-safe set_property: `pipeline.set_property('uri', next_url)` is a pure GObject call, safe from the about-to-finish callback (the qt-glib threading rule applies to Qt operations and pipeline state changes, not to plain property sets)."
-  - "Phase 83 scope: only direct HTTP(S) stream URLs reach the gapless handoff (SomaFM provider gate; SomaFM streams are direct ICE relays). YouTube/Twitch async-resolution paths are not in the SomaFM preroll codepath, so the simple set_property pattern suffices for this phase."
-  - "Main-thread bookkeeping: pop _streams_queue, update _current_stream, bind tracker — but do NOT set pipeline state. The pipeline keeps playing through the gapless transition."
+reported: "It wasn't quite gaplessly but it definitely happened."
+severity: minor
+notes: |
+  D-05 (preroll plays audibly) is CLOSED — user confirmed preroll → stream
+  transition occurred. D-07 (gapless handoff) is partial — user heard a
+  perceptible discontinuity at the preroll→stream boundary. Plan 83-04's
+  `set_property("uri", ...)` on the still-PLAYING pipeline is the canonical
+  playbin3 gapless idiom; an audible gap here suggests one of:
+    (a) about-to-finish fires slightly late vs the preroll EOS, leaving
+        a brief silence (playbin3's lookahead buffer for the new URI is
+        not arriving in time),
+    (b) the new URI's first audio packets are delayed (ICE-relay TCP
+        connect latency for the SomaFM stream),
+    (c) codec/sample-rate transition between the m4a preroll and the
+        AAC/MP3 SomaFM stream forces a brief audiosink reconfigure.
+  Treat as observation; not a regression vs the prior (broken) behavior.
+history: |
+  2026-05-22 (pre-83-04): result=issue (blocker). `_on_preroll_about_to_finish` called
+  `_try_next_stream()` which set_state(NULL) — preroll torn down before reaching
+  speakers. Closed by Plan 83-04: gapless URI handoff via `set_property("uri", ...)` on
+  still-PLAYING pipeline (player.py:1124-1205). Commits: 6994b3d, 72a0ebf, fef340e.
+  2026-05-22 (post-83-04): preroll plays audibly (D-05 ✓); transition not fully
+  gapless (D-07 partial — minor).
 
 ### 2. Seven Inch Soul (no preroll) — straight to stream
 expected: |
@@ -69,9 +62,10 @@ expected: |
   with NO preroll — the in-memory throttle gate (10 min window via
   Player._last_preroll_played_at) suppresses the second preroll. Covers D-12 window
   suppression.
-result: blocked
-blocked_by: prior-phase
-reason: "Depends on Test 1 (preroll playback) which is blocked by the gapless-handoff bug. Cannot verify throttle suppression of a feature that doesn't audibly play."
+result: pass
+history: |
+  2026-05-22 (pre-83-04): result=blocked (prior-phase) on test 1's blocker.
+  Unblocked by Plan 83-04. 2026-05-22 (post-83-04): pass.
 
 ### 4. Throttle after 10 minutes — preroll plays again
 expected: |
@@ -82,31 +76,31 @@ expected: |
   (If you don't want to wait, you can simulate by restarting the app — the throttle
   state lives in memory only, so a fresh launch always plays the preroll on first
   SomaFM station.)
-result: blocked
-blocked_by: prior-phase
-reason: "Depends on Test 1 (preroll playback) which is blocked by the gapless-handoff bug."
+result: pass
+verified_via: restart-as-simulation (app relaunch clears _last_preroll_played_at)
+history: |
+  2026-05-22 (pre-83-04): result=blocked (prior-phase) on test 1's blocker.
+  Unblocked by Plan 83-04. 2026-05-22 (post-83-04): pass via restart simulation.
 
 ## Summary
 
 total: 4
-passed: 1
+passed: 3
 issues: 1
 pending: 0
 skipped: 0
-blocked: 2
+blocked: 0
 
 ## Gaps
 
-- truth: "D-05: Phase 83's user-observable goal — SomaFM preroll plays audibly for ~5-8s, then transitions gaplessly into the station stream."
+- truth: "D-07: SomaFM preroll transitions gaplessly into the station stream."
   status: failed
-  reason: "User reported: Going straight to the stream — no preroll voiceover at all. DB-layer data is correct (4 prerolls stored for Beat Blender, provider_name='SomaFM', eager-load returns them in the Station object). The preroll gate in Player.play fires, but the pipeline never plays the preroll audibly."
-  severity: blocker
+  reason: "User reported: It wasn't quite gaplessly but it definitely happened. D-05 audibility ✓, D-07 gapless quality partial."
+  severity: minor
   test: 1
   artifacts:
-    - musicstreamer/player.py:1124-1135 (_on_preroll_about_to_finish — wrong: calls _try_next_stream)
-    - musicstreamer/player.py:1040-1087 (_try_next_stream — sets state NULL)
-    - musicstreamer/player.py:1089-1094 (_set_uri — sets state NULL then PLAYING)
+    - musicstreamer/player.py:1124-1205 (_on_preroll_about_to_finish — gapless handoff implementation)
   missing:
-    - "Gapless URI handoff: in the about-to-finish path, set pipeline `uri` property directly on the still-PLAYING pipeline — do NOT cycle through NULL."
-    - "Main-thread bookkeeping pops _streams_queue + updates _current_stream + binds tracker but does NOT touch pipeline state. The pipeline keeps playing through the gapless transition."
-    - "Phase 83 scope guarantee: only direct HTTP(S) stream URLs reach the gapless handoff (SomaFM provider gate; SomaFM streams are direct ICE relays). YouTube/Twitch async-resolution paths are not in the SomaFM preroll codepath, so the simple set_property pattern suffices for this phase."
+    - "Investigate whether about-to-finish lookahead timing leaves a brief silence vs the canonical playbin3 gapless behavior (preroll EOS → stream first-sample latency)."
+    - "Possibly: per-codec audiosink reconfigure cost between m4a preroll and AAC/MP3 stream (codec transition stall)."
+    - "Possibly: ICE-relay TCP connect latency for the SomaFM stream URL — first audio packet may arrive after preroll EOS."
