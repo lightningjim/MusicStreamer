@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 82 context gathered
-last_updated: "2026-05-22T12:58:00.012Z"
+status: milestone_complete
+stopped_at: Milestone complete (Phase 82 was final phase)
+last_updated: 2026-05-22T14:13:33.682Z
 last_activity: 2026-05-22 -- Phase 82 execution started
 progress:
   total_phases: 42
   completed_phases: 38
   total_plans: 179
-  completed_plans: 171
+  completed_plans: 174
   percent: 90
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 82 — User-selected stream provider is honored on next Play
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 82 (User-selected stream provider is honored on next Play) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 82
-Last activity: 2026-05-22 -- Phase 82 execution started
+Phase: 82
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-22
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 188 (v1.0–v1.5 combined)
+- Total plans completed: 191 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
