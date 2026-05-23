@@ -307,17 +307,7 @@ class AccountsDialog(QDialog):
             self._update_status()
 
     def _on_gbs_action_clicked(self) -> None:
-        """Phase 60 D-04c + Phase 76 D-03/D-09: Connect (launch oauth_helper
-        --mode gbs subprocess) or Disconnect (clear cookies file).
-
-        D-03 collapsed scope: cookies-only (no token half). Connect now
-        launches the subprocess instead of opening CookieImportDialog —
-        the File/Paste tabs remain reachable via the secondary
-        [Import cookies file…] button (D-14, see _on_gbs_import_clicked).
-
-        Source: accounts_dialog.py:298-330 (pre-Phase-76 body) +
-        RESEARCH §_on_gbs_action_clicked Rewrite lines 626-647.
-        """
+        """Phase 60 D-04c + Phase 76 D-03/D-09: Connect (launch subprocess) or Disconnect."""
         if self._is_gbs_connected():
             answer = QMessageBox.question(
                 self, "Disconnect GBS.FM?",
@@ -340,6 +330,28 @@ class AccountsDialog(QDialog):
             # Phase 76 D-09: launch oauth_helper --mode gbs subprocess.
             self._launch_gbs_login_subprocess()
 
+    def _launch_oauth_subprocess(self) -> None:
+        """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
+        self._oauth_proc = QProcess(self)
+        self._oauth_proc.finished.connect(self._on_oauth_finished)
+        # T-40-05: use sys.executable — no PATH injection; never shell=True
+        self._oauth_proc.start(
+            sys.executable,
+            ["-m", "musicstreamer.oauth_helper", "--mode", "twitch"],
+        )
+        self._update_status()
+
+    def _launch_gbs_login_subprocess(self) -> None:
+        """Phase 76 D-09: launch oauth_helper --mode gbs."""
+        self._gbs_login_proc = QProcess(self)
+        self._gbs_login_proc.finished.connect(self._on_gbs_login_finished)  # QA-05
+        # T-40-05: use sys.executable — no PATH injection; never shell=True
+        self._gbs_login_proc.start(
+            sys.executable,
+            ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"],
+        )
+        self._update_status()
+
     def _on_gbs_import_clicked(self) -> None:
         """Phase 76 D-14: secondary path — open the existing File/Paste tabs."""
         from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
@@ -353,17 +365,6 @@ class AccountsDialog(QDialog):
             oauth_mode=None,   # Phase 60 v1: file + paste tabs only
         )
         dlg.exec()
-        self._update_status()
-
-    def _launch_oauth_subprocess(self) -> None:
-        """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
-        self._oauth_proc = QProcess(self)
-        self._oauth_proc.finished.connect(self._on_oauth_finished)
-        # T-40-05: use sys.executable — no PATH injection; never shell=True
-        self._oauth_proc.start(
-            sys.executable,
-            ["-m", "musicstreamer.oauth_helper", "--mode", "twitch"],
-        )
         self._update_status()
 
     def _on_aa_clear_clicked(self) -> None:
@@ -457,6 +458,99 @@ class AccountsDialog(QDialog):
             provider="twitch",
             exit_code=exit_code,
             output=token,
+            last_event=last_event,
+        )
+
+    def _on_gbs_login_finished(
+        self,
+        exit_code: int,
+        exit_status: QProcess.ExitStatus,
+    ) -> None:
+        """Mirror _on_oauth_finished but for the Netscape-stdout contract."""
+        proc = self._gbs_login_proc
+        self._gbs_login_proc = None
+
+        # Phase 999.3 D-12: parse stderr line-by-line, keep last valid event.
+        # Inlined per Plan 76-03 Task 1's explicit decision to leave the
+        # stderr-parse block inline to minimize regression risk.
+        last_event: dict | None = None
+        if proc is not None:
+            try:
+                stderr_bytes = proc.readAllStandardError().data()
+            except Exception:
+                stderr_bytes = b""
+            try:
+                stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+            except Exception:
+                stderr_text = ""
+            for line in stderr_text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    # T-999.3-05: malformed line → skip, no eval/no code path.
+                    continue
+                if isinstance(obj, dict) and "category" in obj:
+                    last_event = obj
+
+        # Read stdout (Netscape cookie dump on success).
+        # CRITICAL: do NOT .strip() — Netscape format preserves leading newlines
+        # (RESEARCH line 709 anti-pitfall).
+        netscape_text: str = ""
+        if proc is not None:
+            try:
+                netscape_text = proc.readAllStandardOutput().data().decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception:
+                netscape_text = ""
+
+        # Deferred import to avoid module-load cost (matches Phase 60 deferred
+        # pattern in pre-Phase-76 _on_gbs_action_clicked).
+        from musicstreamer.gbs_api import _validate_gbs_cookies
+
+        # ---- Success path --------------------------------------------
+        success_category = last_event is None or last_event.get("category") == "Success"
+        if (
+            exit_code == 0
+            and netscape_text
+            and success_category
+            and _validate_gbs_cookies(netscape_text)
+        ):
+            cookies_path = paths.gbs_cookies_path()
+            os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+            with open(cookies_path, "w", encoding="utf-8") as fh:
+                fh.write(netscape_text)
+            os.chmod(cookies_path, 0o600)  # T-40-03 / Phase 999.7 — restrict immediately
+            logger = self._get_oauth_logger()
+            if logger is not None:
+                try:
+                    logger.log_event({
+                        "ts": (last_event or {}).get("ts", 0.0),
+                        "category": "Success",
+                        "detail": "",
+                        "provider": "gbs",
+                    })
+                except Exception:
+                    pass
+            self._toast_callback("GBS.FM logged in.")
+            self._update_status()
+            return
+
+        # ---- Failure path --------------------------------------------
+        # Delegate to the shared helper extracted in Task 1. Passing
+        # netscape_text as ``output`` means the existing classification
+        # precedence (empty output → InvalidTokenResponse empty_stdout)
+        # works unchanged. Validator-rejection (garbage Netscape) also
+        # falls through here because the success guard returned False
+        # without writing; the helper then produces InvalidTokenResponse
+        # on exit_code==0 / SubprocessCrash on non-zero.
+        self._classify_and_show_failure(
+            provider="gbs",
+            exit_code=exit_code,
+            output=netscape_text,
             last_event=last_event,
         )
 
