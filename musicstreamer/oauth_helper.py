@@ -47,6 +47,17 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
     + f' --user-agent="{_CHROME_UA}"'
 ).strip()
 
+# Phase 76 Task 1: provider field for _emit_event.
+#
+# Refactor target — was hardcoded `"provider": "twitch"` inside _emit_event
+# (oauth_helper.py:71-86 pre-Phase-76). main() overwrites this constant after
+# argparse dispatches `--mode`. The default value `"twitch"` preserves
+# backwards compatibility with the existing tests/test_oauth_helper_twitch.py
+# contract — _emit_event called before main() runs still reports the legacy
+# provider. Mirrors RESEARCH.md §_emit_event Provider Field lines 446-459
+# recommendation (a): module-level mutable constant, no kwarg threading.
+_PROVIDER = "twitch"
+
 # Guard QtWebEngineWidgets import — it is a separate apt package
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -79,7 +90,7 @@ def _emit_event(category: str, detail: str = "", **extra) -> None:
         "ts": time.time(),
         "category": category,
         "detail": detail,
-        "provider": "twitch",
+        "provider": _PROVIDER,
     }
     if extra:
         event.update(extra)
