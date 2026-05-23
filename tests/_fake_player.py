@@ -3,8 +3,9 @@
 Phase 77 D-07 / D-08 / D-16 / D-17.
 
 This module declares a single canonical ``FakePlayer(QObject)`` that mirrors
-**all 19 Signals** currently on ``musicstreamer.player.Player``.  The canonical
-Signal source of truth is ``musicstreamer/player.py:241-282``.
+**all 20 Signals** currently on ``musicstreamer.player.Player`` (Phase 83
+added ``_preroll_about_to_finish_requested``).  The canonical Signal source
+of truth is ``musicstreamer/player.py:241-294``.
 
 Rule 1 — before any future maintenance session, re-grep the production Signal
 block to confirm no signals were added since this file was last updated::
@@ -33,7 +34,7 @@ class FakePlayer(QObject):
     """Canonical shared Player test double.
 
     Mirrors every Signal declared on ``musicstreamer.player.Player``
-    (19 signals, D-16 invariant) and provides method stubs for the API
+    (20 signals, D-16 invariant) and provides method stubs for the API
     surface touched by MainWindow, EditStationDialog, and NowPlayingPanel
     test consumers.
 
@@ -59,7 +60,10 @@ class FakePlayer(QObject):
     elapsed_updated            = Signal(int)
     buffer_percent             = Signal(int)
 
-    # Internal cross-thread marshaling signals (8 — underscore-prefixed)
+    # Internal cross-thread marshaling signals (9 — 7 underscore-prefixed +
+    # 2 non-underscore: underrun_recovery_started + underrun_count_changed).
+    # Phase 83 added _preroll_about_to_finish_requested = Signal(int) — the
+    # int payload carries the _preroll_seq stamp for CR-01/WR-03 race guards.
     _cancel_timers_requested           = Signal()
     _error_recovery_requested          = Signal()
     _try_next_stream_requested         = Signal()
