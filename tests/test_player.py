@@ -1560,6 +1560,77 @@ def test_cr01_preroll_bus_error_then_about_to_finish_does_not_double_pop(qtbot):
     )
 
 
+def test_wr02_stop_disconnects_preroll_handler_and_clears_flag(qtbot):
+    """WR-02: stop() during an in-flight preroll must disconnect the
+    about-to-finish handler, clear _preroll_in_flight, zero
+    _preroll_handler_id, and bump _preroll_seq (so any queued slot from
+    the dead preroll arrives stale). Without this cleanup, a subsequent
+    play() would inherit a leaked handler-id and double-fire about-to-
+    finish, popping _streams_queue twice."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    assert p._preroll_handler_id != 0
+    seq_before = p._preroll_seq
+    p.stop()
+    assert p._preroll_in_flight is False, (
+        "WR-02: stop() must clear _preroll_in_flight."
+    )
+    assert p._preroll_handler_id == 0, (
+        "WR-02: stop() must zero _preroll_handler_id after disconnect."
+    )
+    assert p._preroll_seq == seq_before + 1, (
+        "WR-02: stop() must bump _preroll_seq so any queued about-to-finish "
+        "slot from the dead preroll arrives stale (CR-01 contract)."
+    )
+
+
+def test_wr02_play_resets_leaked_preroll_handler_from_prior_play(qtbot):
+    """WR-02: a fresh play() must defensively reset any leaked preroll
+    handler-id and flag from a prior play() that did not run stop() (e.g.
+    the user starts station A, station-switches directly to station B
+    without an intervening stop). Without this reset, the new _start_preroll
+    would attach a SECOND about-to-finish handler — both fire at the next
+    about-to-finish, double-popping _streams_queue."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station_a = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/a.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station_a)
+    leaked_handler = p._preroll_handler_id
+    assert leaked_handler != 0
+    # Pretend the user does NOT call stop() — just play() another station.
+    # Use a non-SomaFM station so the preroll gate skips and we can observe
+    # the cleanup-only path (no second _start_preroll obscures the assertion).
+    s2 = _make_stream_ph82(2, 2, "hi", "http://stream2.test/")
+    from musicstreamer.models import Station
+    station_b = Station(
+        id=2, name="Station B", provider_id=None, provider_name="DI.fm",
+        tags="", station_art_path=None, album_fallback_path=None,
+        streams=[s2], prerolls=[], prerolls_fetched_at=None,
+    )
+    seq_before = p._preroll_seq
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station_b)
+    assert p._preroll_in_flight is False, (
+        "WR-02: play() must reset _preroll_in_flight from prior play's leak."
+    )
+    assert p._preroll_handler_id == 0, (
+        "WR-02: play() must zero _preroll_handler_id from prior play's leak."
+    )
+    assert p._preroll_seq == seq_before + 1, (
+        "WR-02: play() must bump _preroll_seq when defensively cleaning up "
+        "a leaked preroll, invalidating any queued about-to-finish slot."
+    )
+
+
 def test_wr01_start_preroll_arms_failover_timer_watchdog(qtbot):
     """WR-01: _start_preroll arms self._failover_timer with
     BUFFER_DURATION_S * 1000 so a stuck/dead preroll URL falls through to

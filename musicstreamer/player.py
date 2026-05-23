@@ -543,6 +543,25 @@ class Player(QObject):
         self._cancel_timers()
         self._streams_queue = []
         self._recovery_in_flight = False
+        # WR-02 (Phase 83 code review): tear down any leaked preroll handler
+        # from a prior play()/stop() sequence so this play() starts from a
+        # clean preroll state. Without this, a second SomaFM station play
+        # after a stop() during a still-in-flight preroll would attach a
+        # SECOND about-to-finish handler (the old connect-id was never
+        # disconnected), causing double-pop of _streams_queue at the next
+        # about-to-finish. Also unblocks the _on_gst_tag:787 ICY suppression
+        # that would otherwise freeze Now Playing on the station name for a
+        # subsequent non-SomaFM station. Mirror of stop()'s cleanup so the
+        # invariant holds even when stop() was not called between plays.
+        if self._preroll_in_flight or self._preroll_handler_id:
+            self._preroll_seq += 1
+            if self._preroll_handler_id:
+                try:
+                    self._pipeline.disconnect(self._preroll_handler_id)
+                except (TypeError, RuntimeError):
+                    pass
+                self._preroll_handler_id = 0
+            self._preroll_in_flight = False
         self._install_legacy_callbacks(on_title, on_failover, on_offline)
         self._current_station_name = station.name
         self._current_station_id = station.id   # Phase 62: log-line context
@@ -661,6 +680,24 @@ class Player(QObject):
         self._elapsed_seconds = 0
         self._streams_queue = []
         self._recovery_in_flight = False
+        # WR-02 (Phase 83 code review): tear down any in-flight preroll
+        # cleanly so a subsequent play() does not inherit a leaked handler-id
+        # (which would fire double about-to-finish slots — one for the dead
+        # handler attached during the prior preroll, one for the new
+        # connect) and a stale _preroll_in_flight = True (which would
+        # suppress ICY titles on the next non-SomaFM station via the
+        # _on_gst_tag:787 guard). _preroll_seq is bumped so any queued
+        # about-to-finish slot from the dead preroll arrives stale (CR-01
+        # contract).
+        if self._preroll_in_flight or self._preroll_handler_id:
+            self._preroll_seq += 1
+            if self._preroll_handler_id:
+                try:
+                    self._pipeline.disconnect(self._preroll_handler_id)
+                except (TypeError, RuntimeError):
+                    pass
+                self._preroll_handler_id = 0
+            self._preroll_in_flight = False
         # Phase 62 / D-03: force-close any open underrun cycle as outcome=stop.
         prior_close = self._tracker.force_close("stop")
         if prior_close is not None:
