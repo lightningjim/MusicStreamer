@@ -82,6 +82,7 @@ class AccountsDialog(QDialog):
         self.setMinimumWidth(360)
 
         self._oauth_proc: QProcess | None = None
+        self._gbs_login_proc: QProcess | None = None  # Phase 76 D-09: GBS login subprocess
         self._oauth_logger: OAuthLogger | None = None  # Phase 999.3 D-11: lazy-init
 
         # Shared font for all three group status labels.
@@ -113,6 +114,12 @@ class AccountsDialog(QDialog):
         self._gbs_action_btn = QPushButton(self)
         self._gbs_action_btn.clicked.connect(self._on_gbs_action_clicked)  # QA-05
         gbs_layout.addWidget(self._gbs_action_btn)
+
+        # Phase 76 D-14: secondary path — preserve File/Paste tab access
+        # in CookieImportDialog. Hidden when connected (see _update_status).
+        self._gbs_import_btn = QPushButton("Import cookies file…", self)
+        self._gbs_import_btn.clicked.connect(self._on_gbs_import_clicked)  # QA-05
+        gbs_layout.addWidget(self._gbs_import_btn)
 
         # Twitch group box (existing — unchanged shape; status_font now shared)
         twitch_box = QGroupBox("Twitch", self)
@@ -183,13 +190,17 @@ class AccountsDialog(QDialog):
             self._youtube_status_label.setText("Not connected")
             self._youtube_action_btn.setText("Import YouTube Cookies...")
 
-        # Phase 60 D-04c: GBS.FM status (mirror YouTube block)
+        # Phase 60 D-04c + Phase 76 D-03/D-14: GBS.FM status (2-state, with
+        # secondary import-cookies button hidden when connected).
+        # D-03 collapsed scope: 2-state only (no token half).
         if self._is_gbs_connected():
             self._gbs_status_label.setText("Connected")
             self._gbs_action_btn.setText("Disconnect")
+            self._gbs_import_btn.setVisible(False)
         else:
             self._gbs_status_label.setText("Not connected")
-            self._gbs_action_btn.setText("Import GBS.FM Cookies...")
+            self._gbs_action_btn.setText("Connect to GBS.FM…")
+            self._gbs_import_btn.setVisible(True)
 
         if self._oauth_proc is not None:
             self._status_label.setText("Connecting...")
@@ -296,12 +307,12 @@ class AccountsDialog(QDialog):
             self._update_status()
 
     def _on_gbs_action_clicked(self) -> None:
-        """Phase 60 D-04c: Connect (open parameterized CookieImportDialog) or Disconnect."""
+        """Phase 60 D-04c + Phase 76 D-03/D-09: Connect (launch subprocess) or Disconnect."""
         if self._is_gbs_connected():
             answer = QMessageBox.question(
                 self, "Disconnect GBS.FM?",
                 "This will delete your saved GBS.FM cookies. "
-                "You will need to import them again to vote, view the active "
+                "You will need to reconnect to vote, view the active "
                 "playlist, or submit songs.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -316,18 +327,8 @@ class AccountsDialog(QDialog):
                     pass
                 self._update_status()
         else:
-            from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
-            from musicstreamer import gbs_api
-            dlg = CookieImportDialog(
-                self._toast_callback,
-                parent=self,
-                target_label="GBS.FM",
-                cookies_path=paths.gbs_cookies_path,
-                validator=gbs_api._validate_gbs_cookies,
-                oauth_mode=None,   # Phase 60 v1: file + paste tabs only (RESEARCH Q3)
-            )
-            dlg.exec()
-            self._update_status()
+            # Phase 76 D-09: launch oauth_helper --mode gbs subprocess.
+            self._launch_gbs_login_subprocess()
 
     def _launch_oauth_subprocess(self) -> None:
         """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
@@ -338,6 +339,32 @@ class AccountsDialog(QDialog):
             sys.executable,
             ["-m", "musicstreamer.oauth_helper", "--mode", "twitch"],
         )
+        self._update_status()
+
+    def _launch_gbs_login_subprocess(self) -> None:
+        """Phase 76 D-09: launch oauth_helper --mode gbs."""
+        self._gbs_login_proc = QProcess(self)
+        self._gbs_login_proc.finished.connect(self._on_gbs_login_finished)  # QA-05
+        # T-40-05: use sys.executable — no PATH injection; never shell=True
+        self._gbs_login_proc.start(
+            sys.executable,
+            ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"],
+        )
+        self._update_status()
+
+    def _on_gbs_import_clicked(self) -> None:
+        """Phase 76 D-14: secondary path — open the existing File/Paste tabs."""
+        from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+        from musicstreamer import gbs_api
+        dlg = CookieImportDialog(
+            self._toast_callback,
+            parent=self,
+            target_label="GBS.FM",
+            cookies_path=paths.gbs_cookies_path,
+            validator=gbs_api._validate_gbs_cookies,
+            oauth_mode=None,   # Phase 60 v1: file + paste tabs only
+        )
+        dlg.exec()
         self._update_status()
 
     def _on_aa_clear_clicked(self) -> None:
@@ -422,26 +449,153 @@ class AccountsDialog(QDialog):
             return
 
         # ---- Failure path --------------------------------------------
-        # Defensive classification precedence:
-        # 1. exit_code==0 with empty token → InvalidTokenResponse empty_stdout
+        # Phase 76 Task 1 (PLAN 76-03): delegate to shared helper.
+        # Source: accounts_dialog.py:424-458 extracted to
+        # _classify_and_show_failure(provider, exit_code, output, last_event).
+        # Mirrors PATTERNS.md File 2 Summary Table row 9 + RESEARCH
+        # §_on_gbs_login_finished lines 741-746.
+        self._classify_and_show_failure(
+            provider="twitch",
+            exit_code=exit_code,
+            output=token,
+            last_event=last_event,
+        )
+
+    def _on_gbs_login_finished(
+        self,
+        exit_code: int,
+        exit_status: QProcess.ExitStatus,
+    ) -> None:
+        """Mirror _on_oauth_finished but for the Netscape-stdout contract."""
+        proc = self._gbs_login_proc
+        self._gbs_login_proc = None
+
+        # Phase 999.3 D-12: parse stderr line-by-line, keep last valid event.
+        # Inlined per Plan 76-03 Task 1's explicit decision to leave the
+        # stderr-parse block inline to minimize regression risk.
+        last_event: dict | None = None
+        if proc is not None:
+            try:
+                stderr_bytes = proc.readAllStandardError().data()
+            except Exception:
+                stderr_bytes = b""
+            try:
+                stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+            except Exception:
+                stderr_text = ""
+            for line in stderr_text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    # T-999.3-05: malformed line → skip, no eval/no code path.
+                    continue
+                if isinstance(obj, dict) and "category" in obj:
+                    last_event = obj
+
+        # Read stdout (Netscape cookie dump on success).
+        # CRITICAL: do NOT .strip() — Netscape format preserves leading newlines
+        # (RESEARCH line 709 anti-pitfall).
+        netscape_text: str = ""
+        if proc is not None:
+            try:
+                netscape_text = proc.readAllStandardOutput().data().decode(
+                    "utf-8", errors="replace"
+                )
+            except Exception:
+                netscape_text = ""
+
+        # Deferred import to avoid module-load cost (matches Phase 60 deferred
+        # pattern in pre-Phase-76 _on_gbs_action_clicked).
+        from musicstreamer.gbs_api import _validate_gbs_cookies
+
+        # ---- Success path --------------------------------------------
+        success_category = last_event is None or last_event.get("category") == "Success"
+        if (
+            exit_code == 0
+            and netscape_text
+            and success_category
+            and _validate_gbs_cookies(netscape_text)
+        ):
+            cookies_path = paths.gbs_cookies_path()
+            os.makedirs(os.path.dirname(cookies_path), exist_ok=True)
+            with open(cookies_path, "w", encoding="utf-8") as fh:
+                fh.write(netscape_text)
+            os.chmod(cookies_path, 0o600)  # T-40-03 / Phase 999.7 — restrict immediately
+            logger = self._get_oauth_logger()
+            if logger is not None:
+                try:
+                    logger.log_event({
+                        "ts": (last_event or {}).get("ts", 0.0),
+                        "category": "Success",
+                        "detail": "",
+                        "provider": "gbs",
+                    })
+                except Exception:
+                    pass
+            self._toast_callback("GBS.FM logged in.")
+            self._update_status()
+            return
+
+        # ---- Failure path --------------------------------------------
+        # Delegate to the shared helper extracted in Task 1. Passing
+        # netscape_text as ``output`` means the existing classification
+        # precedence (empty output → InvalidTokenResponse empty_stdout)
+        # works unchanged. Validator-rejection (garbage Netscape) also
+        # falls through here because the success guard returned False
+        # without writing; the helper then produces InvalidTokenResponse
+        # on exit_code==0 / SubprocessCrash on non-zero.
+        self._classify_and_show_failure(
+            provider="gbs",
+            exit_code=exit_code,
+            output=netscape_text,
+            last_event=last_event,
+        )
+
+    # ------------------------------------------------------------------
+    # Failure dialog (Phase 999.3 D-08, D-09)
+    # ------------------------------------------------------------------
+
+    def _classify_and_show_failure(
+        self,
+        provider: str,
+        exit_code: int,
+        output: str,
+        last_event: dict | None,
+    ) -> None:
+        """Phase 76 Task 1: shared failure-classification helper.
+
+        Extracted from _on_oauth_finished (accounts_dialog.py:424-458 pre-Phase-76)
+        so both Twitch (_on_oauth_finished) and GBS (_on_gbs_login_finished) reuse
+        identical Phase 999.3 category-dialog plumbing.
+
+        Mirrors PATTERNS.md File 2 Summary Table row 9 + RESEARCH
+        §_on_gbs_login_finished lines 741-746 verbatim. The ``provider`` parameter
+        flows into the synthetic events (T-76-D4 mitigation — never hardcoded).
+        """
+        # Defensive classification precedence (preserved verbatim from the
+        # pre-Phase-76 _on_oauth_finished body — see PATTERNS.md Excerpt 2D
+        # lines 650-657):
+        # 1. exit_code==0 with empty output → InvalidTokenResponse empty_stdout
         #    (takes precedence over missing event; subprocess exited cleanly
         #    but produced no token — semantically an invalid response, not a crash)
         # 2. No parseable event at all → SubprocessCrash exit=<code>
-        # 3. Event present and exit_code==0 but empty token → upgrade to
-        #    InvalidTokenResponse empty_stdout
-        if exit_code == 0 and not token:
+        # 3. Event present → use it as-is.
+        if exit_code == 0 and not output:
             last_event = {
                 "ts": (last_event or {}).get("ts", 0.0),
                 "category": "InvalidTokenResponse",
                 "detail": "empty_stdout",
-                "provider": "twitch",
+                "provider": provider,
             }
         elif last_event is None:
             last_event = {
                 "ts": 0.0,
                 "category": "SubprocessCrash",
                 "detail": f"exit={exit_code}",
-                "provider": "twitch",
+                "provider": provider,
             }
 
         logger = self._get_oauth_logger()
@@ -456,10 +610,6 @@ class AccountsDialog(QDialog):
         category = str(last_event.get("category", "SubprocessCrash"))
         detail = str(last_event.get("detail", ""))
         self._show_failure_dialog(category, detail)
-
-    # ------------------------------------------------------------------
-    # Failure dialog (Phase 999.3 D-08, D-09)
-    # ------------------------------------------------------------------
 
     def _show_failure_dialog(self, category: str, detail: str) -> None:
         """Category + detail failure dialog with inline Retry.
