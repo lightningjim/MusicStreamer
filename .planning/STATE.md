@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: milestone_complete
-stopped_at: Milestone complete (Phase 83 was final phase)
-last_updated: 2026-05-22T21:34:03.046Z
-last_activity: 2026-05-22 -- Phase 83 execution started
+status: executing
+stopped_at: Phase 83 execution complete; 3 manual UAT items in HUMAN-UAT
+last_updated: "2026-05-23T21:20:38.707Z"
+last_activity: 2026-05-23 -- Phase 76 execution started
 progress:
   total_phases: 43
-  completed_phases: 39
+  completed_phases: 40
   total_plans: 183
   completed_plans: 178
-  percent: 91
+  percent: 93
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Milestone complete
+**Current focus:** Phase 76 — gbs-fm-authentication-support-both-pre-existing-api-token-an
 
 ## Current Position
 
-Phase: 83
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-05-22
+Phase: 76 (gbs-fm-authentication-support-both-pre-existing-api-token-an) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 76
+Last activity: 2026-05-23 -- Phase 76 execution started
 
 ## Performance Metrics
 
