@@ -1324,6 +1324,18 @@ class Player(QObject):
         # about-to-finish + plain set_property("uri", ...) works under the
         # MusicStreamer playbin3 configuration (83-RESEARCH §Q1 RESOLVED).
         self._pipeline.set_property("uri", aa_normalize_stream_url(stream.url))
+        # WR-04 (Phase 83 code review): re-arm the caps watch on the post-
+        # handoff stream. The gapless URI swap deliberately does NOT cycle
+        # set_state(NULL → PLAYING), so the _on_playbin_state_changed
+        # Pattern 1b path (which normally calls _arm_caps_watch_for_current_stream)
+        # does not fire. Without this explicit arm, _current_stream is now
+        # set but the pad watch from _start_preroll's _set_uri call is
+        # still bound to a stream_id that no longer matches — so audio
+        # caps for the SomaFM stream are never reported and the stats-for-
+        # nerds row shows "Unknown rate / Unknown depth" for the entire
+        # session. Idempotent: the method disconnects any prior watch
+        # before arming a fresh one.
+        self._arm_caps_watch_for_current_stream()
         # Arm failover-timeout watchdog for the new URL (mirrors
         # _try_next_stream:1087 — BUFFER_DURATION_S window before we give up
         # and advance through _streams_queue).

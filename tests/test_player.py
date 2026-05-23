@@ -1560,6 +1560,36 @@ def test_cr01_preroll_bus_error_then_about_to_finish_does_not_double_pop(qtbot):
     )
 
 
+def test_wr04_gapless_handoff_re_arms_caps_watch(qtbot):
+    """WR-04: the gapless URI handoff must re-arm the caps watch on the
+    post-handoff stream. Without this, _arm_caps_watch_for_current_stream's
+    early-return for _current_stream is None during preroll plus the
+    no-set_state semantics of the gapless swap mean the caps signal
+    never fires — stats-for-nerds shows "Unknown rate / Unknown depth"
+    for the entire SomaFM playback session."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    with patch.object(p, "_tracker", MagicMock()), \
+         patch.object(p, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(p, "_failover_timer", MagicMock()), \
+         patch.object(p, "_elapsed_timer", MagicMock()), \
+         patch.object(p, "_arm_caps_watch_for_current_stream") as mock_arm:
+        p._on_preroll_about_to_finish(p._preroll_seq)
+    assert mock_arm.called, (
+        "WR-04: _on_preroll_about_to_finish must call "
+        "_arm_caps_watch_for_current_stream after set_property('uri', ...) "
+        "so the post-handoff stream's audio caps are detected. Without "
+        "this, the stats-for-nerds row shows 'Unknown rate / Unknown depth' "
+        "for the entire SomaFM session."
+    )
+
+
 def test_wr02_stop_disconnects_preroll_handler_and_clears_flag(qtbot):
     """WR-02: stop() during an in-flight preroll must disconnect the
     about-to-finish handler, clear _preroll_in_flight, zero
