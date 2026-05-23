@@ -103,6 +103,17 @@ def _emit_event(category: str, detail: str = "", **extra) -> None:
 
 _TWITCH_LOGIN_URL = "https://www.twitch.tv/login"
 _TWITCH_AUTH_COOKIE = "auth-token"
+# Phase 76 Task 2: GBS.FM login-page constants (CONTEXT.md D-06 / D-08).
+# `_GBS_LOGIN_URL` verified 2026-05-16 14:05 UTC to resolve to a Django auth
+# form (no CAPTCHA / no 2FA) — see RESEARCH.md §Login URL Resolution.
+# `_GBS_TRIGGER_COOKIES` trigger set verified the same day: `csrftoken` is set
+# by Django on anonymous first GET; `sessionid` is set ONLY after successful
+# authentication. Waiting for BOTH on the gbs.fm domain is the deterministic
+# "login succeeded" signal.
+_GBS_LOGIN_URL = "https://gbs.fm/accounts/login/"
+_GBS_TRIGGER_COOKIES = frozenset(("sessionid", "csrftoken"))
+
+
 def _cookie_domain_matches(cookie: QNetworkCookie) -> bool:
     """True if the cookie's domain is a Twitch domain we accept.
 
@@ -114,6 +125,23 @@ def _cookie_domain_matches(cookie: QNetworkCookie) -> bool:
         return True
     # "*.twitch.tv" — must have at least one additional label before ".twitch.tv"
     return domain.endswith(".twitch.tv")
+
+
+def _cookie_domain_matches_gbs(cookie: QNetworkCookie) -> bool:
+    """True if the cookie's domain is a GBS.FM domain we accept.
+
+    Accepts: "gbs.fm", "www.gbs.fm", ".gbs.fm", or any "*.gbs.fm" subdomain.
+    Rejects lookalikes like "fakegbs.fm" or "gbs.fm.evil.com".
+
+    Phase 76 T-76-01 mitigation: the leading dot in `.gbs.fm` is load-bearing.
+    `domain.endswith("gbs.fm")` (no dot) would accept `fakegbs.fm` —
+    `domain.endswith(".gbs.fm")` requires a label boundary.
+    """
+    domain = cookie.domain()
+    if domain in ("gbs.fm", "www.gbs.fm", ".gbs.fm"):
+        return True
+    # "*.gbs.fm" — must have at least one additional label before ".gbs.fm"
+    return domain.endswith(".gbs.fm")
 
 
 class _TwitchCookieWindow(QMainWindow):
