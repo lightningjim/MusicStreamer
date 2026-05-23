@@ -1218,6 +1218,21 @@ class Player(QObject):
         CR-01 / WR-03: bumps ``_preroll_seq`` so any in-flight queued
         about-to-finish slot from a prior preroll arrives stale and no-ops
         at the seq check (idempotent re-entry guard).
+
+        IN-03 (Phase 83 code review) — PRECONDITION: callers must invoke
+        ``self._cancel_timers()`` and reset ``self._streams_queue`` /
+        ``self._recovery_in_flight`` before calling this method. ``play()``
+        is the only current caller and satisfies this contract at lines
+        543-545. ``play()``'s WR-02 fix also performs the leaked-preroll-
+        handler cleanup defensively before reaching here. If a new caller
+        (e.g. a "retry preroll" feature) is added, it must satisfy the
+        same hygiene or this method will: (a) leak a failover-timer arm
+        on top of any prior failover timer (now harmless thanks to the
+        WR-01 arm below, which restarts a single-shot QTimer either way),
+        (b) overwrite ``_preroll_handler_id`` losing the old connect-id
+        (the WR-02 defensive cleanup in ``play()`` and ``stop()`` handles
+        this for current callers; new callers must call into the same
+        path or replicate it).
         """
         self._preroll_seq += 1  # CR-01 / WR-03: invalidate any stale queued slot
         self._preroll_in_flight = True
