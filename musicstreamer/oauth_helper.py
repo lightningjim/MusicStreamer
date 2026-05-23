@@ -47,6 +47,17 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
     + f' --user-agent="{_CHROME_UA}"'
 ).strip()
 
+# Phase 76 Task 1: provider field for _emit_event.
+#
+# Refactor target — was hardcoded `"provider": "twitch"` inside _emit_event
+# (oauth_helper.py:71-86 pre-Phase-76). main() overwrites this constant after
+# argparse dispatches `--mode`. The default value `"twitch"` preserves
+# backwards compatibility with the existing tests/test_oauth_helper_twitch.py
+# contract — _emit_event called before main() runs still reports the legacy
+# provider. Mirrors RESEARCH.md §_emit_event Provider Field lines 446-459
+# recommendation (a): module-level mutable constant, no kwarg threading.
+_PROVIDER = "twitch"
+
 # Guard QtWebEngineWidgets import — it is a separate apt package
 try:
     from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -79,7 +90,7 @@ def _emit_event(category: str, detail: str = "", **extra) -> None:
         "ts": time.time(),
         "category": category,
         "detail": detail,
-        "provider": "twitch",
+        "provider": _PROVIDER,
     }
     if extra:
         event.update(extra)
@@ -92,6 +103,17 @@ def _emit_event(category: str, detail: str = "", **extra) -> None:
 
 _TWITCH_LOGIN_URL = "https://www.twitch.tv/login"
 _TWITCH_AUTH_COOKIE = "auth-token"
+# Phase 76 Task 2: GBS.FM login-page constants (CONTEXT.md D-06 / D-08).
+# `_GBS_LOGIN_URL` verified 2026-05-16 14:05 UTC to resolve to a Django auth
+# form (no CAPTCHA / no 2FA) — see RESEARCH.md §Login URL Resolution.
+# `_GBS_TRIGGER_COOKIES` trigger set verified the same day: `csrftoken` is set
+# by Django on anonymous first GET; `sessionid` is set ONLY after successful
+# authentication. Waiting for BOTH on the gbs.fm domain is the deterministic
+# "login succeeded" signal.
+_GBS_LOGIN_URL = "https://gbs.fm/accounts/login/"
+_GBS_TRIGGER_COOKIES = frozenset(("sessionid", "csrftoken"))
+
+
 def _cookie_domain_matches(cookie: QNetworkCookie) -> bool:
     """True if the cookie's domain is a Twitch domain we accept.
 
@@ -103,6 +125,23 @@ def _cookie_domain_matches(cookie: QNetworkCookie) -> bool:
         return True
     # "*.twitch.tv" — must have at least one additional label before ".twitch.tv"
     return domain.endswith(".twitch.tv")
+
+
+def _cookie_domain_matches_gbs(cookie: QNetworkCookie) -> bool:
+    """True if the cookie's domain is a GBS.FM domain we accept.
+
+    Accepts: "gbs.fm", "www.gbs.fm", ".gbs.fm", or any "*.gbs.fm" subdomain.
+    Rejects lookalikes like "fakegbs.fm" or "gbs.fm.evil.com".
+
+    Phase 76 T-76-01 mitigation: the leading dot in `.gbs.fm` is load-bearing.
+    `domain.endswith("gbs.fm")` (no dot) would accept `fakegbs.fm` —
+    `domain.endswith(".gbs.fm")` requires a label boundary.
+    """
+    domain = cookie.domain()
+    if domain in ("gbs.fm", "www.gbs.fm", ".gbs.fm"):
+        return True
+    # "*.gbs.fm" — must have at least one additional label before ".gbs.fm"
+    return domain.endswith(".gbs.fm")
 
 
 class _TwitchCookieWindow(QMainWindow):
@@ -175,6 +214,128 @@ class _TwitchCookieWindow(QMainWindow):
     def _on_timeout(self) -> None:
         if self._finished:
             return
+        _emit_event("LoginTimeout", detail="120s")
+        self._finish(1)
+
+    def _finish(self, code: int) -> None:
+        self._finished = True
+        if code == 0:
+            QApplication.quit()
+        else:
+            QApplication.exit(code)
+
+    def closeEvent(self, event):  # noqa: N802
+        if not self._finished:
+            _emit_event("WindowClosedBeforeLogin", detail="")
+            self._finish(1)
+        super().closeEvent(event)
+
+
+# ---------------------------------------------------------------------------
+# GBS.FM cookie-harvest (Phase 76)
+# ---------------------------------------------------------------------------
+
+
+class _GbsLoginWindow(QMainWindow):
+    """Log in to gbs.fm; capture session cookies needed by gbs_api.
+
+    Mirror of _TwitchCookieWindow shape (oauth_helper.py:108-192 pre-Phase-76)
+    with three substitutions:
+      1. login URL: _TWITCH_LOGIN_URL → _GBS_LOGIN_URL
+      2. trigger:  single auth-token cookie → BOTH sessionid AND csrftoken
+                   observed on .gbs.fm (set-based gate via _observed_names)
+      3. output:   raw token via sys.stdout.write(value) → full Netscape dump
+                   of every gbs.fm-domain cookie via _flush_cookies, mirroring
+                   _GoogleWindow._flush_cookies (oauth_helper.py:259-264).
+
+    Trigger semantics (RESEARCH.md §Trigger Cookie Set, verified 2026-05-16):
+      - csrftoken is set by Django on first page load (anonymous GET to
+        /accounts/login/) — does NOT prove the user authenticated.
+      - sessionid is set ONLY after a successful POST to /login with valid
+        credentials.
+      - Waiting for BOTH cookies on the gbs.fm domain is the deterministic
+        "login succeeded" signal.
+
+    Forward-compat: every gbs.fm-domain cookie is stored in self._cookies
+    (not just the two trigger names) so the Netscape dump survives future
+    auxiliary cookies (Django `messages`, CSRF rotation, etc.). The trigger
+    check gates WHEN to flush, not WHAT to collect.
+    """
+
+    _TIMEOUT_MS = 120_000  # 120s login deadline (mirror Twitch)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("GBS.FM Login")
+        self.resize(800, 600)
+        self._finished = False
+        self._cookies: list[QNetworkCookie] = []
+        self._observed_names: set[str] = set()
+
+        self._view = QWebEngineView(self)
+        self.setCentralWidget(self._view)
+
+        # Session-only cookies — never persist to disk in the subprocess profile.
+        profile = self._view.page().profile()
+        profile.setPersistentCookiesPolicy(
+            profile.PersistentCookiesPolicy.NoPersistentCookies  # type: ignore[attr-defined]
+        )
+        # Belt-and-suspenders UA override at the profile level (primary UA is
+        # the --user-agent Chromium flag set at module import time).
+        profile.setHttpUserAgent(_CHROME_UA)
+        cookie_store = profile.cookieStore()
+        cookie_store.cookieAdded.connect(self._on_cookie_added)
+
+        self._view.load(QUrl(_GBS_LOGIN_URL))
+
+        # Login timeout watchdog.
+        QTimer.singleShot(self._TIMEOUT_MS, self._on_timeout)
+
+    def _on_cookie_added(self, cookie: QNetworkCookie) -> None:
+        if self._finished:
+            return
+        # Domain gate FIRST: anything not on the gbs.fm surface is ignored
+        # (T-76-01 mitigation — never store lookalike-domain cookies).
+        if not _cookie_domain_matches_gbs(cookie):
+            return
+        # Store every gbs.fm-domain cookie for forward-compat Netscape dump.
+        self._cookies.append(cookie)
+        try:
+            name = str(cookie.name(), "utf-8")
+        except Exception:
+            return
+        if name in _GBS_TRIGGER_COOKIES:
+            self._observed_names.add(name)
+            if self._observed_names >= _GBS_TRIGGER_COOKIES:
+                # Both trigger cookies observed → flush + emit Success + exit 0.
+                self._flush_cookies()
+
+    def _flush_cookies(self) -> None:
+        if self._finished:
+            return
+        lines = ["# Netscape HTTP Cookie File"]
+        # Deduplicate by (domain, name) — Django can re-send the same cookie
+        # multiple times during a session (RESEARCH.md §Output Format lines
+        # 388-397). Keep last value.
+        unique: dict[tuple[str, str], QNetworkCookie] = {}
+        for c in self._cookies:
+            try:
+                name = str(c.name(), "utf-8")
+            except Exception:
+                continue
+            unique[(c.domain(), name)] = c
+        for c in unique.values():
+            lines.append(_cookie_to_netscape(c))
+        sys.stdout.write("\n".join(lines))
+        sys.stdout.flush()
+        # T-76-02 mitigation: detail is empty string — NEVER cookie value.
+        _emit_event("Success", detail="")
+        self._finish(0)
+
+    def _on_timeout(self) -> None:
+        if self._finished:
+            return
+        # T-76-04 mitigation: 120s watchdog — no indefinite hang.
         _emit_event("LoginTimeout", detail="120s")
         self._finish(1)
 
@@ -274,6 +435,10 @@ class _GoogleWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    # Phase 76 Task 4: _PROVIDER is overwritten after argparse so all
+    # _emit_event calls (including from any window's __init__) see the
+    # correct provider value for the lifetime of this subprocess.
+    global _PROVIDER
     parser = argparse.ArgumentParser(
         prog="musicstreamer.oauth_helper",
         description="Subprocess OAuth helper for MusicStreamer",
@@ -281,16 +446,22 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         required=True,
-        choices=["twitch", "google"],
-        help="OAuth mode: twitch (cookie-harvest) or google (YouTube cookies)",
+        choices=["twitch", "google", "gbs"],
+        help="OAuth mode: twitch (cookie-harvest) or google/gbs (cookies)",
     )
     args = parser.parse_args()
+
+    # Bind _PROVIDER BEFORE window construction so any _emit_event from
+    # __init__ already carries the correct provider field.
+    _PROVIDER = args.mode
 
     # Create standalone QApplication — this is a separate process
     app = QApplication(sys.argv)
 
     if args.mode == "twitch":
         window: QMainWindow = _TwitchCookieWindow()
+    elif args.mode == "gbs":
+        window = _GbsLoginWindow()
     else:
         window = _GoogleWindow()
 
