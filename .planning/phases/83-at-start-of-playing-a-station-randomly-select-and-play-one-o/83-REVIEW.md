@@ -12,7 +12,32 @@ findings:
   warning: 5
   info: 3
   total: 9
-status: issues_found
+status: all_fixed
+fixes_applied:
+  fixed_at: 2026-05-22T00:00:00Z
+  fixer: claude-code (gsd-code-fixer)
+  findings_resolved:
+    - CR-01  # preroll handoff seq-stamp race guard
+    - WR-01  # arm failover-timer watchdog for stuck preroll URLs
+    - WR-02  # clear preroll handler on stop() and fresh play()
+    - WR-03  # stale-slot-from-prior-lifecycle (resolved by CR-01 seq stamp)
+    - WR-04  # re-arm caps watch after gapless URI handoff
+    - WR-05  # document throttle ATTEMPTED semantics + regression test
+    - IN-01  # update stale FakePlayer signal-count comments
+    - IN-02  # document EOS handler scope at bus.connect site
+    - IN-03  # document _start_preroll precondition contract
+  tests_added: 7
+  tests_total_after_fix: 91  # player + signal-parity + pause + failover modules
+  notes:
+    - CR-01 + WR-03 share the _preroll_seq monotonic-counter fix
+      (Signal arity changed from Signal() to Signal(int); FakePlayer mirror
+      updated; 5 existing direct-call test sites now pass p._preroll_seq).
+    - WR-02 fix added cleanup in BOTH stop() and at play() entry so the
+      invariant holds even when stop() was not called between plays.
+    - WR-05 is a documentation + regression-test resolution (D-12 spec
+      intent confirmed; behavior unchanged).
+    - IN-02 used the doc-only OR branch (no method rename) to keep blast
+      radius small.
 ---
 
 # Phase 83: Code Review Report
