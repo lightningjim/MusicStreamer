@@ -82,6 +82,7 @@ class AccountsDialog(QDialog):
         self.setMinimumWidth(360)
 
         self._oauth_proc: QProcess | None = None
+        self._gbs_login_proc: QProcess | None = None  # Phase 76 D-09: GBS login subprocess
         self._oauth_logger: OAuthLogger | None = None  # Phase 999.3 D-11: lazy-init
 
         # Shared font for all three group status labels.
@@ -113,6 +114,12 @@ class AccountsDialog(QDialog):
         self._gbs_action_btn = QPushButton(self)
         self._gbs_action_btn.clicked.connect(self._on_gbs_action_clicked)  # QA-05
         gbs_layout.addWidget(self._gbs_action_btn)
+
+        # Phase 76 D-14: secondary path — preserve File/Paste tab access
+        # in CookieImportDialog. Hidden when connected (see _update_status).
+        self._gbs_import_btn = QPushButton("Import cookies file…", self)
+        self._gbs_import_btn.clicked.connect(self._on_gbs_import_clicked)  # QA-05
+        gbs_layout.addWidget(self._gbs_import_btn)
 
         # Twitch group box (existing — unchanged shape; status_font now shared)
         twitch_box = QGroupBox("Twitch", self)
@@ -183,13 +190,17 @@ class AccountsDialog(QDialog):
             self._youtube_status_label.setText("Not connected")
             self._youtube_action_btn.setText("Import YouTube Cookies...")
 
-        # Phase 60 D-04c: GBS.FM status (mirror YouTube block)
+        # Phase 60 D-04c + Phase 76 D-03/D-14: GBS.FM status (2-state, with
+        # secondary import-cookies button hidden when connected).
+        # D-03 collapsed scope: 2-state only (no token half).
         if self._is_gbs_connected():
             self._gbs_status_label.setText("Connected")
             self._gbs_action_btn.setText("Disconnect")
+            self._gbs_import_btn.setVisible(False)
         else:
             self._gbs_status_label.setText("Not connected")
-            self._gbs_action_btn.setText("Import GBS.FM Cookies...")
+            self._gbs_action_btn.setText("Connect to GBS.FM…")
+            self._gbs_import_btn.setVisible(True)
 
         if self._oauth_proc is not None:
             self._status_label.setText("Connecting...")
@@ -296,12 +307,22 @@ class AccountsDialog(QDialog):
             self._update_status()
 
     def _on_gbs_action_clicked(self) -> None:
-        """Phase 60 D-04c: Connect (open parameterized CookieImportDialog) or Disconnect."""
+        """Phase 60 D-04c + Phase 76 D-03/D-09: Connect (launch oauth_helper
+        --mode gbs subprocess) or Disconnect (clear cookies file).
+
+        D-03 collapsed scope: cookies-only (no token half). Connect now
+        launches the subprocess instead of opening CookieImportDialog —
+        the File/Paste tabs remain reachable via the secondary
+        [Import cookies file…] button (D-14, see _on_gbs_import_clicked).
+
+        Source: accounts_dialog.py:298-330 (pre-Phase-76 body) +
+        RESEARCH §_on_gbs_action_clicked Rewrite lines 626-647.
+        """
         if self._is_gbs_connected():
             answer = QMessageBox.question(
                 self, "Disconnect GBS.FM?",
                 "This will delete your saved GBS.FM cookies. "
-                "You will need to import them again to vote, view the active "
+                "You will need to reconnect to vote, view the active "
                 "playlist, or submit songs.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
@@ -316,18 +337,23 @@ class AccountsDialog(QDialog):
                     pass
                 self._update_status()
         else:
-            from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
-            from musicstreamer import gbs_api
-            dlg = CookieImportDialog(
-                self._toast_callback,
-                parent=self,
-                target_label="GBS.FM",
-                cookies_path=paths.gbs_cookies_path,
-                validator=gbs_api._validate_gbs_cookies,
-                oauth_mode=None,   # Phase 60 v1: file + paste tabs only (RESEARCH Q3)
-            )
-            dlg.exec()
-            self._update_status()
+            # Phase 76 D-09: launch oauth_helper --mode gbs subprocess.
+            self._launch_gbs_login_subprocess()
+
+    def _on_gbs_import_clicked(self) -> None:
+        """Phase 76 D-14: secondary path — open the existing File/Paste tabs."""
+        from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+        from musicstreamer import gbs_api
+        dlg = CookieImportDialog(
+            self._toast_callback,
+            parent=self,
+            target_label="GBS.FM",
+            cookies_path=paths.gbs_cookies_path,
+            validator=gbs_api._validate_gbs_cookies,
+            oauth_mode=None,   # Phase 60 v1: file + paste tabs only
+        )
+        dlg.exec()
+        self._update_status()
 
     def _launch_oauth_subprocess(self) -> None:
         """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
