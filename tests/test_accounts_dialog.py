@@ -916,8 +916,14 @@ class TestAccountsDialogGBS:
         if "Twitch" in titles:
             assert titles.index("GBS.FM") < titles.index("Twitch")
 
+    # Migrated for Phase 76 D-03 collapse — was test_gbs_status_initial_not_connected
+    # at tests/test_accounts_dialog.py:919-929 (pre-Plan-76-04). Original test
+    # asserted the old primary-button text `"Import GBS.FM Cookies..."` which
+    # 76-03 replaced with `"Connect to GBS.FM…"` (single U+2026). Migrated to
+    # assert the new text AND that the secondary import button is visible in
+    # the not-connected state (Plan 76-03 D-14 surface).
     def test_gbs_status_initial_not_connected(self, qtbot, fake_repo, tmp_path, monkeypatch):
-        """Fresh state: cookies file missing → 'Not connected' label + 'Import GBS.FM Cookies...' button."""
+        """Fresh state: cookies file missing → 'Not connected' label + 'Connect to GBS.FM…' primary button + visible import button."""
         import os
         from musicstreamer import paths
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
@@ -926,7 +932,13 @@ class TestAccountsDialogGBS:
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
         assert dlg._gbs_status_label.text() == "Not connected"
-        assert "Import GBS.FM Cookies" in dlg._gbs_action_btn.text()
+        # Plan 76-03: primary button now says "Connect to GBS.FM…" (U+2026).
+        assert dlg._gbs_action_btn.text() == "Connect to GBS.FM…"
+        # Plan 76-03 D-14: secondary import button visible in not-connected state.
+        # Use isHidden() instead of isVisible(): Qt widgets that have not been
+        # shown report isVisible()==False regardless of setVisible(True), but
+        # isHidden() reflects the explicit setVisible(False) state.
+        assert dlg._gbs_import_btn.isHidden() is False
 
     def test_gbs_status_connected_when_cookies_present(self, qtbot, fake_repo, tmp_path, monkeypatch):
         """Cookies file exists → 'Connected' label + 'Disconnect' button."""
@@ -997,24 +1009,97 @@ class TestAccountsDialogGBS:
         monkeypatch.setattr(os, "remove", _raise_isadir)
         dlg._on_gbs_action_clicked()  # No exception expected
 
-    def test_gbs_connect_opens_dialog_with_correct_kwargs(self, qtbot, fake_repo, tmp_path, monkeypatch):
-        """Connect path: opens CookieImportDialog with GBS.FM target_label + paths.gbs_cookies_path + gbs_api validator + oauth_mode=None."""
-        from musicstreamer import paths, gbs_api
+    # Migrated for Phase 76 D-03 collapse — was test_gbs_connect_opens_dialog_with_correct_kwargs
+    # at tests/test_accounts_dialog.py:1000-1020 (pre-Plan-76-04). Original test
+    # asserted that the connect-branch of _on_gbs_action_clicked directly opened
+    # CookieImportDialog with GBS.FM kwargs. Plan 76-03 D-09 rewired the connect
+    # branch to delegate to _launch_gbs_login_subprocess() instead; the
+    # CookieImportDialog flow MOVED to a separate _on_gbs_import_clicked slot
+    # bound to the new secondary [Import cookies file…] button. The
+    # CookieImportDialog-kwargs assertion is preserved by the new
+    # test_gbs_import_button_opens_cookieimportdialog (Task 2 below).
+    def test_gbs_connect_delegates_to_launch_subprocess(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Connect path: not-connected click delegates to _launch_gbs_login_subprocess (Plan 76-03 D-09)."""
+        import os
+        from musicstreamer import paths
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         monkeypatch.setattr(paths, "_root_override", str(tmp_path))
-        captured = {}
-        class FakeDialog:
-            def __init__(self, *args, **kwargs):
-                captured["args"] = args
-                captured["kwargs"] = kwargs
-            def exec(self):
-                return 0
-        monkeypatch.setattr("musicstreamer.ui_qt.cookie_import_dialog.CookieImportDialog",
-                            FakeDialog)
+        os.makedirs(str(tmp_path), exist_ok=True)
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
+        # Sanity: ensure not-connected state (no cookies file).
+        assert not dlg._is_gbs_connected()
+        # Replace _launch_gbs_login_subprocess with a recorder so we don't
+        # actually start a subprocess. The test asserts the delegation.
+        called = {"count": 0}
+        def _record():
+            called["count"] += 1
+        monkeypatch.setattr(dlg, "_launch_gbs_login_subprocess", _record)
+        # Mirror: tests/test_accounts_dialog.py:158-178 (Twitch connect launches QProcess)
         dlg._on_gbs_action_clicked()
-        assert captured["kwargs"]["target_label"] == "GBS.FM"
-        assert captured["kwargs"]["cookies_path"] is paths.gbs_cookies_path
-        assert captured["kwargs"]["validator"] is gbs_api._validate_gbs_cookies
-        assert captured["kwargs"]["oauth_mode"] is None
+        assert called["count"] == 1
+
+    # --------------------------------------------------------------
+    # New for Plan 76-04: status enumeration + secondary import button
+    # --------------------------------------------------------------
+
+    def test_gbs_status_shows_connected_when_cookies_present(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-03: 2-state enumeration — connected → 'Connected' + 'Disconnect' + import-btn hidden."""
+        import os
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        # Create the cookies file BEFORE dialog construction so initial _update_status
+        # sees the connected state.
+        with open(paths.gbs_cookies_path(), "w") as f:
+            f.write("# fake cookies present")
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Plan 76-03 chose "Connected" (not "Connected (cookies)"); accept either.
+        assert dlg._gbs_status_label.text() in {"Connected", "Connected (cookies)"}
+        assert dlg._gbs_action_btn.text() == "Disconnect"
+        # Plan 76-03 D-14: import button hidden when connected.
+        # Use isHidden() (reflects setVisible(False) state) rather than
+        # isVisible() which is False for any not-yet-shown widget.
+        assert dlg._gbs_import_btn.isHidden() is True
+
+    def test_gbs_status_shows_not_connected_when_no_cookies(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-03: 2-state enumeration — not-connected → primary text 'Connect to GBS.FM…' + import-btn visible."""
+        import os
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        # No cookies file → not-connected.
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Belt-and-braces: monkeypatch _is_gbs_connected to False then call _update_status
+        # so this test also exercises the explicit recompute path (independent of disk state).
+        monkeypatch.setattr(dlg, "_is_gbs_connected", lambda: False)
+        dlg._update_status()
+        assert dlg._gbs_status_label.text() == "Not connected"
+        assert dlg._gbs_action_btn.text() == "Connect to GBS.FM…"
+        assert dlg._gbs_import_btn.isHidden() is False
+
+    def test_gbs_import_button_exists_with_correct_text_and_handler(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-14: secondary [Import cookies file…] button exists with the correct text + binds the import slot."""
+        import os
+        from PySide6.QtWidgets import QPushButton
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Type check.
+        assert isinstance(dlg._gbs_import_btn, QPushButton)
+        # Text contains "Import cookies file" and the single U+2026 ellipsis
+        # (NOT three-dot variant "..." — T-76-D consistency with the 76-03 surface).
+        text = dlg._gbs_import_btn.text()
+        assert "Import cookies file" in text
+        assert "…" in text  # U+2026 HORIZONTAL ELLIPSIS
+        assert "..." not in text  # three-dot variant must NOT be present
+        # Bound handler exists on the dialog.
+        assert hasattr(dlg, "_on_gbs_import_clicked")
+        assert callable(dlg._on_gbs_import_clicked)
