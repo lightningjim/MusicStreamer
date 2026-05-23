@@ -1560,6 +1560,59 @@ def test_cr01_preroll_bus_error_then_about_to_finish_does_not_double_pop(qtbot):
     )
 
 
+def test_wr01_start_preroll_arms_failover_timer_watchdog(qtbot):
+    """WR-01: _start_preroll arms self._failover_timer with
+    BUFFER_DURATION_S * 1000 so a stuck/dead preroll URL falls through to
+    the station's actual stream. Pre-Phase 83 _try_next_stream:1087 armed
+    the same timer; the preroll path regressed this watchdog."""
+    from musicstreamer.constants import BUFFER_DURATION_S
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    mock_failover_timer = MagicMock()
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_failover_timer", mock_failover_timer):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    mock_failover_timer.start.assert_called_once_with(BUFFER_DURATION_S * 1000), (
+        "WR-01: _start_preroll must arm _failover_timer with "
+        "BUFFER_DURATION_S * 1000 as the watchdog for stuck preroll URLs."
+    )
+
+
+def test_wr01_on_timeout_during_preroll_runs_cleanup_before_advance(qtbot):
+    """WR-01: when _on_timeout fires while _preroll_in_flight is True, the
+    handler-id and flag are cleared AND _preroll_seq is bumped BEFORE
+    _try_next_stream runs (same cleanup contract as the bus-error preroll
+    branch in _handle_gst_error_recovery — CR-01)."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    seq_before = p._preroll_seq
+    handler_before = p._preroll_handler_id
+    assert handler_before != 0
+    with patch.object(p, "_try_next_stream") as mock_try_next:
+        p._on_timeout()
+    assert p._preroll_in_flight is False, (
+        "WR-01: _on_timeout during preroll must clear _preroll_in_flight."
+    )
+    assert p._preroll_handler_id == 0, (
+        "WR-01: _on_timeout during preroll must disconnect + zero handler-id."
+    )
+    assert p._preroll_seq == seq_before + 1, (
+        "WR-01: _on_timeout during preroll must bump _preroll_seq to "
+        "invalidate any in-flight about-to-finish slot (CR-01 contract)."
+    )
+    assert mock_try_next.called
+
+
 def test_cr01_stale_slot_from_prior_play_rejected(qtbot):
     """WR-03: a queued about-to-finish slot from a PRIOR play()/preroll
     lifecycle must not act on the NEW station's queue. The slot's

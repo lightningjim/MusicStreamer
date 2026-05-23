@@ -1009,7 +1009,26 @@ class Player(QObject):
         self._pause_volume_ramp_state = None
 
     def _on_timeout(self) -> None:
-        """Failover timeout: no audio arrived within BUFFER_DURATION_S seconds."""
+        """Failover timeout: no audio arrived within BUFFER_DURATION_S seconds.
+
+        WR-01 (Phase 83 code review): _start_preroll arms this same timer as
+        a watchdog for stuck/dead preroll URLs. If the timer fires while a
+        preroll is in flight, we must perform the same cleanup as the bus-
+        error preroll branch (CR-01: bump _preroll_seq, disconnect handler,
+        clear flag) BEFORE calling _try_next_stream — otherwise the handler
+        stays connected and a late about-to-finish callback from the dead
+        preroll could pop the queue a second time (the same race CR-01
+        defends against on the bus-error path).
+        """
+        if self._preroll_in_flight:
+            self._preroll_seq += 1  # CR-01: invalidate any in-flight queued slot
+            if self._preroll_handler_id:
+                try:
+                    self._pipeline.disconnect(self._preroll_handler_id)
+                except (TypeError, RuntimeError):
+                    pass
+                self._preroll_handler_id = 0
+            self._preroll_in_flight = False
         self._try_next_stream()
 
     def _on_elapsed_tick(self) -> None:
@@ -1142,6 +1161,15 @@ class Player(QObject):
             "about-to-finish", self._on_preroll_about_to_finish_callback
         )
         self._set_uri(preroll_url)
+        # WR-01 (Phase 83 code review): arm the failover-timeout watchdog
+        # so a stuck/dead preroll URL falls through to the station's actual
+        # stream after BUFFER_DURATION_S. Without this, a silently down
+        # preroll leaves the UI showing 0:00 indefinitely — only bus-error
+        # or EOS would eventually recover, but neither fires for connection
+        # hangs (regression vs. pre-Phase 83 _try_next_stream:1087 arm).
+        # _on_timeout above routes through the preroll-cleanup branch
+        # (disconnect + flag clear + seq bump) before advancing.
+        self._failover_timer.start(BUFFER_DURATION_S * 1000)
 
     def _on_preroll_about_to_finish_callback(self, pipeline) -> None:
         """Phase 83 D-05 / Pattern 1 — GStreamer streaming-thread callback.
