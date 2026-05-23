@@ -1303,3 +1303,243 @@ class TestAccountsDialogGBS:
         assert captured["kwargs"]["cookies_path"] is paths.gbs_cookies_path
         assert captured["kwargs"]["validator"] is gbs_api._validate_gbs_cookies
         assert captured["kwargs"]["oauth_mode"] is None
+
+    # --------------------------------------------------------------
+    # Plan 76-04 Task 3: _on_gbs_login_finished — success / failure /
+    # invalid-Netscape / anti-pitfall regression guards
+    # Mirror sources for the shape:
+    #   tests/test_accounts_dialog.py:196-251 (TestAccountsDialogOAuthFinished)
+    #   tests/test_accounts_dialog.py:254-381 (TestAccountsDialogStderrParsing)
+    #   tests/test_accounts_dialog.py:454-508 (TestAccountsDialogFailureDialogPlainText)
+    #   tests/test_accounts_dialog.py:67     (_mock_proc_with_stderr helper)
+    # --------------------------------------------------------------
+
+    # Verbatim valid-Netscape fixture from PLAN 76-04 <interfaces> block.
+    # Synthetic literals (T-76-T4 mitigation — no real session IDs).
+    _GBS_NETSCAPE_VALID = (
+        "# Netscape HTTP Cookie File\n"
+        ".gbs.fm\tTRUE\t/\tTRUE\t1799999999\tsessionid\ttest_sessionid_value\n"
+        ".gbs.fm\tTRUE\t/\tFALSE\t1799999999\tcsrftoken\ttest_csrftoken_value\n"
+    )
+
+    # Mirror: tests/test_accounts_dialog.py:199-224 (Twitch success-path token write)
+    def test_gbs_login_finished_writes_cookies_on_success(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03: exit 0 + valid Netscape stdout writes to gbs_cookies_path with 0o600."""
+        import os
+        import stat
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        cookies_path = paths.gbs_cookies_path()
+        netscape_bytes = self._GBS_NETSCAPE_VALID.encode("utf-8")
+        success_event = b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=success_event,
+            stdout_bytes=netscape_bytes,
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        # File written.
+        assert os.path.exists(cookies_path)
+        # Content equals the fixture verbatim.
+        assert Path(cookies_path).read_text(encoding="utf-8") == self._GBS_NETSCAPE_VALID
+        # 0o600 permissions (T-40-03 / Phase 999.7).
+        perms = stat.S_IMODE(os.stat(cookies_path).st_mode)
+        assert perms == 0o600
+        # Status flipped to Connected.
+        assert dlg._gbs_status_label.text() in {"Connected", "Connected (cookies)"}
+
+    # Anti-pitfall regression guard for RESEARCH line 709 (.strip() footgun).
+    def test_gbs_login_finished_does_not_strip_netscape(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Netscape stdout with leading newlines must be written verbatim — no .strip()."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        # Prefix with leading newlines. _validate_gbs_cookies skips blank lines,
+        # so the validator still passes; the WRITE must preserve the leading
+        # newlines bytewise.
+        netscape_with_lead = "\n\n" + self._GBS_NETSCAPE_VALID
+        cookies_path = paths.gbs_cookies_path()
+        success_event = b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=success_event,
+            stdout_bytes=netscape_with_lead.encode("utf-8"),
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        written = Path(cookies_path).read_text(encoding="utf-8")
+        # The two leading newlines are still there.
+        assert written.startswith("\n\n")
+        # And the body matches.
+        assert written == netscape_with_lead
+
+    # Mirror: tests/test_accounts_dialog.py:199-224 (logger event recording)
+    def test_gbs_login_finished_logs_provider_gbs_event(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """OAuthLogger.log_event invoked on success with provider='gbs' (T-76-D4 Spoofing guard)."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        netscape_bytes = self._GBS_NETSCAPE_VALID.encode("utf-8")
+        success_event = b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=success_event,
+            stdout_bytes=netscape_bytes,
+        )
+
+        logger_mock = MagicMock()
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        monkeypatch.setattr(dlg, "_get_oauth_logger", lambda: logger_mock)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        # log_event was called.
+        assert logger_mock.log_event.called
+        event = logger_mock.log_event.call_args[0][0]
+        # The synthesized event has provider="gbs" — NOT "twitch" (T-76-D4).
+        assert event["provider"] == "gbs"
+        assert event["category"] == "Success"
+
+    # Mirror: tests/test_accounts_dialog.py:226-251 (failure-dialog delegation)
+    def test_gbs_login_finished_invalidates_bad_netscape(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """exit 0 + garbage stdout fails _validate_gbs_cookies → no file write + failure dialog."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        cookies_path = paths.gbs_cookies_path()
+
+        # Capture _classify_and_show_failure invocations.
+        classify_calls: list[dict] = []
+        def _record_classify(self, provider, exit_code, output, last_event):
+            classify_calls.append({
+                "provider": provider,
+                "exit_code": exit_code,
+                "output": output,
+                "last_event": last_event,
+            })
+        monkeypatch.setattr(
+            AccountsDialog, "_classify_and_show_failure", _record_classify,
+        )
+
+        # Garbage stdout — fails _validate_gbs_cookies.
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n',
+            stdout_bytes=b"garbage text not netscape format",
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        # File NOT written (validator rejected).
+        assert not os.path.exists(cookies_path)
+        # _classify_and_show_failure was invoked with provider="gbs".
+        assert len(classify_calls) == 1
+        assert classify_calls[0]["provider"] == "gbs"
+
+    # Mirror: tests/test_accounts_dialog.py:226-251 (parametrized failure categories)
+    @pytest.mark.parametrize("category", [
+        "LoginTimeout",
+        "WindowClosedBeforeLogin",
+        "InvalidTokenResponse",
+        "SubprocessCrash",
+    ])
+    def test_gbs_login_finished_failure_dialog_for_each_category(
+        self, qtbot, fake_repo, tmp_path, monkeypatch, category,
+    ):
+        """Plan 76-03: each Phase 999.3 category funnels into _classify_and_show_failure with provider='gbs'."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        classify_calls: list[dict] = []
+        def _record_classify(self, provider, exit_code, output, last_event):
+            classify_calls.append({
+                "provider": provider,
+                "exit_code": exit_code,
+                "output": output,
+                "last_event": last_event,
+            })
+        monkeypatch.setattr(
+            AccountsDialog, "_classify_and_show_failure", _record_classify,
+        )
+
+        stderr = (
+            b'{"ts":1.0,"category":"' + category.encode("ascii") +
+            b'","detail":"","provider":"gbs"}\n'
+        )
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=stderr,
+            stdout_bytes=b"",
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert len(classify_calls) == 1
+        call = classify_calls[0]
+        assert call["provider"] == "gbs"
+        # The category from stderr is preserved in last_event.
+        assert call["last_event"] is not None
+        assert call["last_event"]["category"] == category
+
+    # Anti-pitfall regression guard — source inspection (belt-and-braces beyond
+    # the plan's source-level grep gates). RESEARCH line 709: .strip() on the
+    # Netscape stdout would destroy the leading-newline contract.
+    def test_gbs_login_finished_no_strip_anti_pitfall(self):
+        """Source inspection: _on_gbs_login_finished must NOT .strip() netscape_text."""
+        import inspect
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        src = inspect.getsource(AccountsDialog._on_gbs_login_finished)
+        # No `.strip()` anywhere on a line that mentions netscape_text.
+        for line in src.splitlines():
+            if "netscape_text" in line:
+                assert ".strip()" not in line, (
+                    f"netscape_text must not be .strip()'d (RESEARCH line 709 anti-pitfall) "
+                    f"but found in line: {line!r}"
+                )
+
+    # Anti-pitfall regression guard — T-76-D4 Spoofing: the synthetic event
+    # must NEVER hardcode provider="twitch" inside _on_gbs_login_finished.
+    def test_gbs_login_finished_no_provider_twitch_hardcode(self):
+        """Source inspection: _on_gbs_login_finished must NOT hardcode provider='twitch'."""
+        import inspect
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        src = inspect.getsource(AccountsDialog._on_gbs_login_finished)
+        # No literal "twitch" provider hardcode.
+        assert '"provider": "twitch"' not in src, (
+            "T-76-D4: _on_gbs_login_finished must not hardcode provider='twitch'"
+        )
+        assert "'provider': 'twitch'" not in src
+        # Positive: at least one "gbs" provider reference appears (success log).
+        assert '"provider": "gbs"' in src or "'provider': 'gbs'" in src, (
+            "_on_gbs_login_finished should record provider='gbs' on success path"
+        )
