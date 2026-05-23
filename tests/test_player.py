@@ -1560,6 +1560,75 @@ def test_cr01_preroll_bus_error_then_about_to_finish_does_not_double_pop(qtbot):
     )
 
 
+def test_wr05_throttle_documents_attempted_semantics(qtbot):
+    """WR-05: pin D-12's "throttle on most-recent ATTEMPTED preroll"
+    semantics. If the user starts SomaFM station A (preroll START sets
+    _last_preroll_played_at), then immediately plays SomaFM station B
+    within the throttle window, the second preroll is suppressed even
+    though A's preroll never completed handoff.
+
+    This is INTENTIONAL per D-12 (the alternative — update timestamp at
+    handoff — is the D-12 anti-pattern). A future "fix" that moves the
+    timestamp into _on_preroll_about_to_finish would let rapid stop/play
+    cycles start a fresh preroll on every play, defeating the throttle.
+    This test fails if that refactor is made silently."""
+    import time
+    p = _make_player_mock(qtbot)
+    s_a = _make_stream_ph82(1, 1, "hi", "http://a.test/")
+    station_a = _make_station_ph83(
+        [s_a],
+        id_=1,
+        name="Station A",
+        prerolls=["https://somafm.com/a.m4a"],
+        prerolls_fetched_at=1,
+    )
+    with patch.object(p, "_set_uri") as mock_set_uri_a, \
+         patch.object(p, "_try_next_stream"):
+        p.play(station_a)
+    # _last_preroll_played_at must be set at preroll START (not at handoff).
+    assert p._last_preroll_played_at is not None, (
+        "WR-05 / D-12: _last_preroll_played_at must be set at preroll "
+        "START (in _start_preroll), not at handoff."
+    )
+    first_url = mock_set_uri_a.call_args[0][0]
+    assert "preroll" in first_url or "a.m4a" in first_url
+
+    # User does NOT wait for handoff — immediately plays station B.
+    s_b = _make_stream_ph82(2, 2, "hi", "http://b.test/")
+    station_b = _make_station_ph83(
+        [s_b],
+        id_=2,
+        name="Station B",
+        prerolls=["https://somafm.com/b.m4a"],
+        prerolls_fetched_at=1,
+    )
+    # Throttle window NOT elapsed (we just set the timestamp via play() above).
+    with patch.object(p, "_set_uri") as mock_set_uri_b, \
+         patch.object(p, "_try_next_stream") as mock_try_next_b:
+        p.play(station_b)
+    # The throttle gate suppresses B's preroll — _try_next_stream runs
+    # (the stream URL path), not _start_preroll's _set_uri-with-preroll-URL.
+    assert mock_try_next_b.called, (
+        "WR-05 / D-12 ATTEMPTED semantics: throttle window suppresses "
+        "subsequent preroll within 10min of last ATTEMPT (not last "
+        "completed handoff). _try_next_stream must run for station B's "
+        "main stream rather than another _start_preroll."
+    )
+    # If the fix accidentally moves the timestamp into _on_preroll_about_to_finish,
+    # then _last_preroll_played_at would not have been set by play(station_a)
+    # (handoff slot never ran in this test), and station_b's preroll would
+    # NOT have been suppressed — mock_set_uri_b would have been called
+    # with a preroll URL.
+    if mock_set_uri_b.call_count > 0:
+        called_url = mock_set_uri_b.call_args[0][0]
+        assert "preroll" not in called_url and "b.m4a" not in called_url, (
+            "WR-05 / D-12: throttle MUST suppress station_b's preroll "
+            "because station_a's preroll attempt updated the timestamp. "
+            f"Got _set_uri({called_url!r}) — implies the timestamp moved "
+            "to the handoff slot (the D-12 anti-pattern)."
+        )
+
+
 def test_wr04_gapless_handoff_re_arms_caps_watch(qtbot):
     """WR-04: the gapless URI handoff must re-arm the caps watch on the
     post-handoff stream. Without this, _arm_caps_watch_for_current_stream's

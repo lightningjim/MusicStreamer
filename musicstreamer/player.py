@@ -601,6 +601,23 @@ class Player(QObject):
         # Phase 83 D-11 / D-12 / D-13 — SomaFM preroll gate.
         # The literal "SomaFM" is the drift-guard pin (Phase 74 D-02 CamelCase
         # convention; Phase 83 D-14 test pins this literal in non-comment lines).
+        #
+        # WR-05 (Phase 83 code review) — throttle semantics. D-12 explicitly
+        # chose "throttle on most-recent ATTEMPTED preroll" (timestamp set at
+        # preroll START in _start_preroll, not at handoff completion). The
+        # consequence: if the user starts a SomaFM station, hits Stop within
+        # 1 second (preroll never completes handoff), then plays a different
+        # SomaFM station, the second preroll is suppressed for the full 10-
+        # minute window even though no full preroll was ever heard.
+        #
+        # This is INTENTIONAL — moving the timestamp update into the about-
+        # to-finish slot is the D-12 anti-pattern ("rapid replay would let a
+        # second preroll start"). The drift-guard test
+        # test_throttle_timestamp_set_on_start pins this behavior; do NOT
+        # refactor the timestamp update into _on_preroll_about_to_finish
+        # without revisiting D-12. Test test_wr05_throttle_documents_attempted_semantics
+        # explicitly locks the start-attempt semantics so a "fix" that moves
+        # the timestamp to handoff fails loudly.
         if (
             station.provider_name == "SomaFM"
             and (self._last_preroll_played_at is None
