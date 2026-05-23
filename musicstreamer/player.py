@@ -349,7 +349,18 @@ class Player(QObject):
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
         bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
         bus.connect("message::state-changed", self._on_gst_state_changed)  # Phase 57 / WIN-03 D-12
-        bus.connect("message::eos", self._on_gst_eos_during_preroll)  # Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED)
+        # Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED).
+        # IN-02 (Phase 83 code review): _on_gst_eos_during_preroll is the
+        # ONLY message::eos handler in the entire codebase. The name implies
+        # it is preroll-specific, but it is wired to ALL EOS messages — the
+        # handler itself early-returns when _preroll_in_flight is False, so
+        # behavior is correct. A future maintainer searching for EOS
+        # handling for non-preroll streams will not find a separate handler
+        # because there is no separate handler — this IS the one and only
+        # EOS path. If a non-preroll EOS contract is ever needed (e.g.
+        # live-stream-disconnect detection), it must be added INSIDE this
+        # method's `if not self._preroll_in_flight: return` branch.
+        bus.connect("message::eos", self._on_gst_eos_during_preroll)
         # NOTE: no sync-message handler is registered -- it would stall the
         # GStreamer streaming thread (Pitfall 5). Both handlers above run on
         # the GstBusLoopThread daemon and may only emit Qt signals.
