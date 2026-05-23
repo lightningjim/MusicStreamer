@@ -1137,7 +1137,11 @@ def test_streams_queue_failover_after_preroll_handoff(qtbot):
          patch.object(p, "_underrun_dwell_timer", MagicMock()), \
          patch.object(p, "_failover_timer", MagicMock()), \
          patch.object(p, "_elapsed_timer", MagicMock()):
-        p._on_preroll_about_to_finish()
+        # CR-01/WR-03: simulate the queued slot delivery — pass the current
+        # _preroll_seq so the new seq-stamp guard accepts this call. _start_preroll
+        # bumped it to >= 1 via play() above; passing it here mirrors what the
+        # streaming-thread callback emits at the real about-to-finish point.
+        p._on_preroll_about_to_finish(p._preroll_seq)
     # After gapless handoff: flag cleared, _current_stream is queue head.
     assert p._preroll_in_flight is False
     assert p._current_stream is not None
@@ -1271,7 +1275,11 @@ def test_preroll_about_to_finish_uses_gapless_uri_swap(qtbot):
          patch.object(p, "_underrun_dwell_timer", MagicMock()), \
          patch.object(p, "_failover_timer", MagicMock()), \
          patch.object(p, "_elapsed_timer", MagicMock()):
-        p._on_preroll_about_to_finish()
+        # CR-01/WR-03: simulate the queued slot delivery — pass the current
+        # _preroll_seq so the new seq-stamp guard accepts this call. _start_preroll
+        # bumped it to >= 1 via play() above; passing it here mirrors what the
+        # streaming-thread callback emits at the real about-to-finish point.
+        p._on_preroll_about_to_finish(p._preroll_seq)
     # Gapless invariant: set_property called once with the stream URL.
     set_property_calls = [
         c for c in p._pipeline.set_property.call_args_list
@@ -1330,7 +1338,11 @@ def test_preroll_handoff_normalizes_url_via_aa_normalize(qtbot):
          patch.object(p, "_underrun_dwell_timer", MagicMock()), \
          patch.object(p, "_failover_timer", MagicMock()), \
          patch.object(p, "_elapsed_timer", MagicMock()):
-        p._on_preroll_about_to_finish()
+        # CR-01/WR-03: simulate the queued slot delivery — pass the current
+        # _preroll_seq so the new seq-stamp guard accepts this call. _start_preroll
+        # bumped it to >= 1 via play() above; passing it here mirrors what the
+        # streaming-thread callback emits at the real about-to-finish point.
+        p._on_preroll_about_to_finish(p._preroll_seq)
     set_property_calls = [
         c for c in p._pipeline.set_property.call_args_list
         if c.args and c.args[0] == "uri"
@@ -1367,7 +1379,11 @@ def test_preroll_handoff_falls_back_for_youtube_url(qtbot, url_fragment):
     # Slot invocation: should NOT directly set_property; should call
     # _try_next_stream() (the legacy fallback).
     with patch.object(p, "_try_next_stream") as mock_try_next_slot:
-        p._on_preroll_about_to_finish()
+        # CR-01/WR-03: simulate the queued slot delivery — pass the current
+        # _preroll_seq so the new seq-stamp guard accepts this call. _start_preroll
+        # bumped it to >= 1 via play() above; passing it here mirrors what the
+        # streaming-thread callback emits at the real about-to-finish point.
+        p._on_preroll_about_to_finish(p._preroll_seq)
     assert mock_try_next_slot.call_count == 1, (
         f"Phase 83 D-05 (UAT fix): {url_fragment} URL must route through "
         f"_try_next_stream() fallback (async resolution path)."
@@ -1422,7 +1438,11 @@ def test_preroll_handoff_invokes_tracker_bind_and_failover_timer_arm(qtbot):
          patch.object(p, "_underrun_dwell_timer", MagicMock()), \
          patch.object(p, "_failover_timer", mock_failover_timer), \
          patch.object(p, "_elapsed_timer", mock_elapsed_timer):
-        p._on_preroll_about_to_finish()
+        # CR-01/WR-03: simulate the queued slot delivery — pass the current
+        # _preroll_seq so the new seq-stamp guard accepts this call. _start_preroll
+        # bumped it to >= 1 via play() above; passing it here mirrors what the
+        # streaming-thread callback emits at the real about-to-finish point.
+        p._on_preroll_about_to_finish(p._preroll_seq)
     # Tracker.force_close called with outcome="preroll" (NOT "failover")
     # so analytics see this is a gapless handoff close, not a true failover.
     force_close_calls = mock_tracker.force_close.call_args_list
@@ -1475,4 +1495,113 @@ def test_preroll_handoff_invokes_tracker_bind_and_failover_timer_arm(qtbot):
     assert p._is_first_attempt is False, (
         "Phase 83 D-05 (UAT fix): _is_first_attempt must flip to False "
         "after the gapless handoff (mirror of _try_next_stream:1078)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 83 code-review CR-01 / WR-03 regression tests — preroll race guards.
+# Documents the double-pop / stale-slot defenses added in response to the
+# Phase 83 code review (.planning/.../83-REVIEW.md).
+# ---------------------------------------------------------------------------
+
+
+def test_cr01_preroll_bus_error_then_about_to_finish_does_not_double_pop(qtbot):
+    """CR-01 Scenario 1: bus-error preroll recovery fires FIRST, then the
+    queued about-to-finish slot arrives stale. The slot must no-op (NOT pop
+    _streams_queue a second time, NOT replace the in-progress stream).
+
+    Without the _preroll_seq guard, the slot would pop queue[0] = Y after
+    _handle_gst_error_recovery already advanced to X, replacing X with Y
+    mid-track. With the guard, the stale-seq check rejects the call.
+    """
+    p = _make_player_mock(qtbot)
+    s0 = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    s1 = _make_stream_ph82(2, 2, "med", "http://stream.test/")
+    station = _make_station_ph83(
+        [s0, s1], prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    seq_at_emit = p._preroll_seq  # callback captured this value on streaming thread
+    # Bus-error preroll recovery runs first (main-thread queued slot).
+    with patch.object(p, "_try_next_stream") as mock_try_next, \
+         patch.object(p, "_clear_recovery_guard"):
+        p._handle_gst_error_recovery()
+    assert p._preroll_in_flight is False
+    assert mock_try_next.called  # advanced to s0
+    # Seq bumped — the queued about-to-finish slot now arrives stale.
+    assert p._preroll_seq != seq_at_emit, (
+        "CR-01: _handle_gst_error_recovery preroll branch must bump _preroll_seq "
+        "so the queued about-to-finish slot rejects its delivery."
+    )
+    # Snapshot queue + set_property state BEFORE the stale slot runs.
+    queue_len_before = len(p._streams_queue)
+    set_property_uri_calls_before = sum(
+        1 for c in p._pipeline.set_property.call_args_list
+        if c.args and c.args[0] == "uri"
+    )
+    # Now the queued about-to-finish slot delivers with the OLD seq.
+    p._on_preroll_about_to_finish(seq_at_emit)
+    # The stale slot must NOT pop queue and must NOT set_property('uri', ...).
+    assert len(p._streams_queue) == queue_len_before, (
+        "CR-01: stale about-to-finish slot must NOT pop _streams_queue after "
+        "bus-error recovery already advanced. Without the seq guard, the "
+        "slot would pop queue[0] and replace the in-progress stream."
+    )
+    set_property_uri_calls_after = sum(
+        1 for c in p._pipeline.set_property.call_args_list
+        if c.args and c.args[0] == "uri"
+    )
+    assert set_property_uri_calls_after == set_property_uri_calls_before, (
+        "CR-01: stale about-to-finish slot must NOT call set_property('uri', "
+        "...) — that would clobber the stream _handle_gst_error_recovery "
+        "just started."
+    )
+
+
+def test_cr01_stale_slot_from_prior_play_rejected(qtbot):
+    """WR-03: a queued about-to-finish slot from a PRIOR play()/preroll
+    lifecycle must not act on the NEW station's queue. The slot's
+    expected_seq stamp belongs to the dead preroll; the current _preroll_seq
+    is newer (bumped by the second _start_preroll). The guard rejects."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station_a = _make_station_ph83(
+        [s], prerolls=["https://somafm.com/a.m4a"], prerolls_fetched_at=1
+    )
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station_a)
+    stale_seq = p._preroll_seq  # streaming-thread callback would have captured this
+
+    # Simulate stop() (clears state for a fresh play); see WR-02 fix.
+    with patch.object(p, "_failover_timer", MagicMock()), \
+         patch.object(p, "_elapsed_timer", MagicMock()):
+        p.stop()
+    # Second play with a different station — _start_preroll bumps _preroll_seq again.
+    s2 = _make_stream_ph82(2, 2, "hi", "http://stream2.test/")
+    station_b = _make_station_ph83(
+        [s2],
+        id_=2,
+        name="Test Station B",
+        prerolls=["https://somafm.com/b.m4a"],
+        prerolls_fetched_at=1,
+    )
+    # Throttle window — set _last_preroll_played_at well in the past to allow preroll.
+    p._last_preroll_played_at = None
+    with patch.object(p, "_set_uri"), patch.object(p, "_try_next_stream"):
+        p.play(station_b)
+    fresh_seq = p._preroll_seq
+    assert fresh_seq != stale_seq, (
+        "WR-03: each _start_preroll must bump _preroll_seq so stale slots "
+        "from prior lifecycles can be rejected."
+    )
+    queue_len_before = len(p._streams_queue)
+    # The OLD streaming-thread callback finally delivers — main-thread slot
+    # gets the stale seq from station_a's preroll.
+    p._on_preroll_about_to_finish(stale_seq)
+    # Must NOT pop station_b's queue.
+    assert len(p._streams_queue) == queue_len_before, (
+        "WR-03: stale about-to-finish slot from prior play() must NOT pop "
+        "the new station's _streams_queue."
     )

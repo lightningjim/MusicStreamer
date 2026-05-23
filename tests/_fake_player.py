@@ -63,7 +63,7 @@ class FakePlayer(QObject):
     _cancel_timers_requested           = Signal()
     _error_recovery_requested          = Signal()
     _try_next_stream_requested         = Signal()
-    _preroll_about_to_finish_requested = Signal()  # Phase 83 D-05 — preroll about-to-finish handoff
+    _preroll_about_to_finish_requested = Signal(int)  # Phase 83 D-05 — preroll about-to-finish handoff (int = preroll_seq for CR-01/WR-03 guard)
     _playbin_playing_state_reached     = Signal()
     _underrun_cycle_opened         = Signal()
     _underrun_cycle_closed         = Signal(object)

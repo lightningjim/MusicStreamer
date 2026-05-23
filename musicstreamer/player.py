@@ -266,7 +266,15 @@ class Player(QObject):
     # streaming thread. Marshal to main via queued Signal so the disconnect +
     # _try_next_stream() call runs on the QThread (per qt-glib-bus-threading
     # Rule 2; Phase 43.1 fix commit f1333ed).
-    _preroll_about_to_finish_requested = Signal()
+    #
+    # CR-01 / WR-03 (Phase 83 code review): the signal carries the preroll
+    # sequence number captured at about-to-finish-callback time. The main-
+    # thread slot only acts if the sequence still matches _preroll_seq —
+    # this defends against (a) a queued bus-error preroll recovery already
+    # having advanced the queue (CR-01 double-pop), and (b) a stale slot
+    # from a prior play()/stop() lifecycle arriving on a new station's
+    # state (WR-03 cross-lifecycle leak).
+    _preroll_about_to_finish_requested = Signal(int)
     # Phase 57 / WIN-03 D-12: bus-loop -> main: re-apply self._volume after every
     # transition to PLAYING (catches NULL->PLAYING from pause/resume / failover /
     # station switch AND playbin3-internal PAUSED->PLAYING auto-rebuffer recovery
@@ -457,6 +465,14 @@ class Player(QObject):
         self._preroll_in_flight: bool = False
         self._last_preroll_played_at: Optional[float] = None  # D-12 throttle (monotonic; resets per launch)
         self._preroll_handler_id: int = 0  # 0 = no handler connected
+        # CR-01 / WR-03 (Phase 83 code review): monotonic preroll-attempt
+        # counter. Bumped by _start_preroll (new handoff opens) and by
+        # _handle_gst_error_recovery's preroll branch (in-flight handoff
+        # cancelled). The about-to-finish streaming-thread callback captures
+        # _preroll_seq at emit time; the main-thread slot ignores any
+        # delivery whose stamp != _preroll_seq. Cross-thread int read is
+        # atomic in CPython (same justification as _preroll_in_flight).
+        self._preroll_seq: int = 0
         self._backfill_in_flight: set[int] = set()  # D-13 single-flight guard (T-83-10)
 
         # Phase 62 / BUG-09: cycle-tracker instance + station_id field.
@@ -738,7 +754,13 @@ class Player(QObject):
         # Phase 83 D-09 — preroll error path. Don't retry a different preroll;
         # immediately advance to the station's actual stream. No second preroll
         # selection — user experience is "slightly faster intro than expected."
+        #
+        # CR-01: bump _preroll_seq so any queued about-to-finish slot from the
+        # NOW-dead preroll arrives stale and no-ops at the seq check, instead
+        # of popping _streams_queue a second time and clobbering the stream
+        # _try_next_stream is about to start below.
         if self._preroll_in_flight:
+            self._preroll_seq += 1
             if self._preroll_handler_id:
                 try:
                     self._pipeline.disconnect(self._preroll_handler_id)
@@ -1107,7 +1129,13 @@ class Player(QObject):
 
         ``_last_preroll_played_at`` is set HERE (preroll START), not in the
         about-to-finish slot — D-12 explicit anti-pattern is "update on
-        handoff" (rapid replay would let a second preroll start)."""
+        handoff" (rapid replay would let a second preroll start).
+
+        CR-01 / WR-03: bumps ``_preroll_seq`` so any in-flight queued
+        about-to-finish slot from a prior preroll arrives stale and no-ops
+        at the seq check (idempotent re-entry guard).
+        """
+        self._preroll_seq += 1  # CR-01 / WR-03: invalidate any stale queued slot
         self._preroll_in_flight = True
         self._last_preroll_played_at = time.monotonic()
         self._preroll_handler_id = self._pipeline.connect(
@@ -1118,10 +1146,17 @@ class Player(QObject):
     def _on_preroll_about_to_finish_callback(self, pipeline) -> None:
         """Phase 83 D-05 / Pattern 1 — GStreamer streaming-thread callback.
         ONLY emits the queued Signal. NEVER call set_property or any Qt API
-        from this body (qt-glib-bus-threading Rule 2; Phase 43.1 f1333ed)."""
-        self._preroll_about_to_finish_requested.emit()
+        from this body (qt-glib-bus-threading Rule 2; Phase 43.1 f1333ed).
 
-    def _on_preroll_about_to_finish(self) -> None:
+        CR-01 / WR-03: capture ``_preroll_seq`` at emit time and pass it
+        through the queued Signal. The main-thread slot rejects deliveries
+        whose stamp no longer matches the current ``_preroll_seq``
+        (handoff cancelled by bus-error recovery, or this slot belongs to
+        a prior play()/stop() lifecycle). Cross-thread int read is atomic
+        in CPython."""
+        self._preroll_about_to_finish_requested.emit(self._preroll_seq)
+
+    def _on_preroll_about_to_finish(self, expected_seq: int = 0) -> None:
         """Phase 83 D-05 (UAT-corrected) — main-thread slot wired via
         QueuedConnection.
 
@@ -1140,7 +1175,32 @@ class Player(QObject):
 
         For empty _streams_queue (defensive), falls back to
         _try_next_stream() which emits failover(None) as today.
+
+        CR-01 / WR-03 cross-thread race guards (Phase 83 code review):
+
+        1. ``expected_seq != self._preroll_seq``: a parallel slot already
+           ran (bus-error preroll recovery in _handle_gst_error_recovery
+           bumped the seq, or this delivery belongs to a prior preroll
+           lifecycle). Return immediately — the queue must NOT be popped
+           a second time (would replace the in-progress stream mid-track).
+
+        2. ``not self._preroll_in_flight``: same condition expressed
+           through the existing flag — defense in depth. ``stop()`` and
+           the bus-error path both clear this; we must respect that.
+
+        ``expected_seq`` has a default of 0 so test paths that call this
+        slot directly (synchronously, bypassing the queued Signal) work
+        unchanged: ``_preroll_seq`` is 0 at construction and remains 0
+        unless ``_start_preroll`` runs; if tests do call ``play()`` →
+        ``_start_preroll`` first, ``_preroll_seq`` becomes >= 1 and the
+        guard would reject a manual direct call to the slot. Such tests
+        already pass ``_preroll_seq`` implicitly (covered by Phase 83
+        regression — see test_player.py).
         """
+        if expected_seq != self._preroll_seq:
+            return  # CR-01: stale slot — bus-error or new preroll superseded this one
+        if not self._preroll_in_flight:
+            return  # CR-01 defense in depth — flag already cleared by parallel path
         if self._preroll_handler_id:
             try:
                 self._pipeline.disconnect(self._preroll_handler_id)
