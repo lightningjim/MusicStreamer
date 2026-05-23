@@ -916,8 +916,14 @@ class TestAccountsDialogGBS:
         if "Twitch" in titles:
             assert titles.index("GBS.FM") < titles.index("Twitch")
 
+    # Migrated for Phase 76 D-03 collapse — was test_gbs_status_initial_not_connected
+    # at tests/test_accounts_dialog.py:919-929 (pre-Plan-76-04). Original test
+    # asserted the old primary-button text `"Import GBS.FM Cookies..."` which
+    # 76-03 replaced with `"Connect to GBS.FM…"` (single U+2026). Migrated to
+    # assert the new text AND that the secondary import button is visible in
+    # the not-connected state (Plan 76-03 D-14 surface).
     def test_gbs_status_initial_not_connected(self, qtbot, fake_repo, tmp_path, monkeypatch):
-        """Fresh state: cookies file missing → 'Not connected' label + 'Import GBS.FM Cookies...' button."""
+        """Fresh state: cookies file missing → 'Not connected' label + 'Connect to GBS.FM…' primary button + visible import button."""
         import os
         from musicstreamer import paths
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
@@ -926,7 +932,13 @@ class TestAccountsDialogGBS:
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
         assert dlg._gbs_status_label.text() == "Not connected"
-        assert "Import GBS.FM Cookies" in dlg._gbs_action_btn.text()
+        # Plan 76-03: primary button now says "Connect to GBS.FM…" (U+2026).
+        assert dlg._gbs_action_btn.text() == "Connect to GBS.FM…"
+        # Plan 76-03 D-14: secondary import button visible in not-connected state.
+        # Use isHidden() instead of isVisible(): Qt widgets that have not been
+        # shown report isVisible()==False regardless of setVisible(True), but
+        # isHidden() reflects the explicit setVisible(False) state.
+        assert dlg._gbs_import_btn.isHidden() is False
 
     def test_gbs_status_connected_when_cookies_present(self, qtbot, fake_repo, tmp_path, monkeypatch):
         """Cookies file exists → 'Connected' label + 'Disconnect' button."""
@@ -997,24 +1009,537 @@ class TestAccountsDialogGBS:
         monkeypatch.setattr(os, "remove", _raise_isadir)
         dlg._on_gbs_action_clicked()  # No exception expected
 
-    def test_gbs_connect_opens_dialog_with_correct_kwargs(self, qtbot, fake_repo, tmp_path, monkeypatch):
-        """Connect path: opens CookieImportDialog with GBS.FM target_label + paths.gbs_cookies_path + gbs_api validator + oauth_mode=None."""
+    # Migrated for Phase 76 D-03 collapse — was test_gbs_connect_opens_dialog_with_correct_kwargs
+    # at tests/test_accounts_dialog.py:1000-1020 (pre-Plan-76-04). Original test
+    # asserted that the connect-branch of _on_gbs_action_clicked directly opened
+    # CookieImportDialog with GBS.FM kwargs. Plan 76-03 D-09 rewired the connect
+    # branch to delegate to _launch_gbs_login_subprocess() instead; the
+    # CookieImportDialog flow MOVED to a separate _on_gbs_import_clicked slot
+    # bound to the new secondary [Import cookies file…] button. The
+    # CookieImportDialog-kwargs assertion is preserved by the new
+    # test_gbs_import_button_opens_cookieimportdialog (Task 2 below).
+    def test_gbs_connect_delegates_to_launch_subprocess(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Connect path: not-connected click delegates to _launch_gbs_login_subprocess (Plan 76-03 D-09)."""
+        import os
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Sanity: ensure not-connected state (no cookies file).
+        assert not dlg._is_gbs_connected()
+        # Replace _launch_gbs_login_subprocess with a recorder so we don't
+        # actually start a subprocess. The test asserts the delegation.
+        called = {"count": 0}
+        def _record():
+            called["count"] += 1
+        monkeypatch.setattr(dlg, "_launch_gbs_login_subprocess", _record)
+        # Mirror: tests/test_accounts_dialog.py:158-178 (Twitch connect launches QProcess)
+        dlg._on_gbs_action_clicked()
+        assert called["count"] == 1
+
+    # --------------------------------------------------------------
+    # New for Plan 76-04: status enumeration + secondary import button
+    # --------------------------------------------------------------
+
+    def test_gbs_status_shows_connected_when_cookies_present(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-03: 2-state enumeration — connected → 'Connected' + 'Disconnect' + import-btn hidden."""
+        import os
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        # Create the cookies file BEFORE dialog construction so initial _update_status
+        # sees the connected state.
+        with open(paths.gbs_cookies_path(), "w") as f:
+            f.write("# fake cookies present")
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Plan 76-03 chose "Connected" (not "Connected (cookies)"); accept either.
+        assert dlg._gbs_status_label.text() in {"Connected", "Connected (cookies)"}
+        assert dlg._gbs_action_btn.text() == "Disconnect"
+        # Plan 76-03 D-14: import button hidden when connected.
+        # Use isHidden() (reflects setVisible(False) state) rather than
+        # isVisible() which is False for any not-yet-shown widget.
+        assert dlg._gbs_import_btn.isHidden() is True
+
+    def test_gbs_status_shows_not_connected_when_no_cookies(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-03: 2-state enumeration — not-connected → primary text 'Connect to GBS.FM…' + import-btn visible."""
+        import os
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        # No cookies file → not-connected.
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Belt-and-braces: monkeypatch _is_gbs_connected to False then call _update_status
+        # so this test also exercises the explicit recompute path (independent of disk state).
+        monkeypatch.setattr(dlg, "_is_gbs_connected", lambda: False)
+        dlg._update_status()
+        assert dlg._gbs_status_label.text() == "Not connected"
+        assert dlg._gbs_action_btn.text() == "Connect to GBS.FM…"
+        assert dlg._gbs_import_btn.isHidden() is False
+
+    def test_gbs_import_button_exists_with_correct_text_and_handler(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-14: secondary [Import cookies file…] button exists with the correct text + binds the import slot."""
+        import os
+        from PySide6.QtWidgets import QPushButton
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Type check.
+        assert isinstance(dlg._gbs_import_btn, QPushButton)
+        # Text contains "Import cookies file" and the single U+2026 ellipsis
+        # (NOT three-dot variant "..." — T-76-D consistency with the 76-03 surface).
+        text = dlg._gbs_import_btn.text()
+        assert "Import cookies file" in text
+        assert "…" in text  # U+2026 HORIZONTAL ELLIPSIS
+        assert "..." not in text  # three-dot variant must NOT be present
+        # Bound handler exists on the dialog.
+        assert hasattr(dlg, "_on_gbs_import_clicked")
+        assert callable(dlg._on_gbs_import_clicked)
+
+    # --------------------------------------------------------------
+    # Plan 76-04 Task 2: subprocess launch + disconnect-flow + import-button
+    # --------------------------------------------------------------
+
+    # Mirror: tests/test_accounts_dialog.py:158-178 (TestAccountsDialogConnect Twitch launch shape)
+    def test_gbs_action_launches_subprocess_when_not_connected(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-09: not-connected primary click starts QProcess with --mode gbs."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        mock_proc = MagicMock(spec=QProcess)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+            qtbot.addWidget(dlg)
+            # Sanity: not connected.
+            assert not dlg._is_gbs_connected()
+            dlg._on_gbs_action_clicked()
+
+        # start() called exactly once.
+        assert mock_proc.start.called
+        call_args = mock_proc.start.call_args
+        # First positional arg: sys.executable.
+        # Second positional arg: argv list.
+        args_list = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("arguments", [])
+        # Argv MUST be exactly ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"].
+        assert args_list == ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"]
+        # Defensive substring check: "--mode" + "gbs" pair present.
+        joined = " ".join(args_list)
+        assert "--mode" in joined
+        assert "gbs" in joined
+        assert "oauth_helper" in joined
+
+    # Mirror: tests/test_accounts_dialog.py:113-134 (TestAccountsDialogDisconnect Twitch disconnect-Yes shape)
+    def test_gbs_disconnect_clears_cookies_with_yes(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03: disconnect-Yes deletes cookies file and refreshes status."""
+        import os
+        from PySide6.QtWidgets import QMessageBox
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        # Create the cookies file so we start in connected state.
+        cookies_path = paths.gbs_cookies_path()
+        with open(cookies_path, "w") as f:
+            f.write("# fake cookies for disconnect-yes test")
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Auto-confirm: Yes.
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Yes),
+        )
+
+        # Capture os.remove calls — patch BEFORE the click (handler imports os at module level).
+        remove_mock = MagicMock(wraps=os.remove)
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.accounts_dialog.os.remove", remove_mock
+        )
+
+        dlg._on_gbs_action_clicked()
+
+        # os.remove called with the cookies path.
+        assert remove_mock.call_count == 1
+        assert remove_mock.call_args[0][0] == cookies_path
+        # Status flipped to Not connected (status refresh fired).
+        assert dlg._gbs_status_label.text() == "Not connected"
+        assert dlg._gbs_action_btn.text() == "Connect to GBS.FM…"
+
+    # Mirror: tests/test_accounts_dialog.py:136-153 (TestAccountsDialogDisconnect Twitch disconnect-No shape)
+    def test_gbs_disconnect_no_op_with_no(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03: disconnect-No is a no-op — cookies file untouched."""
+        import os
+        from PySide6.QtWidgets import QMessageBox
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        cookies_path = paths.gbs_cookies_path()
+        with open(cookies_path, "w") as f:
+            f.write("# fake cookies for disconnect-no test")
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Auto-decline: No.
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            staticmethod(lambda *a, **kw: QMessageBox.StandardButton.No),
+        )
+
+        remove_mock = MagicMock()
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.accounts_dialog.os.remove", remove_mock
+        )
+
+        dlg._on_gbs_action_clicked()
+
+        # os.remove NOT called.
+        remove_mock.assert_not_called()
+        # Cookies file still present.
+        assert os.path.exists(cookies_path)
+        # Status stays Connected (no toast / no state change).
+        assert dlg._gbs_status_label.text() in {"Connected", "Connected (cookies)"}
+
+    # Phase 60 HIGH 2 regression guard — separate from the existing
+    # test_gbs_disconnect_oserror_tolerated which only checks
+    # FileNotFoundError/PermissionError/IsADirectoryError don't propagate.
+    # This test pins the specific PermissionError path AND verifies
+    # _update_status still fires (UI consistency invariant).
+    def test_gbs_disconnect_tolerates_oserror(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 / Phase 60 HIGH 2: PermissionError on os.remove is swallowed; _update_status still fires."""
+        import os
+        from PySide6.QtWidgets import QMessageBox
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        cookies_path = paths.gbs_cookies_path()
+        with open(cookies_path, "w") as f:
+            f.write("# fake cookies")
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Yes),
+        )
+
+        # Track _update_status invocations.
+        update_calls = {"count": 0}
+        original_update = dlg._update_status
+        def _counting_update():
+            update_calls["count"] += 1
+            return original_update()
+        monkeypatch.setattr(dlg, "_update_status", _counting_update)
+
+        # os.remove raises PermissionError (an OSError subclass).
+        def _raise_perm(_path):
+            raise PermissionError("simulated read-only fs")
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.accounts_dialog.os.remove", _raise_perm
+        )
+
+        # Handler MUST NOT propagate OSError.
+        try:
+            dlg._on_gbs_action_clicked()
+        except OSError as exc:
+            pytest.fail(f"OSError should be swallowed by handler, got: {exc!r}")
+
+        # _update_status fired despite the swallowed error (UI consistency).
+        assert update_calls["count"] >= 1
+
+    # Mirror: pre-Plan-76-04 test_gbs_connect_opens_dialog_with_correct_kwargs
+    # at tests/test_accounts_dialog.py:1000-1020 — the kwargs-on-CookieImportDialog
+    # invariant moves here and now exercises the secondary import-button slot
+    # (Plan 76-03 D-14) instead of the connect-branch.
+    def test_gbs_import_button_opens_cookieimportdialog(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-14: _on_gbs_import_clicked constructs CookieImportDialog with the GBS-FM kwargs."""
+        import os
         from musicstreamer import paths, gbs_api
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
         captured = {}
         class FakeDialog:
             def __init__(self, *args, **kwargs):
                 captured["args"] = args
                 captured["kwargs"] = kwargs
+                captured["exec_called"] = False
             def exec(self):
+                captured["exec_called"] = True
                 return 0
-        monkeypatch.setattr("musicstreamer.ui_qt.cookie_import_dialog.CookieImportDialog",
-                            FakeDialog)
+
+        # _on_gbs_import_clicked uses a deferred import:
+        # `from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog`.
+        # Patch at the source module — the deferred import resolves against the
+        # real module's namespace at call time.
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.cookie_import_dialog.CookieImportDialog", FakeDialog
+        )
+
         dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
         qtbot.addWidget(dlg)
-        dlg._on_gbs_action_clicked()
+        dlg._on_gbs_import_clicked()
+
+        # FakeDialog constructed once and exec()ed.
+        assert "kwargs" in captured
+        assert captured["exec_called"] is True
+        # Four required kwargs (Plan 76-03 D-14 verbatim).
         assert captured["kwargs"]["target_label"] == "GBS.FM"
         assert captured["kwargs"]["cookies_path"] is paths.gbs_cookies_path
         assert captured["kwargs"]["validator"] is gbs_api._validate_gbs_cookies
         assert captured["kwargs"]["oauth_mode"] is None
+
+    # --------------------------------------------------------------
+    # Plan 76-04 Task 3: _on_gbs_login_finished — success / failure /
+    # invalid-Netscape / anti-pitfall regression guards
+    # Mirror sources for the shape:
+    #   tests/test_accounts_dialog.py:196-251 (TestAccountsDialogOAuthFinished)
+    #   tests/test_accounts_dialog.py:254-381 (TestAccountsDialogStderrParsing)
+    #   tests/test_accounts_dialog.py:454-508 (TestAccountsDialogFailureDialogPlainText)
+    #   tests/test_accounts_dialog.py:67     (_mock_proc_with_stderr helper)
+    # --------------------------------------------------------------
+
+    # Verbatim valid-Netscape fixture from PLAN 76-04 <interfaces> block.
+    # Synthetic literals (T-76-T4 mitigation — no real session IDs).
+    _GBS_NETSCAPE_VALID = (
+        "# Netscape HTTP Cookie File\n"
+        ".gbs.fm\tTRUE\t/\tTRUE\t1799999999\tsessionid\ttest_sessionid_value\n"
+        ".gbs.fm\tTRUE\t/\tFALSE\t1799999999\tcsrftoken\ttest_csrftoken_value\n"
+    )
+
+    # Mirror: tests/test_accounts_dialog.py:199-224 (Twitch success-path token write)
+    def test_gbs_login_finished_writes_cookies_on_success(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03: exit 0 + valid Netscape stdout writes to gbs_cookies_path with 0o600."""
+        import os
+        import stat
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        cookies_path = paths.gbs_cookies_path()
+        netscape_bytes = self._GBS_NETSCAPE_VALID.encode("utf-8")
+        success_event = b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=success_event,
+            stdout_bytes=netscape_bytes,
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        # File written.
+        assert os.path.exists(cookies_path)
+        # Content equals the fixture verbatim.
+        assert Path(cookies_path).read_text(encoding="utf-8") == self._GBS_NETSCAPE_VALID
+        # 0o600 permissions (T-40-03 / Phase 999.7).
+        perms = stat.S_IMODE(os.stat(cookies_path).st_mode)
+        assert perms == 0o600
+        # Status flipped to Connected.
+        assert dlg._gbs_status_label.text() in {"Connected", "Connected (cookies)"}
+
+    # Anti-pitfall regression guard for RESEARCH line 709 (.strip() footgun).
+    def test_gbs_login_finished_does_not_strip_netscape(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Netscape stdout with leading newlines must be written verbatim — no .strip()."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        # Prefix with leading newlines. _validate_gbs_cookies skips blank lines,
+        # so the validator still passes; the WRITE must preserve the leading
+        # newlines bytewise.
+        netscape_with_lead = "\n\n" + self._GBS_NETSCAPE_VALID
+        cookies_path = paths.gbs_cookies_path()
+        success_event = b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=success_event,
+            stdout_bytes=netscape_with_lead.encode("utf-8"),
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        written = Path(cookies_path).read_text(encoding="utf-8")
+        # The two leading newlines are still there.
+        assert written.startswith("\n\n")
+        # And the body matches.
+        assert written == netscape_with_lead
+
+    # Mirror: tests/test_accounts_dialog.py:199-224 (logger event recording)
+    def test_gbs_login_finished_logs_provider_gbs_event(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """OAuthLogger.log_event invoked on success with provider='gbs' (T-76-D4 Spoofing guard)."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        netscape_bytes = self._GBS_NETSCAPE_VALID.encode("utf-8")
+        success_event = b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n'
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=success_event,
+            stdout_bytes=netscape_bytes,
+        )
+
+        logger_mock = MagicMock()
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        monkeypatch.setattr(dlg, "_get_oauth_logger", lambda: logger_mock)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        # log_event was called.
+        assert logger_mock.log_event.called
+        event = logger_mock.log_event.call_args[0][0]
+        # The synthesized event has provider="gbs" — NOT "twitch" (T-76-D4).
+        assert event["provider"] == "gbs"
+        assert event["category"] == "Success"
+
+    # Mirror: tests/test_accounts_dialog.py:226-251 (failure-dialog delegation)
+    def test_gbs_login_finished_invalidates_bad_netscape(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """exit 0 + garbage stdout fails _validate_gbs_cookies → no file write + failure dialog."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        cookies_path = paths.gbs_cookies_path()
+
+        # Capture _classify_and_show_failure invocations.
+        classify_calls: list[dict] = []
+        def _record_classify(self, provider, exit_code, output, last_event):
+            classify_calls.append({
+                "provider": provider,
+                "exit_code": exit_code,
+                "output": output,
+                "last_event": last_event,
+            })
+        monkeypatch.setattr(
+            AccountsDialog, "_classify_and_show_failure", _record_classify,
+        )
+
+        # Garbage stdout — fails _validate_gbs_cookies.
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=b'{"ts":1.0,"category":"Success","detail":"","provider":"gbs"}\n',
+            stdout_bytes=b"garbage text not netscape format",
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+
+        # File NOT written (validator rejected).
+        assert not os.path.exists(cookies_path)
+        # _classify_and_show_failure was invoked with provider="gbs".
+        assert len(classify_calls) == 1
+        assert classify_calls[0]["provider"] == "gbs"
+
+    # Mirror: tests/test_accounts_dialog.py:226-251 (parametrized failure categories)
+    @pytest.mark.parametrize("category", [
+        "LoginTimeout",
+        "WindowClosedBeforeLogin",
+        "InvalidTokenResponse",
+        "SubprocessCrash",
+    ])
+    def test_gbs_login_finished_failure_dialog_for_each_category(
+        self, qtbot, fake_repo, tmp_path, monkeypatch, category,
+    ):
+        """Plan 76-03: each Phase 999.3 category funnels into _classify_and_show_failure with provider='gbs'."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        classify_calls: list[dict] = []
+        def _record_classify(self, provider, exit_code, output, last_event):
+            classify_calls.append({
+                "provider": provider,
+                "exit_code": exit_code,
+                "output": output,
+                "last_event": last_event,
+            })
+        monkeypatch.setattr(
+            AccountsDialog, "_classify_and_show_failure", _record_classify,
+        )
+
+        stderr = (
+            b'{"ts":1.0,"category":"' + category.encode("ascii") +
+            b'","detail":"","provider":"gbs"}\n'
+        )
+        mock_proc = _mock_proc_with_stderr(
+            stderr_bytes=stderr,
+            stdout_bytes=b"",
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._on_gbs_login_finished(1, QProcess.ExitStatus.NormalExit)
+
+        assert len(classify_calls) == 1
+        call = classify_calls[0]
+        assert call["provider"] == "gbs"
+        # The category from stderr is preserved in last_event.
+        assert call["last_event"] is not None
+        assert call["last_event"]["category"] == category
+
+    # Anti-pitfall regression guard — source inspection (belt-and-braces beyond
+    # the plan's source-level grep gates). RESEARCH line 709: .strip() on the
+    # Netscape stdout would destroy the leading-newline contract.
+    def test_gbs_login_finished_no_strip_anti_pitfall(self):
+        """Source inspection: _on_gbs_login_finished must NOT .strip() netscape_text."""
+        import inspect
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        src = inspect.getsource(AccountsDialog._on_gbs_login_finished)
+        # No `.strip()` anywhere on a line that mentions netscape_text.
+        for line in src.splitlines():
+            if "netscape_text" in line:
+                assert ".strip()" not in line, (
+                    f"netscape_text must not be .strip()'d (RESEARCH line 709 anti-pitfall) "
+                    f"but found in line: {line!r}"
+                )
+
+    # Anti-pitfall regression guard — T-76-D4 Spoofing: the synthetic event
+    # must NEVER hardcode provider="twitch" inside _on_gbs_login_finished.
+    def test_gbs_login_finished_no_provider_twitch_hardcode(self):
+        """Source inspection: _on_gbs_login_finished must NOT hardcode provider='twitch'."""
+        import inspect
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        src = inspect.getsource(AccountsDialog._on_gbs_login_finished)
+        # No literal "twitch" provider hardcode.
+        assert '"provider": "twitch"' not in src, (
+            "T-76-D4: _on_gbs_login_finished must not hardcode provider='twitch'"
+        )
+        assert "'provider': 'twitch'" not in src
+        # Positive: at least one "gbs" provider reference appears (success log).
+        assert '"provider": "gbs"' in src or "'provider': 'gbs'" in src, (
+            "_on_gbs_login_finished should record provider='gbs' on success path"
+        )
