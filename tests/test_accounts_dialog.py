@@ -1103,3 +1103,203 @@ class TestAccountsDialogGBS:
         # Bound handler exists on the dialog.
         assert hasattr(dlg, "_on_gbs_import_clicked")
         assert callable(dlg._on_gbs_import_clicked)
+
+    # --------------------------------------------------------------
+    # Plan 76-04 Task 2: subprocess launch + disconnect-flow + import-button
+    # --------------------------------------------------------------
+
+    # Mirror: tests/test_accounts_dialog.py:158-178 (TestAccountsDialogConnect Twitch launch shape)
+    def test_gbs_action_launches_subprocess_when_not_connected(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-09: not-connected primary click starts QProcess with --mode gbs."""
+        import os
+        from PySide6.QtCore import QProcess
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        mock_proc = MagicMock(spec=QProcess)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+            qtbot.addWidget(dlg)
+            # Sanity: not connected.
+            assert not dlg._is_gbs_connected()
+            dlg._on_gbs_action_clicked()
+
+        # start() called exactly once.
+        assert mock_proc.start.called
+        call_args = mock_proc.start.call_args
+        # First positional arg: sys.executable.
+        # Second positional arg: argv list.
+        args_list = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("arguments", [])
+        # Argv MUST be exactly ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"].
+        assert args_list == ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"]
+        # Defensive substring check: "--mode" + "gbs" pair present.
+        joined = " ".join(args_list)
+        assert "--mode" in joined
+        assert "gbs" in joined
+        assert "oauth_helper" in joined
+
+    # Mirror: tests/test_accounts_dialog.py:113-134 (TestAccountsDialogDisconnect Twitch disconnect-Yes shape)
+    def test_gbs_disconnect_clears_cookies_with_yes(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03: disconnect-Yes deletes cookies file and refreshes status."""
+        import os
+        from PySide6.QtWidgets import QMessageBox
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        # Create the cookies file so we start in connected state.
+        cookies_path = paths.gbs_cookies_path()
+        with open(cookies_path, "w") as f:
+            f.write("# fake cookies for disconnect-yes test")
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Auto-confirm: Yes.
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Yes),
+        )
+
+        # Capture os.remove calls — patch BEFORE the click (handler imports os at module level).
+        remove_mock = MagicMock(wraps=os.remove)
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.accounts_dialog.os.remove", remove_mock
+        )
+
+        dlg._on_gbs_action_clicked()
+
+        # os.remove called with the cookies path.
+        assert remove_mock.call_count == 1
+        assert remove_mock.call_args[0][0] == cookies_path
+        # Status flipped to Not connected (status refresh fired).
+        assert dlg._gbs_status_label.text() == "Not connected"
+        assert dlg._gbs_action_btn.text() == "Connect to GBS.FM…"
+
+    # Mirror: tests/test_accounts_dialog.py:136-153 (TestAccountsDialogDisconnect Twitch disconnect-No shape)
+    def test_gbs_disconnect_no_op_with_no(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03: disconnect-No is a no-op — cookies file untouched."""
+        import os
+        from PySide6.QtWidgets import QMessageBox
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        cookies_path = paths.gbs_cookies_path()
+        with open(cookies_path, "w") as f:
+            f.write("# fake cookies for disconnect-no test")
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        # Auto-decline: No.
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            staticmethod(lambda *a, **kw: QMessageBox.StandardButton.No),
+        )
+
+        remove_mock = MagicMock()
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.accounts_dialog.os.remove", remove_mock
+        )
+
+        dlg._on_gbs_action_clicked()
+
+        # os.remove NOT called.
+        remove_mock.assert_not_called()
+        # Cookies file still present.
+        assert os.path.exists(cookies_path)
+        # Status stays Connected (no toast / no state change).
+        assert dlg._gbs_status_label.text() in {"Connected", "Connected (cookies)"}
+
+    # Phase 60 HIGH 2 regression guard — separate from the existing
+    # test_gbs_disconnect_oserror_tolerated which only checks
+    # FileNotFoundError/PermissionError/IsADirectoryError don't propagate.
+    # This test pins the specific PermissionError path AND verifies
+    # _update_status still fires (UI consistency invariant).
+    def test_gbs_disconnect_tolerates_oserror(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 / Phase 60 HIGH 2: PermissionError on os.remove is swallowed; _update_status still fires."""
+        import os
+        from PySide6.QtWidgets import QMessageBox
+        from musicstreamer import paths
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+        cookies_path = paths.gbs_cookies_path()
+        with open(cookies_path, "w") as f:
+            f.write("# fake cookies")
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        monkeypatch.setattr(
+            QMessageBox, "question",
+            staticmethod(lambda *a, **kw: QMessageBox.StandardButton.Yes),
+        )
+
+        # Track _update_status invocations.
+        update_calls = {"count": 0}
+        original_update = dlg._update_status
+        def _counting_update():
+            update_calls["count"] += 1
+            return original_update()
+        monkeypatch.setattr(dlg, "_update_status", _counting_update)
+
+        # os.remove raises PermissionError (an OSError subclass).
+        def _raise_perm(_path):
+            raise PermissionError("simulated read-only fs")
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.accounts_dialog.os.remove", _raise_perm
+        )
+
+        # Handler MUST NOT propagate OSError.
+        try:
+            dlg._on_gbs_action_clicked()
+        except OSError as exc:
+            pytest.fail(f"OSError should be swallowed by handler, got: {exc!r}")
+
+        # _update_status fired despite the swallowed error (UI consistency).
+        assert update_calls["count"] >= 1
+
+    # Mirror: pre-Plan-76-04 test_gbs_connect_opens_dialog_with_correct_kwargs
+    # at tests/test_accounts_dialog.py:1000-1020 — the kwargs-on-CookieImportDialog
+    # invariant moves here and now exercises the secondary import-button slot
+    # (Plan 76-03 D-14) instead of the connect-branch.
+    def test_gbs_import_button_opens_cookieimportdialog(self, qtbot, fake_repo, tmp_path, monkeypatch):
+        """Plan 76-03 D-14: _on_gbs_import_clicked constructs CookieImportDialog with the GBS-FM kwargs."""
+        import os
+        from musicstreamer import paths, gbs_api
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+        os.makedirs(str(tmp_path), exist_ok=True)
+
+        captured = {}
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                captured["args"] = args
+                captured["kwargs"] = kwargs
+                captured["exec_called"] = False
+            def exec(self):
+                captured["exec_called"] = True
+                return 0
+
+        # _on_gbs_import_clicked uses a deferred import:
+        # `from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog`.
+        # Patch at the source module — the deferred import resolves against the
+        # real module's namespace at call time.
+        monkeypatch.setattr(
+            "musicstreamer.ui_qt.cookie_import_dialog.CookieImportDialog", FakeDialog
+        )
+
+        dlg = AccountsDialog(fake_repo, toast_callback=lambda t: None)
+        qtbot.addWidget(dlg)
+        dlg._on_gbs_import_clicked()
+
+        # FakeDialog constructed once and exec()ed.
+        assert "kwargs" in captured
+        assert captured["exec_called"] is True
+        # Four required kwargs (Plan 76-03 D-14 verbatim).
+        assert captured["kwargs"]["target_label"] == "GBS.FM"
+        assert captured["kwargs"]["cookies_path"] is paths.gbs_cookies_path
+        assert captured["kwargs"]["validator"] is gbs_api._validate_gbs_cookies
+        assert captured["kwargs"]["oauth_mode"] is None
