@@ -422,26 +422,60 @@ class AccountsDialog(QDialog):
             return
 
         # ---- Failure path --------------------------------------------
-        # Defensive classification precedence:
-        # 1. exit_code==0 with empty token → InvalidTokenResponse empty_stdout
+        # Phase 76 Task 1 (PLAN 76-03): delegate to shared helper.
+        # Source: accounts_dialog.py:424-458 extracted to
+        # _classify_and_show_failure(provider, exit_code, output, last_event).
+        # Mirrors PATTERNS.md File 2 Summary Table row 9 + RESEARCH
+        # §_on_gbs_login_finished lines 741-746.
+        self._classify_and_show_failure(
+            provider="twitch",
+            exit_code=exit_code,
+            output=token,
+            last_event=last_event,
+        )
+
+    # ------------------------------------------------------------------
+    # Failure dialog (Phase 999.3 D-08, D-09)
+    # ------------------------------------------------------------------
+
+    def _classify_and_show_failure(
+        self,
+        provider: str,
+        exit_code: int,
+        output: str,
+        last_event: dict | None,
+    ) -> None:
+        """Phase 76 Task 1: shared failure-classification helper.
+
+        Extracted from _on_oauth_finished (accounts_dialog.py:424-458 pre-Phase-76)
+        so both Twitch (_on_oauth_finished) and GBS (_on_gbs_login_finished) reuse
+        identical Phase 999.3 category-dialog plumbing.
+
+        Mirrors PATTERNS.md File 2 Summary Table row 9 + RESEARCH
+        §_on_gbs_login_finished lines 741-746 verbatim. The ``provider`` parameter
+        flows into the synthetic events (T-76-D4 mitigation — never hardcoded).
+        """
+        # Defensive classification precedence (preserved verbatim from the
+        # pre-Phase-76 _on_oauth_finished body — see PATTERNS.md Excerpt 2D
+        # lines 650-657):
+        # 1. exit_code==0 with empty output → InvalidTokenResponse empty_stdout
         #    (takes precedence over missing event; subprocess exited cleanly
         #    but produced no token — semantically an invalid response, not a crash)
         # 2. No parseable event at all → SubprocessCrash exit=<code>
-        # 3. Event present and exit_code==0 but empty token → upgrade to
-        #    InvalidTokenResponse empty_stdout
-        if exit_code == 0 and not token:
+        # 3. Event present → use it as-is.
+        if exit_code == 0 and not output:
             last_event = {
                 "ts": (last_event or {}).get("ts", 0.0),
                 "category": "InvalidTokenResponse",
                 "detail": "empty_stdout",
-                "provider": "twitch",
+                "provider": provider,
             }
         elif last_event is None:
             last_event = {
                 "ts": 0.0,
                 "category": "SubprocessCrash",
                 "detail": f"exit={exit_code}",
-                "provider": "twitch",
+                "provider": provider,
             }
 
         logger = self._get_oauth_logger()
@@ -456,10 +490,6 @@ class AccountsDialog(QDialog):
         category = str(last_event.get("category", "SubprocessCrash"))
         detail = str(last_event.get("detail", ""))
         self._show_failure_dialog(category, detail)
-
-    # ------------------------------------------------------------------
-    # Failure dialog (Phase 999.3 D-08, D-09)
-    # ------------------------------------------------------------------
 
     def _show_failure_dialog(self, category: str, detail: str) -> None:
         """Category + detail failure dialog with inline Retry.
