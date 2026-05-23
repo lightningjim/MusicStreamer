@@ -435,6 +435,10 @@ class _GoogleWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    # Phase 76 Task 4: _PROVIDER is overwritten after argparse so all
+    # _emit_event calls (including from any window's __init__) see the
+    # correct provider value for the lifetime of this subprocess.
+    global _PROVIDER
     parser = argparse.ArgumentParser(
         prog="musicstreamer.oauth_helper",
         description="Subprocess OAuth helper for MusicStreamer",
@@ -442,16 +446,22 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         required=True,
-        choices=["twitch", "google"],
-        help="OAuth mode: twitch (cookie-harvest) or google (YouTube cookies)",
+        choices=["twitch", "google", "gbs"],
+        help="OAuth mode: twitch (cookie-harvest) or google/gbs (cookies)",
     )
     args = parser.parse_args()
+
+    # Bind _PROVIDER BEFORE window construction so any _emit_event from
+    # __init__ already carries the correct provider field.
+    _PROVIDER = args.mode
 
     # Create standalone QApplication — this is a separate process
     app = QApplication(sys.argv)
 
     if args.mode == "twitch":
         window: QMainWindow = _TwitchCookieWindow()
+    elif args.mode == "gbs":
+        window = _GbsLoginWindow()
     else:
         window = _GoogleWindow()
 
