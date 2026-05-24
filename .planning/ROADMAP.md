@@ -1005,6 +1005,7 @@ Plans:
 **Goal:** Ship the deferred-from-Phase-78 buffer-tuning behavior fix using harvest-week data as a DIRECTIONAL signal (not a strict statistical A/B gate). Phase 78 Commit A shipped 2026-05-17; harvest log after 7 days has only 11 underrun events — enough to inform direction, NOT enough for the originally-spec'd `M < N + median improvement` closure gate to detect marginal effects. Reframed plan: bump `BUFFER_DURATION_S` (or equivalent) modestly to target the LONG-event YouTube cluster (3 of 4 events >1s were YouTube), keep the rotating log running, and accept "ship + monitor" rather than "rigorous A/B closure." Closes BUG-09 SC #3 (behavior side; SC #3 logging side already closed by Commit A).
 
 **Harvest data summary (~/.local/share/musicstreamer/buffer-events.log, 2026-05-18 → 2026-05-24):**
+
 - 11 total `buffer_underrun` events / 7 days (~1.5/day)
 - 4 long (>1s): 6683ms YouTube lofi, 1356ms Groove Salad, 5474ms Drone Zone (cause_hint=network), 7389ms YouTube medieval lofi
 - 7 brief (<200ms): 6 SomaFM micro-recoveries + 1 GBS.FM
@@ -1020,7 +1021,12 @@ Plans:
 
 Plans:
 
+**Wave 1**
+
 - [ ] 84-01-PLAN.md — Wave 0 RED tests + FakePlayer Signal parity (test_player_buffer.py literal bump, test_player_buffer_growth.py state machine + URI-bind ordering, test_playbin3_property_hygiene.py source-grep gate, D-12 row + wire tests inside existing test files)
 - [ ] 84-02-PLAN.md — Wave 1 GREEN Player core (D-10 constants bump 30s/20MB + D-11 buffer_duration_changed Signal + 3 state fields + 3 helpers + cycle_close hook + both URI-bind apply sites: _try_next_stream AND _on_preroll_about_to_finish)
 - [ ] 84-03-PLAN.md — Wave 1 GREEN UI wiring (D-12 NowPlayingPanel set_buffer_duration slot + always-visible 'Buf duration' stats row + MainWindow bound-method DirectConnection wire)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 84-04-PLAN.md — Wave 2 closure (84-VERIFICATION.md with WAIVED Phase 78 D-06 statistical gate + 2-week post-ship monitor plan + follow-up trigger thresholds for reconnect-on-stall evaluation)

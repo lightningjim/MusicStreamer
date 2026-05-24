@@ -63,7 +63,7 @@ Source: `~/.local/share/musicstreamer/buffer-events.log` (lines containing `buff
 
 ### Framing
 
-- **D-09:** **Reframe target as "both clusters", not "YouTube only".** Harvest data corrected: 5 long events split 2 YT / 3 SomaFM (not 3:1 as the roadmap entry stated). Decisions tune for whichever cluster has worse magnitude OR higher count, not just the YouTube cluster. The roadmap entry's "target the LONG-event YouTube cluster" framing is superseded by this CONTEXT.md's `<data-summary>` section. ROADMAP.md entry is NOT amended (user choice — historical record of reframe stands; this CONTEXT.md is the corrected forward-going source).
+- **D-09 [informational]:** **Reframe target as "both clusters", not "YouTube only".** Harvest data corrected: 5 long events split 2 YT / 3 SomaFM (not 3:1 as the roadmap entry stated). Decisions tune for whichever cluster has worse magnitude OR higher count, not just the YouTube cluster. The roadmap entry's "target the LONG-event YouTube cluster" framing is superseded by this CONTEXT.md's `<data-summary>` section. ROADMAP.md entry is NOT amended (user choice — historical record of reframe stands; this CONTEXT.md is the corrected forward-going source).
 
 ### Static bump (Phase 16 baseline change)
 
