@@ -229,13 +229,23 @@ class AccountsDialog(QDialog):
         # Phase 60 D-04c + Phase 76 D-03/D-14: GBS.FM status (2-state, with
         # secondary import-cookies button hidden when connected).
         # D-03 collapsed scope: 2-state only (no token half).
-        if self._is_gbs_connected():
+        # Phase 76 WR-03: mirror Twitch's "Connecting..." gate while subprocess
+        # is in flight, so the user can't fire a second concurrent QWebEngine
+        # window. The early-return in _launch_gbs_login_subprocess is the
+        # belt-and-braces safety net behind this UX gate.
+        if self._gbs_login_proc is not None:
+            self._gbs_status_label.setText("Connecting...")
+            self._gbs_action_btn.setEnabled(False)
+            self._gbs_import_btn.setVisible(False)
+        elif self._is_gbs_connected():
             self._gbs_status_label.setText("Connected")
             self._gbs_action_btn.setText("Disconnect")
+            self._gbs_action_btn.setEnabled(True)
             self._gbs_import_btn.setVisible(False)
         else:
             self._gbs_status_label.setText("Not connected")
             self._gbs_action_btn.setText("Connect to GBS.FM…")
+            self._gbs_action_btn.setEnabled(True)
             self._gbs_import_btn.setVisible(True)
 
         if self._oauth_proc is not None:
@@ -378,7 +388,17 @@ class AccountsDialog(QDialog):
         self._update_status()
 
     def _launch_gbs_login_subprocess(self) -> None:
-        """Phase 76 D-09: launch oauth_helper --mode gbs."""
+        """Phase 76 D-09: launch oauth_helper --mode gbs.
+
+        Phase 76 WR-03: re-entrancy guard. If a previous launch is still
+        in flight, ignore the click — without this guard a second click
+        would overwrite ``self._gbs_login_proc`` with a fresh QProcess
+        and drop the reference to the first, leaking the first subprocess
+        and routing its eventual ``finished`` signal to the second
+        process's stdout/stderr (wrong data).
+        """
+        if self._gbs_login_proc is not None:
+            return  # WR-03: already running — ignore re-click
         self._gbs_login_proc = QProcess(self)
         self._gbs_login_proc.finished.connect(self._on_gbs_login_finished)  # QA-05
         # T-40-05: use sys.executable — no PATH injection; never shell=True

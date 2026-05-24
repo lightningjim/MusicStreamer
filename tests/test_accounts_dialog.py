@@ -1555,6 +1555,84 @@ class TestAccountsDialogGBS:
         )
 
 
+class TestAccountsDialogGbsReentrancy:
+    """Phase 76 WR-03: GBS Connect button is gated while subprocess is in flight.
+
+    Pre-fix: _launch_gbs_login_subprocess unconditionally created a new
+    QProcess on every call AND _update_status did not disable the button
+    while a previous subprocess was still alive — so a second click
+    leaked the first QProcess and routed its finished-signal handler to
+    the WRONG subprocess's stdout/stderr.
+    """
+
+    def test_gbs_button_disabled_while_subprocess_running(
+        self, tmp_data_dir, qtbot, fake_repo, monkeypatch,
+    ):
+        """While _gbs_login_proc is set, button is disabled + status shows Connecting..."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        mock_proc = MagicMock(spec=QProcess)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", return_value=mock_proc):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._launch_gbs_login_subprocess()
+
+        assert dlg._gbs_action_btn.isEnabled() is False
+        assert "connecting" in dlg._gbs_status_label.text().lower()
+        # Import button hidden during connecting state (no concurrent paths).
+        assert dlg._gbs_import_btn.isHidden() is True
+
+    def test_gbs_second_launch_is_ignored_while_first_in_flight(
+        self, tmp_data_dir, qtbot, fake_repo,
+    ):
+        """WR-03: second call to _launch_gbs_login_subprocess while one is
+        running must NOT create a second QProcess (early-return)."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        call_count = {"n": 0}
+
+        def _factory(*_a, **_kw):
+            call_count["n"] += 1
+            return MagicMock(spec=QProcess)
+
+        with patch("musicstreamer.ui_qt.accounts_dialog.QProcess", side_effect=_factory):
+            dlg = AccountsDialog(fake_repo)
+            qtbot.addWidget(dlg)
+            dlg._launch_gbs_login_subprocess()
+            first_proc = dlg._gbs_login_proc
+            # Re-click while first subprocess is still in flight.
+            dlg._launch_gbs_login_subprocess()
+            second_proc = dlg._gbs_login_proc
+
+        # Exactly ONE QProcess constructed; the slot reference did not flip.
+        assert call_count["n"] == 1
+        assert first_proc is second_proc
+
+    def test_gbs_button_re_enabled_after_subprocess_finishes(
+        self, tmp_data_dir, qtbot, fake_repo,
+    ):
+        """After _on_gbs_login_finished clears _gbs_login_proc, button is re-enabled."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+
+        mock_proc = _mock_proc_with_stderr(stderr_bytes=b"", stdout_bytes=b"")
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._gbs_login_proc = mock_proc
+        dlg._update_status()
+        assert dlg._gbs_action_btn.isEnabled() is False
+        # Swallow the failure dialog (empty stdout → InvalidTokenResponse).
+        from unittest.mock import patch as _patch
+        with _patch.object(AccountsDialog, "_show_failure_dialog", lambda *a, **k: None):
+            dlg._on_gbs_login_finished(0, QProcess.ExitStatus.NormalExit)
+        # _gbs_login_proc cleared; status flips back to not-connected.
+        assert dlg._gbs_login_proc is None
+        assert dlg._gbs_action_btn.isEnabled() is True
+
+
 class TestAccountsDialogCloseEventCleanup:
     """Phase 76 WR-02: closeEvent terminates any in-flight oauth_helper subprocess.
 
