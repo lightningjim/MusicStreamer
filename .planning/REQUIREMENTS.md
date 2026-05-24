@@ -22,7 +22,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 - [x] **BUG-06**: Saving an edit in `EditStationDialog` preserves the open/closed state of expandable sections (does not collapse all open sections on save)
 - [x] **BUG-08**: Linux force-quit and other WM-level dialogs display "MusicStreamer" instead of the reverse-DNS app ID "org.example.MusicStreamer" — Linux parallel to WIN-02 *(surfaced during Phase 50 UAT 2026-04-28)*
 - [x] **BUG-09**: Intermittent audio dropouts/stutters when the GStreamer buffer can't keep up are observable, attributable, and (once root-caused) mitigated. Repro is unclear at filing time — phase ships diagnostic instrumentation first, then a behavior fix once root cause is observable *(surfaced 2026-04-28)*
-- [ ] **BUG-10**: SQLite `PRAGMA foreign_keys = ON` is set on every connection opened by `db_connect()` (or equivalent), making the schema's existing `ON DELETE CASCADE` constraints actually enforce at runtime. Without the PRAGMA, every `DELETE FROM stations` (and any other parent-row deletion) silently leaks orphan child rows — `station_streams`, possibly `favorites`, `station_siblings`, and any other FK child table. Phase also (a) writes a regression test that DELETEs a station and asserts the cascade fires, (b) emits a one-time INFO log if `PRAGMA foreign_keys` was OFF at connection time (drift guard for any code path that forgets), (c) ships a one-shot orphan-sweep migration that scans every child table for rows whose FK parent no longer exists, deletes them, and logs the counts, and (d) documents the per-connection requirement in `musicstreamer/db.py` (or wherever `db_connect()` lives) so future contributors don't reintroduce the gap *(surfaced 2026-05-14 during Phase 74 Plan 07 UAT, finding F-07-03 — required manual `DELETE FROM station_streams WHERE url LIKE '%synphaera%'` cleanup mid-UAT to unblock dedup re-import; full root cause in 74-LEARNINGS.md and reference-musicstreamer-db-schema memory)*
+- [x] **BUG-10**: SQLite `PRAGMA foreign_keys = ON` is set on every connection opened by `db_connect()` (or equivalent), making the schema's existing `ON DELETE CASCADE` constraints actually enforce at runtime. Without the PRAGMA, every `DELETE FROM stations` (and any other parent-row deletion) silently leaks orphan child rows — `station_streams`, possibly `favorites`, `station_siblings`, and any other FK child table. Phase also (a) writes a regression test that DELETEs a station and asserts the cascade fires, (b) emits a one-time INFO log if `PRAGMA foreign_keys` was OFF at connection time (drift guard for any code path that forgets), (c) ships a one-shot orphan-sweep migration that scans every child table for rows whose FK parent no longer exists, deletes them, and logs the counts, and (d) documents the per-connection requirement in `musicstreamer/db.py` (or wherever `db_connect()` lives) so future contributors don't reintroduce the gap *(surfaced 2026-05-14 during Phase 74 Plan 07 UAT, finding F-07-03 — required manual `DELETE FROM station_streams WHERE url LIKE '%synphaera%'` cleanup mid-UAT to unblock dedup re-import; full root cause in 74-LEARNINGS.md and reference-musicstreamer-db-schema memory)*
 - [x] **BUG-11**: YouTube live-stream playback works when MusicStreamer is launched via the GNOME `.desktop` entry (not only via pipx-from-terminal or `uv run`). Concretely: (1) `Player.__init__` accepts a `node_runtime: NodeRuntime | None = None` kwarg and `_youtube_resolve_worker` threads `node_runtime.path` into `yt_dlp.YoutubeDL`'s `js_runtimes` opt via a shared helper `musicstreamer/yt_dlp_opts.py::build_js_runtimes` (replaces the inline `{"node": {"path": None}}` literal at `player.py:1063`); (2) `yt_import.scan_playlist` accepts the same kwarg and INSERTS `js_runtimes` into its opts dict (defensive parity — single source of truth, shipping a known parity bug for the playlist-import path is rejected per D-09); (3) `__main__._run_gui` passes the existing `node_runtime` (already detected at line 215) to `Player(node_runtime=node_runtime)`; (4) one INFO log line `youtube resolve: node_path=<abs|None>` per YT play in `_youtube_resolve_worker`, and one `youtube scan: node_path=<abs|None>` per scan in `scan_playlist`, on the respective module loggers; (5) `__main__.main` adds `logging.getLogger("musicstreamer.yt_import").setLevel(logging.INFO)` alongside the existing per-logger INFO escalations for `musicstreamer.player` and `musicstreamer.soma_import`; (6) unit + integration regression tests assert the wired `opts["js_runtimes"]["node"]["path"]` value across three NodeRuntime inputs (None / available+path / unavailable+None) on BOTH call sites. Linux primary; Windows defensive parity (no live UAT required for Windows since `runtime_check._which_node` is already platform-aware and `node.exe` resolution costs nothing extra). *(surfaced 2026-05-14 — reproduction: `.desktop` Exec=musicstreamer under GNOME Shell strips fnm/nvm/volta/asdf shims from inherited PATH; commit `a06549f` 2026-04-25 added Node detection but did not thread the resolved path through to yt-dlp's `js_runtimes` opt; Phase 79 is the second half of the same fix)*
 
 ### Windows Polish (WIN)
@@ -57,30 +57,30 @@ Manual user-curated cross-network/same-provider sibling linking, replacing the p
 Width-responsive control-row layout follow-ups (Phase 72 era).
 
 - [x] **LAYOUT-01**: Compact-mode toggle hides the left column on small/secondary displays; session-only, no SQLite persistence; activated by `Ctrl+B` shortcut and a `compact_mode_toggle_btn` QToolButton on the now-playing pane; left-edge hover-peek overlay survives compact mode. *(Phase 72)*
-- [ ] **LAYOUT-02**: When the now-playing panel narrows below the threshold where row 1 with the stream picker can fit AND the active station has multiple streams, `stream_combo` reparents into a dedicated second row beneath the existing controls row; it returns to row 1 when width allows. Single-stream stations stay one-row at all widths. Picker signals (`currentIndexChanged.connect(self._on_stream_selected)`), model (item text + userData), and `currentIndex` survive each reparent. Trigger is width, not compact-mode (D-01). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.1)*
-- [ ] **LAYOUT-03**: When the now-playing panel's width changes, both `logo_label` and `cover_label` retarget to a width-driven tier value drawn from `{140, 180, 240}`. Trigger is `NowPlayingPanel.width()` evaluated inside the existing `resizeEvent` override (not MainWindow width, not screen geometry, not splitter handle position). Logo and cover are always equal-sized at every tier (D-05). The tier is recomputed on every `resizeEvent`; `setFixedSize` + bound-pixmap rescale fire only when the computed tier differs from the cached previous tier (cached-diff guard avoids drag-thrash). Works identically in compact and expanded modes (panel-width trigger is mode-agnostic). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.3)*
+- [x] **LAYOUT-02**: When the now-playing panel narrows below the threshold where row 1 with the stream picker can fit AND the active station has multiple streams, `stream_combo` reparents into a dedicated second row beneath the existing controls row; it returns to row 1 when width allows. Single-stream stations stay one-row at all widths. Picker signals (`currentIndexChanged.connect(self._on_stream_selected)`), model (item text + userData), and `currentIndex` survive each reparent. Trigger is width, not compact-mode (D-01). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.1)*
+- [x] **LAYOUT-03**: When the now-playing panel's width changes, both `logo_label` and `cover_label` retarget to a width-driven tier value drawn from `{140, 180, 240}`. Trigger is `NowPlayingPanel.width()` evaluated inside the existing `resizeEvent` override (not MainWindow width, not screen geometry, not splitter handle position). Logo and cover are always equal-sized at every tier (D-05). The tier is recomputed on every `resizeEvent`; `setFixedSize` + bound-pixmap rescale fire only when the computed tier differs from the cached previous tier (cached-diff guard avoids drag-thrash). Works identically in compact and expanded modes (panel-width trigger is mode-agnostic). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.3)*
 - [ ] **LAYOUT-04**: When the now-playing panel narrows below the threshold where row 1 without the volume cluster can fit, `volume_slider` and `compact_mode_toggle_btn` wrap together as an indivisible "volume cluster" to a wrap row. Multi-stream state wraps the cluster to a new `_controls_row3` beneath the existing `_controls_row2` (which holds the picker per LAYOUT-02); single-stream state (picker hidden) wraps the cluster to `_controls_row2` directly. Volume slider uses `QSizePolicy(Expanding, Fixed)` + cleared min/max on its wrap row; `setFixedWidth(120)` restored on row-1 return. Compact-toggle stays 28×28 fixed in every state; no `addStretch` added to wrap row (volume's Expanding policy pins compact-toggle to the right edge). Cluster left-to-right order on the wrap row is `volume_slider → compact_mode_toggle_btn` (preserves row-1 reading order). The volume slider's `valueChanged.connect(self._on_volume_changed_live)` / `sliderReleased.connect(self._on_volume_released)` signal connections, current value, and the compact-toggle's `toggled.connect(self._on_compact_btn_toggled)` connection + checked state all survive each reparent. Trigger is width (D-12), not compact-mode. Picker invariant from LAYOUT-02 is preserved unchanged. No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.4)*
 
 ### Cover-Art Sources (ART-MB)
 
 Per-station MusicBrainz + Cover Art Archive lookup as an additive complement to the existing iTunes path. Three modes (`auto` / `itunes_only` / `mb_only`) selectable per station; default `auto` means iTunes-first with MB fallback on miss. Protocol-locked User-Agent + 1 req/sec rate gate + Lucene-escaped recording search + Official/Album release selection + ZIP round-trip. Source-grep gates (ART-MB-15/16) mirror the `feedback_gstreamer_mock_blind_spot.md` lesson — protocol-required literals must be testable at the source level.
 
-- [ ] **ART-MB-01**: User-Agent header literal on MB API request matches `MusicStreamer/<version> (https://github.com/lightningjim/MusicStreamer)`
-- [ ] **ART-MB-02**: User-Agent header literal on CAA image request
-- [ ] **ART-MB-15**: Source-grep gate: literal `MusicStreamer/` AND `https://github.com/lightningjim/MusicStreamer` appear in cover_art_mb.py source
-- [ ] **ART-MB-03**: 1 req/sec gate: 5 sequential MB calls span ≥ 4 seconds of monotonic clock
-- [ ] **ART-MB-16**: Source-grep gate: gate actually references `time.monotonic` (not just a comment)
-- [ ] **ART-MB-04**: Score=85 fixture accepted; score=79 rejected; bare-title ICY skips MB
-- [ ] **ART-MB-05**: Release selection: Official+Album+earliest wins over Bootleg with same score
-- [ ] **ART-MB-13**: MB tags → genre: highest-count tag wins; empty tags → genre=""
-- [ ] **ART-MB-06**: Latest-wins queue: 5 rapid ICY arrivals → at most 1 wasted + 1 final
-- [ ] **ART-MB-07**: MB-only mode: iTunes urlopen MUST NOT be called
-- [ ] **ART-MB-08**: iTunes-only mode: MB urlopen MUST NOT be called
-- [ ] **ART-MB-09**: Auto mode: iTunes miss → MB called → image shown via cover_art_ready signal
-- [ ] **ART-MB-10**: Settings export ZIP round-trips `cover_art_source` field; old ZIPs default to 'auto'
-- [ ] **ART-MB-11**: SQLite migration adds column with DEFAULT 'auto'; idempotent on re-run
-- [ ] **ART-MB-12**: EditStationDialog selector reads + writes `station.cover_art_source`
-- [ ] **ART-MB-14**: HTTP 503 from MB → callback(None), no raise out of worker
+- [x] **ART-MB-01**: User-Agent header literal on MB API request matches `MusicStreamer/<version> (https://github.com/lightningjim/MusicStreamer)`
+- [x] **ART-MB-02**: User-Agent header literal on CAA image request
+- [x] **ART-MB-15**: Source-grep gate: literal `MusicStreamer/` AND `https://github.com/lightningjim/MusicStreamer` appear in cover_art_mb.py source
+- [x] **ART-MB-03**: 1 req/sec gate: 5 sequential MB calls span ≥ 4 seconds of monotonic clock
+- [x] **ART-MB-16**: Source-grep gate: gate actually references `time.monotonic` (not just a comment)
+- [x] **ART-MB-04**: Score=85 fixture accepted; score=79 rejected; bare-title ICY skips MB
+- [x] **ART-MB-05**: Release selection: Official+Album+earliest wins over Bootleg with same score
+- [x] **ART-MB-13**: MB tags → genre: highest-count tag wins; empty tags → genre=""
+- [x] **ART-MB-06**: Latest-wins queue: 5 rapid ICY arrivals → at most 1 wasted + 1 final
+- [x] **ART-MB-07**: MB-only mode: iTunes urlopen MUST NOT be called
+- [x] **ART-MB-08**: iTunes-only mode: MB urlopen MUST NOT be called
+- [x] **ART-MB-09**: Auto mode: iTunes miss → MB called → image shown via cover_art_ready signal
+- [x] **ART-MB-10**: Settings export ZIP round-trips `cover_art_source` field; old ZIPs default to 'auto'
+- [x] **ART-MB-11**: SQLite migration adds column with DEFAULT 'auto'; idempotent on re-run
+- [x] **ART-MB-12**: EditStationDialog selector reads + writes `station.cover_art_source`
+- [x] **ART-MB-14**: HTTP 503 from MB → callback(None), no raise out of worker
 
 ### Versioning Convention (VER)
 
@@ -99,23 +99,23 @@ Test-infrastructure stabilization after 10+ phases of recurring `deferred-items.
 
 Bulk importer for the SomaFM public station catalog. Maps Phase 74 decisions D-01..D-16 and STRIDE mitigations T-74-01..T-74-05 to testable requirements pinned by RED unit tests in Plans 74-01..74-03.
 
-- [ ] **SOMA-01**: Provider name pin — every imported SomaFM station has `provider_name = "SomaFM"` (CamelCase, no space, no period). Maps to CONTEXT D-02.
-- [ ] **SOMA-02**: 4-tier × 5-relay stream scheme — each channel produces 20 stream rows whose `(codec, quality, bitrate_kbps)` tuples follow D-03's LOCKED map: `(MP3, hi, 128)` × 5 + `(AAC, hi2, 128)` × 5 + `(AAC, med, 64)` × 5 + `(AAC, low, 32)` × 5. Maps to CONTEXT D-03.
-- [ ] **SOMA-03**: Position numbering — within each tier, `position = tier_base * 10 + relay_index` (`tier_base = {hi:1, hi2:2, med:3, low:4}`; `relay_index = 1..5`). Maps to CONTEXT D-03.
-- [ ] **SOMA-04**: Codec normalization — format `"aacp"` stores codec field as `"AAC"` (NOT `"AAC+"`, NOT `"aacp"`). Maps to CONTEXT D-03 + Phase 69 WIN-05 closure + `stream_ordering._CODEC_RANK`.
-- [ ] **SOMA-05**: PLS resolution before store — stored stream URLs are the direct `ice*.somafm.com` URLs returned by `playlist_parser.parse_playlist`, NOT the `.pls` URLs from the API response. Maps to T-74-03 mitigation.
-- [ ] **SOMA-06**: Dedup-by-URL skip — if ANY of a fetched channel's resolved stream URLs match an existing station's stream URL (any provider), the whole channel is skipped. Maps to CONTEXT D-05 + D-09.
-- [ ] **SOMA-07**: Full no-op on re-import — running the import a second time on an already-imported library results in `inserted=0, skipped=N`; no station/stream/logo updates fire. Maps to CONTEXT D-05.
-- [ ] **SOMA-08**: Logo failure non-fatal — when the per-channel image GET fails, the station + streams stay inserted and `update_station_art` is NOT called. Maps to CONTEXT D-11 + T-74-04 mitigation.
-- [ ] **SOMA-09**: Per-channel exception isolation — a malformed channel dict (KeyError, etc.) inside the catalog loop increments `skipped` and the import continues. Maps to CONTEXT D-15 + T-74-05 mitigation.
-- [ ] **SOMA-10**: Hamburger entry — `MainWindow._menu` contains a top-level `"Import SomaFM"` action wired to a bound method (no lambda). Maps to CONTEXT D-06 + QA-05.
-- [ ] **SOMA-11**: Toast verbatim strings — click toast `"Importing SomaFM…"` (U+2026), finished toast `"SomaFM import: {N} stations added"` or `"SomaFM import: no changes"`, error toast `"SomaFM import failed: {truncated}"` where truncation is `msg[:80] + "…"` when `len(msg) > 80`. Maps to CONTEXT D-06 + D-14.
-- [ ] **SOMA-12**: Worker retention — clicking the menu action sets `MainWindow._soma_import_worker` to a non-None `_SomaImportWorker`; both `_on_soma_import_done` and `_on_soma_import_error` reset it to `None`. Maps to CONTEXT D-07 + Phase 60 SYNC-05.
-- [ ] **SOMA-13**: User-Agent literal — outbound HTTP requests carry the literal UA `"MusicStreamer/{version} (https://github.com/lightningjim/MusicStreamer)"`. Maps to CONTEXT Discretion + Phase 73 protocol convention + T-74-01 mitigation.
-- [ ] **SOMA-14**: Source-grep gate for UA — the literal `"MusicStreamer/"` AND `"https://github.com/lightningjim/MusicStreamer"` both appear in `musicstreamer/soma_import.py` source.
-- [ ] **SOMA-15**: Source-grep gate against AAC+ literal — no STORED codec value equals `"AAC+"` inside `_TIER_BY_FORMAT_QUALITY` in `musicstreamer/soma_import.py`.
-- [ ] **SOMA-16**: Logger registration — `musicstreamer/__main__.py` registers `musicstreamer.soma_import` at `logging.INFO`. Maps to CONTEXT D-16.
-- [ ] **SOMA-17**: Network failure is a clean toast — `fetch_channels` raising `urllib.error.URLError`, `urllib.error.HTTPError`, `ValueError`, or `json.JSONDecodeError` surfaces as the error toast (D-14 full abort), NOT as a partial import. Maps to CONTEXT D-14.
+- [x] **SOMA-01**: Provider name pin — every imported SomaFM station has `provider_name = "SomaFM"` (CamelCase, no space, no period). Maps to CONTEXT D-02.
+- [x] **SOMA-02**: 4-tier × 5-relay stream scheme — each channel produces 20 stream rows whose `(codec, quality, bitrate_kbps)` tuples follow D-03's LOCKED map: `(MP3, hi, 128)` × 5 + `(AAC, hi2, 128)` × 5 + `(AAC, med, 64)` × 5 + `(AAC, low, 32)` × 5. Maps to CONTEXT D-03.
+- [x] **SOMA-03**: Position numbering — within each tier, `position = tier_base * 10 + relay_index` (`tier_base = {hi:1, hi2:2, med:3, low:4}`; `relay_index = 1..5`). Maps to CONTEXT D-03.
+- [x] **SOMA-04**: Codec normalization — format `"aacp"` stores codec field as `"AAC"` (NOT `"AAC+"`, NOT `"aacp"`). Maps to CONTEXT D-03 + Phase 69 WIN-05 closure + `stream_ordering._CODEC_RANK`.
+- [x] **SOMA-05**: PLS resolution before store — stored stream URLs are the direct `ice*.somafm.com` URLs returned by `playlist_parser.parse_playlist`, NOT the `.pls` URLs from the API response. Maps to T-74-03 mitigation.
+- [x] **SOMA-06**: Dedup-by-URL skip — if ANY of a fetched channel's resolved stream URLs match an existing station's stream URL (any provider), the whole channel is skipped. Maps to CONTEXT D-05 + D-09.
+- [x] **SOMA-07**: Full no-op on re-import — running the import a second time on an already-imported library results in `inserted=0, skipped=N`; no station/stream/logo updates fire. Maps to CONTEXT D-05.
+- [x] **SOMA-08**: Logo failure non-fatal — when the per-channel image GET fails, the station + streams stay inserted and `update_station_art` is NOT called. Maps to CONTEXT D-11 + T-74-04 mitigation.
+- [x] **SOMA-09**: Per-channel exception isolation — a malformed channel dict (KeyError, etc.) inside the catalog loop increments `skipped` and the import continues. Maps to CONTEXT D-15 + T-74-05 mitigation.
+- [x] **SOMA-10**: Hamburger entry — `MainWindow._menu` contains a top-level `"Import SomaFM"` action wired to a bound method (no lambda). Maps to CONTEXT D-06 + QA-05.
+- [x] **SOMA-11**: Toast verbatim strings — click toast `"Importing SomaFM…"` (U+2026), finished toast `"SomaFM import: {N} stations added"` or `"SomaFM import: no changes"`, error toast `"SomaFM import failed: {truncated}"` where truncation is `msg[:80] + "…"` when `len(msg) > 80`. Maps to CONTEXT D-06 + D-14.
+- [x] **SOMA-12**: Worker retention — clicking the menu action sets `MainWindow._soma_import_worker` to a non-None `_SomaImportWorker`; both `_on_soma_import_done` and `_on_soma_import_error` reset it to `None`. Maps to CONTEXT D-07 + Phase 60 SYNC-05.
+- [x] **SOMA-13**: User-Agent literal — outbound HTTP requests carry the literal UA `"MusicStreamer/{version} (https://github.com/lightningjim/MusicStreamer)"`. Maps to CONTEXT Discretion + Phase 73 protocol convention + T-74-01 mitigation.
+- [x] **SOMA-14**: Source-grep gate for UA — the literal `"MusicStreamer/"` AND `"https://github.com/lightningjim/MusicStreamer"` both appear in `musicstreamer/soma_import.py` source.
+- [x] **SOMA-15**: Source-grep gate against AAC+ literal — no STORED codec value equals `"AAC+"` inside `_TIER_BY_FORMAT_QUALITY` in `musicstreamer/soma_import.py`.
+- [x] **SOMA-16**: Logger registration — `musicstreamer/__main__.py` registers `musicstreamer.soma_import` at `logging.INFO`. Maps to CONTEXT D-16.
+- [x] **SOMA-17**: Network failure is a clean toast — `fetch_channels` raising `urllib.error.URLError`, `urllib.error.HTTPError`, `ValueError`, or `json.JSONDecodeError` surfaces as the error toast (D-14 full abort), NOT as a partial import. Maps to CONTEXT D-14.
 
 ### GBS.FM Authentication (GBS-AUTH)
 
@@ -180,53 +180,53 @@ Which phases cover which requirements.
 | HRES-01 | Phase 70 | Complete |
 | SIB-01 | Phase 71 | Complete |
 | LAYOUT-01 | Phase 72 | Complete |
-| LAYOUT-02 | Phase 72.1 | Pending |
-| LAYOUT-03 | Phase 72.3 | Pending |
+| LAYOUT-02 | Phase 72.1 | Complete |
+| LAYOUT-03 | Phase 72.3 | Complete |
 | LAYOUT-04 | Phase 72.4 | Pending |
-| ART-MB-01 | Phase 73 | Pending |
-| ART-MB-02 | Phase 73 | Pending |
-| ART-MB-03 | Phase 73 | Pending |
-| ART-MB-04 | Phase 73 | Pending |
-| ART-MB-05 | Phase 73 | Pending |
-| ART-MB-06 | Phase 73 | Pending |
-| ART-MB-07 | Phase 73 | Pending |
-| ART-MB-08 | Phase 73 | Pending |
-| ART-MB-09 | Phase 73 | Pending |
-| ART-MB-10 | Phase 73 | Pending |
-| ART-MB-11 | Phase 73 | Pending |
-| ART-MB-12 | Phase 73 | Pending |
-| ART-MB-13 | Phase 73 | Pending |
-| ART-MB-14 | Phase 73 | Pending |
-| ART-MB-15 | Phase 73 | Pending |
-| ART-MB-16 | Phase 73 | Pending |
+| ART-MB-01 | Phase 73 | Complete |
+| ART-MB-02 | Phase 73 | Complete |
+| ART-MB-03 | Phase 73 | Complete |
+| ART-MB-04 | Phase 73 | Complete |
+| ART-MB-05 | Phase 73 | Complete |
+| ART-MB-06 | Phase 73 | Complete |
+| ART-MB-07 | Phase 73 | Complete |
+| ART-MB-08 | Phase 73 | Complete |
+| ART-MB-09 | Phase 73 | Complete |
+| ART-MB-10 | Phase 73 | Complete |
+| ART-MB-11 | Phase 73 | Complete |
+| ART-MB-12 | Phase 73 | Complete |
+| ART-MB-13 | Phase 73 | Complete |
+| ART-MB-14 | Phase 73 | Complete |
+| ART-MB-15 | Phase 73 | Complete |
+| ART-MB-16 | Phase 73 | Complete |
 | INFRA-01 | Phase 77 | Complete |
-| SOMA-01 | Phase 74 | Pending |
-| SOMA-02 | Phase 74 | Pending |
-| SOMA-03 | Phase 74 | Pending |
-| SOMA-04 | Phase 74 | Pending |
-| SOMA-05 | Phase 74 | Pending |
-| SOMA-06 | Phase 74 | Pending |
-| SOMA-07 | Phase 74 | Pending |
-| SOMA-08 | Phase 74 | Pending |
-| SOMA-09 | Phase 74 | Pending |
-| SOMA-10 | Phase 74 | Pending |
-| SOMA-11 | Phase 74 | Pending |
-| SOMA-12 | Phase 74 | Pending |
-| SOMA-13 | Phase 74 | Pending |
-| SOMA-14 | Phase 74 | Pending |
-| SOMA-15 | Phase 74 | Pending |
-| SOMA-16 | Phase 74 | Pending |
-| SOMA-17 | Phase 74 | Pending |
-| BUG-10 | Phase 80 | Pending |
+| SOMA-01 | Phase 74 | Complete |
+| SOMA-02 | Phase 74 | Complete |
+| SOMA-03 | Phase 74 | Complete |
+| SOMA-04 | Phase 74 | Complete |
+| SOMA-05 | Phase 74 | Complete |
+| SOMA-06 | Phase 74 | Complete |
+| SOMA-07 | Phase 74 | Complete |
+| SOMA-08 | Phase 74 | Complete |
+| SOMA-09 | Phase 74 | Complete |
+| SOMA-10 | Phase 74 | Complete |
+| SOMA-11 | Phase 74 | Complete |
+| SOMA-12 | Phase 74 | Complete |
+| SOMA-13 | Phase 74 | Complete |
+| SOMA-14 | Phase 74 | Complete |
+| SOMA-15 | Phase 74 | Complete |
+| SOMA-16 | Phase 74 | Complete |
+| SOMA-17 | Phase 74 | Complete |
+| BUG-10 | Phase 80 | Complete |
 | BUG-11 | Phase 79 | Complete |
 | GBS-AUTH-01 | Phase 76 | Complete |
 
 **Coverage:**
-- v2.1 requirements: 63 total
-- Mapped to phases: 63 ✓
+- v2.1 requirements: 64 total
+- Mapped to phases: 64 ✓
 - Unmapped: 0 ✓
-- Complete: 22
-- Pending: 41 (WIN-02 — SMTC Start Menu shortcut with AUMID; WIN-05 — AAC Win11 UAT; SOMA-01..SOMA-17 — Phase 74 in flight; BUG-10 — SQLite FK enforcement, Phase 80; BUG-11 — YouTube .desktop launcher fix, Phase 79; LAYOUT-02 — Phase 72.1 multi-stream picker reflow; LAYOUT-03 — Phase 72.3 responsive logo/cover tier; INFRA-01 — Phase 77 test-infrastructure stabilization; LAYOUT-04 — Phase 72.4 volume-cluster reflow into row 2/row 3 when narrow)
+- Complete: 62
+- Pending: 2 (WIN-02 — SMTC Start Menu shortcut with AUMID, Phase 56 deferred to v2.2; LAYOUT-04 — Phase 72.4 volume-cluster reflow code complete, Wayland visual UAT pending on Kyle's rig)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*

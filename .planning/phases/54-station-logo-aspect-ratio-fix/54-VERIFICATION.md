@@ -1,5 +1,5 @@
 ---
-status: pass
+status: passed
 phase: 54-station-logo-aspect-ratio-fix
 must_haves_total: 4
 must_haves_verified: 4

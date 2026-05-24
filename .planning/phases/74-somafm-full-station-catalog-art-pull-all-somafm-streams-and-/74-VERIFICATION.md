@@ -2,7 +2,7 @@
 phase: 74-somafm-full-station-catalog-art-pull-all-somafm-streams-and-
 verified: 2026-05-14T00:00:00Z
 reverified: 2026-05-14T20:30:44Z
-status: verified
+status: passed
 score: 17/17
 previous_score: 15/17
 overrides_applied: 0
