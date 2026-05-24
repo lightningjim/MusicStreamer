@@ -999,3 +999,25 @@ Plans:
 **Wave 3 — gap closure** *(blocked on 83-03 ship; closes 83-UAT.md Test 1 blocker)*
 
 - [x] 83-04-PLAN.md — UAT gap closure: rewrite `_on_preroll_about_to_finish` (player.py:1124-1135) to perform a GAPLESS URI handoff via `pipeline.set_property("uri", aa_normalize_stream_url(stream.url))` on the still-PLAYING pipeline (instead of calling `_try_next_stream()` which cycles state via `set_state(NULL)` and tears down the preroll mid-playback). Mirrors `_try_next_stream`'s bookkeeping (tracker bind with "preroll" outcome token, failover-timer arm, `_last_buffer_percent` reset, `_streams_queue` pop, `_current_stream` update) but NOT its state cycle. Falls back to legacy `_try_next_stream()` for YouTube/Twitch URLs (async-resolution providers cannot use the gapless idiom) and for the empty-queue defensive case. 4 new tests + 2 updated tests (incl. broadened drift-guard pinning `set_property("uri", ...)`) in `tests/test_player.py`.
+
+### Phase 84: BUG-09 Commit B — buffer-tuning behavior fix (reframed from strict A/B per 2026-05-24 harvest-week analysis)
+
+**Goal:** Ship the deferred-from-Phase-78 buffer-tuning behavior fix using harvest-week data as a DIRECTIONAL signal (not a strict statistical A/B gate). Phase 78 Commit A shipped 2026-05-17; harvest log after 7 days has only 11 underrun events — enough to inform direction, NOT enough for the originally-spec'd `M < N + median improvement` closure gate to detect marginal effects. Reframed plan: bump `BUFFER_DURATION_S` (or equivalent) modestly to target the LONG-event YouTube cluster (3 of 4 events >1s were YouTube), keep the rotating log running, and accept "ship + monitor" rather than "rigorous A/B closure." Closes BUG-09 SC #3 (behavior side; SC #3 logging side already closed by Commit A).
+
+**Harvest data summary (~/.local/share/musicstreamer/buffer-events.log, 2026-05-18 → 2026-05-24):**
+- 11 total `buffer_underrun` events / 7 days (~1.5/day)
+- 4 long (>1s): 6683ms YouTube lofi, 1356ms Groove Salad, 5474ms Drone Zone (cause_hint=network), 7389ms YouTube medieval lofi
+- 7 brief (<200ms): 6 SomaFM micro-recoveries + 1 GBS.FM
+- Outcome: 10 `recovered`, 1 `preroll` (Phase 83 handoff, not a real underrun)
+- Cause hint: 10 `unknown`, 1 `network`
+- Station mix: 4 YouTube, 6 SomaFM (Drone Zone × 3, Groove Salad × 2, Drone Zone 2 × 1), 1 GBS.FM
+
+**Requirements**: closes BUG-09 (Commit B half); no new REQ-IDs
+
+**Depends on:** Phase 78 (Commit A harvest infra)
+
+**Plans:** 0 plans — run `/gsd:plan-phase 84` to break down
+
+Plans:
+
+- [ ] TBD (run `/gsd:plan-phase 84` to break down — reference Phase 78 D-04 through D-06 directional preferences and the harvest summary above as the data input that Phase 78 deferred)

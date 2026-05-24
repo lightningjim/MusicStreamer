@@ -30,7 +30,7 @@ Closing v2.0 backlog bug stubs plus the live YouTube-on-Linux regression.
 Phase 44 carry-forward — items deferred from the v2.0 ship line.
 
 - [x] **WIN-01**: DI.fm premium streams play on Windows via a chosen HTTPS-fallback policy (HTTP-for-DI.fm-only or accept server-side HTTPS-unavailable with explicit user feedback)
-- [ ] **WIN-02**: SMTC overlay shows "MusicStreamer" instead of "Unknown app" via a registered Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` (matches the in-process AUMID set during startup)
+- [ ] **WIN-02**: SMTC overlay shows "MusicStreamer" instead of "Unknown app" via a registered Start Menu shortcut carrying `System.AppUserModel.ID=org.lightningjim.MusicStreamer` (matches the in-process AUMID set during startup) **— DEFERRED to v2.2 per 2026-05-24 disposition. Kyle is primarily on Linux (BUG-08 Linux parallel already shipped in Phase 61); Windows-only items group with WIN-05 / VER-02-J under a single future Win11 UAT session.**
 - [x] **WIN-03**: Audio pause/resume on Windows produces no audible glitch; the volume slider takes effect on Windows playback (parity with Linux)
 - [x] **WIN-04**: `test_thumbnail_from_in_memory_stream` passes on Windows (`MagicMock` replaced with `AsyncMock` for the `store_async` await)
 - [x] **WIN-05**: AAC-encoded streams play on Windows — DI.fm AAC tier + SomaFM HE-AAC fixtures verified post-bundle-fix *(Phase 69)*
@@ -164,7 +164,7 @@ Which phases cover which requirements.
 | BUG-05 | Phase 54 | Complete — landscape fixed (Path B-1, `b1a9088`) + portrait fixed (Path B-2, `af63397`) |
 | BUG-06 | Phase 55 | Complete |
 | WIN-01 | Phase 56 | Complete |
-| WIN-02 | Phase 56 | Pending |
+| WIN-02 | Phase 56 | Deferred to v2.2 (2026-05-24) |
 | WIN-03 | Phase 57 | Complete |
 | WIN-04 | Phase 57 | Complete |
 | STR-15 | Phase 58 | Complete |
@@ -226,7 +226,8 @@ Which phases cover which requirements.
 - Mapped to phases: 64 ✓
 - Unmapped: 0 ✓
 - Complete: 62
-- Pending: 2 (WIN-02 — SMTC Start Menu shortcut with AUMID, Phase 56 deferred to v2.2; LAYOUT-04 — Phase 72.4 volume-cluster reflow code complete, Wayland visual UAT pending on Kyle's rig)
+- Pending in v2.1: 1 (LAYOUT-04 — Phase 72.4 volume-cluster reflow, code complete; Wayland visual UAT pending on Kyle's rig)
+- Deferred to v2.2: 1 (WIN-02 — SMTC Start Menu shortcut with AUMID; bundles with WIN-05 / VER-02-J in a single Win11 UAT session)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
