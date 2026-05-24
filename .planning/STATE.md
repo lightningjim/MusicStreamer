@@ -4,8 +4,8 @@ milestone: v2.1
 milestone_name: Fixes and Tweaks
 status: executing
 stopped_at: Phase 84 context gathered
-last_updated: "2026-05-24T22:22:07.709Z"
-last_activity: 2026-05-24 -- Phase 84 planning complete
+last_updated: "2026-05-24T22:25:14.847Z"
+last_activity: 2026-05-24 -- Phase 84 execution started
 progress:
   total_phases: 44
   completed_phases: 41
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 77 — test infrastructure stabilization fix pre existing test doub
+**Current focus:** Phase 84 — BUG-09 Commit B — buffer-tuning behavior fix
 
 ## Current Position
 
-Phase: 77
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-24 -- Phase 84 planning complete
+Phase: 84 (BUG-09 Commit B — buffer-tuning behavior fix) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 84
+Last activity: 2026-05-24 -- Phase 84 execution started
 
 ## Performance Metrics
 
