@@ -749,16 +749,20 @@ Plans:
 - [x] 72.3-02-PLAN.md — Wave 1 helpers (_current_art_tier_size + _apply_art_tier) + sentinels + cover_label 160→180 default bump
 - [x] 72.3-03-PLAN.md — Wave 2 render-site refactor + Phase 72.1 resizeEvent extension + _last_cover_path tracking
 
-### Phase 72.2: Stream-selector and bottom-bar buttons still overlap on initial launch on small display; resolves only after window resize or sidebar hide — suggests issue is limited to initial layout/sizing conditions (INSERTED)
+### Phase 72.2: Stream-selector and bottom-bar buttons still overlap on initial launch on small display; resolves only after window resize or sidebar hide — suggests issue is limited to initial layout/sizing conditions (SUPERSEDED by Phase 72.3 + 72.4)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Superseded — initial-launch overlap was diagnosed as two separate
+layout problems and split into Phase 72.3 (responsive logo/cover-art tier,
+LAYOUT-03) + Phase 72.4 (volume-cluster reflow, LAYOUT-04). No code was
+written under the 72.2 phase number; the empty directory was archived
+2026-05-24 per v2.1 milestone audit recommendation.
+**Requirements**: covered by LAYOUT-03 + LAYOUT-04
 **Depends on:** Phase 72
-**Plans:** 0 plans
+**Plans:** 0 plans (none — work moved to 72.3 + 72.4)
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 72.2 to break down)
+- [x] _(no plans — superseded; see Phase 72.3 + Phase 72.4)_
 
 ### Phase 72.1: Stream-selector dropdown overlap persists in fullscreen mode for multi-stream stations — consider splitting into two lines on smaller screens (INSERTED)
 
