@@ -25,9 +25,11 @@ if ! echo "$COMMAND" | grep -qE '^[[:space:]]*(gsd-sdk[[:space:]]+query[[:space:
 fi
 
 # Only fire on a completion-marker commit shape — pass through any other commit
-# failure (e.g., a fix-up commit, a doc tracking commit). Mirrors the broadened
-# regex in bump-version-hook.sh so the bump/rollback pair stays in lockstep.
-if ! echo "$COMMAND" | grep -qE 'docs\((?:phase-)?[0-9]+\):.*(complete phase execution|close phase|mark phase complete)'; then
+# failure (e.g., a fix-up commit, a doc tracking commit). Mirrors the line-start
+# / post-`-m` anchoring in bump-version-hook.sh so body-bullet text describing
+# other phases as examples cannot false-trigger a rollback (see 2026-05-24 note
+# in bump-version-hook.sh for the discovery context).
+if ! echo "$COMMAND" | grep -qPe "(?:^|-m\s+[\"'])docs\((?:phase-)?[0-9]+\):.*(complete phase execution|close phase|mark phase complete)"; then
     exit 0
 fi
 

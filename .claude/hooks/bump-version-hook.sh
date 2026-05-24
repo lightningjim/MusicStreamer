@@ -28,8 +28,16 @@ fi
 #   docs(phase-NN): complete phase execution        (canonical SDK form)
 #   docs(NN): close phase ...                       (Phase 80-style)
 #   docs(phase-NN): mark phase complete ...         (Phase 76-style)
+#
+# CRITICAL anchoring: the `docs(...)` must EITHER start a line (HEREDOC
+# commit-message subject case) OR sit directly after `-m "` / `-m '`
+# (single-line `git commit -m "..."` case). Without this anchor, body-bullet
+# text describing other phases as examples can false-trigger the hook and
+# silently overwrite pyproject.toml with the wrong phase number — discovered
+# 2026-05-24 when a commit body quoting "Phase 80 used docs(80): close phase"
+# extracted phase=80 from a chore(version) message intended for phase=83.
 # Anything else: pass through unmodified (exit 0, no JSON output).
-PHASE_NUM=$(echo "$COMMAND" | grep -oP 'docs\((?:phase-)?\K[0-9]+(?=\):.*(?:complete phase execution|close phase|mark phase complete))' | head -1 || true)
+PHASE_NUM=$(echo "$COMMAND" | grep -oP "(?:^|-m\s+[\"'])docs\((?:phase-)?\K[0-9]+(?=\):.*(?:complete phase execution|close phase|mark phase complete))" | head -1 || true)
 if [[ -z "$PHASE_NUM" ]]; then
     exit 0
 fi
