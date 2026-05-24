@@ -295,6 +295,15 @@ class Player(QObject):
     # receiver (MainWindow → NowPlayingPanel) are on the main thread, so the wire
     # uses DirectConnection (default) — qt-glib-bus-threading.md Pitfall 2 satisfied.
     underrun_count_changed    = Signal(int)      # main → MainWindow → NowPlayingPanel.set_underrun_count
+    # Phase 84 / D-12 / BUG-09 Commit B: adaptive buffer-duration state Signal.
+    # Emitted from main-thread paths only (`_maybe_grow_buffer_duration` and
+    # `_reset_buffer_duration_to_baseline`, both invoked from main-thread slots:
+    # `_on_underrun_cycle_closed`, `_try_next_stream`, `_on_preroll_about_to_finish`).
+    # Receiver (MainWindow → NowPlayingPanel.set_buffer_duration in Plan 84-03)
+    # is on the main thread, so the wire uses DirectConnection (default) —
+    # qt-glib-bus-threading.md Pitfall 2 satisfied; 84-RESEARCH §Pattern 3.
+    # Mirrors the Phase 78 underrun_count_changed shape one-for-one (84-PATTERNS §1).
+    buffer_duration_changed   = Signal(int)      # main → MainWindow → NowPlayingPanel.set_buffer_duration
 
     # Phase 70 / DS-01: streaming/bus thread → main: persist sample_rate_hz / bit_depth
     # for the playing stream. Emitted with QueuedConnection on the receiver side
@@ -317,10 +326,18 @@ class Player(QObject):
             self._pipeline.set_property("audio-sink", audio_sink)
         self._pipeline.set_property("buffer-duration", BUFFER_DURATION_S * Gst.SECOND)
         self._pipeline.set_property("buffer-size", BUFFER_SIZE_BYTES)
-        # Without GST_PLAY_FLAG_BUFFERING (0x100), playbin3 bypasses queue2 on live
-        # HTTP audio sources — buffer-duration/buffer-size above are silently ignored
-        # and decodebin3's internal multiqueue (~1s/100KB per pad) handles jitter
-        # instead, pinning the buffer-fill indicator near its low-watermark (~10%).
+        # Phase 16 invariant + Phase 84 / D-11 freshening:
+        # GST_PLAY_FLAG_BUFFERING (0x100) is mandatory. Without it, playbin3
+        # bypasses queue2 entirely on live HTTP audio — the buffer-duration /
+        # buffer-size writes above are silently dropped and decodebin3's
+        # internal multiqueue (~1s / ~100KB per pad) handles jitter against
+        # tiny defaults, pinning the buffer-fill indicator near its
+        # low-watermark (~10%). With the flag set, the property values
+        # written above propagate to uridecodebin3 → urisourcebin → queue2
+        # at URI-bind time (NOT mid-session — see _apply_pending_buffer_duration_to_pipeline
+        # and 84-RESEARCH §D-11 for the mid-session-write fallback).
+        # The literal `flags | 0x100` is regression-locked by
+        # tests/test_playbin3_property_hygiene.py — do NOT change shape.
         flags = self._pipeline.get_property("flags")
         self._pipeline.set_property("flags", flags | 0x100)
 
@@ -496,6 +513,16 @@ class Player(QObject):
         # CONTEXT.md Discretion — the file sink from Plan 78-01 is the persistent record).
         # Type-annotated zero — Pitfall 3 (never rely on set-on-first-write semantics).
         self._underrun_event_count: int = 0
+
+        # Phase 84 / D-11 / BUG-09 Commit B: adaptive buffer-duration growth state.
+        # Per playbin3 source inspection (84-RESEARCH §D-11), mid-session writes to
+        # buffer-duration are silent no-ops; state is STAGED at cycle_close and APPLIED
+        # at the next URI bind (_try_next_stream + _on_preroll_about_to_finish, BEFORE
+        # the set_property("uri", ...) call). All three fields type-annotated per
+        # Pattern S-3 / Pitfall 3 — never rely on set-on-first-write semantics.
+        self._growth_step: int = 0                                     # 0=baseline, 1=60s, 2=120s (cap)
+        self._current_buffer_duration_s: int = BUFFER_DURATION_S       # mirrors stats-for-nerds row
+        self._pending_buffer_duration_s: int | None = None             # staged for next URI bind
 
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
@@ -1132,6 +1159,36 @@ class Player(QObject):
         # mirrors the file-sink one-line-per-cycle semantics per CONTEXT <specifics>).
         self._underrun_event_count += 1
         self.underrun_count_changed.emit(self._underrun_event_count)
+        # Phase 84 / D-11: stage buffer-duration growth (applied at next URI bind).
+        self._maybe_grow_buffer_duration()
+
+    def _maybe_grow_buffer_duration(self) -> None:
+        """Phase 84 / D-11 / BUG-09 Commit B — STAGE next adaptive
+        buffer-duration value after an in-session underrun cycle close.
+
+        Schedule: 30s → 60s → 120s (cap at step 2). Inline literals per
+        84-RESEARCH Alternatives §"Schedule 30→60→120 (cap)" — keep at
+        callsite, NOT module-level (Phase 78 in-Player convention).
+
+        Per 84-RESEARCH §D-11 Resolution: the mid-session
+        ``set_property("buffer-duration", N)`` write is a silent no-op for
+        the currently-playing stream on playbin3 — the value is staged on
+        ``_pending_buffer_duration_s`` here and applied at the next URI
+        bind by ``_apply_pending_buffer_duration_to_pipeline``. UI mirror
+        (``_current_buffer_duration_s``) updates immediately so the
+        stats-for-nerds row reflects the new target as soon as the
+        underrun cycle closes.
+
+        Cap-guard: third+ cycle_close at step 2 is a no-op (no spurious
+        Signal re-emit — Pitfall 3 / Pattern S-3 invariant).
+        """
+        if self._growth_step >= 2:
+            return  # cap held — no further growth, no Signal re-emit
+        self._growth_step += 1
+        new_s = {1: 60, 2: 120}[self._growth_step]
+        self._pending_buffer_duration_s = new_s
+        self._current_buffer_duration_s = new_s
+        self.buffer_duration_changed.emit(new_s)
 
     def _on_underrun_dwell_elapsed(self) -> None:
         """Main-thread QTimer.timeout slot (Phase 62 / D-07). Cycle has been
@@ -1142,6 +1199,63 @@ class Player(QObject):
     # ------------------------------------------------------------------ #
     # Failover queue
     # ------------------------------------------------------------------ #
+
+    def _apply_pending_buffer_duration_to_pipeline(self) -> None:
+        """Phase 84 / D-11 / BUG-09 Commit B — APPLY any staged
+        buffer-duration to playbin3 BEFORE the next URI bind.
+
+        Per 84-RESEARCH §D-11 Resolution: mid-session writes to playbin3's
+        ``buffer-duration`` property are silent no-ops on the active
+        uridecodebin3/urisourcebin/queue2 chain. Writing the property
+        BEFORE the ``set_property("uri", ...)`` causes
+        ``uridecodebin3.new_source_handler`` to read the updated value
+        from playbin3's struct field and propagate it down at URI-bind
+        time — this is the canonical fallback shape.
+
+        No-op when ``_pending_buffer_duration_s is None`` (no growth or
+        reset has staged a value since the last apply).
+
+        NOTE: ``buffer-size`` is NOT adaptive in this phase — only
+        ``buffer-duration`` grows (CONTEXT D-11). The dash-form
+        ``"buffer-duration"`` property string is MANDATORY — Wave 0
+        hygiene gate bans the underscore form ``"buffer_duration"``.
+        """
+        if self._pending_buffer_duration_s is None:
+            return
+        self._pipeline.set_property(
+            "buffer-duration", self._pending_buffer_duration_s * Gst.SECOND
+        )
+        self._pending_buffer_duration_s = None
+
+    def _reset_buffer_duration_to_baseline(self) -> None:
+        """Phase 84 / D-11 / BUG-09 Commit B — per-URL reset of adaptive
+        buffer-duration state back to the BUFFER_DURATION_S baseline.
+
+        Mirrors Phase 47.1 D-14 sentinel reset and Phase 62 D-04
+        ``_underrun_armed`` per-URL reset lifecycle (84-RESEARCH §D-11).
+        Each new station / preroll-handoff URL starts fresh; growth does
+        not leak across station changes.
+
+        Pitfall 3 / Pattern S-3 invariant: early-return when already at
+        baseline — never emit a spurious Signal that would cause the
+        stats-for-nerds row to "twitch" at every URL bind even when no
+        growth happened.
+
+        On reset, ``_pending_buffer_duration_s`` is set to
+        ``BUFFER_DURATION_S`` (NOT ``None``) so the baseline value is
+        written to playbin3 at the next ``_apply_pending`` call —
+        flushes any prior growth value that may have been applied to a
+        previous URL session.
+        """
+        if (
+            self._growth_step == 0
+            and self._current_buffer_duration_s == BUFFER_DURATION_S
+        ):
+            return  # already at baseline — no Signal re-emit (Pitfall 3)
+        self._growth_step = 0
+        self._current_buffer_duration_s = BUFFER_DURATION_S
+        self._pending_buffer_duration_s = BUFFER_DURATION_S
+        self.buffer_duration_changed.emit(BUFFER_DURATION_S)
 
     def _try_next_stream(self) -> None:
         """Pop next stream from queue and attempt playback. On empty queue,
@@ -1160,6 +1274,12 @@ class Player(QObject):
         stream = self._streams_queue.pop(0)
         self._current_stream = stream
         self._last_buffer_percent = -1  # 47.1 D-14: reset so new URL's first buffer emits (Pitfall 3)
+        # Phase 84 / D-11: apply staged buffer-duration BEFORE binding the new URI.
+        # uridecodebin3.new_source_handler reads playbin3.buffer_duration at URI-bind
+        # time; missing this ordering means the staged value is silently ignored.
+        self._apply_pending_buffer_duration_to_pipeline()
+        # Phase 84 / D-11 per-URL reset (mirrors Phase 47.1 D-14 sentinel reset above).
+        self._reset_buffer_duration_to_baseline()
         # Phase 62 / D-03 + T-62-02: force-close any cycle on the OUTGOING URL
         # with outcome=failover BEFORE binding the tracker to the NEW URL.
         # Ordering is load-bearing: the close record must carry the OLD url.
@@ -1360,6 +1480,12 @@ class Player(QObject):
             self._elapsed_seconds = 0
             self._elapsed_timer.start()
         self._is_first_attempt = False
+        # Phase 84 / D-11: apply staged buffer-duration BEFORE the gapless URI swap
+        # (Pitfall 2 — SomaFM users hit gapless preroll handoff hourly; missing this
+        # site silently regresses adaptive growth across every preroll cycle).
+        self._apply_pending_buffer_duration_to_pipeline()
+        # Phase 84 / D-11 per-URL reset (preroll handoff treats next preroll as new URL).
+        self._reset_buffer_duration_to_baseline()
         # Gapless: set URI on the still-PLAYING pipeline. NO set_state(NULL),
         # NO set_state(PLAYING) — playbin3 transitions to the new URI at the
         # preroll's EOS automatically. This is the canonical playbin3 gapless
