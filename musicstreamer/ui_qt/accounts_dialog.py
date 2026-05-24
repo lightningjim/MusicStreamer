@@ -441,6 +441,45 @@ class AccountsDialog(QDialog):
     # OAuth subprocess result
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _parse_oauth_stderr(proc: QProcess | None) -> dict | None:
+        """Phase 76 IN-03: extracted shared D-12 stderr-parse helper.
+
+        Both _on_oauth_finished and _on_gbs_login_finished previously inlined
+        an identical 23-line block to read the subprocess's stderr and keep
+        the last well-formed JSON event (T-999.3-05: malformed lines are
+        skipped without eval). Factoring out the shared body means any
+        future evolution of the stderr-event contract (new categories,
+        schema changes, malformed-JSON tweaks) touches one location instead
+        of two, with no test-surface change required.
+
+        Returns the last dict that parsed AND carried a "category" key, or
+        None if no such event was emitted.
+        """
+        if proc is None:
+            return None
+        try:
+            stderr_bytes = proc.readAllStandardError().data()
+        except Exception:
+            stderr_bytes = b""
+        try:
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace")
+        except Exception:
+            stderr_text = ""
+        last_event: dict | None = None
+        for raw_line in stderr_text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                # T-999.3-05: malformed line → skip, no eval/no code path.
+                continue
+            if isinstance(obj, dict) and "category" in obj:
+                last_event = obj
+        return last_event
+
     def _on_oauth_finished(
         self,
         exit_code: int,
@@ -449,28 +488,8 @@ class AccountsDialog(QDialog):
         proc = self._oauth_proc
         self._oauth_proc = None
 
-        # Phase 999.3 D-12: parse stderr line-by-line, keep last valid event.
-        last_event: dict | None = None
-        if proc is not None:
-            try:
-                stderr_bytes = proc.readAllStandardError().data()
-            except Exception:
-                stderr_bytes = b""
-            try:
-                stderr_text = stderr_bytes.decode("utf-8", errors="replace")
-            except Exception:
-                stderr_text = ""
-            for line in stderr_text.splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    # T-999.3-05: malformed line → skip, no eval/no code path.
-                    continue
-                if isinstance(obj, dict) and "category" in obj:
-                    last_event = obj
+        # Phase 999.3 D-12 / Phase 76 IN-03: shared stderr parser.
+        last_event = self._parse_oauth_stderr(proc)
 
         # Read stdout (token on success)
         token = ""
@@ -526,30 +545,12 @@ class AccountsDialog(QDialog):
         proc = self._gbs_login_proc
         self._gbs_login_proc = None
 
-        # Phase 999.3 D-12: parse stderr line-by-line, keep last valid event.
-        # Inlined per Plan 76-03 Task 1's explicit decision to leave the
-        # stderr-parse block inline to minimize regression risk.
-        last_event: dict | None = None
-        if proc is not None:
-            try:
-                stderr_bytes = proc.readAllStandardError().data()
-            except Exception:
-                stderr_bytes = b""
-            try:
-                stderr_text = stderr_bytes.decode("utf-8", errors="replace")
-            except Exception:
-                stderr_text = ""
-            for line in stderr_text.splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    # T-999.3-05: malformed line → skip, no eval/no code path.
-                    continue
-                if isinstance(obj, dict) and "category" in obj:
-                    last_event = obj
+        # Phase 999.3 D-12 / Phase 76 IN-03: shared stderr parser.
+        # Previously this inlined the 23-line parse block verbatim per
+        # Plan 76-03 Task 1's "minimize regression risk" framing; the
+        # IN-03 refactor extracts it so any future D-12 evolution lands
+        # in one place.
+        last_event = self._parse_oauth_stderr(proc)
 
         # Read stdout (Netscape cookie dump on success).
         # CRITICAL: do NOT .strip() — Netscape format preserves leading newlines
