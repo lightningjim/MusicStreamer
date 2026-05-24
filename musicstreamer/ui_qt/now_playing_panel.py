@@ -1009,6 +1009,24 @@ class NowPlayingPanel(QWidget):
         """
         self._underrun_count_label.setText(str(int(count)))
 
+    def set_buffer_duration(self, seconds: int) -> None:
+        """Phase 84 / BUG-09 Commit B / D-12: receiver for Player.buffer_duration_changed.
+
+        Updates the 'Buf duration' stats-for-nerds row text. Baseline value
+        (BUFFER_DURATION_S) renders bare; adapted values get a ' (adapted)' suffix
+        per RESEARCH §Pattern 3 + Discretion §"Stats row exact label string". The
+        int() coercion is defensive (mirrors set_underrun_count + set_buffer_percent
+        per Pattern S-5). Wrapper-level set_stats_visible governs visibility for
+        this row + the Underruns row + the Buffer progressbar row — no per-row
+        toggle code (Pitfall 8).
+        """
+        from musicstreamer.constants import BUFFER_DURATION_S
+        s = int(seconds)
+        if s == BUFFER_DURATION_S:
+            self._buffer_duration_label.setText(f"{s}s")
+        else:
+            self._buffer_duration_label.setText(f"{s}s (adapted)")
+
     def set_stats_visible(self, visible: bool) -> None:
         """Toggle the stats-for-nerds wrapper visibility (D-07). Phase 47.1."""
         self._stats_widget.setVisible(bool(visible))
@@ -2936,6 +2954,16 @@ class NowPlayingPanel(QWidget):
         underrun_row_label = _MutedLabel("Underruns", wrapper)
         self._underrun_count_label = _MutedLabel("0", wrapper)
         form.addRow(underrun_row_label, self._underrun_count_label)
+        # Phase 84 / D-12 / BUG-09 Commit B: always-visible adaptive buffer-duration row.
+        # Label 'Buf duration' (not 'Buffer') disambiguates from the existing progressbar
+        # row above whose label IS 'Buffer'. Per CONTEXT D-12, this overrides Phase 78
+        # D-08's adapted-only default — the 30s baseline is itself a meaningful change
+        # from the long-standing Phase 16 10s baseline and worth always surfacing.
+        # Inherits visibility from wrapper.setVisible(False) below — no per-row toggle (Pitfall 8).
+        from musicstreamer.constants import BUFFER_DURATION_S
+        buffer_duration_row_label = _MutedLabel("Buf duration", wrapper)
+        self._buffer_duration_label = _MutedLabel(f"{BUFFER_DURATION_S}s", wrapper)
+        form.addRow(buffer_duration_row_label, self._buffer_duration_label)
         # D-05: default hidden. MainWindow drives visibility from the QAction's
         # checked state after construction (WR-02: single source of truth).
         wrapper.setVisible(False)
