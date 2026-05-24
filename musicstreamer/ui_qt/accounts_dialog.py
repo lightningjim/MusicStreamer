@@ -609,17 +609,30 @@ class AccountsDialog(QDialog):
         # T-999.3-05: coerce category/detail to str before UI consumption.
         category = str(last_event.get("category", "SubprocessCrash"))
         detail = str(last_event.get("detail", ""))
-        self._show_failure_dialog(category, detail)
+        self._show_failure_dialog(provider, category, detail)
 
-    def _show_failure_dialog(self, category: str, detail: str) -> None:
+    # Phase 76 CR-01 fix: provider → user-facing prefix in the failure-dialog title.
+    # Unknown providers fall back to the raw provider string so future additions
+    # (e.g. "google") don't silently render "twitch" / "GBS.FM" — they render
+    # `"google Connection Failed"`, which is visibly wrong rather than misleading.
+    _PROVIDER_TITLES = {"twitch": "Twitch", "gbs": "GBS.FM"}
+
+    def _show_failure_dialog(self, provider: str, category: str, detail: str) -> None:
         """Category + detail failure dialog with inline Retry.
+
+        Phase 76 CR-01: ``provider`` parameter drives BOTH the window title
+        ("Twitch Connection Failed" vs "GBS.FM Connection Failed") AND the
+        Retry-button relaunch target — a GBS failure now correctly relaunches
+        ``_launch_gbs_login_subprocess`` instead of dragging the user into the
+        Twitch OAuth helper.
 
         T-40-04: all labels use PlainText format — user-visible detail
         strings cannot inject HTML/links.
         """
         label = _CATEGORY_LABELS.get(category, "Unknown error")
+        provider_title = self._PROVIDER_TITLES.get(provider, provider)
         dlg = QDialog(self)
-        dlg.setWindowTitle("Twitch Connection Failed")
+        dlg.setWindowTitle(f"{provider_title} Connection Failed")
         dlg.setMinimumWidth(380)
 
         title_lbl = QLabel(label, dlg)
@@ -655,5 +668,10 @@ class AccountsDialog(QDialog):
         layout.addLayout(btn_row)
 
         # D-09: Retry (Accepted) relaunches inline without closing AccountsDialog.
+        # Phase 76 CR-01: route the retry to the correct provider subprocess —
+        # GBS failures must NOT silently relaunch the Twitch OAuth helper.
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            self._launch_oauth_subprocess()
+            if provider == "gbs":
+                self._launch_gbs_login_subprocess()
+            else:
+                self._launch_oauth_subprocess()

@@ -230,11 +230,12 @@ class TestAccountsDialogOAuthFinished:
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: _show_failure_dialog signature is now (provider, cat, det).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog,
             "_show_failure_dialog",
-            lambda self, cat, det: recorded.append((cat, det)),
+            lambda self, prov, cat, det: recorded.append((prov, cat, det)),
         )
 
         stderr = b'{"ts":1.0,"category":"WindowClosedBeforeLogin","detail":"","provider":"twitch"}\n'
@@ -247,7 +248,7 @@ class TestAccountsDialogOAuthFinished:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("WindowClosedBeforeLogin", "")]
+        assert recorded == [("twitch", "WindowClosedBeforeLogin", "")]
         assert "not connected" in dlg._status_label.text().lower()
 
 
@@ -257,14 +258,15 @@ class TestAccountsDialogStderrParsing:
     def test_oauth_finished_parses_stderr_category(
         self, tmp_data_dir, qtbot, monkeypatch, fake_repo
     ):
-        """Single valid JSON event → _show_failure_dialog receives (category, detail)."""
+        """Single valid JSON event → _show_failure_dialog receives (provider, category, detail)."""
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog, "_show_failure_dialog",
-            lambda self, c, d: recorded.append((c, d)),
+            lambda self, p, c, d: recorded.append((p, c, d)),
         )
 
         stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
@@ -276,7 +278,7 @@ class TestAccountsDialogStderrParsing:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("LoginTimeout", "120s")]
+        assert recorded == [("twitch", "LoginTimeout", "120s")]
 
     def test_oauth_finished_keeps_last_event(
         self, tmp_data_dir, qtbot, monkeypatch, fake_repo
@@ -285,10 +287,11 @@ class TestAccountsDialogStderrParsing:
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog, "_show_failure_dialog",
-            lambda self, c, d: recorded.append((c, d)),
+            lambda self, p, c, d: recorded.append((p, c, d)),
         )
 
         stderr = (
@@ -303,7 +306,7 @@ class TestAccountsDialogStderrParsing:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("LoginTimeout", "120s")]
+        assert recorded == [("twitch", "LoginTimeout", "120s")]
 
     def test_oauth_finished_skips_malformed_json(
         self, tmp_data_dir, qtbot, monkeypatch, fake_repo
@@ -312,10 +315,11 @@ class TestAccountsDialogStderrParsing:
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog, "_show_failure_dialog",
-            lambda self, c, d: recorded.append((c, d)),
+            lambda self, p, c, d: recorded.append((p, c, d)),
         )
 
         stderr = (
@@ -331,7 +335,7 @@ class TestAccountsDialogStderrParsing:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("WindowClosedBeforeLogin", "")]
+        assert recorded == [("twitch", "WindowClosedBeforeLogin", "")]
 
     def test_oauth_finished_synthesizes_crash_on_no_event(
         self, tmp_data_dir, qtbot, monkeypatch, fake_repo
@@ -340,10 +344,11 @@ class TestAccountsDialogStderrParsing:
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog, "_show_failure_dialog",
-            lambda self, c, d: recorded.append((c, d)),
+            lambda self, p, c, d: recorded.append((p, c, d)),
         )
 
         mock_proc = _mock_proc_with_stderr(stderr_bytes=b"")
@@ -354,7 +359,7 @@ class TestAccountsDialogStderrParsing:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("SubprocessCrash", "exit=1")]
+        assert recorded == [("twitch", "SubprocessCrash", "exit=1")]
 
     def test_oauth_finished_synthesizes_invalid_on_empty_token(
         self, tmp_data_dir, qtbot, monkeypatch, fake_repo
@@ -363,10 +368,11 @@ class TestAccountsDialogStderrParsing:
         from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
         from PySide6.QtCore import QProcess
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog, "_show_failure_dialog",
-            lambda self, c, d: recorded.append((c, d)),
+            lambda self, p, c, d: recorded.append((p, c, d)),
         )
 
         mock_proc = _mock_proc_with_stderr(stderr_bytes=b"", stdout_bytes=b"")
@@ -377,7 +383,7 @@ class TestAccountsDialogStderrParsing:
             dlg._oauth_proc = mock_proc
             dlg._on_oauth_finished(0, QProcess.ExitStatus.NormalExit)
 
-        assert recorded == [("InvalidTokenResponse", "empty_stdout")]
+        assert recorded == [("twitch", "InvalidTokenResponse", "empty_stdout")]
 
 
 class TestAccountsDialogRetry:
@@ -471,7 +477,8 @@ class TestAccountsDialogFailureDialogPlainText:
 
         dlg = AccountsDialog(fake_repo)
         qtbot.addWidget(dlg)
-        dlg._show_failure_dialog("LoginTimeout", "120s")
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        dlg._show_failure_dialog("twitch", "LoginTimeout", "120s")
 
         assert len(built_dialogs) == 1
         failure_dlg = built_dialogs[0]
@@ -497,7 +504,8 @@ class TestAccountsDialogFailureDialogPlainText:
 
         dlg = AccountsDialog(fake_repo)
         qtbot.addWidget(dlg)
-        dlg._show_failure_dialog("SomeUnknownCategory", "")
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        dlg._show_failure_dialog("twitch", "SomeUnknownCategory", "")
 
         assert len(built) == 1
         labels = built[0].findChildren(QLabel)
@@ -516,8 +524,9 @@ class TestAccountsDialogOAuthLog:
         from PySide6.QtCore import QProcess
 
         # Swallow the dialog exec so the test doesn't block.
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
         monkeypatch.setattr(
-            AccountsDialog, "_show_failure_dialog", lambda self, c, d: None
+            AccountsDialog, "_show_failure_dialog", lambda self, p, c, d: None
         )
 
         stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
@@ -581,10 +590,11 @@ class TestAccountsDialogOAuthLog:
 
         monkeypatch.setattr(oauth_log.OAuthLogger, "__init__", boom)
 
-        recorded: list[tuple[str, str]] = []
+        # Phase 76 CR-01: signature widened to (provider, category, detail).
+        recorded: list[tuple[str, str, str]] = []
         monkeypatch.setattr(
             AccountsDialog, "_show_failure_dialog",
-            lambda self, c, d: recorded.append((c, d)),
+            lambda self, p, c, d: recorded.append((p, c, d)),
         )
 
         stderr = b'{"ts":1.0,"category":"LoginTimeout","detail":"120s","provider":"twitch"}\n'
@@ -597,7 +607,7 @@ class TestAccountsDialogOAuthLog:
             dlg._on_oauth_finished(1, QProcess.ExitStatus.NormalExit)
 
         # Logging failure must NOT prevent the user-facing dialog.
-        assert recorded == [("LoginTimeout", "120s")]
+        assert recorded == [("twitch", "LoginTimeout", "120s")]
 
 
 class TestAccountsDialogAudioAddict:
@@ -1543,3 +1553,121 @@ class TestAccountsDialogGBS:
         assert '"provider": "gbs"' in src or "'provider': 'gbs'" in src, (
             "_on_gbs_login_finished should record provider='gbs' on success path"
         )
+
+
+class TestAccountsDialogProviderAwareFailureDialog:
+    """Phase 76 CR-01: _show_failure_dialog title + Retry target are provider-aware.
+
+    Pre-fix: _show_failure_dialog hardcoded the window title "Twitch Connection
+    Failed" and the Retry button unconditionally launched _launch_oauth_subprocess
+    — so a GBS subprocess failure showed Twitch-branded copy AND the Retry click
+    silently routed to the Twitch OAuth helper (wrong provider, wrong window).
+    These tests guard the (provider="gbs") branch end-to-end.
+    """
+
+    def test_gbs_failure_dialog_title_is_gbs(self, tmp_data_dir, qtbot, monkeypatch, fake_repo):
+        """provider="gbs" → window title is "GBS.FM Connection Failed" (not Twitch)."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        built: list[QDialog] = []
+
+        def capture_exec(self):
+            built.append(self)
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", capture_exec)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._show_failure_dialog("gbs", "LoginTimeout", "120s")
+
+        assert len(built) == 1
+        assert built[0].windowTitle() == "GBS.FM Connection Failed"
+
+    def test_twitch_failure_dialog_title_unchanged(self, tmp_data_dir, qtbot, monkeypatch, fake_repo):
+        """Regression: provider="twitch" still produces the original "Twitch Connection Failed"."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        built: list[QDialog] = []
+
+        def capture_exec(self):
+            built.append(self)
+            return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(QDialog, "exec", capture_exec)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._show_failure_dialog("twitch", "LoginTimeout", "120s")
+
+        assert len(built) == 1
+        assert built[0].windowTitle() == "Twitch Connection Failed"
+
+    def test_gbs_failure_retry_launches_gbs_subprocess(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo,
+    ):
+        """provider="gbs" + Retry-clicked → _launch_gbs_login_subprocess fires (NOT Twitch)."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        # Simulate the Retry click (Accepted).
+        monkeypatch.setattr(
+            QDialog, "exec",
+            lambda self: QDialog.DialogCode.Accepted,
+        )
+
+        gbs_launch_calls: list[int] = []
+        twitch_launch_calls: list[int] = []
+
+        def fake_gbs_launch(self):
+            gbs_launch_calls.append(1)
+
+        def fake_twitch_launch(self):
+            twitch_launch_calls.append(1)
+
+        monkeypatch.setattr(
+            AccountsDialog, "_launch_gbs_login_subprocess", fake_gbs_launch,
+        )
+        monkeypatch.setattr(
+            AccountsDialog, "_launch_oauth_subprocess", fake_twitch_launch,
+        )
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._show_failure_dialog("gbs", "LoginTimeout", "120s")
+
+        assert gbs_launch_calls == [1], "GBS Retry must relaunch the GBS subprocess"
+        assert twitch_launch_calls == [], "GBS Retry must NOT launch the Twitch subprocess"
+
+    def test_twitch_failure_retry_launches_twitch_subprocess(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo,
+    ):
+        """Regression: provider="twitch" + Retry-clicked still routes to Twitch launcher."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        monkeypatch.setattr(
+            QDialog, "exec",
+            lambda self: QDialog.DialogCode.Accepted,
+        )
+
+        gbs_launch_calls: list[int] = []
+        twitch_launch_calls: list[int] = []
+
+        def fake_gbs_launch(self):
+            gbs_launch_calls.append(1)
+
+        def fake_twitch_launch(self):
+            twitch_launch_calls.append(1)
+
+        monkeypatch.setattr(
+            AccountsDialog, "_launch_gbs_login_subprocess", fake_gbs_launch,
+        )
+        monkeypatch.setattr(
+            AccountsDialog, "_launch_oauth_subprocess", fake_twitch_launch,
+        )
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        dlg._show_failure_dialog("twitch", "LoginTimeout", "120s")
+
+        assert twitch_launch_calls == [1]
+        assert gbs_launch_calls == []
