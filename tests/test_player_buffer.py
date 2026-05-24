@@ -28,11 +28,15 @@ def make_player(qtbot):
 
 
 def test_buffer_duration_constant():
-    assert BUFFER_DURATION_S == 10
+    # Phase 84 / D-10: bumped 10 → 30 (harvest-week 7.4s worst case + 3× headroom).
+    assert BUFFER_DURATION_S == 30
 
 
 def test_buffer_size_constant():
-    assert BUFFER_SIZE_BYTES == 10 * 1024 * 1024
+    # Phase 84 / D-10: bumped 10MB → 20MB so the byte cap doesn't constrain the
+    # 30s duration target at high-bitrate sources (FLAC ≈ 1.4Mbps would saturate
+    # 10MB before 30s elapses; 20MB gives ~110s worst-case headroom).
+    assert BUFFER_SIZE_BYTES == 20 * 1024 * 1024
 
 
 def test_init_sets_buffer_duration(qtbot):
