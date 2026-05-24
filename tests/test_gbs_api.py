@@ -144,6 +144,55 @@ def test_validate_cookies_reject(gbs_fixtures_dir):
     assert _validate_gbs_cookies("# garbage\n") is False
 
 
+# Phase 76 WR-04: lookalike-domain regression guard. Pre-fix the validator's
+# substring check (`"gbs.fm" in domain`) silently accepted any domain that
+# CONTAINED `gbs.fm` as a substring — `fakegbs.fm` and `gbs.fm.evil.com` both
+# slipped through with sessionid+csrftoken on the lookalike domain, which
+# meant the File/Paste import path (CookieImportDialog) would persist a
+# polluted cookies file and the user would be told they were "Connected".
+# The subprocess capture path (_GbsLoginWindow._cookie_domain_matches_gbs)
+# already used the label-boundary check; this test pins the validator to
+# the same contract.
+def test_validate_cookies_rejects_fakegbs_lookalike():
+    """`fakegbs.fm` cookies WITH sessionid+csrftoken must be rejected (label boundary required)."""
+    text = (
+        "# Netscape HTTP Cookie File\n"
+        ".fakegbs.fm\tTRUE\t/\tTRUE\t1799999999\tsessionid\tphony\n"
+        ".fakegbs.fm\tTRUE\t/\tFALSE\t1799999999\tcsrftoken\tphony\n"
+    )
+    assert _validate_gbs_cookies(text) is False
+
+
+def test_validate_cookies_rejects_subdomain_attack():
+    """`gbs.fm.evil.com` cookies must be rejected — endswith(".gbs.fm") is false."""
+    text = (
+        "# Netscape HTTP Cookie File\n"
+        ".gbs.fm.evil.com\tTRUE\t/\tTRUE\t1799999999\tsessionid\tphony\n"
+        ".gbs.fm.evil.com\tTRUE\t/\tFALSE\t1799999999\tcsrftoken\tphony\n"
+    )
+    assert _validate_gbs_cookies(text) is False
+
+
+def test_validate_cookies_accepts_subdomain_of_gbs():
+    """Subdomain like `sub.gbs.fm` is a valid match (mirrors subprocess-side predicate)."""
+    text = (
+        "# Netscape HTTP Cookie File\n"
+        ".sub.gbs.fm\tTRUE\t/\tTRUE\t1799999999\tsessionid\tvalue\n"
+        ".sub.gbs.fm\tTRUE\t/\tFALSE\t1799999999\tcsrftoken\tvalue\n"
+    )
+    assert _validate_gbs_cookies(text) is True
+
+
+def test_validate_cookies_accepts_bare_gbs_domain():
+    """Bare `gbs.fm` (no leading dot, no subdomain) is still accepted."""
+    text = (
+        "# Netscape HTTP Cookie File\n"
+        "gbs.fm\tFALSE\t/\tTRUE\t1799999999\tsessionid\tvalue\n"
+        "gbs.fm\tFALSE\t/\tFALSE\t1799999999\tcsrftoken\tvalue\n"
+    )
+    assert _validate_gbs_cookies(text) is True
+
+
 # ---------- GBS-01c: active playlist parser ----------
 
 def test_fetch_playlist_cold_start(gbs_fixtures_dir, fake_cookies_jar, monkeypatch):

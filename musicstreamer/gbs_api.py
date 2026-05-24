@@ -131,7 +131,19 @@ def _validate_gbs_cookies(text: str) -> bool:
         # Netscape columns: domain | flag | path | secure | expiry | name | value
         domain = parts[0].lstrip(".")
         name = parts[5]
-        if "gbs.fm" not in domain:
+        # Phase 76 WR-04: tighten to label-boundary match (mirrors
+        # oauth_helper._cookie_domain_matches_gbs). Pre-fix substring check
+        # `"gbs.fm" in domain` accepted lookalikes — `fakegbs.fm` contains
+        # `"gbs.fm"`. The subprocess-side cookie capture (_GbsLoginWindow)
+        # filters at collection time so it cannot produce a polluted file,
+        # but the File/Paste import path (CookieImportDialog → this
+        # validator) lets users paste arbitrary Netscape text. Without
+        # this fix, `fakegbs.fm` cookies WITH sessionid+csrftoken would
+        # validate, get written to paths.gbs_cookies_path(), and the user
+        # would be told they are "Connected" — but gbs_api would silently
+        # send those cookies to gbs.fm requests where they would be
+        # ignored (wrong domain).
+        if not (domain == "gbs.fm" or domain.endswith(".gbs.fm")):
             continue
         has_gbs_domain = True
         if name == "sessionid":
