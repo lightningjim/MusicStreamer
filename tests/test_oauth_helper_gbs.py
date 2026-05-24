@@ -210,6 +210,21 @@ def _make_bare_window():
     Per RESEARCH.md note "The full QWebEngine flow cannot be unit-tested
     headlessly", this skips the GUI-init plumbing while still exercising
     the pure-Python state-machine paths.
+
+    .. warning::
+        **Phase 76 IN-04 — known fragile pattern.** This helper bypasses
+        Qt's C++ ``QMainWindow`` construction via ``__new__``. Any test
+        that exercises a method which forwards into the C++ side
+        (notably ``super().closeEvent`` — see
+        ``test_gbs_window_closed_before_login`` and the narrowed
+        ``except (TypeError, RuntimeError)`` IN-02 introduced) will
+        observe Qt raising on the missing C++ instance. A future
+        PySide6 upgrade may add new required Qt-internal state that
+        currently-passing methods start to touch — failures here are
+        **test-infrastructure regressions, not production regressions**.
+        If a PySide6 upgrade trips this helper, prefer fixing the helper
+        (add the new state attributes the upgraded ``__init__`` sets)
+        rather than reverting production code.
     """
     from musicstreamer.oauth_helper import _GbsLoginWindow
     win = _GbsLoginWindow.__new__(_GbsLoginWindow)
