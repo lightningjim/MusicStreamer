@@ -2,7 +2,8 @@
 plan: 76-05
 phase: 76
 type: manual-uat
-status: MANUAL UAT PENDING USER
+status: passed
+uat_verified: 2026-05-23T23:05:00Z
 autonomous: false
 requirements: [GBS-AUTH-01]
 completed: 2026-05-23T22:00:00Z
@@ -75,4 +76,6 @@ After all 4 land green, mark GBS-AUTH-01 `Complete` in `REQUIREMENTS.md` (curren
 
 None during the automated portion. See SUMMARY files of Plans 76-01..76-04 for upstream deviations (most notably 76-01's scope violation + `git stash` violation, resolved at merge time).
 
-## Self-Check: PARTIAL — MANUAL UAT PENDING USER
+## Self-Check: PASSED
+
+UAT closed 2026-05-23 via `/gsd:verify-work 76`. All 4 live scenarios passed against the post-fix code (commits c787e60..14ba8e4). Notable live confirmation: CR-01's provider-aware failure dialog now shows `"GBS.FM Connection Failed"` (not Twitch) and `[Retry]` correctly relaunches the GBS subprocess. WR-02's closeEvent also informally confirmed (Test 2 step 14). GBS-AUTH-01 marked Complete in REQUIREMENTS.md.
