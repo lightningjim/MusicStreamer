@@ -1555,6 +1555,108 @@ class TestAccountsDialogGBS:
         )
 
 
+class TestAccountsDialogCloseEventCleanup:
+    """Phase 76 WR-02: closeEvent terminates any in-flight oauth_helper subprocess.
+
+    Pre-fix: AccountsDialog had no closeEvent override; closing the dialog
+    mid-login orphaned the QProcess + QWebEngine window for up to 120s. The
+    test confirms terminate()/kill() are called on both subprocess attributes
+    when present, and that super().closeEvent is still invoked.
+    """
+
+    def test_close_event_terminates_running_oauth_proc(self, tmp_data_dir, qtbot, fake_repo):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+        from PySide6.QtGui import QCloseEvent
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        mock_proc = MagicMock(spec=QProcess)
+        mock_proc.waitForFinished.return_value = True  # finishes within 2s
+        dlg._oauth_proc = mock_proc
+
+        dlg.closeEvent(QCloseEvent())
+
+        mock_proc.terminate.assert_called_once()
+        mock_proc.waitForFinished.assert_called_once_with(2000)
+
+    def test_close_event_kills_subprocess_when_terminate_times_out(
+        self, tmp_data_dir, qtbot, fake_repo,
+    ):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+        from PySide6.QtGui import QCloseEvent
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        mock_proc = MagicMock(spec=QProcess)
+        mock_proc.waitForFinished.return_value = False  # times out → kill
+        dlg._gbs_login_proc = mock_proc
+
+        dlg.closeEvent(QCloseEvent())
+
+        mock_proc.terminate.assert_called_once()
+        mock_proc.kill.assert_called_once()
+
+    def test_close_event_cleans_up_both_subprocesses(self, tmp_data_dir, qtbot, fake_repo):
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+        from PySide6.QtGui import QCloseEvent
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        oauth_proc = MagicMock(spec=QProcess)
+        oauth_proc.waitForFinished.return_value = True
+        gbs_proc = MagicMock(spec=QProcess)
+        gbs_proc.waitForFinished.return_value = True
+        dlg._oauth_proc = oauth_proc
+        dlg._gbs_login_proc = gbs_proc
+
+        dlg.closeEvent(QCloseEvent())
+
+        oauth_proc.terminate.assert_called_once()
+        gbs_proc.terminate.assert_called_once()
+
+    def test_close_event_handles_no_running_subprocess(self, tmp_data_dir, qtbot, fake_repo):
+        """No subprocess running → close still works without exception."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtGui import QCloseEvent
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+        # Both subprocess slots are None at construction time.
+        assert dlg._oauth_proc is None
+        assert dlg._gbs_login_proc is None
+
+        # Must not raise.
+        dlg.closeEvent(QCloseEvent())
+
+    def test_close_event_swallows_terminate_exceptions(self, tmp_data_dir, qtbot, fake_repo):
+        """One subprocess throwing during cleanup MUST NOT prevent the other from being cleaned up."""
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+        from PySide6.QtCore import QProcess
+        from PySide6.QtGui import QCloseEvent
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        bad_proc = MagicMock(spec=QProcess)
+        bad_proc.terminate.side_effect = RuntimeError("C++ object already deleted")
+        good_proc = MagicMock(spec=QProcess)
+        good_proc.waitForFinished.return_value = True
+        dlg._oauth_proc = bad_proc
+        dlg._gbs_login_proc = good_proc
+
+        # Must not raise.
+        dlg.closeEvent(QCloseEvent())
+
+        # Good proc still got cleaned up despite the bad proc's exception.
+        good_proc.terminate.assert_called_once()
+
+
 class TestAccountsDialogProviderAwareFailureDialog:
     """Phase 76 CR-01: _show_failure_dialog title + Retry target are provider-aware.
 

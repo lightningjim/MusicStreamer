@@ -163,6 +163,42 @@ class AccountsDialog(QDialog):
         self._update_status()
 
     # ------------------------------------------------------------------
+    # Lifecycle — subprocess cleanup (Phase 76 WR-02)
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event):  # noqa: N802 (Qt-mandated camelCase)
+        """Terminate any still-running OAuth/GBS-login subprocess on dialog close.
+
+        Phase 76 WR-02: Qt parent-ownership reaps the QProcess Python object
+        when AccountsDialog is destroyed, but the underlying OS process
+        (a Python interpreter hosting QtWebEngine) keeps running detached
+        until its own 120s watchdog fires or the QWebEngine window is closed
+        manually. Closing AccountsDialog mid-login therefore left an orphan
+        subprocess + QWebEngine window for up to two minutes — and a second
+        Connect click before the orphan timed out would spawn a concurrent
+        QWebEngine window.
+
+        Terminate-then-wait-then-kill is the standard Qt cleanup pattern;
+        each step is wrapped in try/except so any single-subprocess failure
+        cannot prevent the other from being cleaned up or block the dialog
+        from closing.
+        """
+        for proc_attr in ("_oauth_proc", "_gbs_login_proc"):
+            proc = getattr(self, proc_attr, None)
+            if proc is None:
+                continue
+            try:
+                proc.terminate()
+                # waitForFinished returns False on timeout — fall through to kill.
+                if not proc.waitForFinished(2000):
+                    proc.kill()
+            except Exception:
+                # Defensive: any QProcess-side failure (already-dead, C++ object
+                # gone, etc.) must not block close — the goal is best-effort.
+                pass
+        super().closeEvent(event)
+
+    # ------------------------------------------------------------------
     # Status helpers
     # ------------------------------------------------------------------
 
