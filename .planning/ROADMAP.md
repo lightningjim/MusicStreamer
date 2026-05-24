@@ -1017,7 +1017,7 @@ Plans:
 
 **Depends on:** Phase 78 (Commit A harvest infra)
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
@@ -1029,4 +1029,4 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 84-04-PLAN.md — Wave 2 closure (84-VERIFICATION.md with WAIVED Phase 78 D-06 statistical gate + 2-week post-ship monitor plan + follow-up trigger thresholds for reconnect-on-stall evaluation)
+- [x] 84-04-PLAN.md — Wave 2 closure (84-VERIFICATION.md with WAIVED Phase 78 D-06 statistical gate + 2-week post-ship monitor plan + follow-up trigger thresholds for reconnect-on-stall evaluation)
