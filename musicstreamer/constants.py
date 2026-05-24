@@ -51,9 +51,14 @@ def clear_twitch_token() -> bool:
     return False
 
 
-# GStreamer playbin3 buffer tuning (Phase 16 / STREAM-01)
-BUFFER_DURATION_S = 10                    # seconds; applied as BUFFER_DURATION_S * Gst.SECOND
-BUFFER_SIZE_BYTES = 10 * 1024 * 1024      # 5 MB
+# GStreamer playbin3 buffer tuning (Phase 16 / STREAM-01; Phase 84 / D-10 bump).
+# Phase 84 / D-10 / BUG-09 Commit B: bumped from Phase 16 STREAM-01 baseline
+# (10s / 10MB) per harvest-week worst-case 7.4s underrun cycle plus ~3× headroom
+# (84-CONTEXT.md <data-summary>). Both knobs change together so the byte cap does
+# NOT limit the duration target on high-bitrate sources (FLAC ~1.4Mbps saturates
+# 10MB before 30s elapses; 20MB gives ~110s worst-case headroom).
+BUFFER_DURATION_S = 30                    # seconds; applied as BUFFER_DURATION_S * Gst.SECOND at construction
+BUFFER_SIZE_BYTES = 20 * 1024 * 1024      # 20 MB (was 10 MB despite the wrong inline comment)
 
 # YouTube mpv minimum wait window before failover (Phase 33 / FIX-07 / D-01)
 YT_MIN_WAIT_S = 15
