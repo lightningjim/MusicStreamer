@@ -13,9 +13,23 @@ set -euo pipefail
 PAYLOAD=$(cat)
 COMMAND=$(jq -r '.tool_input.command' <<< "$PAYLOAD")
 
-# Extract phase number ONLY when the command matches the canonical phase-completion
-# commit message. Anything else: pass through unmodified (exit 0, no JSON output).
-PHASE_NUM=$(echo "$COMMAND" | grep -oP 'docs\(phase-\K[0-9]+(?=\): complete phase execution)' || true)
+# Self-guard: only fire when the command is actually a commit creator.
+# The PreToolUse `if:` matcher in settings.json may be looser than expected
+# (substring-style), so re-validate here that the command starts with one of
+# the two known commit entrypoints. Without this guard, ANY Bash command that
+# embeds a phase-completion-looking string as data (e.g., a test loop) would
+# get pyproject.toml appended and corrupted.
+if ! echo "$COMMAND" | grep -qE '^[[:space:]]*(gsd-sdk[[:space:]]+query[[:space:]]+commit|git[[:space:]]+commit)\b'; then
+    exit 0
+fi
+
+# Extract phase number from any commit whose `docs(...)` prefix carries a
+# phase-completion marker. Accepts three observed forms:
+#   docs(phase-NN): complete phase execution        (canonical SDK form)
+#   docs(NN): close phase ...                       (Phase 80-style)
+#   docs(phase-NN): mark phase complete ...         (Phase 76-style)
+# Anything else: pass through unmodified (exit 0, no JSON output).
+PHASE_NUM=$(echo "$COMMAND" | grep -oP 'docs\((?:phase-)?\K[0-9]+(?=\):.*(?:complete phase execution|close phase|mark phase complete))' | head -1 || true)
 if [[ -z "$PHASE_NUM" ]]; then
     exit 0
 fi

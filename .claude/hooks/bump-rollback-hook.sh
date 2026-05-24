@@ -16,8 +16,18 @@ set -euo pipefail
 PAYLOAD=$(cat)
 COMMAND=$(jq -r '.tool_input.command' <<< "$PAYLOAD")
 
-# Only fire on the canonical phase-completion commit shape — pass through everything else.
-if ! echo "$COMMAND" | grep -qE 'docs\(phase-[0-9]+\): complete phase execution'; then
+# Self-guard: only fire when the failed command was actually a commit creator.
+# Without this guard, ANY Bash failure whose command-text embeds a phase-completion
+# string as DATA (a test loop, a grep over commit messages, etc.) would silently
+# `git checkout HEAD -- pyproject.toml` and clobber an in-progress version bump.
+if ! echo "$COMMAND" | grep -qE '^[[:space:]]*(gsd-sdk[[:space:]]+query[[:space:]]+commit|git[[:space:]]+commit)\b'; then
+    exit 0
+fi
+
+# Only fire on a completion-marker commit shape — pass through any other commit
+# failure (e.g., a fix-up commit, a doc tracking commit). Mirrors the broadened
+# regex in bump-version-hook.sh so the bump/rollback pair stays in lockstep.
+if ! echo "$COMMAND" | grep -qE 'docs\((?:phase-)?[0-9]+\):.*(complete phase execution|close phase|mark phase complete)'; then
     exit 0
 fi
 
