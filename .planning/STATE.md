@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: executing
-stopped_at: Phase 83 execution complete; 3 manual UAT items in HUMAN-UAT
-last_updated: "2026-05-23T21:20:38.707Z"
+status: ready_to_plan
+stopped_at: Phase 76 complete (5/5) — ready to discuss Phase 77
+last_updated: 2026-05-24T01:55:45.714Z
 last_activity: 2026-05-23 -- Phase 76 execution started
 progress:
   total_phases: 43
   completed_phases: 40
   total_plans: 183
-  completed_plans: 178
+  completed_plans: 183
   percent: 93
 ---
 
@@ -21,20 +21,20 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 76 — gbs-fm-authentication-support-both-pre-existing-api-token-an
+**Current focus:** Phase 77 — test infrastructure stabilization fix pre existing test doub
 
 ## Current Position
 
-Phase: 76 (gbs-fm-authentication-support-both-pre-existing-api-token-an) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 76
-Last activity: 2026-05-23 -- Phase 76 execution started
+Phase: 77
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-24
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 195 (v1.0–v1.5 combined)
+- Total plans completed: 200 (v1.0–v1.5 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours
 
