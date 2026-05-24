@@ -1,0 +1,356 @@
+"""Phase 84 / BUG-09 Commit B / D-11 — Wave 0 RED tests for adaptive
+buffer-duration growth state machine + URI-bind apply ordering.
+
+Drives Wave 1 (Plan 84-02) implementation against locked contracts:
+
+  - ``Player._growth_step: int = 0``                  (D-11 state)
+  - ``Player._current_buffer_duration_s: int =        (D-11 state)
+        BUFFER_DURATION_S``
+  - ``Player._pending_buffer_duration_s:              (D-11 staging)
+        int | None = None``
+  - ``Player.buffer_duration_changed = Signal(int)``  (D-12 Signal)
+  - ``Player._maybe_grow_buffer_duration()``          (D-11 cycle-close hook)
+  - ``Player._apply_pending_buffer_duration_to_pipeline()``  (D-11 apply)
+  - ``Player._reset_buffer_duration_to_baseline()``   (D-11 per-URL reset)
+
+D-11 is implemented under the playbin3 mid-session-write FALLBACK shape
+(84-RESEARCH §D-11 Resolution): mid-session ``set_property("buffer-duration",
+N)`` writes are silent no-ops for the currently-playing stream; the value
+must be written to playbin3 BEFORE the next URI bind so that
+uridecodebin3's ``new_source_handler`` reads the updated struct field and
+pushes it down to urisourcebin → queue2. Hence the "stage + apply + reset"
+three-step lifecycle:
+
+  1. cycle_close (in-session underrun)  → stage ``_pending_buffer_duration_s``
+  2. URI bind   (``_try_next_stream``   → apply ``_pending`` BEFORE
+                  or gapless preroll        ``set_property("uri", ...)``
+                  handoff)
+  3. URI bind   (per-URL reset)         → reset back to baseline
+
+Per-file helpers (``make_player`` / ``_make_record``) are duplicated VERBATIM
+from ``tests/test_player_underrun_count.py`` per PATTERNS.md §S-6 (codebase
+convention: per-file duplication, NOT shared conftest extraction).
+
+The ``_GST_SECOND`` hard-coded literal at the top of file is the same idiom
+as ``tests/test_player_buffer.py:13`` — keeps this test file free of
+``import gi`` per D-26 / QA-02 (project invariant).
+
+All ``.connect(...)`` calls bind to ``received.append`` (bound method) per
+QA-05 / Pattern S-1 — NEVER use lambdas.
+"""
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import MagicMock, call, patch
+
+import pytest
+
+from musicstreamer.constants import BUFFER_DURATION_S
+from musicstreamer.player import Player, _CycleClose
+
+# Gst.SECOND is 1_000_000_000 (nanoseconds) — hard-coded here so the test
+# file does not need ``import gi`` (D-26 / QA-02).
+_GST_SECOND = 1_000_000_000
+
+
+# ----------------------------------------------------------------------
+# Per-file helpers — DUPLICATED VERBATIM from tests/test_player_underrun_count.py
+# per PATTERNS.md §S-6. Do NOT extract to conftest.py.
+# ----------------------------------------------------------------------
+
+def make_player(qtbot):
+    """Create a Player with the GStreamer pipeline factory mocked out.
+
+    Verbatim duplicate of tests/test_player_underrun_count.py:27-42 (per
+    PATTERNS.md §S-6 — codebase convention is per-file helper duplication,
+    not shared conftest extraction).
+    """
+    mock_pipeline = MagicMock()
+    mock_bus = MagicMock()
+    mock_pipeline.get_bus.return_value = mock_bus
+    with patch(
+        "musicstreamer.player.Gst.ElementFactory.make",
+        return_value=mock_pipeline,
+    ):
+        player = Player()
+    return player
+
+
+def _make_record(outcome: str = "recovered") -> _CycleClose:
+    """Build a minimal _CycleClose record for the cycle-close slot.
+
+    Verbatim duplicate of tests/test_player_underrun_count.py:45-62.
+    """
+    return _CycleClose(
+        start_ts=10.0,
+        end_ts=11.5,
+        duration_ms=1500,
+        min_percent=60,
+        station_id=7,
+        station_name="Test",
+        url="http://x/",
+        outcome=outcome,
+        cause_hint="unknown",
+    )
+
+
+# ----------------------------------------------------------------------
+# 9 RED tests covering the D-11 state machine + URI-bind apply ordering.
+# ----------------------------------------------------------------------
+
+def test_growth_state_initialized(qtbot):
+    """D-11 init: growth-step counter starts at 0; current duration mirrors
+    the BUFFER_DURATION_S baseline; pending value is None (no staged write).
+
+    Pitfall 3 (Phase 78 carry-forward): all three fields MUST be
+    type-annotated in __init__ — never rely on set-on-first-write semantics.
+    """
+    player = make_player(qtbot)
+    assert player._growth_step == 0
+    assert player._current_buffer_duration_s == BUFFER_DURATION_S
+    assert player._pending_buffer_duration_s is None
+
+
+def test_first_cycle_close_stages_60s(qtbot):
+    """D-11: first in-session cycle_close bumps growth_step 0→1 and stages
+    60s. Signal emits with the new (staged) value so the stats-for-nerds row
+    updates immediately to "60s (adapted)" — even though the pipeline write
+    is deferred to the next URI bind (RESEARCH §D-11 fallback).
+    """
+    player = make_player(qtbot)
+    received: list[int] = []
+    player.buffer_duration_changed.connect(received.append)  # bound method (Pattern S-1)
+
+    player._on_underrun_cycle_closed(_make_record())
+    qtbot.wait(50)
+
+    assert received == [60]
+    assert player._growth_step == 1
+    assert player._current_buffer_duration_s == 60
+    assert player._pending_buffer_duration_s == 60
+
+
+def test_second_cycle_close_stages_120s(qtbot):
+    """D-11: second sequential cycle_close bumps growth_step 1→2 and
+    stages 120s (cap).
+    """
+    player = make_player(qtbot)
+    received: list[int] = []
+    player.buffer_duration_changed.connect(received.append)
+
+    player._on_underrun_cycle_closed(_make_record())
+    player._on_underrun_cycle_closed(_make_record())
+    qtbot.wait(50)
+
+    assert received == [60, 120]
+    assert player._growth_step == 2
+    assert player._current_buffer_duration_s == 120
+    assert player._pending_buffer_duration_s == 120
+
+
+def test_growth_caps_at_120(qtbot):
+    """D-11: third+ cycle_close are no-ops at the 120s cap. Counter stays
+    at 2 and the Signal does NOT re-emit (no spurious "still 120s" updates).
+    """
+    player = make_player(qtbot)
+    received: list[int] = []
+    player.buffer_duration_changed.connect(received.append)
+
+    for _ in range(5):
+        player._on_underrun_cycle_closed(_make_record())
+    qtbot.wait(50)
+
+    assert received == [60, 120]  # only two emits — third+ at cap are no-ops
+    assert player._growth_step == 2
+    assert player._current_buffer_duration_s == 120
+
+
+def test_try_next_stream_applies_pending_before_uri_bind(qtbot):
+    """D-11 URI-bind apply (Pitfall 1 from RESEARCH): _try_next_stream must
+    write the staged buffer-duration to playbin3 BEFORE binding the next
+    URI. uridecodebin3.new_source_handler reads playbin3.buffer_duration
+    at URI-bind time; missing this ordering means the staged value is
+    ignored by queue2 entirely (silent no-op for the new stream).
+    """
+    player = make_player(qtbot)
+    # Stage a pending 60s value via one cycle_close.
+    player._on_underrun_cycle_closed(_make_record())
+    assert player._pending_buffer_duration_s == 60
+
+    # Queue a minimal stream. The MagicMock pipeline absorbs set_property
+    # calls; we inspect call_args_list to assert ordering.
+    player._streams_queue = [
+        SimpleNamespace(url="http://example/", id=1, station_id=1)
+    ]
+    player._is_first_attempt = False  # avoid elapsed-timer side effects
+
+    # Clear prior call history so we only see _try_next_stream's writes.
+    player._pipeline.set_property.reset_mock()
+
+    player._try_next_stream()
+
+    calls = player._pipeline.set_property.call_args_list
+    # Find indices of the buffer-duration write and the first uri write.
+    duration_indices = [
+        i for i, c in enumerate(calls)
+        if c == call("buffer-duration", 60 * _GST_SECOND)
+    ]
+    uri_indices = [
+        i for i, c in enumerate(calls)
+        if len(c.args) >= 1 and c.args[0] == "uri"
+    ]
+    assert duration_indices, (
+        f"expected call('buffer-duration', 60 * Gst.SECOND) in "
+        f"_try_next_stream set_property calls; got {calls}"
+    )
+    assert uri_indices, (
+        f"expected call('uri', ...) in _try_next_stream set_property "
+        f"calls; got {calls}"
+    )
+    assert duration_indices[0] < uri_indices[0], (
+        f"D-11 ordering FAIL: buffer-duration write must precede uri "
+        f"write so uridecodebin3.new_source_handler reads the updated "
+        f"struct field. duration_index={duration_indices[0]}, "
+        f"uri_index={uri_indices[0]}, calls={calls}"
+    )
+
+
+def test_preroll_handoff_applies_pending_before_uri_swap(qtbot):
+    """D-11 URI-bind apply at the second site (Pitfall 2 from RESEARCH):
+    missing this apply-site means SomaFM users (who hit gapless preroll
+    handoff hourly per Phase 83) lose all adaptive growth on every
+    preroll cycle. The slot must mirror _try_next_stream's stage-and-apply
+    block exactly.
+
+    Setup mirrors tests/test_player.py:1136-1144 (the Phase 83 D-10
+    post-handoff failover test) for the about-to-finish slot prerequisites.
+    """
+    player = make_player(qtbot)
+    # Stage a pending 60s value via one cycle_close.
+    player._on_underrun_cycle_closed(_make_record())
+    assert player._pending_buffer_duration_s == 60
+
+    # The about-to-finish slot requires _preroll_in_flight=True and
+    # expected_seq == _preroll_seq to proceed past the CR-01/WR-03 guards
+    # (player.py:1308-1311). Both are configurable directly on the player
+    # instance — no need to drive the full play() path.
+    player._preroll_in_flight = True
+    player._preroll_handler_id = 0
+    seq_at_emit = player._preroll_seq
+    player._streams_queue = [
+        SimpleNamespace(url="http://stream.example/", id=1, station_id=1)
+    ]
+    player._is_first_attempt = False
+
+    # Tracker is real (constructed in __init__); patch its mutators so the
+    # slot's force_close/bind_url calls don't touch real state.
+    player._pipeline.set_property.reset_mock()
+
+    with patch.object(player, "_tracker", MagicMock()), \
+         patch.object(player, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(player, "_elapsed_timer", MagicMock()):
+        player._on_preroll_about_to_finish(seq_at_emit)
+
+    calls = player._pipeline.set_property.call_args_list
+    duration_indices = [
+        i for i, c in enumerate(calls)
+        if c == call("buffer-duration", 60 * _GST_SECOND)
+    ]
+    uri_indices = [
+        i for i, c in enumerate(calls)
+        if len(c.args) >= 1 and c.args[0] == "uri"
+    ]
+    assert duration_indices, (
+        f"expected call('buffer-duration', 60 * Gst.SECOND) in "
+        f"_on_preroll_about_to_finish set_property calls; got {calls}. "
+        f"Pitfall 2 from 84-RESEARCH: missing this apply-site means "
+        f"SomaFM users lose adaptive growth at every preroll handoff."
+    )
+    assert uri_indices, (
+        f"expected call('uri', ...) in _on_preroll_about_to_finish "
+        f"set_property calls; got {calls}"
+    )
+    assert duration_indices[0] < uri_indices[0], (
+        f"D-11 ordering FAIL at preroll-handoff site: buffer-duration "
+        f"write must precede the gapless uri swap. "
+        f"duration_index={duration_indices[0]}, "
+        f"uri_index={uri_indices[0]}, calls={calls}"
+    )
+
+
+def test_try_next_stream_resets_growth_to_baseline(qtbot):
+    """D-11 per-URL reset (mirrors Phase 47.1 D-14 sentinel-reset and
+    Phase 62 D-04 _underrun_armed reset): _try_next_stream must reset
+    growth state back to baseline so each new station starts fresh.
+
+    Per RESEARCH §D-11 implementation block: the pending value is reset
+    to BUFFER_DURATION_S (NOT None) so the baseline value is pushed to
+    the pipeline at the next bind — otherwise a station change after
+    growth-to-120s would leave playbin3 stuck at 120s for the new
+    station. The reset MUST emit buffer_duration_changed so the stats
+    row drops back to "30s".
+    """
+    player = make_player(qtbot)
+    # Bump growth to step 1 (one cycle_close → staged 60s).
+    player._on_underrun_cycle_closed(_make_record())
+    assert player._growth_step == 1
+
+    received: list[int] = []
+    player.buffer_duration_changed.connect(received.append)
+
+    player._streams_queue = [
+        SimpleNamespace(url="http://newstation/", id=2, station_id=2)
+    ]
+    player._is_first_attempt = False
+    player._try_next_stream()
+    qtbot.wait(50)
+
+    assert player._growth_step == 0
+    assert player._current_buffer_duration_s == BUFFER_DURATION_S
+    # Pending is reset to baseline (not None) so the next bind writes the
+    # baseline value to playbin3 — flushes any prior growth that may have
+    # been applied to a previous URL session.
+    assert player._pending_buffer_duration_s in (None, BUFFER_DURATION_S)
+    # The reset emits a Signal so the stats row reflects the baseline.
+    assert received[-1] == BUFFER_DURATION_S
+
+
+def test_reset_is_noop_when_already_at_baseline(qtbot):
+    """D-11 reset no-op guard (Pitfall 3 / Pattern S-3): when the state
+    is already at baseline, _reset_buffer_duration_to_baseline must NOT
+    emit a spurious Signal — would cause the stats row to "twitch" at
+    every URL bind even when no growth happened.
+    """
+    player = make_player(qtbot)  # fresh — already at baseline
+    received: list[int] = []
+    player.buffer_duration_changed.connect(received.append)
+
+    player._reset_buffer_duration_to_baseline()
+    qtbot.wait(50)
+
+    assert received == [], (
+        "D-11 Pitfall 3: reset-to-baseline when already at baseline must "
+        "be a no-op (no Signal emit). Got spurious emits: " + repr(received)
+    )
+
+
+def test_buffer_duration_changed_signal_at_class_scope():
+    """D-12 contract pin: Player.buffer_duration_changed must exist as a
+    class-level Signal so the wire wave (Plan 84-03) cannot silently
+    rename it. Mirrors the Phase 78 underrun_count_changed pattern
+    (player.py:297).
+    """
+    assert hasattr(Player, "buffer_duration_changed"), (
+        "Player.buffer_duration_changed Signal missing — Plan 84-02 must "
+        "add `buffer_duration_changed = Signal(int)` adjacent to the "
+        "existing `underrun_count_changed = Signal(int)` at player.py:297."
+    )
+    sig = Player.buffer_duration_changed
+    # PySide6 class-level Signal descriptors expose a string-form repr that
+    # includes the carrying type — defensive contract check that catches
+    # arity drift (Signal() vs Signal(object) vs Signal(int)).
+    sig_repr = repr(sig) + " " + sig.__class__.__name__
+    assert "Signal" in sig_repr, (
+        f"Player.buffer_duration_changed is not a PySide6 Signal: "
+        f"{sig_repr}"
+    )
