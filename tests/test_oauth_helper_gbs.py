@@ -407,13 +407,22 @@ def test_gbs_window_closed_before_login(monkeypatch, capsys):
     monkeypatch.setattr(oauth_helper.QApplication, "exit", lambda code=0: None)
 
     win = _make_bare_window()
+    # Phase 76 IN-02: narrowed from `except Exception` to the specific Qt-side
+    # failure modes super().closeEvent raises against a bare-__new__'d instance:
+    #   - TypeError: PySide6 raises this when the underlying C++ QMainWindow
+    #     was never constructed and a method tries to forward to it.
+    #   - RuntimeError: raised on direct shiboken access when the C++ side is
+    #     absent (older / future PySide6 variants).
+    # Narrowing prevents the test from silently passing if _emit_event or
+    # _finish itself raised (e.g. a JSON encoding bug) — those would now
+    # propagate and fail the test.
     try:
         oauth_helper._GbsLoginWindow.closeEvent(win, MagicMock())
-    except Exception:
-        # super().closeEvent on a bare __new__'d instance may fail because
-        # Qt's C++ side wasn't constructed. The _emit_event + _finish
-        # calls happen BEFORE super() per the design in PATTERNS.md
-        # Excerpt 1A lines 233-237.
+    except (TypeError, RuntimeError):
+        # super().closeEvent on a bare __new__'d instance fails because Qt's
+        # C++ side wasn't constructed. The _emit_event + _finish calls happen
+        # BEFORE super() per the design in PATTERNS.md Excerpt 1A lines 233-237,
+        # so the assertions below are still meaningful.
         pass
 
     err_lines = capsys.readouterr().err.strip().splitlines()
