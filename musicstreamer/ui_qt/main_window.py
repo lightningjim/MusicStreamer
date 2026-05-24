@@ -388,6 +388,18 @@ class MainWindow(QMainWindow):
         # underrun_recovery_started connection below, which uses QueuedConnection
         # defensively for unrelated reasons — do NOT harmonize the two wires.
         self._player.underrun_count_changed.connect(self.now_playing.set_underrun_count)
+        # Phase 84 / D-12 / BUG-09 Commit B: live buffer-duration → stats-for-nerds 'Buf duration' row.
+        # Bound method per QA-05 / §S-1 (no lambda). DirectConnection (default — no
+        # Qt.ConnectionType.QueuedConnection argument) is correct because the emit
+        # site is Player._maybe_grow_buffer_duration / _reset_buffer_duration_to_baseline
+        # (both main-thread slots — the receiving end of the queued Phase 62 cycle_close
+        # connection already marshalled to main) and the receiver
+        # NowPlayingPanel.set_buffer_duration is a QWidget slot also on the main thread
+        # (qt-glib-bus-threading.md Pitfall 2 satisfied). This differs from the
+        # underrun_recovery_started connection nearby, which uses QueuedConnection
+        # defensively for unrelated reasons — do NOT harmonize the two wires.
+        # See 84-RESEARCH §Pattern 3.
+        self._player.buffer_duration_changed.connect(self.now_playing.set_buffer_duration)
 
         # Player → toast notifications (D-11)
         self._player.failover.connect(self._on_failover)
