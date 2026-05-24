@@ -4,8 +4,12 @@ Phase 77 D-07 / D-08 / D-16 / D-17.
 
 This module declares a single canonical ``FakePlayer(QObject)`` that mirrors
 **all 20 Signals** currently on ``musicstreamer.player.Player`` (Phase 83
-added ``_preroll_about_to_finish_requested``).  The canonical Signal source
-of truth is ``musicstreamer/player.py:241-294``.
+added ``_preroll_about_to_finish_requested``), PLUS one Wave-0 forward-
+compatible mirror that Player itself will gain in Wave 1 (Phase 84 / D-12
+``buffer_duration_changed`` — added here in Wave 0 per INFRA-01 drift-guard
+convention: parity edits ship in the same wave as the new Signal contract
+under test, even when the Player half doesn't land until the next wave).
+The canonical Signal source of truth is ``musicstreamer/player.py:241-297``.
 
 Rule 1 — before any future maintenance session, re-grep the production Signal
 block to confirm no signals were added since this file was last updated::
@@ -34,8 +38,12 @@ class FakePlayer(QObject):
     """Canonical shared Player test double.
 
     Mirrors every Signal declared on ``musicstreamer.player.Player``
-    (20 signals, D-16 invariant) and provides method stubs for the API
-    surface touched by MainWindow, EditStationDialog, and NowPlayingPanel
+    (20 signals, D-16 invariant) plus one Wave-0 forward-compatible mirror
+    for the Phase 84 / D-12 ``buffer_duration_changed`` Signal that Player
+    will gain in Wave 1 (21 signals total on FakePlayer in Wave 0; the
+    parity test allows FakePlayer to lead Player by design — see the
+    drift-guard tests below). Provides method stubs for the API surface
+    touched by MainWindow, EditStationDialog, and NowPlayingPanel
     test consumers.
 
     Drift-guards:
@@ -73,6 +81,7 @@ class FakePlayer(QObject):
     _underrun_cycle_closed         = Signal(object)
     underrun_recovery_started      = Signal()
     underrun_count_changed         = Signal(int)  # Phase 78 / BUG-09 Commit A
+    buffer_duration_changed        = Signal(int)  # Phase 84 / BUG-09 Commit B / D-12
 
     # Phase 70 / DS-01 caps signal (1)
     audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth

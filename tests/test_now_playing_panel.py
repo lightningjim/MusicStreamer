@@ -690,6 +690,76 @@ def test_set_underrun_count_updates_label(qtbot):
     assert panel._underrun_count_label.text() == "0"
 
 
+# ---------------------------------------------------------------- #
+# Phase 84 / BUG-09 Commit B / D-12: always-visible Buf duration row +
+# set_buffer_duration slot receiver for Player.buffer_duration_changed.
+# ---------------------------------------------------------------- #
+
+
+def test_buffer_duration_row_present(qtbot):
+    """Phase 84 / D-12: the stats-for-nerds wrapper contains a third
+    QFormLayout row with label text "Buf duration" (RESEARCH Discretion
+    — NOT "Buffer" which would shadow the existing progressbar row at
+    row 0), value text "30s" (baseline, format ``f"{BUFFER_DURATION_S}s"``),
+    positioned AFTER the Phase 78 "Underruns" row (row 1 → new row 2).
+    """
+    from musicstreamer.constants import BUFFER_DURATION_S
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+
+    form = panel._stats_widget.layout()
+    assert isinstance(form, QFormLayout)
+    # rowCount must be at least 3: Buffer (row 0), Underruns (row 1),
+    # Buf duration (row 2 — NEW). A regression that drops the new row
+    # would leave rowCount at 2 and the slot/label assertions below
+    # would fire on AttributeError.
+    assert form.rowCount() >= 3, (
+        f"Phase 84 / D-12: stats-for-nerds form expected >= 3 rows "
+        f"(Buffer, Underruns, Buf duration); got {form.rowCount()}."
+    )
+    label_widget = form.itemAt(2, QFormLayout.LabelRole).widget()
+    value_widget = form.itemAt(2, QFormLayout.FieldRole).widget()
+    assert label_widget.text() == "Buf duration", (
+        f"Phase 84 / D-12: row 2 label text expected 'Buf duration' "
+        f"(NOT 'Buffer' which would shadow the row 0 progressbar label); "
+        f"got {label_widget.text()!r}."
+    )
+    assert value_widget.text() == f"{BUFFER_DURATION_S}s", (
+        f"Phase 84 / D-12: row 2 initial value text expected "
+        f"'{BUFFER_DURATION_S}s' (baseline format, no '(adapted)' suffix); "
+        f"got {value_widget.text()!r}."
+    )
+
+
+def test_set_buffer_duration_baseline_format(qtbot):
+    """Phase 84 / D-12: set_buffer_duration(BUFFER_DURATION_S) sets the
+    label to "30s" with NO "(adapted)" suffix — the baseline value is
+    shown plain so the suffix unambiguously signals "growth has fired".
+    """
+    from musicstreamer.constants import BUFFER_DURATION_S
+
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.set_buffer_duration(BUFFER_DURATION_S)
+    assert panel._buffer_duration_label.text() == f"{BUFFER_DURATION_S}s"
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [(60, "60s (adapted)"), (120, "120s (adapted)")],
+)
+def test_set_buffer_duration_adapted_format(qtbot, value, expected):
+    """Phase 84 / D-12: any value other than BUFFER_DURATION_S baseline
+    gets the "(adapted)" suffix so the user can see at a glance that
+    adaptive growth has fired on this URL session.
+    """
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    panel.set_buffer_duration(value)
+    assert panel._buffer_duration_label.text() == expected
+
+
 def test_set_stats_visible_toggles(qtbot):
     """D-07: set_stats_visible flips the wrapper hidden flag both ways."""
     panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))

@@ -61,6 +61,29 @@ def test_count_changed_updates_stats_row(qtbot, fake_player, fake_repo, block_re
     assert w.now_playing._underrun_count_label.text() == "7"
 
 
+def test_buffer_duration_changed_updates_stats_row(qtbot, fake_player, fake_repo, block_real_network):
+    """Phase 84 / D-12 / BUG-09 Commit B — end-to-end Signal → label.
+
+    MainWindow wires Player.buffer_duration_changed →
+    NowPlayingPanel.set_buffer_duration immediately after the Phase 78
+    underrun_count_changed wire at main_window.py:390. DirectConnection
+    (both ends main-thread, RESEARCH A3 / Pattern 3). Emitting the
+    FakePlayer signal here mimics Player._maybe_grow_buffer_duration's
+    emit after a cycle_close bumps growth_step. Baseline (30) shows
+    "30s"; adapted (60 / 120) shows "Ns (adapted)".
+    """
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+    # Adapted format: growth has fired.
+    fake_player.buffer_duration_changed.emit(60)
+    qtbot.wait(50)  # DirectConnection is synchronous; defensive wait
+    assert w.now_playing._buffer_duration_label.text() == "60s (adapted)"
+    # Baseline format: per-URL reset dropped it back to 30s.
+    fake_player.buffer_duration_changed.emit(30)
+    qtbot.wait(50)
+    assert w.now_playing._buffer_duration_label.text() == "30s"
+
+
 def test_second_call_within_cooldown_suppressed(qtbot, fake_player, fake_repo, monkeypatch):
     """D-08: second emit within 10s does NOT update the toast (cooldown gate)."""
     times = iter([1000.0, 1005.0])  # 5s gap — within 10s cooldown
