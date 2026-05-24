@@ -59,7 +59,7 @@ Width-responsive control-row layout follow-ups (Phase 72 era).
 - [x] **LAYOUT-01**: Compact-mode toggle hides the left column on small/secondary displays; session-only, no SQLite persistence; activated by `Ctrl+B` shortcut and a `compact_mode_toggle_btn` QToolButton on the now-playing pane; left-edge hover-peek overlay survives compact mode. *(Phase 72)*
 - [x] **LAYOUT-02**: When the now-playing panel narrows below the threshold where row 1 with the stream picker can fit AND the active station has multiple streams, `stream_combo` reparents into a dedicated second row beneath the existing controls row; it returns to row 1 when width allows. Single-stream stations stay one-row at all widths. Picker signals (`currentIndexChanged.connect(self._on_stream_selected)`), model (item text + userData), and `currentIndex` survive each reparent. Trigger is width, not compact-mode (D-01). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.1)*
 - [x] **LAYOUT-03**: When the now-playing panel's width changes, both `logo_label` and `cover_label` retarget to a width-driven tier value drawn from `{140, 180, 240}`. Trigger is `NowPlayingPanel.width()` evaluated inside the existing `resizeEvent` override (not MainWindow width, not screen geometry, not splitter handle position). Logo and cover are always equal-sized at every tier (D-05). The tier is recomputed on every `resizeEvent`; `setFixedSize` + bound-pixmap rescale fire only when the computed tier differs from the cached previous tier (cached-diff guard avoids drag-thrash). Works identically in compact and expanded modes (panel-width trigger is mode-agnostic). No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.3)*
-- [ ] **LAYOUT-04**: When the now-playing panel narrows below the threshold where row 1 without the volume cluster can fit, `volume_slider` and `compact_mode_toggle_btn` wrap together as an indivisible "volume cluster" to a wrap row. Multi-stream state wraps the cluster to a new `_controls_row3` beneath the existing `_controls_row2` (which holds the picker per LAYOUT-02); single-stream state (picker hidden) wraps the cluster to `_controls_row2` directly. Volume slider uses `QSizePolicy(Expanding, Fixed)` + cleared min/max on its wrap row; `setFixedWidth(120)` restored on row-1 return. Compact-toggle stays 28×28 fixed in every state; no `addStretch` added to wrap row (volume's Expanding policy pins compact-toggle to the right edge). Cluster left-to-right order on the wrap row is `volume_slider → compact_mode_toggle_btn` (preserves row-1 reading order). The volume slider's `valueChanged.connect(self._on_volume_changed_live)` / `sliderReleased.connect(self._on_volume_released)` signal connections, current value, and the compact-toggle's `toggled.connect(self._on_compact_btn_toggled)` connection + checked state all survive each reparent. Trigger is width (D-12), not compact-mode. Picker invariant from LAYOUT-02 is preserved unchanged. No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.4)*
+- [x] **LAYOUT-04**: When the now-playing panel narrows below the threshold where row 1 without the volume cluster can fit, `volume_slider` and `compact_mode_toggle_btn` wrap together as an indivisible "volume cluster" to a wrap row. Multi-stream state wraps the cluster to a new `_controls_row3` beneath the existing `_controls_row2` (which holds the picker per LAYOUT-02); single-stream state (picker hidden) wraps the cluster to `_controls_row2` directly. Volume slider uses `QSizePolicy(Expanding, Fixed)` + cleared min/max on its wrap row; `setFixedWidth(120)` restored on row-1 return. Compact-toggle stays 28×28 fixed in every state; no `addStretch` added to wrap row (volume's Expanding policy pins compact-toggle to the right edge). Cluster left-to-right order on the wrap row is `volume_slider → compact_mode_toggle_btn` (preserves row-1 reading order). The volume slider's `valueChanged.connect(self._on_volume_changed_live)` / `sliderReleased.connect(self._on_volume_released)` signal connections, current value, and the compact-toggle's `toggled.connect(self._on_compact_btn_toggled)` connection + checked state all survive each reparent. Trigger is width (D-12), not compact-mode. Picker invariant from LAYOUT-02 is preserved unchanged. No SQLite persistence (D-09 inheritance from Phase 72). *(Phase 72.4)*
 
 ### Cover-Art Sources (ART-MB)
 
@@ -182,7 +182,7 @@ Which phases cover which requirements.
 | LAYOUT-01 | Phase 72 | Complete |
 | LAYOUT-02 | Phase 72.1 | Complete |
 | LAYOUT-03 | Phase 72.3 | Complete |
-| LAYOUT-04 | Phase 72.4 | Pending |
+| LAYOUT-04 | Phase 72.4 | Complete |
 | ART-MB-01 | Phase 73 | Complete |
 | ART-MB-02 | Phase 73 | Complete |
 | ART-MB-03 | Phase 73 | Complete |
@@ -225,9 +225,9 @@ Which phases cover which requirements.
 - v2.1 requirements: 64 total
 - Mapped to phases: 64 ✓
 - Unmapped: 0 ✓
-- Complete: 62
-- Pending in v2.1: 1 (LAYOUT-04 — Phase 72.4 volume-cluster reflow, code complete; Wayland visual UAT pending on Kyle's rig)
-- Deferred to v2.2: 1 (WIN-02 — SMTC Start Menu shortcut with AUMID; bundles with WIN-05 / VER-02-J in a single Win11 UAT session)
+- Complete: 63
+- Pending in v2.1: 0 (LAYOUT-04 Wayland UAT passed 2026-05-24)
+- Deferred to v2.2: 1 (WIN-02 — SMTC Start Menu shortcut with AUMID; bundles with VER-02-J Win11 VM packaging UAT in a single Win11 session)
 
 ---
 *Requirements defined: 2026-04-27 — milestone v2.1 Fixes and Tweaks (rolling)*
