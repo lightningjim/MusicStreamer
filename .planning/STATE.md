@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: ready_to_plan
-stopped_at: Phase 76 complete (5/5) — ready to discuss Phase 77
-last_updated: 2026-05-24T01:55:45.714Z
-last_activity: 2026-05-23 -- Phase 76 execution started
+status: planning
+stopped_at: Phase 84 context gathered
+last_updated: "2026-05-24T21:28:52.385Z"
+last_activity: 2026-05-24
 progress:
-  total_phases: 43
-  completed_phases: 40
+  total_phases: 44
+  completed_phases: 41
   total_plans: 183
   completed_plans: 183
   percent: 93
@@ -239,7 +239,7 @@ Items previously deferred at v2.0 close, now folded into v2.1 initial scope (202
 
 ## Session Continuity
 
-Last session: 2026-05-22T19:39:52.368Z
-Stopped at: Phase 83 execution complete; 3 manual UAT items in HUMAN-UAT
-Resume file: .planning/phases/83-at-start-of-playing-a-station-randomly-select-and-play-one-o/83-VERIFICATION.md
+Last session: 2026-05-24T21:28:52.373Z
+Stopped at: Phase 84 context gathered
+Resume file: .planning/phases/84-bug-09-commit-b-buffer-tuning-behavior-fix-reframed-from-str/84-CONTEXT.md
 Handoff: .planning/HANDOFF.json (delete after Wave 1 starts cleanly)
