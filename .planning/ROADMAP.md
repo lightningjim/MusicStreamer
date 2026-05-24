@@ -1016,8 +1016,11 @@ Plans:
 
 **Depends on:** Phase 78 (Commit A harvest infra)
 
-**Plans:** 0 plans — run `/gsd:plan-phase 84` to break down
+**Plans:** 4 plans
 
 Plans:
 
-- [ ] TBD (run `/gsd:plan-phase 84` to break down — reference Phase 78 D-04 through D-06 directional preferences and the harvest summary above as the data input that Phase 78 deferred)
+- [ ] 84-01-PLAN.md — Wave 0 RED tests + FakePlayer Signal parity (test_player_buffer.py literal bump, test_player_buffer_growth.py state machine + URI-bind ordering, test_playbin3_property_hygiene.py source-grep gate, D-12 row + wire tests inside existing test files)
+- [ ] 84-02-PLAN.md — Wave 1 GREEN Player core (D-10 constants bump 30s/20MB + D-11 buffer_duration_changed Signal + 3 state fields + 3 helpers + cycle_close hook + both URI-bind apply sites: _try_next_stream AND _on_preroll_about_to_finish)
+- [ ] 84-03-PLAN.md — Wave 1 GREEN UI wiring (D-12 NowPlayingPanel set_buffer_duration slot + always-visible 'Buf duration' stats row + MainWindow bound-method DirectConnection wire)
+- [ ] 84-04-PLAN.md — Wave 2 closure (84-VERIFICATION.md with WAIVED Phase 78 D-06 statistical gate + 2-week post-ship monitor plan + follow-up trigger thresholds for reconnect-on-stall evaluation)
