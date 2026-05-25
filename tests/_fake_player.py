@@ -68,10 +68,13 @@ class FakePlayer(QObject):
     elapsed_updated            = Signal(int)
     buffer_percent             = Signal(int)
 
-    # Internal cross-thread marshaling signals (9 — 7 underscore-prefixed +
-    # 2 non-underscore: underrun_recovery_started + underrun_count_changed).
+    # Internal cross-thread marshaling signals (10 — 7 underscore-prefixed +
+    # 3 non-underscore: underrun_recovery_started + underrun_count_changed +
+    # buffer_duration_changed).
     # Phase 83 added _preroll_about_to_finish_requested = Signal(int) — the
     # int payload carries the _preroll_seq stamp for CR-01/WR-03 race guards.
+    # Phase 84 / D-12 added buffer_duration_changed = Signal(int, bool) — the
+    # (seconds, is_adapted) tuple drives the stats-for-nerds Buf duration row.
     _cancel_timers_requested           = Signal()
     _error_recovery_requested          = Signal()
     _try_next_stream_requested         = Signal()
