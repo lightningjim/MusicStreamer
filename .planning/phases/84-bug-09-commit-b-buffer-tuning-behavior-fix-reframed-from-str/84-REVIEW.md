@@ -19,7 +19,21 @@ findings:
   warning: 5
   info: 4
   total: 11
-status: issues_found
+status: resolved
+resolved: 2026-05-24T00:00:00Z
+fix_commits:
+  CR-01: 9a8a279
+  CR-02: 0fcdf96
+  WR-01: 7125909
+  WR-02: 1d594b1
+  WR-03: 648a64b
+  WR-04: 8643f04
+  WR-05: 7194f76
+  IN-01: 8d1b515
+  IN-02: def3868
+  IN-03: f7a7d68
+  IN-04: 5be26b5
+post_fix_test_gate: 191 passed (180 baseline + 11 new regression tests)
 ---
 
 # Phase 84: Code Review Report
@@ -27,7 +41,11 @@ status: issues_found
 **Reviewed:** 2026-05-24
 **Depth:** standard
 **Files Reviewed:** 10
-**Status:** issues_found
+**Status:** resolved (all 11 findings fixed 2026-05-24 via `/gsd:code-review 84 --fix --all`)
+
+## Resolution
+
+All 11 findings (2 critical, 5 warning, 4 info) were fixed in atomic commits `9a8a279`..`5be26b5`. Each fix is mapped to its commit SHA in the `fix_commits` frontmatter block above. The fix pass added 11 new regression tests; post-fix Phase 84 target test gate: **191 passed** (180 baseline + 11 new). Findings below are preserved as the audit record — the in-code resolution is in the listed commits.
 
 ## Summary
 
