@@ -1,34 +1,33 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.1
-milestone_name: Fixes and Tweaks
-status: Awaiting next milestone
-stopped_at: Phase 84 context gathered
-last_updated: "2026-05-25T14:18:16.238Z"
-last_activity: 2026-05-25 — Milestone v2.1 completed and archived
+milestone: v2.2
+milestone_name: Package Building and QOL features/tweaks
+status: planning
+last_updated: "2026-05-25T15:38:55.862Z"
+last_activity: 2026-05-25
 progress:
-  total_phases: 44
-  completed_phases: 42
-  total_plans: 187
-  completed_plans: 187
-  percent: 95
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-27)
+See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Awaiting next milestone — start v2.2 via `/gsd:new-milestone`. Carry-overs: WIN-02 + VER-02-J Win11 UAT + Phase 84 2-week buffer monitor + SEED-009 AppImage + Phase 58 PLS codec/bitrate URL-fallback todo.
+**Current focus:** v2.2 — Package Building (Linux AppImage + Flatpak; Windows SMTC + Win11 packaging UAT) and QOL polish (GBS.FM themed-day detection + announcement banner + zero-token add, SomaFM preroll consistency, ICY-disabled channel-avatar cover, Phase 77 MPRIS2 test repair, Phase 58 PLS URL-fallback, conditional Phase 84 buffer monitor).
 
 ## Current Position
 
-Phase: Milestone v2.1 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-05-25 — Milestone v2.1 completed and archived
+Status: Defining requirements
+Last activity: 2026-05-25 — Milestone v2.2 started
 
 ## Performance Metrics
 

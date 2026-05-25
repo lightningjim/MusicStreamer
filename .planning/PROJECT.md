@@ -8,16 +8,19 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v2.2 [Next milestone]
+## Current Milestone: v2.2 Package Building and QOL features/tweaks
 
-**Goal:** TBD. Start scoping via `/gsd:new-milestone`.
+**Goal:** Close packaging parity across Linux (AppImage + Flatpak) and Windows (SMTC shortcut + Win11 packaging UAT), and deliver a focused QOL polish pass across GBS.FM integration, SomaFM preroll consistency, ICY-disabled cover visuals, and Phase 77 test debt.
 
-**Pre-committed carry-overs from v2.1:**
+**Target features:**
 
-- **WIN-02** — SMTC AUMID Start-Menu shortcut (Windows-only; bundles with VER-02-J Win11 VM packaging UAT + WIN-05 AAC retest in a single Win11 session)
-- **Phase 84 monitor window** — 2-week buffer-events.log accumulation to confirm BUG-09 reduction; trigger follow-up phase only if any of the 3 Follow-Up Triggers fires (per 84-VERIFICATION.md)
-- **SEED-009** — Linux AppImage install (dormant; promote when packaging scope opens)
-- **todo `2026-05-10-pls-codec-bitrate-url-fallback`** — Phase 58 PLS auto-resolve enhancement (URL-fallback for codec/bitrate when title lacks them)
+- **Packaging & Distribution** — Linux AppImage (SEED-009 activated), Linux Flatpak (new second distro format), Windows SMTC AUMID Start-Menu shortcut (WIN-02), Win11 VM packaging UAT (VER-02-J) bundled with WIN-05 AAC retest
+- **GBS.FM integration** — seasonal/themed-day detection (logo_3.png hash drift + marquee keyword sniff, session-scoped at GBS launch), announcement banner from first pipe-segment of marquee, zero-token single-song add (UX never framed as "1 token")
+- **SomaFM preroll consistency** — investigate + fix missing station-ID prerolls on stations like Boot Liquor (known-good baseline: Groove Salad / Drone Zone / Beat Blender)
+- **ICY-disabled UI polish** — fetch YT channel avatar separately from video thumbnail, fetch Twitch channel avatar via Helix API, use channel avatar in cover slot instead of duplicating the station thumbnail
+- **Tech debt / carry-overs** — repair Phase 77's 7 D-03-deferred MPRIS2 cross-file test failures (FIX-MPRIS), Phase 58 PLS URL-fallback for codec/bitrate (FIX-PLS, from pending todo), conditional Phase 84 2-week buffer-events.log monitor follow-up (BUFFER-MONITOR — only if any of the 3 Follow-Up Triggers fires per 84-VERIFICATION.md)
+
+**Key context:** Phase 76 GBS in-app login subprocess (QtWebEngine) is reused for themed-logo + authenticated marquee fetches. AppImage and Flatpak are two distinct Linux targets — AppImage for download-and-run portability, Flatpak for store/auto-update-managed installs. Phase numbering continues from Phase 84.
 
 ## Previous Milestone: v2.1 Fixes and Tweaks ✓ SHIPPED 2026-05-25
 
