@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
+status: executing
 stopped_at: Phase 87 context gathered
-last_updated: "2026-05-25T17:34:01.981Z"
-last_activity: 2026-05-25 — v2.2 roadmap drafted (14 phases mapping 62 requirements)
+last_updated: "2026-05-25T18:30:15.781Z"
+last_activity: 2026-05-25 -- Phase 87 planning complete
 progress:
-  total_phases: 13
+  total_phases: 14
   completed_phases: 0
-  total_plans: 0
+  total_plans: 6
   completed_plans: 0
   percent: 0
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 Phase: Not started — roadmap created 2026-05-25
 Plan: —
-Status: Roadmap created; ready for Phase 85a planning
-Last activity: 2026-05-25 — v2.2 roadmap drafted (14 phases mapping 62 requirements)
+Status: Ready to execute
+Last activity: 2026-05-25 -- Phase 87 planning complete
 
 ## v2.2 Phase Roster
 
@@ -67,9 +67,10 @@ Tier 7 (carry-overs):
 - Phase 92: FIX-PLS
 - Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up
 
-Tier 8 (post-roadmap addition):
+Tier 8 (post-roadmap additions):
 
 - Phase 94: Sidebar Logo Thumbnail Optimization
+- Phase 95: YT URL-Change Replay Bug (post-edit "stream exhausted" on first play)
 
 ## Performance Metrics
 
@@ -119,6 +120,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 
 - 2026-05-25: v2.2 roadmap created. 14 phases mapping 62 requirements (61 unconditional + 1 conditional). Phase numbering continues from v2.1's Phase 84. Tier-ordered build: Tier 1 spike + FIX-MPRIS parallel; Tier 2 Linux packaging build; Tier 3 Windows bundle; Tier 4 channel-avatar; Tier 5 GBS polish; Tier 6 SomaFM; Tier 7 carry-overs. Research-flag YES for Phases 85a, 86, 87, 89.
 - 2026-05-25: Phase 94 added — Sidebar logo thumbnail optimization. Investigate sidebar scroll slowdown on large lists (DI.fm cited); hypothesis is that full-resolution station logos are being scaled per-paint. If confirmed, generate pre-scaled small thumbnails for sidebar while preserving full-res for Now Playing. Originally landed in directory as Phase 93 via `phase.add`; manually renumbered to 94 because Phase 93 was already taken by CONDITIONAL BUFFER-MONITOR (no directory existed yet, so SDK didn't detect the clash).
+- 2026-05-25: Phase 95 added — YT URL-change replay bug. After editing a YouTube stream whose URL has changed, first play after save fails with "stream exhausted"; replaying picks up the new URL successfully. Suggests stale resolved-URL cache or pipeline state surviving the station-edit save path. Diagnose and invalidate the cached state on update.
 
 ### Pending Todos
 
