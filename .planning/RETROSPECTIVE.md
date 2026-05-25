@@ -307,16 +307,80 @@
 
 ---
 
+## Milestone: v2.1 — Fixes and Tweaks
+
+**Shipped:** 2026-05-25
+**Phases:** 42 (49–84 with decimals) | **Plans:** 187 | **Tasks:** 249 | **Timeline:** ~28 days (2026-04-27 → 2026-05-25)
+
+### What Was Built
+
+- **Full GBS.FM integration end-to-end** (Phases 60 + 60.1/60.2/60.3/60.4 + 76): browse/save/play, search artist/album drill-down, ICY label gap mitigation, token counter + playlist length, in-app QtWebEngine login subprocess (mirroring Twitch/Google patterns)
+- **Buffer-underrun resilience two-stage closure** (Phases 62, 78, 84): structured `cycle_close` logging + rotated harvest log → adaptive 30→60→120s growth state machine with stage-and-apply fallback. Statistical closure gate WAIVED at Phase 84 D-13 (12 events / 7 days insufficient sample); shipped under ship+monitor model with 2-week post-ship trigger thresholds
+- **Theme system** (59 → 66 → 75): HSV/wheel accent picker → preset themes (Vaporwave, Overrun, GBS.FM, Dark, Light) + Custom slot → toast retinting
+- **MusicBrainz cover-art fallback** (Phase 73, 16 ART-MB criteria): protocol-required User-Agent + 1 req/sec rate gate as source-grep gates per `feedback_gstreamer_mock_blind_spot.md` lesson; iTunes-first with smart routing
+- **SomaFM full catalog import** (Phase 74, 17 SOMA criteria) + prerolls (Phase 83): 4-tier × 5-relay stream scheme per channel, aacp→AAC normalization, dedup-by-URL skip
+- **Responsive narrow-panel reflow** (Phases 72, 72.1, 72.3, 72.4): fullscreen compact mode + stream-picker → row 2 + equal-tier logo/cover sizing + volume-cluster → row 3
+- **Cross-platform polish**: AA cross-network siblings (51/64/71), DI.fm HTTPS-fallback on Windows (56), pause/resume audio glitch (57), Linux WM display name (61), AAC on Windows (69), YouTube `.desktop`-launch fix (79), SQLite FK enforcement (80), case-insensitive sort (81), user-stream selection wins (82)
+- **Tooling** (63, 65, 77): auto-bump pyproject version per phase via PreToolUse hook, version-in-app footer, test infrastructure stabilization (shared FakePlayer + drift-guards + MPRIS2 unique-suffix + network-block fixture)
+
+### What Worked
+
+- **Decimal sub-phasing for UAT-surfaced gaps**: Phase 60 → 60.1 → 60.2 → 60.3 → 60.4 + Phase 72 → 72.1/72.3/72.4 let scope-expansion items land without re-opening parent phases. Sister chains for 60.x and 72.x avoided cross-phase contamination.
+- **Ship+monitor closure with WAIVED statistical gate (Phase 84 D-13)**: explicitly named the gate as waived in frontmatter + body, named the 3 follow-up triggers, scoped the 2-week monitor window. Avoided indefinite stalling while preserving honest closure attestation.
+- **Source-grep gates for protocol-required literals** (ART-MB-15/16, SOMA-14/15): User-Agent + rate-limit literals are testable from source, not just behavior. Mirrors the `feedback_gstreamer_mock_blind_spot.md` lesson — mock-only tests pass through anything.
+- **Capture-then-restore for transient UI state** (Phase 55 BUG-06): the provider-tree expand/collapse state preservation pattern generalized to refresh_model() touched all 5 refresh sites without changing any caller.
+- **Stage-and-apply fallback for pipeline property writes** (Phase 84 D-11): direct source inspection of `gstplaybin3.c` falsified the "set at runtime" hypothesis; making the fallback shape mandatory rather than optional turned an integration risk into a structural invariant.
+- **Diagnose-before-fix on Windows-only items** (Phases 56/57/69): Win11 VM diagnostic logs captured before any fix attempt — Phase 56 WIN-02 was "never broken, just under-documented"; Phase 57 audible glitch root cause was identified before the volume-ramp fix.
+- **Drift-guards on test doubles** (Phase 77): `tests/test_fake_player_signal_parity.py` (name + arity parity against `Player.__dict__`) + `tests/test_fake_player_no_inline.py` (only one file may declare FakePlayer) closed a 10+ phase backlog.
+
+### What Was Inefficient
+
+- **Auto-bump hook regex variants kept multiplying**: Phase 63 shipped 3 forms (`complete phase execution` / `close phase` / `mark phase complete`). Phase 84 added a 4th (`mark complete` — no "phase" between). Each new phase commit-message style risks missing the bump until caught at milestone audit. Solution shipped at milestone close: 4-form alternation + downgrade guard in `bump_version.py` + explicit "test the regex against the actual mark-complete message at phase close" check.
+- **Empty orphan phase directories**: `69-hi-res-indicator-for-streams-mirror-moodeaudio-criteria/` (renamed to Phase 70's correctly-spelled dir) + `72.2-stream-selector-and-bottom-bar-buttons-still-overlap-on-init/` (superseded by 72.3+72.4) accumulated as `.gitkeep`-only directories. Cleanup deferred twice — once at the 2026-05-22 audit, once at this close.
+- **Doc-only checkbox flips** delayed at multiple phase closes. The 2026-05-22 audit flagged 32 unchecked REQ-IDs in REQUIREMENTS.md despite code shipping for all of them. Fix: add the checkbox-flip step to the phase-completion ritual, not just to milestone audits.
+- **VERIFICATION.md authoring drift**: Phases 56, 59, 60.1, 60.2, 76 closed without authoring `*-VERIFICATION.md` files at the time. Some were attested by SUMMARY+HUMAN-UAT (functionally complete); others fell through because closure happened via decimal sub-phase chain rather than parent phase. Phase 76's VERIFICATION.md was backfilled at milestone close.
+- **Test failure carry-over**: `tests/test_main_window_integration.py::test_hamburger_menu_actions` was deferred in Phases 72.1, 77, and 83 — never closed. Phase 77 closed 6 clusters but explicitly excluded this one. Carries to v2.2.
+- **Phase 76 token-paste re-probe duplication**: Phase 60 RESEARCH (2026-05-04) already confirmed gbs.fm API key returns 403/302 on all 8 auth vectors; Phase 76 RESEARCH (2026-05-16) re-probed and got the same answer. Re-probe was defensive but added a research wave for a known answer.
+
+### Patterns Established
+
+- **Ship+monitor closure model** (Phase 84): valid pattern for phases where statistical-effect-detection requires real-world sample accumulation. Names the gate as WAIVED with rationale in frontmatter; specifies trigger thresholds for follow-up phase opening; treats 2-week post-ship monitor as forward-looking guidance, not closure prerequisite.
+- **`feedback_mirror_decisions_cite_source.md` rule enforcement**: established at Phase 70 (Hi-res indicator mirroring moOde criteria). CONTEXT.md mirrors of moOde/JAS/mpd/etc. must quote the specific rule + permalink, never paraphrase. Saved Phase 73 and downstream phases from paraphrase drift.
+- **`feedback_gstreamer_mock_blind_spot.md` rule**: pipeline mocks pass through any `pipeline.emit(...)` call → add source-grep gates banning legacy `playbin` 1.x signals on playbin3 code paths. Generalized in Phase 73 + Phase 74 to other protocol-required literals (User-Agent strings, codec normalization tokens).
+- **Capture-then-restore predicate pattern** (Phase 55 BUG-06): `_capture_provider_expansion()` + `_restore_provider_expansion()` keyed on raw provider-name strings, called as a pair around any refresh that mutates the tree model. Pattern reused for Phase 67 similar-stations panel + Phase 71 sibling-chip refresh.
+- **Decimal sub-phase chains for UAT-surfaced gaps**: Phase NN.X + NN.X.Y nesting. Avoid pollution of parent phase scope; preserves auditable trail of which sub-phase shipped which gap-closure. Used for 60.x (5 phases) and 72.x (4 phases).
+- **`_PROVIDER` module-level constant** (Phase 76 oauth_helper.py): replaces hardcoded provider field in shared helpers across multi-provider modules. Pattern: declare at module level, set by `main()` after argparse — guards against silent wrong-provider attribution in cross-provider helper code paths.
+- **Stage-and-apply fallback for property writes that pipelines reject mid-session** (Phase 84): generalizable to any GStreamer pipeline property that gstplaybin3.c source ignores after pipeline init. Stage on event close; apply at next URI bind.
+
+### Key Lessons
+
+- **Direct source inspection beats documentation reading for falsifying hypotheses**: Phase 84's `gstplaybin3.c` read falsified the "we can just set_property at runtime" hypothesis that the documentation suggested. The fallback shape was mandatory, not optional.
+- **`feedback_mirror_decisions_cite_source.md` lesson generalizes beyond mirrors**: any decision citing an external spec/standard must quote the exact rule + permalink. Paraphrasing burns phases when the actual rule diverges from the mental model.
+- **WAIVED statistical-closure gates are honest closure**: when sample size is insufficient for marginal-effect detection, explicitly name the gate as waived in frontmatter rather than fabricate "trends suggest" language. Phase 84 D-13 set the precedent.
+- **Hook regex hardening compounds**: each new commit-message variant needs to be regression-tested against the hook at phase close, not just at milestone audit. Bake the test into the close ritual.
+- **Token-half vs cookies-half split for OAuth-style auth**: gbs.fm proved the "API token" half can be entirely dropped if a re-probe confirms the provider doesn't honor it. Don't ship dual paths defensively when the probe is cheap.
+- **Decimal sub-phases ≠ branches**: they're linear additions to the parent phase scope. Don't treat 60.1/60.2/60.3/60.4 as parallel work; the chain is sequential because each surfaces UAT gaps the next addresses.
+- **VERIFICATION.md must be authored AT phase close, not at milestone audit**: backfilling Phase 76's VERIFICATION.md at this milestone close was a bookkeeping repair, not a quality signal. Add a hard gate at `/gsd:execute-phase` close: no VERIFICATION.md = phase not closed.
+
+### Cost Observations
+
+- Model mix: predominantly Opus 4.7 (1M context) for planning + verification; Sonnet 4.6 for executor agents and integration checker
+- Sessions: ~60+ across 28 days (high cadence — rolling polish milestone with daily-use feedback loop driving new phases)
+- Notable: Phase 60.x chain (5 sub-phases) consumed ~10 sessions; Phase 76 GBS-AUTH-01 closure consumed 5 sessions including the live UAT; Phase 84 BUG-09 Commit B took 4 sessions inclusive of code review fix loop (CR-01, CR-02, WR-01..05, IN-01..04)
+- **Process efficiency win**: gsd-sdk subagent delegation (executor + integration-checker + verifier) kept main-context cost flat across the milestone. Most phases burned ≤2 sessions through `/gsd:plan-phase` → `/gsd:execute-phase` → `/gsd:verify-phase`.
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v2.0 |
-|--------|------|------|------|------|------|------|------|
-| Phases | 4 | 2 | 5 | 4 | 5 | 14 | 17 (+5 backlog) |
-| Plans | 8 | 4 | 12 | 8 | 8 | 21 | 81 |
-| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) | ~750 (+485) |
-| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) | ~16,000 (+6,100) |
-| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
-| Days | 35 | 1 | 3 | 8 | 2 | 5 | 14 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v2.0 | v2.1 |
+|--------|------|------|------|------|------|------|------|------|
+| Phases | 4 | 2 | 5 | 4 | 5 | 14 | 17 (+5 backlog) | 42 |
+| Plans | 8 | 4 | 12 | 8 | 8 | 21 | 81 | 187 |
+| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) | ~750 (+485) | ~1780 (+1030) |
+| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) | ~16,000 (+6,100) | ~25,000 (+9,000) |
+| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 | 0 | many (decimal sub-phases) |
+| Days | 35 | 1 | 3 | 8 | 2 | 5 | 14 | 28 |
 
 ## Milestone: v1.1 — Polish & Station Management
 
