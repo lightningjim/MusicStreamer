@@ -76,6 +76,22 @@ def make_player(qtbot):
     return player
 
 
+class _PairCollector:
+    """Per-file helper for collecting two-arg buffer_duration_changed emits.
+
+    Lambdas in .connect(...) are banned per QA-05 / Pattern S-1. Bound-method
+    ``append`` on a plain list only collects positional single args; with the
+    WR-02 (Phase 84 code review) two-arg Signal(int, bool), we need a small
+    bound-method-friendly collector. Used by the growth tests below.
+    """
+
+    def __init__(self) -> None:
+        self.pairs: list[tuple[int, bool]] = []
+
+    def collect(self, seconds: int, is_adapted: bool) -> None:
+        self.pairs.append((int(seconds), bool(is_adapted)))
+
+
 def _make_record(outcome: str = "recovered") -> _CycleClose:
     """Build a minimal _CycleClose record for the cycle-close slot.
 
@@ -118,13 +134,13 @@ def test_first_cycle_close_stages_60s(qtbot):
     is deferred to the next URI bind (RESEARCH §D-11 fallback).
     """
     player = make_player(qtbot)
-    received: list[int] = []
-    player.buffer_duration_changed.connect(received.append)  # bound method (Pattern S-1)
+    collector = _PairCollector()
+    player.buffer_duration_changed.connect(collector.collect)  # bound method (Pattern S-1)
 
     player._on_underrun_cycle_closed(_make_record())
     qtbot.wait(50)
 
-    assert received == [60]
+    assert collector.pairs == [(60, True)]
     assert player._growth_step == 1
     assert player._current_buffer_duration_s == 60
     assert player._pending_buffer_duration_s == 60
@@ -135,14 +151,14 @@ def test_second_cycle_close_stages_120s(qtbot):
     stages 120s (cap).
     """
     player = make_player(qtbot)
-    received: list[int] = []
-    player.buffer_duration_changed.connect(received.append)
+    collector = _PairCollector()
+    player.buffer_duration_changed.connect(collector.collect)
 
     player._on_underrun_cycle_closed(_make_record())
     player._on_underrun_cycle_closed(_make_record())
     qtbot.wait(50)
 
-    assert received == [60, 120]
+    assert collector.pairs == [(60, True), (120, True)]
     assert player._growth_step == 2
     assert player._current_buffer_duration_s == 120
     assert player._pending_buffer_duration_s == 120
@@ -153,14 +169,14 @@ def test_growth_caps_at_120(qtbot):
     at 2 and the Signal does NOT re-emit (no spurious "still 120s" updates).
     """
     player = make_player(qtbot)
-    received: list[int] = []
-    player.buffer_duration_changed.connect(received.append)
+    collector = _PairCollector()
+    player.buffer_duration_changed.connect(collector.collect)
 
     for _ in range(5):
         player._on_underrun_cycle_closed(_make_record())
     qtbot.wait(50)
 
-    assert received == [60, 120]  # only two emits — third+ at cap are no-ops
+    assert collector.pairs == [(60, True), (120, True)]  # third+ at cap are no-ops
     assert player._growth_step == 2
     assert player._current_buffer_duration_s == 120
 
@@ -305,8 +321,8 @@ def test_try_next_stream_resets_growth_to_baseline(qtbot):
     player._on_underrun_cycle_closed(_make_record())
     assert player._growth_step == 1
 
-    received: list[int] = []
-    player.buffer_duration_changed.connect(received.append)
+    collector = _PairCollector()
+    player.buffer_duration_changed.connect(collector.collect)
 
     player._streams_queue = [
         SimpleNamespace(url="http://newstation/", id=2, station_id=2)
@@ -322,7 +338,7 @@ def test_try_next_stream_resets_growth_to_baseline(qtbot):
     # been applied to a previous URL session.
     assert player._pending_buffer_duration_s in (None, BUFFER_DURATION_S)
     # The reset emits a Signal so the stats row reflects the baseline.
-    assert received[-1] == BUFFER_DURATION_S
+    assert collector.pairs[-1] == (BUFFER_DURATION_S, False)
 
 
 def test_reset_is_noop_when_already_at_baseline(qtbot):
@@ -332,15 +348,16 @@ def test_reset_is_noop_when_already_at_baseline(qtbot):
     every URL bind even when no growth happened.
     """
     player = make_player(qtbot)  # fresh — already at baseline
-    received: list[int] = []
-    player.buffer_duration_changed.connect(received.append)
+    collector = _PairCollector()
+    player.buffer_duration_changed.connect(collector.collect)
 
     player._reset_buffer_duration_to_baseline()
     qtbot.wait(50)
 
-    assert received == [], (
+    assert collector.pairs == [], (
         "D-11 Pitfall 3: reset-to-baseline when already at baseline must "
-        "be a no-op (no Signal emit). Got spurious emits: " + repr(received)
+        "be a no-op (no Signal emit). Got spurious emits: "
+        + repr(collector.pairs)
     )
 
 
@@ -488,15 +505,15 @@ def test_non_recovered_outcomes_do_not_trigger_growth(qtbot, outcome):
          though no recovered underrun ever occurred.
     """
     player = make_player(qtbot)
-    received: list[int] = []
-    player.buffer_duration_changed.connect(received.append)
+    collector = _PairCollector()
+    player.buffer_duration_changed.connect(collector.collect)
 
     player._on_underrun_cycle_closed(_make_record(outcome=outcome))
     qtbot.wait(50)
 
-    assert received == [], (
+    assert collector.pairs == [], (
         f"CR-01 FAIL: outcome={outcome!r} triggered growth Signal emit "
-        f"(spurious emits: {received!r}). Growth must gate on 'recovered'."
+        f"(spurious emits: {collector.pairs!r}). Growth must gate on 'recovered'."
     )
     assert player._growth_step == 0, (
         f"CR-01 FAIL: outcome={outcome!r} bumped _growth_step to "

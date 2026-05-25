@@ -74,12 +74,12 @@ def test_buffer_duration_changed_updates_stats_row(qtbot, fake_player, fake_repo
     """
     w = MainWindow(fake_player, fake_repo)
     qtbot.addWidget(w)
-    # Adapted format: growth has fired.
-    fake_player.buffer_duration_changed.emit(60)
+    # Adapted format: growth has fired (is_adapted=True).
+    fake_player.buffer_duration_changed.emit(60, True)
     qtbot.wait(50)  # DirectConnection is synchronous; defensive wait
     assert w.now_playing._buffer_duration_label.text() == "60s (adapted)"
-    # Baseline format: per-URL reset dropped it back to 30s.
-    fake_player.buffer_duration_changed.emit(30)
+    # Baseline format: per-URL reset dropped it back to 30s (is_adapted=False).
+    fake_player.buffer_duration_changed.emit(30, False)
     qtbot.wait(50)
     assert w.now_playing._buffer_duration_label.text() == "30s"
 

@@ -303,7 +303,13 @@ class Player(QObject):
     # is on the main thread, so the wire uses DirectConnection (default) —
     # qt-glib-bus-threading.md Pitfall 2 satisfied; 84-RESEARCH §Pattern 3.
     # Mirrors the Phase 78 underrun_count_changed shape one-for-one (84-PATTERNS §1).
-    buffer_duration_changed   = Signal(int)      # main → MainWindow → NowPlayingPanel.set_buffer_duration
+    # WR-02 (Phase 84 code review): payload is (seconds, is_adapted) — slot derives
+    # the "(adapted)" suffix from is_adapted, NOT by comparing seconds against
+    # BUFFER_DURATION_S. Decouples the panel from the static baseline so future
+    # bumps to BUFFER_DURATION_S can't collide with growth-step values (e.g. if the
+    # baseline ever becomes 60s, growth-step-1 also lands at 60s — an int-only
+    # Signal could not disambiguate baseline vs grown).
+    buffer_duration_changed   = Signal(int, bool)   # (seconds, is_adapted) — main → MainWindow → NowPlayingPanel.set_buffer_duration
 
     # Phase 70 / DS-01: streaming/bus thread → main: persist sample_rate_hz / bit_depth
     # for the playing stream. Emitted with QueuedConnection on the receiver side
@@ -1195,7 +1201,8 @@ class Player(QObject):
         new_s = {1: 60, 2: 120}[self._growth_step]
         self._pending_buffer_duration_s = new_s
         self._current_buffer_duration_s = new_s
-        self.buffer_duration_changed.emit(new_s)
+        # WR-02: is_adapted=True — any growth-step write is by definition adapted.
+        self.buffer_duration_changed.emit(new_s, True)
 
     def _on_underrun_dwell_elapsed(self) -> None:
         """Main-thread QTimer.timeout slot (Phase 62 / D-07). Cycle has been
@@ -1262,7 +1269,8 @@ class Player(QObject):
         self._growth_step = 0
         self._current_buffer_duration_s = BUFFER_DURATION_S
         self._pending_buffer_duration_s = BUFFER_DURATION_S
-        self.buffer_duration_changed.emit(BUFFER_DURATION_S)
+        # WR-02: is_adapted=False — baseline reset is never the adapted state.
+        self.buffer_duration_changed.emit(BUFFER_DURATION_S, False)
 
     def _try_next_stream(self) -> None:
         """Pop next stream from queue and attempt playback. On empty queue,

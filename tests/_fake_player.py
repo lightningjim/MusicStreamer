@@ -81,7 +81,7 @@ class FakePlayer(QObject):
     _underrun_cycle_closed         = Signal(object)
     underrun_recovery_started      = Signal()
     underrun_count_changed         = Signal(int)  # Phase 78 / BUG-09 Commit A
-    buffer_duration_changed        = Signal(int)  # Phase 84 / BUG-09 Commit B / D-12
+    buffer_duration_changed        = Signal(int, bool)  # Phase 84 / BUG-09 Commit B / D-12 (WR-02: (seconds, is_adapted))
 
     # Phase 70 / DS-01 caps signal (1)
     audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth

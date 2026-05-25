@@ -1009,23 +1009,29 @@ class NowPlayingPanel(QWidget):
         """
         self._underrun_count_label.setText(str(int(count)))
 
-    def set_buffer_duration(self, seconds: int) -> None:
+    def set_buffer_duration(self, seconds: int, is_adapted: bool) -> None:
         """Phase 84 / BUG-09 Commit B / D-12: receiver for Player.buffer_duration_changed.
 
-        Updates the 'Buf duration' stats-for-nerds row text. Baseline value
-        (BUFFER_DURATION_S) renders bare; adapted values get a ' (adapted)' suffix
-        per RESEARCH §Pattern 3 + Discretion §"Stats row exact label string". The
-        int() coercion is defensive (mirrors set_underrun_count + set_buffer_percent
-        per Pattern S-5). Wrapper-level set_stats_visible governs visibility for
-        this row + the Underruns row + the Buffer progressbar row — no per-row
-        toggle code (Pitfall 8).
+        Updates the 'Buf duration' stats-for-nerds row text. Baseline state
+        renders bare ("30s"); adapted state gets a " (adapted)" suffix per
+        RESEARCH §Pattern 3 + Discretion §"Stats row exact label string". The
+        int() / bool() coercions are defensive (mirrors set_underrun_count +
+        set_buffer_percent per Pattern S-5). Wrapper-level set_stats_visible
+        governs visibility for this row + the Underruns row + the Buffer
+        progressbar row — no per-row toggle code (Pitfall 8).
+
+        WR-02 (Phase 84 code review): is_adapted is sourced from Player state
+        (_growth_step != 0 → True; reset → False), NOT derived by comparing
+        seconds against BUFFER_DURATION_S. This decouples the panel from the
+        global baseline constant — a future bump of BUFFER_DURATION_S to 60s
+        (which would collide with growth-step-1's 60s value) cannot confuse
+        the "(adapted)" suffix logic.
         """
-        from musicstreamer.constants import BUFFER_DURATION_S
         s = int(seconds)
-        if s == BUFFER_DURATION_S:
-            self._buffer_duration_label.setText(f"{s}s")
-        else:
+        if bool(is_adapted):
             self._buffer_duration_label.setText(f"{s}s (adapted)")
+        else:
+            self._buffer_duration_label.setText(f"{s}s")
 
     def set_stats_visible(self, visible: bool) -> None:
         """Toggle the stats-for-nerds wrapper visibility (D-07). Phase 47.1."""

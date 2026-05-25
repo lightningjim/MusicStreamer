@@ -733,15 +733,17 @@ def test_buffer_duration_row_present(qtbot):
 
 
 def test_set_buffer_duration_baseline_format(qtbot):
-    """Phase 84 / D-12: set_buffer_duration(BUFFER_DURATION_S) sets the
-    label to "30s" with NO "(adapted)" suffix — the baseline value is
-    shown plain so the suffix unambiguously signals "growth has fired".
+    """Phase 84 / D-12 + WR-02 (Phase 84 code review):
+    set_buffer_duration(BUFFER_DURATION_S, is_adapted=False) sets the label
+    to "30s" with NO "(adapted)" suffix — the suffix unambiguously signals
+    "growth has fired" based on the is_adapted flag (NOT a brittle compare
+    against BUFFER_DURATION_S).
     """
     from musicstreamer.constants import BUFFER_DURATION_S
 
     panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
     qtbot.addWidget(panel)
-    panel.set_buffer_duration(BUFFER_DURATION_S)
+    panel.set_buffer_duration(BUFFER_DURATION_S, False)
     assert panel._buffer_duration_label.text() == f"{BUFFER_DURATION_S}s"
 
 
@@ -750,14 +752,41 @@ def test_set_buffer_duration_baseline_format(qtbot):
     [(60, "60s (adapted)"), (120, "120s (adapted)")],
 )
 def test_set_buffer_duration_adapted_format(qtbot, value, expected):
-    """Phase 84 / D-12: any value other than BUFFER_DURATION_S baseline
-    gets the "(adapted)" suffix so the user can see at a glance that
-    adaptive growth has fired on this URL session.
+    """Phase 84 / D-12 + WR-02: when is_adapted=True the label gets the
+    "(adapted)" suffix so the user can see at a glance that adaptive
+    growth has fired on this URL session.
     """
     panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
     qtbot.addWidget(panel)
-    panel.set_buffer_duration(value)
+    panel.set_buffer_duration(value, True)
     assert panel._buffer_duration_label.text() == expected
+
+
+def test_set_buffer_duration_adapted_robust_to_baseline_collision(qtbot, monkeypatch):
+    """WR-02 (Phase 84 code review) regression: the "(adapted)" suffix logic
+    must NOT depend on comparing the value against BUFFER_DURATION_S — if
+    Phase 85+ ever bumps BUFFER_DURATION_S from 30 to 60 (the same value
+    growth-step-1 lands at), the slot must still render the grown value
+    with the "(adapted)" suffix.
+
+    This test simulates the future-state where baseline == growth-step-1
+    by monkeypatching BUFFER_DURATION_S to 60 and emitting a grown 60s
+    value with is_adapted=True. The slot must produce "60s (adapted)",
+    NOT collapse to bare "60s".
+    """
+    from musicstreamer import constants
+
+    monkeypatch.setattr(constants, "BUFFER_DURATION_S", 60)
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+    qtbot.addWidget(panel)
+    # is_adapted=True means growth fired; label must say "(adapted)" even
+    # though the value (60) collides with the new (monkeypatched) baseline.
+    panel.set_buffer_duration(60, True)
+    assert panel._buffer_duration_label.text() == "60s (adapted)", (
+        "WR-02 FAIL: when BUFFER_DURATION_S collides with a growth-step value, "
+        "the adapted suffix must still render based on is_adapted, not on "
+        "value==BUFFER_DURATION_S comparison."
+    )
 
 
 def test_set_stats_visible_toggles(qtbot):
