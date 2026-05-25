@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 87 context gathered
-last_updated: "2026-05-25T18:30:15.781Z"
-last_activity: 2026-05-25 -- Phase 87 planning complete
+stopped_at: Phase 85a context gathered
+last_updated: "2026-05-25T23:18:46.752Z"
+last_activity: 2026-05-25 -- Phase 87 execution started
 progress:
   total_phases: 14
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** v2.2 — Package Building (Linux AppImage + Flatpak; Windows SMTC + Win11 packaging UAT) and QOL polish (GBS.FM themed-day detection + announcement banner + zero-token add, SomaFM preroll consistency, ICY-disabled channel-avatar cover, Phase 77 MPRIS2 test repair, Phase 58 PLS URL-fallback, conditional Phase 84 buffer monitor).
+**Current focus:** Phase 87 — gbs-fm-marquee-themed-day-detection
 
 ## Current Position
 
-Phase: Not started — roadmap created 2026-05-25
-Plan: —
-Status: Ready to execute
-Last activity: 2026-05-25 -- Phase 87 planning complete
+Phase: 87 (gbs-fm-marquee-themed-day-detection) — EXECUTING
+Plan: 1 of 6
+Status: Executing Phase 87
+Last activity: 2026-05-25 -- Phase 87 execution started
 
 ## v2.2 Phase Roster
 
@@ -147,9 +147,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-05-25T17:34:01.971Z
-Stopped at: Phase 87 context gathered
-Resume file: .planning/phases/87-gbs-fm-marquee-themed-day-detection/87-CONTEXT.md
+Last session: 2026-05-25T23:18:46.744Z
+Stopped at: Phase 85a context gathered
+Resume file: .planning/phases/85A-linux-packaging-spike/85A-CONTEXT.md
 
 ## Operator Next Steps
 
