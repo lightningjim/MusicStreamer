@@ -1,10 +1,12 @@
 ---
 id: SEED-008
-status: dormant
+status: completed
 planted: 2026-04-24
 planted_during: v2.0 OS-Agnostic Revamp (Phase 43 just completed, Phase 44 next)
 trigger_when: After v2.0 OS-agnostic revamp ships
 scope: Large
+completed: 2026-05-23
+completed_by: Phase 60 (GBS.FM browse/save/play); Phases 60.1/60.2/60.3/60.4 (search drill-down, ICY label, token counter); Phase 76 (GBS-AUTH-01 in-app login subprocess via QtWebEngine)
 ---
 
 # SEED-008: Integrate GBS.FM into the player

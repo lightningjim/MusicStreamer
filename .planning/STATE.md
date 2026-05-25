@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Fixes and Tweaks
-status: completed
+status: Awaiting next milestone
 stopped_at: Phase 84 context gathered
-last_updated: "2026-05-24T23:05:30.108Z"
-last_activity: 2026-05-24 -- Phase 84 marked complete
+last_updated: "2026-05-25T14:18:16.238Z"
+last_activity: 2026-05-25 — Milestone v2.1 completed and archived
 progress:
   total_phases: 44
-  completed_phases: 40
-  total_plans: 188
-  completed_plans: 185
-  percent: 91
+  completed_phases: 42
+  total_plans: 187
+  completed_plans: 187
+  percent: 95
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 84 — BUG-09 Commit B — buffer-tuning behavior fix
+**Current focus:** Awaiting next milestone — start v2.2 via `/gsd:new-milestone`. Carry-overs: WIN-02 + VER-02-J Win11 UAT + Phase 84 2-week buffer monitor + SEED-009 AppImage + Phase 58 PLS codec/bitrate URL-fallback todo.
 
 ## Current Position
 
-Phase: 84 — COMPLETE
-Plan: 1 of 4
-Status: Phase 84 complete
-Last activity: 2026-05-24 -- Phase 84 marked complete
+Phase: Milestone v2.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-25 — Milestone v2.1 completed and archived
 
 ## Performance Metrics
 
@@ -202,12 +202,24 @@ Key v2.0 decisions already settled:
 
 ## Deferred Items
 
-Items previously deferred at v2.0 close, now folded into v2.1 initial scope (2026-04-27):
+Items acknowledged and deferred at v2.1 milestone close on 2026-05-25:
+
+| Category | Item | Status |
+|----------|------|--------|
+| requirement | WIN-02 (SMTC AUMID Start-Menu shortcut, Phase 56) | Deferred to v2.2 — bundles with VER-02-J + WIN-05 in a single Win11 VM session |
+| verification | Phase 84 — 2-week buffer-events.log monitor window | Real-world post-ship UAT; open follow-up phase only if Follow-Up Triggers fire (per 84-VERIFICATION.md) |
+| verification | Phase 65 VER-02-J — Win11 VM bundled-exe end-to-end | Bundled with v2.2 Win11 session |
+| verification | Phase 78 Commit B harvest gate | Superseded by Phase 84 ship+monitor closure |
+| verification | Phase 72.1 reflow visual UAT | Optional Wayland UAT; LAYOUT-02 doc-attested complete |
+| seed | SEED-009 — Linux AppImage install (dormant) | Promote when v2.2 packaging scope opens |
+| todo | 2026-05-10-pls-codec-bitrate-url-fallback | Phase 58 PLS auto-resolve enhancement |
+
+Earlier v2.0-close deferrals (now folded historically):
 
 | Category | Item | v2.1 disposition |
 |----------|------|------------------|
-| seed | 006-visual-color-picker | in scope — Phase 59 |
-| seed | 008-gbs-fm-integration | in scope — Phase 60 |
+| seed | 006-visual-color-picker | ✓ shipped — Phase 59 |
+| seed | 008-gbs-fm-integration | ✓ shipped — Phases 60 + 76 |
 | uat (out-of-scope) | 999.3-03-HUMAN-UAT.md | still deferred — not a v2.1 gate |
 | Phase 50 P01 | 25min | 3 tasks | 4 files |
 | Phase 51 P03 | 8min | 2 tasks | 2 files |
@@ -243,3 +255,7 @@ Last session: 2026-05-24T21:28:52.373Z
 Stopped at: Phase 84 context gathered
 Resume file: .planning/phases/84-bug-09-commit-b-buffer-tuning-behavior-fix-reframed-from-str/84-CONTEXT.md
 Handoff: .planning/HANDOFF.json (delete after Wave 1 starts cleanly)
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

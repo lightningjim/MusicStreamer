@@ -1,10 +1,12 @@
 ---
 id: SEED-006
-status: dormant
+status: completed
 planted: 2026-04-05
 planted_during: v1.4 Media & Art Polish / Phase 19
 trigger_when: UI polish milestone is being planned
 scope: Medium
+completed: 2026-05-04
+completed_by: Phase 59 (ACCENT-02 — HSV/wheel color picker shipped alongside presets + hex entry); Phase 66 (theme picker extends accent picker with preset palettes + custom slot)
 ---
 
 # SEED-006: Add visual color picker to the accent dialog

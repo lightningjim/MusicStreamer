@@ -8,27 +8,31 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v2.1 Fixes and Tweaks
+## Current Milestone: v2.2 [Next milestone]
 
-**Goal:** Burn down v2.0 carry-forward bugs and small polish features, while leaving room to absorb new issues and improvements as they surface from daily use. Same shape as v1.1 / v1.5 — a rolling polish milestone where new phases get added via `/gsd-add-phase` as you find them.
+**Goal:** TBD. Start scoping via `/gsd:new-milestone`.
 
-**Target features:**
+**Pre-committed carry-overs from v2.1:**
 
-*Phase 44 carry-forward (Windows polish):*
-- Audio pause/restart glitch + ignored volume setting on Windows (GStreamer)
-- DI.fm HTTPS-fallback policy decision
-- Start Menu shortcut with `AppUserModel.ID=org.lightningjim.MusicStreamer` so SMTC overlay shows "MusicStreamer" not "Unknown app"
-- Fix `test_thumbnail_from_in_memory_stream` (`MagicMock` not awaitable — needs `AsyncMock` for `store_async`)
+- **WIN-02** — SMTC AUMID Start-Menu shortcut (Windows-only; bundles with VER-02-J Win11 VM packaging UAT + WIN-05 AAC retest in a single Win11 session)
+- **Phase 84 monitor window** — 2-week buffer-events.log accumulation to confirm BUG-09 reduction; trigger follow-up phase only if any of the 3 Follow-Up Triggers fires (per 84-VERIFICATION.md)
+- **SEED-009** — Linux AppImage install (dormant; promote when packaging scope opens)
+- **todo `2026-05-10-pls-codec-bitrate-url-fallback`** — Phase 58 PLS auto-resolve enhancement (URL-fallback for codec/bitrate when title lacks them)
 
-*Already parked for v2.1+:*
-- SEED-006 — Visual color picker for accent dialog
-- SEED-008 — GBS-FM integration
+## Previous Milestone: v2.1 Fixes and Tweaks ✓ SHIPPED 2026-05-25
 
-*Pending todos (pull in opportunistically):*
-- Station art fetching beyond YouTube (`.planning/notes/2026-04-03-...`)
-- SDR live radio support (`.planning/notes/2026-03-21-...`)
+**Delivered:** 42 phases (49–84 with decimals), 187 plans, 249 tasks across four weeks. All 63 in-scope requirements satisfied; WIN-02 formally deferred to v2.2.
 
-**Open-ended scope:** Additional phases will be added throughout v2.1 as Kyle plays with the app and reports issues/improvements. The initial scope above seeds the milestone; the closing scope is decided when Kyle calls `/gsd-complete-milestone`.
+**Headline outcomes:**
+- Full GBS.FM integration: browse/save/play (Phase 60), search drill-down (60.1/60.2), ICY label gap fix + token counter (60.3/60.4), in-app login subprocess via QtWebEngine (Phase 76)
+- Buffer-underrun resilience: structured instrumentation + harvest log (Phase 62/78 Commit A) + adaptive 30→60→120s growth state machine (Phase 84 Commit B, ship+monitor closure)
+- Theme system: HSV/wheel accent picker (Phase 59) → preset themes Vaporwave/Overrun/GBS.FM/Dark/Light + Custom (Phase 66) → toast retinting (Phase 75)
+- Cover-art sources: MusicBrainz + CAA fallback with iTunes-first auto routing, 1 req/sec gate, MB-only mode (Phase 73, 16 ART-MB criteria)
+- SomaFM full catalog import: 4×5 stream tiers per station, aacp→AAC normalization, dedup-by-URL skip, prerolls (Phase 74 + 83, 17 SOMA criteria)
+- Responsive layout: fullscreen compact mode (Phase 72) + stream-picker reflow (72.1) + equal-tier logo/cover sizing (72.3) + volume-cluster reflow (72.4)
+- Cross-platform polish: AA cross-network siblings (Phase 51, 64, 71), DI.fm HTTPS-fallback on Windows (Phase 56), pause/resume audio glitch fix (Phase 57), Linux WM display name (Phase 61), AAC on Windows (Phase 69), YouTube `.desktop`-launch fix (Phase 79)
+- Data layer: SQLite FK enforcement + orphan sweep (Phase 80), case-insensitive station sort (Phase 81), user-stream selection wins (Phase 82)
+- Tooling: auto-bump pyproject version per phase via PreToolUse hook (Phase 63), version-in-app footer (Phase 65), test infrastructure stabilization (Phase 77)
 
 ## Previous Milestone: v2.0 OS-Agnostic Revamp ✓ SHIPPED 2026-04-25
 
@@ -47,7 +51,7 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (Phase 69 complete — 2026-05-11)
+## Current State (v2.1 shipped — 2026-05-25)
 
 - **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
 - **LOC:** ~13,000 Python total (source + tests) | **Tests:** 1462 passing, 1 skipped (Phase 77 closed 6-cluster deferred-items backlog — 2026-05-17; 12 collection errors + 34 test-item failures are env-gap requiring PyGObject/gi install; 1 carry-over failure test_hamburger_menu_actions from Phase 74/76; 7 MPRIS2 cross-file failures D-03-deferred to follow-up phase — see 77-06-SUMMARY.md)
@@ -140,9 +144,11 @@ Finding and playing a stream should take seconds — the right station should al
 - ✓ TAUTH-01..07: Twitch OAuth token auth via AccountsDialog + WebKit2 capture — v1.5 Phase 32
 - ✓ PHASE-33-DEFERRED: Twitch test fixture fixed (monkeypatch TWITCH_TOKEN_PATH), stale cookies-test bullet annotated as already resolved — v1.5 Phase 34
 
-### Active (v2.1)
+- ✓ v2.1 (Fixes and Tweaks) — 63 in-scope requirements satisfied across 42 phases (Phases 49–84). See `.planning/milestones/v2.1-REQUIREMENTS.md` for the full traceability table. Headline groups: GBS-AUTH-01 (Phase 76), BUG-09 Commit A+B (Phases 78+84), BUG-10 SQLite FK (Phase 80), BUG-11 YouTube .desktop launch (Phase 79), THEME-01 + ACCENT-02 (Phases 59/66/75), 16 ART-MB cover-art criteria (Phase 73), 17 SOMA catalog-import criteria (Phase 74), 4 LAYOUT responsive-narrow-panel criteria (Phases 72/72.1/72.3/72.4), VER-01 + VER-02 versioning (Phases 63/65). WIN-02 formally deferred to v2.2.
 
-Requirements for v2.1 live in `.planning/REQUIREMENTS.md` (generated by the roadmap cycle). Initial scope (now all shipped): the six v2.0 backlog bug stubs, the Phase 44 Windows polish carry-forward, and the two dormant seeds (visual color picker + GBS-FM). The milestone has since absorbed additional bugs/improvements as they surfaced from daily use. Rolling milestone — phases added throughout via `/gsd-add-phase`.
+### Active (v2.2)
+
+Requirements for v2.2 will live in a fresh `.planning/REQUIREMENTS.md` once the next milestone opens via `/gsd:new-milestone`. Pre-committed carry-overs already listed under **Current Milestone** above.
 
 ### Out of Scope
 
@@ -152,7 +158,7 @@ Requirements for v2.1 live in `.planning/REQUIREMENTS.md` (generated by the road
 | Playback history distinct from favorites | Different use case; favorites are intentional stars, not automatic history |
 | Auto-refresh saved Radio-Browser stations | Stations in library are managed manually; auto-refresh adds complexity for unclear benefit |
 | Social sharing / export of favorites | Single-user desktop app |
-| MusicBrainz cover art fallback | iTunes sufficient; revisit if gaps found |
+| ~~MusicBrainz cover art fallback~~ | Implemented in Phase 73 (ART-MB-01..16) — iTunes-first with MB+CAA fallback, smart routing for genre-aware misses (Vaporwave/niche electronic) |
 | ~~Twitch stream support~~ | Implemented in Phase 31 via streamlink |
 | Local music library / file playback | Streaming app only |
 | Multi-user / authentication | Single-user desktop app |
@@ -216,6 +222,13 @@ Requirements for v2.1 live in `.planning/REQUIREMENTS.md` (generated by the road
 | [Phase 71]: Per-chip × on manual chips only; AA chips show plain text | The presence/absence of the × button is the sole visual distinction between manual and auto siblings — no tint, no italic, no opacity change (D-14, D-15) | ✓ Good — Phase 71 |
 | [Phase 71]: AddSiblingDialog dismiss button labelled "Don't Link" (not "Cancel") | Names the outcome explicitly; contrasts unambiguously with the primary "Link Station" CTA (UI-SPEC Open Decision 16) | ✓ Good — Phase 71 |
 | [Phase 71]: Removed EditStationDialog's _sibling_label QLabel | The chip row uses Qt widget composition (QPushButton chips) instead of HTML; T-40-04 RichText baseline drops 4 → 3 across musicstreamer/ (Pitfall 1 + the new test_richtext_baseline_unchanged_by_phase_71 drift-guard) | ✓ Good — Phase 71 |
+| [Phase 73]: MusicBrainz protocol-required literals testable at source level | User-Agent + rate-limit gate must be greppable from source per `feedback_gstreamer_mock_blind_spot.md` lesson; ART-MB-15/16 are source-grep gates not just behavioral tests | ✓ Good — Phase 73 |
+| [Phase 74]: SomaFM aacp→AAC normalization at import boundary | Single canonical codec name across DB + UI + ordering; matches Phase 69 WIN-05 closure + `stream_ordering._CODEC_RANK` | ✓ Good — Phase 74 |
+| [Phase 76]: GBS-AUTH-01 token-paste half DROPPED per Phase 60 + 76 re-probe | gbs.fm Settings-page API key returns 403/302 across all 8 documented auth vectors; in-app login subprocess is the only viable path. No SQLite `gbs_api_token` key, no AuthContext dataclass, no `_open_authed` helper | ✓ Good — Phase 76 D-03 |
+| [Phase 77]: Shared FakePlayer + parity drift-guards | Source-introspection tests pin FakePlayer signal name + arity against Player.__dict__; only tests/_fake_player.py may declare FakePlayer(QObject). Closes the deferred-items.md backlog accumulated across 10+ phases | ✓ Good — Phase 77 |
+| [Phase 78/84]: BUG-09 ship+monitor closure with WAIVED statistical gate | 12 events / 7 days harvest is insufficient for marginal-effect detection at any reasonable confidence level. Ship D-10/D-11/D-12 deliverables under D-13 waiver; 2-week real-world buffer-events.log monitor opens a follow-up phase if Follow-Up Triggers fire | ✓ Good — Phase 84 D-13 |
+| [Phase 84]: Stage-and-apply fallback for adaptive buffer-duration growth | Mid-session set_property writes were FALSIFIED via direct gstplaybin3.c source inspection; fallback shape (stage at _on_underrun_cycle_closed, apply at next URI bind in both _try_next_stream and _on_preroll_about_to_finish) is mandatory, not optional | ✓ Good — Phase 84 D-11 |
+| [v2.1 close]: VER-01 hook regex + downgrade guard | Hook missed Phase 84 ("mark complete" form). Patched to accept 4th alternation. bump_version.py exit code 2 if new <= current — prevents stale phase-completion message from rolling backwards | ✓ Good — milestone close 2026-05-25 |
 
 ## Versioning
 
@@ -288,7 +301,7 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-16 — Phase 79 (Fix YouTube 'stream exhausted' when launched via desktop app) complete. BUG-11 closed. New `musicstreamer/yt_dlp_opts.py` single-source-of-truth helper exporting `build_js_runtimes(node_runtime: NodeRuntime | None) -> dict`. `Player.__init__` and `yt_import.scan_playlist` both grow a keyword-only `node_runtime=None` param; `__main__._run_gui` threads the existing `node_runtime = runtime_check.check_node()` into `Player(node_runtime=node_runtime)`. ImportDialog → _YtScanWorker captures `node_runtime` at construction (Pitfall 6). New per-call INFO log lines `youtube resolve: node_path=<abs|None>` (player) and `youtube scan: node_path=<abs|None>` (yt_import); `musicstreamer.yt_import` logger escalated to INFO in `__main__.main`. Source-grep drift-guard (`tests/test_yt_dlp_opts_drift.py`) pins the single-call-site invariant. 53 phase tests pass (B-79-01..B-79-09 + B-79-DG-1); live .desktop-launch UAT captured `node_path=/home/kcreasey/.local/share/fnm/aliases/default/bin/node` from the systemd-session-stripped PATH context — bug confirmed fixed at the layer where it was reproduced. Phase 79 is the second half of commit `a06549f` (2026-04-25) which added fnm/nvm/volta/asdf detection but never threaded the resolved path through to yt-dlp's `js_runtimes` opt. Verification 20/20.*
+*Last updated: 2026-05-25 — v2.1 Fixes and Tweaks milestone shipped. 42 phases (49–84) / 187 plans / 249 tasks delivered across 4 weeks. 63 in-scope requirements satisfied; WIN-02 formally deferred to v2.2 (bundles with VER-02-J Win11 UAT + WIN-05 AAC retest in a single Win11 session). VER-01 auto-bump hook hardened to accept 4 commit-message forms + bump_version.py downgrade guard added. Phase directories archived to `.planning/milestones/v2.1-phases/`.*
 
 *Phase 69 (Debug why AAC streams aren't playing in Windows) complete — 2026-05-11. WIN-05 closed. New `tools/check_bundle_plugins.py` source-of-truth helper enumerating `REQUIRED_PLUGIN_DLLS = {"gstlibav.dll": ("avdec_aac", "gst-libav"), "gstaudioparsers.dll": ("aacparse", "gst-plugins-good")}`. `packaging/windows/build.ps1` step 4b plugin-presence guard with exit code 10 (WR-01-compliant `Write-Host -ForegroundColor Red`). Conda recipe in `packaging/windows/README.md` expanded with `gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly` (rediscovered Phase 43 spike findings were never fully productionized — the recipe shipped only `gstreamer` meta-package which has zero plugin runtime deps). Two new drift-guard pytests in `tests/test_packaging_spec.py` (8/8 pass). CONCERNS.md GStreamer Windows Plugin Availability section reconciled. Also productionized Phase 43.1 Pitfall #1 mid-UAT — added `pyside6` to the conda recipe + loosened `pyproject.toml` PySide6 pin to `>=6.10` (conda-forge's pyside6 6.10.1; pip's 6.11.0 wheel is ICU-ABI-incompatible with conda-forge's ICU 78 after gst-libav's transitive deps bumped it). Empirical PASS on Win11 VM: new step 4b guard fired live during rebuild when env was missing gst-libav (validating G-01); after env recreate, all tested AAC streams (multiple AA + SomaFM) play on the rebuilt installer. Verification 10/10.*
 
