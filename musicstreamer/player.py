@@ -525,6 +525,8 @@ class Player(QObject):
         # Phase 78 / BUG-09 Commit A: cumulative cycle count (resets per launch,
         # CONTEXT.md Discretion — the file sink from Plan 78-01 is the persistent record).
         # Type-annotated zero — Pitfall 3 (never rely on set-on-first-write semantics).
+        # See _growth_step block below for the Phase 84 / D-11 sibling state
+        # (both are BUG-09 cycle-related cumulative state; IN-02 cross-ref).
         self._underrun_event_count: int = 0
 
         # Phase 84 / D-11 / BUG-09 Commit B: adaptive buffer-duration growth state.
