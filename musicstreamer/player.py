@@ -1154,13 +1154,20 @@ class Player(QObject):
             record.station_id, record.station_name, record.url,
             record.outcome, record.cause_hint,
         )
-        # Phase 78 / BUG-09 Commit A: increment + emit on EVERY cycle close
-        # (every outcome — recovered / failover / stop / pause / shutdown —
-        # mirrors the file-sink one-line-per-cycle semantics per CONTEXT <specifics>).
+        # Phase 78 / BUG-09 Commit A: increment + emit on EVERY NON-SHUTDOWN
+        # cycle close (recovered / failover / stop / pause — mirrors the
+        # file-sink one-line-per-cycle semantics per CONTEXT <specifics>).
+        # Note: shutdown cycles route through shutdown_underrun_tracker, which
+        # also increments this counter directly (no emit there — receivers
+        # are torn down at app close). See WR-05.
         self._underrun_event_count += 1
         self.underrun_count_changed.emit(self._underrun_event_count)
-        # Phase 84 / D-11: stage buffer-duration growth (applied at next URI bind).
-        self._maybe_grow_buffer_duration()
+        # Phase 84 / D-11 + CR-01 (Phase 84 code review): growth fires ONLY on
+        # actual queue2 recovery, NOT on user terminators (pause/stop) or
+        # queue-advancement events (failover/preroll). User input must not
+        # penalise the next session's startup latency.
+        if record.outcome == "recovered":
+            self._maybe_grow_buffer_duration()
 
     def _maybe_grow_buffer_duration(self) -> None:
         """Phase 84 / D-11 / BUG-09 Commit B — STAGE next adaptive

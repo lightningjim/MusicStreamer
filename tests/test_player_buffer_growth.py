@@ -334,6 +334,42 @@ def test_reset_is_noop_when_already_at_baseline(qtbot):
     )
 
 
+@pytest.mark.parametrize("outcome", ["pause", "stop", "failover", "preroll"])
+def test_non_recovered_outcomes_do_not_trigger_growth(qtbot, outcome):
+    """CR-01 (Phase 84 code review): adaptive growth fires ONLY on
+    outcome=='recovered'. User-initiated terminators (pause/stop) and
+    queue-advancement events (failover/preroll) must NOT bump _growth_step
+    or emit buffer_duration_changed — otherwise pressing Pause during an
+    underrun would penalise the next session with a 60s startup delay
+    even though no actual buffer recovery happened.
+
+    Failure scenario this guards against:
+      1. User plays station A; underrun cycle opens (buffer drops below 100).
+      2. User presses Pause before the cycle naturally closes.
+      3. tracker.force_close("pause") queues a cycle_close record.
+      4. Old buggy slot fires _maybe_grow_buffer_duration → step=1, pending=60s.
+      5. User presses Play; the staged 60s gets applied to the new bind even
+         though no recovered underrun ever occurred.
+    """
+    player = make_player(qtbot)
+    received: list[int] = []
+    player.buffer_duration_changed.connect(received.append)
+
+    player._on_underrun_cycle_closed(_make_record(outcome=outcome))
+    qtbot.wait(50)
+
+    assert received == [], (
+        f"CR-01 FAIL: outcome={outcome!r} triggered growth Signal emit "
+        f"(spurious emits: {received!r}). Growth must gate on 'recovered'."
+    )
+    assert player._growth_step == 0, (
+        f"CR-01 FAIL: outcome={outcome!r} bumped _growth_step to "
+        f"{player._growth_step} (expected 0)."
+    )
+    assert player._current_buffer_duration_s == BUFFER_DURATION_S
+    assert player._pending_buffer_duration_s is None
+
+
 def test_buffer_duration_changed_signal_at_class_scope():
     """D-12 contract pin: Player.buffer_duration_changed must exist as a
     class-level Signal so the wire wave (Plan 84-03) cannot silently
