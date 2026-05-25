@@ -59,7 +59,7 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [ ] **GBS-MARQ-03**: A new top-of-NowPlayingPanel banner widget displays the first-segment announcement; banner is hidden by default and visible only when bound station is GBS.FM AND announcement is non-empty AND announcement-hash differs from last-seen
 - [ ] **GBS-MARQ-04**: Banner displays the announcement with the `|` pipe boundaries preserved as wrap hints; long announcements wrap across multiple lines at pipe boundaries when present
 - [ ] **GBS-MARQ-05**: User can dismiss the banner with an inline × button; dismissal stores the announcement-hash so the same banner doesn't re-appear until the marquee text changes
-- [ ] **GBS-MARQ-06**: The marquee fetcher reuses Phase 76 GBS authenticated session cookies via shared `QWebEngineProfile` constants `GBS_WEB_PROFILE_NAME` + `GBS_WEB_STORAGE_PATH` in `musicstreamer/gbs_auth.py`; the marquee module imports these constants — does NOT construct a parallel session
+- [ ] **GBS-MARQ-06**: The marquee fetcher reuses Phase 76 GBS authenticated session via `paths.gbs_cookies_path()` (cookies-jar file) and `musicstreamer.gbs_api.load_auth_context()` (loader). The marquee module imports these — does NOT construct a `QWebEngineProfile`, does NOT write a parallel cookies file, and does NOT instantiate `oauth_helper`. A source-grep drift-guard test (`test_marquee_module_reuses_phase76_auth_only`) confirms.
 - [ ] **GBS-MARQ-07**: The marquee parser is locked against a fixture of 10+ real GBS marquee samples committed under `tests/fixtures/gbs_marquee/` (per `feedback_mirror_decisions_cite_source.md` — quote samples, don't paraphrase the rule)
 
 ### GBS.FM — Zero-Token Single-Song Add (GBS-TOKEN)

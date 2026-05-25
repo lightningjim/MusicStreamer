@@ -146,7 +146,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   1. When the user binds a GBS.FM station on a known themed day (Halloween / Christmas / "da troops" / spooky / etc.), the now-playing logo slot displays the themed logo for the session — never the cover slot, never the station-list row, never a libnotify toast (GBS-THEME-05).
   2. Next app launch re-evaluates themed-day detection from scratch; the themed logo does NOT persist to SQLite or carry past a session boundary (GBS-THEME-04).
   3. When GBS.FM marquee text contains a new first pipe-segment announcement (hash-different from last-seen), a top-of-NowPlayingPanel banner appears with the announcement preserving `|` pipe wrap hints; user can dismiss with × and the same banner does not re-appear until the marquee changes.
-  4. Marquee fetcher imports `GBS_WEB_PROFILE_NAME` + `GBS_WEB_STORAGE_PATH` constants from `musicstreamer/gbs_auth.py`; source-grep drift-guard confirms no parallel QtWebEngine session is constructed (Pitfall 14 mitigated).
+  4. Marquee fetcher imports `paths.gbs_cookies_path()` + `musicstreamer.gbs_api.load_auth_context()`; source-grep drift-guard confirms no parallel cookie file is written and no QtWebEngine session is instantiated.
   5. 60-second poll cadence while GBS station bound + playing; 5-minute slow cadence otherwise; 10+ committed marquee fixtures plus 3+ themed-day / 5+ non-themed-day logo SHA-256 samples lock the parser and the canonical-hash table.
 
 **Plans:** 6 plans
