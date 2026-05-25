@@ -57,7 +57,16 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   3. `linuxdeploy-plugin-gstreamer` against conda's `$CONDA_PREFIX/lib/gstreamer-1.0` produces an AppDir where `gst-inspect-1.0 avdec_aac` and `aacparse` both resolve from inside the AppRun shell (Pitfall 2 verified).
   4. Spike outcome document captures the AppRun env-var template (`GST_PLUGIN_SYSTEM_PATH_1_0`, `GST_PLUGIN_PATH_1_0`, `GST_PLUGIN_SCANNER`, `GST_REGISTRY_FORK=no`) ready for Phase 85 consumption.
 
-**Plans**: TBD
+**Plans**: 8 plans across 6 waves
+- [ ] 85A-01-PLAN.md — Host tooling install + environment manifest (Wave 0)
+- [ ] 85A-02-PLAN.md — Dockerfile + environment-spike.yml (Wave 1, parallel with 03)
+- [ ] 85A-03-PLAN.md — Toolchain SHA256 pins + verify-pins.sh drift-guard (Wave 1, parallel with 02)
+- [ ] 85A-04-PLAN.md — hello_world.py + AppRun template + smoke_test.py (Wave 2)
+- [ ] 85A-05-PLAN.md — build.sh end-to-end AppImage assembly (Wave 3)
+- [ ] 85A-06-PLAN.md — Distrobox scripts + per-distro programmatic smoke (Wave 4)
+- [ ] 85A-07-PLAN.md — Audible-PASS protocol per distro + screenshots (Wave 5, manual)
+- [ ] 85A-08-PLAN.md — SPIKE-FINDINGS.md + skill APPEND wrap-up + teardown (Wave 6)
+
 **Research flag**: YES — `/gsd:plan-phase --research-phase 85a` recommended.
 
 #### Phase 91: FIX-MPRIS (Phase 77 Deferred MPRIS2 Tests)
@@ -153,7 +162,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 Plans:
 **Wave 1**
 
-- [ ] 87-01-PLAN.md — Live themed-day fixture harvest (Memorial Day window) + REQUIREMENTS/ROADMAP D-07/D-08 edits
+- [x] 87-01-PLAN.md — Live themed-day fixture harvest (Memorial Day window) + REQUIREMENTS/ROADMAP D-07/D-08 edits
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -296,7 +305,7 @@ Plans:
 | 86. Linux Flatpak Build | 0/? | Not started | - |
 | 88. Windows Packaging Bundle | 0/? | Not started | - |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
-| 87. GBS Marquee + Themed-Day | 0/6 | Not started | - |
+| 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
