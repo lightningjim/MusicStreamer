@@ -10,6 +10,9 @@ Exit codes:
     1 — parse error (PROJECT.md milestone heading not found OR
         pyproject.toml missing [project] table OR no parseable version line
         OR --phase arg is negative)
+    2 — downgrade guard rejected (computed version <= current version;
+        protects against a stale phase-completion message re-firing the hook
+        and silently rolling pyproject.toml backwards)
     3 — config disabled (D-11 short-circuit; informational, not a hard failure)
 
 Callable as ``python tools/bump_version.py --phase NN`` from the repo root.
@@ -27,6 +30,9 @@ from pathlib import Path
 _PROJECT_TABLE_RE = re.compile(r'^\[project\]\s*$', re.MULTILINE)
 _NEXT_TABLE_RE = re.compile(r'^\[', re.MULTILINE)
 _VERSION_LINE_RE = re.compile(r'^(version\s*=\s*)"[^"]*"(\s*)$', re.MULTILINE)
+_CURRENT_VERSION_VALUE_RE = re.compile(
+    r'^version\s*=\s*"(\d+)\.(\d+)\.(\d+)"\s*$', re.MULTILINE
+)
 _MILESTONE_RE = re.compile(r'^##\s+Current Milestone:\s*v(\d+)\.(\d+)', re.MULTILINE)
 
 
@@ -160,12 +166,29 @@ def main() -> int:
         )
         return 1
 
-    # 3. Dry-run path (no write).
+    # 3. Downgrade guard — refuse to roll pyproject.toml backwards. Protects
+    # against a stale phase-completion message re-firing the hook (e.g., the
+    # Phase 76 mark-complete commit firing AFTER a Phase 83 rollup would have
+    # computed 2.1.76 < 2.1.83 and silently downgraded).
+    current_m = _CURRENT_VERSION_VALUE_RE.search(content)
+    if current_m is not None:
+        cur = (int(current_m.group(1)), int(current_m.group(2)), int(current_m.group(3)))
+        new = (major, minor, args.phase)
+        if new <= cur:
+            print(
+                f"[bump] SKIP: computed version {new_version} is not greater "
+                f"than current {'.'.join(str(p) for p in cur)} — refusing to "
+                f"downgrade",
+                file=sys.stderr,
+            )
+            return 2
+
+    # 4. Dry-run path (no write).
     if args.dry_run or args.check:
         print(f"[bump] would rewrite {pyproject_path} version to {new_version}")
         return 0
 
-    # 4. Write (D-09: only here, only after all parses succeeded).
+    # 5. Write (D-09: only here, only after all parses succeeded).
     pyproject_path.write_text(rewritten, encoding="utf-8")
     print(f"[bump] OK: wrote version = \"{new_version}\" to {pyproject_path}")
     return 0
