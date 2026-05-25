@@ -62,6 +62,7 @@ from musicstreamer.url_helpers import (
     render_similar_html,
 )
 from musicstreamer.aa_live import fetch_live_map, detect_live_from_icy, get_di_channel_key
+from musicstreamer.constants import BUFFER_DURATION_S
 from musicstreamer.hi_res import classify_tier, TIER_LABEL_BADGE, TIER_LABEL_PROSE
 
 
@@ -2966,7 +2967,8 @@ class NowPlayingPanel(QWidget):
         # D-08's adapted-only default — the 30s baseline is itself a meaningful change
         # from the long-standing Phase 16 10s baseline and worth always surfacing.
         # Inherits visibility from wrapper.setVisible(False) below — no per-row toggle (Pitfall 8).
-        from musicstreamer.constants import BUFFER_DURATION_S
+        # IN-01 (Phase 84 code review): BUFFER_DURATION_S is now hoisted to the
+        # module-level import block; no per-call resolution penalty.
         buffer_duration_row_label = _MutedLabel("Buf duration", wrapper)
         self._buffer_duration_label = _MutedLabel(f"{BUFFER_DURATION_S}s", wrapper)
         form.addRow(buffer_duration_row_label, self._buffer_duration_label)
