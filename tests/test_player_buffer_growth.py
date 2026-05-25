@@ -171,6 +171,14 @@ def test_try_next_stream_applies_pending_before_uri_bind(qtbot):
     URI. uridecodebin3.new_source_handler reads playbin3.buffer_duration
     at URI-bind time; missing this ordering means the staged value is
     ignored by queue2 entirely (silent no-op for the new stream).
+
+    CR-02 (Phase 84 code review) update: after _try_next_stream runs, the
+    VALUE written must be the baseline (30s), not the prior URL's grown
+    60s — _try_next_stream is a station-change boundary per CONTEXT D-11
+    ("each new station starts fresh"). The reset stages baseline and the
+    apply then writes it. Ordering (buffer-duration before uri) still
+    holds. See sibling test_try_next_stream_writes_baseline_value_after_growth
+    for the dedicated value assertion.
     """
     player = make_player(qtbot)
     # Stage a pending 60s value via one cycle_close.
@@ -190,18 +198,20 @@ def test_try_next_stream_applies_pending_before_uri_bind(qtbot):
     player._try_next_stream()
 
     calls = player._pipeline.set_property.call_args_list
-    # Find indices of the buffer-duration write and the first uri write.
+    # After CR-02 fix the value written at the station-change bind is the
+    # BASELINE (30s), not the prior URL's grown 60s. Ordering still holds.
     duration_indices = [
         i for i, c in enumerate(calls)
-        if c == call("buffer-duration", 60 * _GST_SECOND)
+        if c == call("buffer-duration", BUFFER_DURATION_S * _GST_SECOND)
     ]
     uri_indices = [
         i for i, c in enumerate(calls)
         if len(c.args) >= 1 and c.args[0] == "uri"
     ]
     assert duration_indices, (
-        f"expected call('buffer-duration', 60 * Gst.SECOND) in "
-        f"_try_next_stream set_property calls; got {calls}"
+        f"expected call('buffer-duration', BUFFER_DURATION_S * Gst.SECOND) "
+        f"in _try_next_stream set_property calls; got {calls}. Per CR-02, "
+        f"the per-URL reset flushes baseline at the station-change bind."
     )
     assert uri_indices, (
         f"expected call('uri', ...) in _try_next_stream set_property "
@@ -331,6 +341,132 @@ def test_reset_is_noop_when_already_at_baseline(qtbot):
     assert received == [], (
         "D-11 Pitfall 3: reset-to-baseline when already at baseline must "
         "be a no-op (no Signal emit). Got spurious emits: " + repr(received)
+    )
+
+
+def test_try_next_stream_writes_baseline_value_after_growth(qtbot):
+    """CR-02 (Phase 84 code review): the per-URL reset MUST flush the
+    BASELINE value (30s) to playbin3 at the station-change URI bind,
+    NOT the prior URL's grown value (60s). Asserts the actual VALUE
+    written via set_property, not just the in-Python _pending state.
+
+    Root cause CR-02 caught: the original ordering was
+        apply() → reset()
+    which pushed the prior URL's 60s to playbin3 for the NEW station,
+    and only staged baseline=30 for the bind AFTER that. Fix reorders to
+        reset() → apply()
+    so apply pushes the staged baseline value at the new station's bind.
+
+    This test gap was the reason CR-02 shipped: the existing tests asserted
+    on _pending_buffer_duration_s and Signal emission, never on the value
+    written to _pipeline.set_property("buffer-duration", ...).
+    """
+    player = make_player(qtbot)
+    # Grow to step 1 (one cycle_close → staged 60s).
+    player._on_underrun_cycle_closed(_make_record())
+    assert player._growth_step == 1
+    assert player._pending_buffer_duration_s == 60
+
+    player._streams_queue = [
+        SimpleNamespace(url="http://newstation/", id=2, station_id=2)
+    ]
+    player._is_first_attempt = False
+    player._pipeline.set_property.reset_mock()
+
+    player._try_next_stream()
+
+    calls = player._pipeline.set_property.call_args_list
+    duration_calls = [
+        c for c in calls if len(c.args) >= 1 and c.args[0] == "buffer-duration"
+    ]
+    uri_calls = [
+        (i, c) for i, c in enumerate(calls)
+        if len(c.args) >= 1 and c.args[0] == "uri"
+    ]
+    assert duration_calls, (
+        f"CR-02 FAIL: _try_next_stream did not write 'buffer-duration' to "
+        f"playbin3 at the new station's URI bind. Calls: {calls}"
+    )
+    # The buffer-duration value written MUST be the baseline (30s), not the
+    # prior grown 60s. The bug under CR-02 was: 60s was being written here.
+    assert duration_calls[0].args[1] == BUFFER_DURATION_S * _GST_SECOND, (
+        f"CR-02 FAIL: _try_next_stream wrote buffer-duration={duration_calls[0].args[1]!r} "
+        f"to playbin3, expected BUFFER_DURATION_S * Gst.SECOND "
+        f"({BUFFER_DURATION_S * _GST_SECOND!r}). The per-URL reset must run "
+        f"BEFORE _apply_pending so the baseline reaches the new URI bind."
+    )
+    # Ordering still holds: buffer-duration write must precede uri write
+    # (uridecodebin3.new_source_handler reads playbin3.buffer_duration at
+    # URI-bind time).
+    duration_idx = calls.index(duration_calls[0])
+    assert uri_calls and duration_idx < uri_calls[0][0], (
+        f"CR-02 FAIL: buffer-duration write must precede uri write. "
+        f"duration_idx={duration_idx}, uri_idx={uri_calls[0][0] if uri_calls else None}, "
+        f"calls={calls}"
+    )
+
+
+def test_preroll_handoff_preserves_growth_state(qtbot):
+    """CR-02 (Phase 84 code review) + CONTEXT D-11: gapless preroll →
+    station-stream handoff is the SAME logical session, NOT a per-station
+    reset boundary. After growth → preroll handoff, _growth_step and
+    _current_buffer_duration_s MUST be preserved (NOT reset to baseline).
+
+    SomaFM users hit this path hourly (preroll cycle); resetting at the
+    handoff would erase adaptive growth at every preroll cycle, defeating
+    Commit B's intent for the SomaFM cluster (3 of 5 long events per
+    harvest-week data summary).
+
+    Per CONTEXT D-11: reset is per-station-change ("each new station starts
+    fresh"), not per-URI-bind. Preroll is two URLs but one station.
+    """
+    player = make_player(qtbot)
+    # Grow to step 1 via one cycle_close.
+    player._on_underrun_cycle_closed(_make_record())
+    assert player._growth_step == 1
+    assert player._current_buffer_duration_s == 60
+
+    player._preroll_in_flight = True
+    player._preroll_handler_id = 0
+    seq_at_emit = player._preroll_seq
+    player._streams_queue = [
+        SimpleNamespace(url="http://stream.example/", id=1, station_id=1)
+    ]
+    player._is_first_attempt = False
+    player._pipeline.set_property.reset_mock()
+
+    with patch.object(player, "_tracker", MagicMock()), \
+         patch.object(player, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(player, "_elapsed_timer", MagicMock()):
+        player._on_preroll_about_to_finish(seq_at_emit)
+
+    # Growth state preserved across the gapless handoff.
+    assert player._growth_step == 1, (
+        f"CR-02 FAIL: preroll handoff reset _growth_step from 1 to "
+        f"{player._growth_step}. Per CONTEXT D-11, preroll → station-stream "
+        f"is the SAME session; reset is per-station-change only."
+    )
+    assert player._current_buffer_duration_s == 60, (
+        f"CR-02 FAIL: preroll handoff reset _current_buffer_duration_s "
+        f"from 60 to {player._current_buffer_duration_s}. SomaFM users would "
+        f"lose adaptive growth at every hourly preroll cycle."
+    )
+
+    # The buffer-duration value written at the preroll bind MUST be the
+    # GROWN value (60s), not the baseline.
+    calls = player._pipeline.set_property.call_args_list
+    duration_calls = [
+        c for c in calls if len(c.args) >= 1 and c.args[0] == "buffer-duration"
+    ]
+    assert duration_calls, (
+        f"CR-02 FAIL: preroll handoff did not write 'buffer-duration' to "
+        f"playbin3 at the URI swap. Calls: {calls}"
+    )
+    assert duration_calls[0].args[1] == 60 * _GST_SECOND, (
+        f"CR-02 FAIL: preroll handoff wrote "
+        f"buffer-duration={duration_calls[0].args[1]!r}, expected the grown "
+        f"value 60 * Gst.SECOND ({60 * _GST_SECOND!r}). Preroll must NOT call "
+        f"_reset_buffer_duration_to_baseline before _apply_pending."
     )
 
 

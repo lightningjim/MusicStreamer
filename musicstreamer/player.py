@@ -1281,12 +1281,19 @@ class Player(QObject):
         stream = self._streams_queue.pop(0)
         self._current_stream = stream
         self._last_buffer_percent = -1  # 47.1 D-14: reset so new URL's first buffer emits (Pitfall 3)
+        # Phase 84 / D-11 per-URL reset + CR-02 (Phase 84 code review): reset
+        # MUST run BEFORE the apply so the BASELINE value (not the prior URL's
+        # grown value) is what reaches playbin3 at this URI bind. _try_next_stream
+        # is the station-change boundary per CONTEXT D-11 ("each new station starts
+        # fresh"); reset stages _pending = BUFFER_DURATION_S and apply then writes it.
+        # If the order were reversed (apply → reset), the apply would push the prior
+        # URL's grown value (e.g. 60s) to playbin3 for the new station, and the
+        # baseline would only land at the NEXT _try_next_stream call.
+        self._reset_buffer_duration_to_baseline()
         # Phase 84 / D-11: apply staged buffer-duration BEFORE binding the new URI.
         # uridecodebin3.new_source_handler reads playbin3.buffer_duration at URI-bind
         # time; missing this ordering means the staged value is silently ignored.
         self._apply_pending_buffer_duration_to_pipeline()
-        # Phase 84 / D-11 per-URL reset (mirrors Phase 47.1 D-14 sentinel reset above).
-        self._reset_buffer_duration_to_baseline()
         # Phase 62 / D-03 + T-62-02: force-close any cycle on the OUTGOING URL
         # with outcome=failover BEFORE binding the tracker to the NEW URL.
         # Ordering is load-bearing: the close record must carry the OLD url.
@@ -1490,9 +1497,14 @@ class Player(QObject):
         # Phase 84 / D-11: apply staged buffer-duration BEFORE the gapless URI swap
         # (Pitfall 2 — SomaFM users hit gapless preroll handoff hourly; missing this
         # site silently regresses adaptive growth across every preroll cycle).
+        # CR-02 (Phase 84 code review): do NOT call _reset_buffer_duration_to_baseline
+        # here. Preroll → station-stream handoff is the SAME logical user session
+        # (one station, two URLs); per CONTEXT D-11 "each new station starts fresh"
+        # the reset is per-station-change semantics, NOT per-URI-bind. Resetting
+        # here would erase adaptive growth at every SomaFM hourly preroll cycle,
+        # defeating Commit B's intent for the SomaFM cluster (3 of 5 long events
+        # per harvest-week data summary).
         self._apply_pending_buffer_duration_to_pipeline()
-        # Phase 84 / D-11 per-URL reset (preroll handoff treats next preroll as new URL).
-        self._reset_buffer_duration_to_baseline()
         # Gapless: set URI on the still-PLAYING pipeline. NO set_state(NULL),
         # NO set_state(PLAYING) — playbin3 transitions to the new URI at the
         # preroll's EOS automatically. This is the canonical playbin3 gapless
