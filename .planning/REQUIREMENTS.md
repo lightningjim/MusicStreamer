@@ -147,28 +147,80 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements. Populated during roadmap creation (2026-05-25).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PKG-LIN-APP-01..09 | TBD | Pending |
-| PKG-LIN-FP-01..10 | TBD | Pending |
-| WIN-02, WIN-02-A, WIN-02-B, VER-02-J, WIN-05 | TBD | Pending |
-| GBS-THEME-01..06 | TBD | Pending |
-| GBS-MARQ-01..07 | TBD | Pending |
-| GBS-TOKEN-01..05 | TBD | Pending |
-| ART-AVATAR-01..10 | TBD | Pending |
-| SOMA-PRE-01..05 | TBD | Pending |
-| FIX-MPRIS-01..03 | TBD | Pending |
-| FIX-PLS-01 | TBD | Pending |
-| MON-BUFFER-01 (CONDITIONAL) | TBD | Pending |
+| PKG-LIN-APP-01 | Phase 85 | Pending |
+| PKG-LIN-APP-02 | Phase 85 | Pending |
+| PKG-LIN-APP-03 | Phase 85 | Pending |
+| PKG-LIN-APP-04 | Phase 85 | Pending |
+| PKG-LIN-APP-05 | Phase 85 | Pending |
+| PKG-LIN-APP-06 | Phase 85 | Pending |
+| PKG-LIN-APP-07 | Phase 85 | Pending |
+| PKG-LIN-APP-08 | Phase 85 | Pending |
+| PKG-LIN-APP-09 | Phase 85 | Pending |
+| PKG-LIN-FP-01 | Phase 86 | Pending |
+| PKG-LIN-FP-02 | Phase 86 | Pending |
+| PKG-LIN-FP-03 | Phase 86 | Pending |
+| PKG-LIN-FP-04 | Phase 86 | Pending |
+| PKG-LIN-FP-05 | Phase 86 | Pending |
+| PKG-LIN-FP-06 | Phase 86 | Pending |
+| PKG-LIN-FP-07 | Phase 86 | Pending |
+| PKG-LIN-FP-08 | Phase 86 | Pending (gated on Phase 91 FIX-MPRIS) |
+| PKG-LIN-FP-09 | Phase 86 | Pending |
+| PKG-LIN-FP-10 | Phase 86 | Pending |
+| WIN-02 | Phase 88 | Pending |
+| WIN-02-A | Phase 88 | Pending |
+| WIN-02-B | Phase 88 | Pending |
+| VER-02-J | Phase 88 | Pending |
+| WIN-05 | Phase 88 | Pending |
+| GBS-THEME-01 | Phase 87 | Pending |
+| GBS-THEME-02 | Phase 87 | Pending |
+| GBS-THEME-03 | Phase 87 | Pending |
+| GBS-THEME-04 | Phase 87 | Pending |
+| GBS-THEME-05 | Phase 87 | Pending |
+| GBS-THEME-06 | Phase 87 | Pending |
+| GBS-MARQ-01 | Phase 87 | Pending |
+| GBS-MARQ-02 | Phase 87 | Pending |
+| GBS-MARQ-03 | Phase 87 | Pending |
+| GBS-MARQ-04 | Phase 87 | Pending |
+| GBS-MARQ-05 | Phase 87 | Pending |
+| GBS-MARQ-06 | Phase 87 | Pending |
+| GBS-MARQ-07 | Phase 87 | Pending |
+| GBS-TOKEN-01 | Phase 87b | Pending |
+| GBS-TOKEN-02 | Phase 87b | Pending |
+| GBS-TOKEN-03 | Phase 87b | Pending |
+| GBS-TOKEN-04 | Phase 87b | Pending |
+| GBS-TOKEN-05 | Phase 87b | Pending |
+| ART-AVATAR-01 | Phase 89a | Pending |
+| ART-AVATAR-02 | Phase 89a | Pending |
+| ART-AVATAR-03 | Phase 89 | Pending |
+| ART-AVATAR-04 | Phase 89b | Pending |
+| ART-AVATAR-05 | Phase 89 | Pending |
+| ART-AVATAR-06 | Phase 89 | Pending |
+| ART-AVATAR-07 | Phase 89 | Pending |
+| ART-AVATAR-08 | Phase 89 | Pending |
+| ART-AVATAR-09 | Phase 89 | Pending |
+| ART-AVATAR-10 | Phase 89 | Pending |
+| SOMA-PRE-01 | Phase 90 | Pending |
+| SOMA-PRE-02 | Phase 90 | Pending |
+| SOMA-PRE-03 | Phase 90 | Pending |
+| SOMA-PRE-04 | Phase 90 (harvest); Phase 90b (CONDITIONAL fix) | Pending |
+| SOMA-PRE-05 | Phase 90 | Pending |
+| FIX-MPRIS-01 | Phase 91 | Pending |
+| FIX-MPRIS-02 | Phase 91 | Pending |
+| FIX-MPRIS-03 | Phase 91 | Pending |
+| FIX-PLS-01 | Phase 92 | Pending |
+| MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Pending (trigger-gated) |
 
 **Coverage:**
-- v2.2 requirements: 59 total (58 unconditional + 1 conditional)
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 59 ⚠️
+- v2.2 requirements: 62 total (61 unconditional + 1 conditional)
+- Mapped to phases: 62/62 ✓
+- Unmapped: 0 ✓
+- Double-mapped: 0 ✓
 
 ---
 
 *Requirements defined: 2026-05-25*
-*Last updated: 2026-05-25 — initial v2.2 definition after research synthesis*
+*Last updated: 2026-05-25 — traceability table populated by roadmap creation (14 phases: 85a, 85, 86, 87, 87b, 88, 89a, 89, 89b, 90, 90b, 91, 92, 93)*
