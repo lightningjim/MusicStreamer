@@ -536,6 +536,13 @@ class Player(QObject):
         self._growth_step: int = 0                                     # 0=baseline, 1=60s, 2=120s (cap)
         self._current_buffer_duration_s: int = BUFFER_DURATION_S       # mirrors stats-for-nerds row
         self._pending_buffer_duration_s: int | None = None             # staged for next URI bind
+        # WR-04 (Phase 84 code review): tracks the last buffer-duration value we
+        # actually wrote to playbin3. Used by _apply_pending to skip redundant
+        # property writes when the staged value matches what playbin3 already
+        # holds — keeps the call-trace clean and avoids per-URL-bind no-op
+        # writes (the common case post-CR-02 where reset stages baseline on
+        # every station change). Seeded with the value written at __init__.
+        self._last_applied_buffer_duration_s: int = BUFFER_DURATION_S
 
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
@@ -1248,9 +1255,20 @@ class Player(QObject):
         """
         if self._pending_buffer_duration_s is None:
             return
-        self._pipeline.set_property(
-            "buffer-duration", self._pending_buffer_duration_s * Gst.SECOND
-        )
+        # WR-04 (Phase 84 code review): idempotency guard — skip the actual
+        # property write when the staged value equals what playbin3 already
+        # holds, but still clear the pending stage. After CR-02 reorder, reset
+        # stages baseline at every station change; without this guard, the
+        # common no-prior-growth path would re-write the baseline value on
+        # every URL bind (harmless but call-trace noise). _last_applied is
+        # seeded with the BUFFER_DURATION_S written at __init__ (player.py
+        # near line 327) so the first post-init no-growth station change
+        # correctly skips.
+        if self._pending_buffer_duration_s != self._last_applied_buffer_duration_s:
+            self._pipeline.set_property(
+                "buffer-duration", self._pending_buffer_duration_s * Gst.SECOND
+            )
+            self._last_applied_buffer_duration_s = self._pending_buffer_duration_s
         self._pending_buffer_duration_s = None
 
     def _reset_buffer_duration_to_baseline(self) -> None:

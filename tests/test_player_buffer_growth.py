@@ -188,18 +188,28 @@ def test_try_next_stream_applies_pending_before_uri_bind(qtbot):
     at URI-bind time; missing this ordering means the staged value is
     ignored by queue2 entirely (silent no-op for the new stream).
 
-    CR-02 (Phase 84 code review) update: after _try_next_stream runs, the
-    VALUE written must be the baseline (30s), not the prior URL's grown
-    60s — _try_next_stream is a station-change boundary per CONTEXT D-11
-    ("each new station starts fresh"). The reset stages baseline and the
-    apply then writes it. Ordering (buffer-duration before uri) still
-    holds. See sibling test_try_next_stream_writes_baseline_value_after_growth
-    for the dedicated value assertion.
+    CR-02 (Phase 84 code review): _try_next_stream is a station-change
+    boundary per CONTEXT D-11 ("each new station starts fresh"). The reset
+    stages baseline.
+
+    WR-04 (Phase 84 code review) idempotency: if playbin3 already holds
+    the baseline value (e.g. after one growth cycle that was never applied
+    because no URI bind occurred between growth and the station change),
+    the apply's idempotency guard skips the redundant property write — the
+    EFFECTIVE state (playbin3's buffer-duration) is baseline either way.
+    To exercise the apply-WRITES-when-needed branch, this test pre-stages
+    playbin3 at a non-baseline value via _last_applied_buffer_duration_s
+    so the staged baseline triggers an actual write.
+
+    Ordering (buffer-duration before uri) holds whenever a write happens.
     """
     player = make_player(qtbot)
     # Stage a pending 60s value via one cycle_close.
     player._on_underrun_cycle_closed(_make_record())
     assert player._pending_buffer_duration_s == 60
+    # WR-04 simulation: force the idempotency guard to take the WRITE branch
+    # by pretending playbin3 currently holds 120s (so staged baseline differs).
+    player._last_applied_buffer_duration_s = 120
 
     # Queue a minimal stream. The MagicMock pipeline absorbs set_property
     # calls; we inspect call_args_list to assert ordering.
@@ -374,6 +384,11 @@ def test_try_next_stream_writes_baseline_value_after_growth(qtbot):
         reset() → apply()
     so apply pushes the staged baseline value at the new station's bind.
 
+    WR-04 (Phase 84 code review) idempotency interaction: to force the
+    apply-WRITES branch (not the idempotent-skip branch), this test pre-sets
+    _last_applied_buffer_duration_s to a non-baseline value (simulating the
+    real-world case where a prior URI bind had pushed a grown value down).
+
     This test gap was the reason CR-02 shipped: the existing tests asserted
     on _pending_buffer_duration_s and Signal emission, never on the value
     written to _pipeline.set_property("buffer-duration", ...).
@@ -383,6 +398,9 @@ def test_try_next_stream_writes_baseline_value_after_growth(qtbot):
     player._on_underrun_cycle_closed(_make_record())
     assert player._growth_step == 1
     assert player._pending_buffer_duration_s == 60
+    # WR-04 simulation: pretend playbin3 currently holds 120s (a prior URI
+    # bind pushed it down) so the staged baseline value triggers a real write.
+    player._last_applied_buffer_duration_s = 120
 
     player._streams_queue = [
         SimpleNamespace(url="http://newstation/", id=2, station_id=2)
@@ -421,6 +439,36 @@ def test_try_next_stream_writes_baseline_value_after_growth(qtbot):
         f"duration_idx={duration_idx}, uri_idx={uri_calls[0][0] if uri_calls else None}, "
         f"calls={calls}"
     )
+
+
+def test_apply_pending_is_idempotent_when_value_unchanged(qtbot):
+    """WR-04 (Phase 84 code review): _apply_pending_buffer_duration_to_pipeline
+    is idempotent when the staged value equals what playbin3 already holds.
+    Avoids per-URL-bind no-op writes in the common no-growth case (post-CR-02,
+    reset stages baseline at every station change; without idempotency, the
+    baseline would be re-written every time even when playbin3 already has it).
+    """
+    player = make_player(qtbot)
+    # After __init__, _last_applied tracks the baseline write performed during
+    # pipeline construction (see player.py ~line 327).
+    assert player._last_applied_buffer_duration_s == BUFFER_DURATION_S
+    # Stage baseline as pending (simulates reset on a fresh, never-grown state).
+    player._pending_buffer_duration_s = BUFFER_DURATION_S
+    player._pipeline.set_property.reset_mock()
+
+    player._apply_pending_buffer_duration_to_pipeline()
+
+    duration_calls = [
+        c for c in player._pipeline.set_property.call_args_list
+        if len(c.args) >= 1 and c.args[0] == "buffer-duration"
+    ]
+    assert duration_calls == [], (
+        f"WR-04 FAIL: _apply_pending wrote buffer-duration when staged value "
+        f"({BUFFER_DURATION_S}) equals last-applied ({player._last_applied_buffer_duration_s}); "
+        f"expected idempotent skip. Calls: {duration_calls}"
+    )
+    # Pending stage still cleared (apply consumed it).
+    assert player._pending_buffer_duration_s is None
 
 
 def test_preroll_handoff_preserves_growth_state(qtbot):
