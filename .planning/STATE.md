@@ -3,10 +3,11 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: planning
-last_updated: "2026-05-25T15:38:55.862Z"
-last_activity: 2026-05-25
+stopped_at: Phase 87 context gathered
+last_updated: "2026-05-25T17:34:01.981Z"
+last_activity: 2026-05-25 — v2.2 roadmap drafted (14 phases mapping 62 requirements)
 progress:
-  total_phases: 14
+  total_phases: 13
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -32,32 +33,43 @@ Last activity: 2026-05-25 — v2.2 roadmap drafted (14 phases mapping 62 require
 ## v2.2 Phase Roster
 
 Tier 1 (parallel-eligible, Week 1):
+
 - Phase 85a: Linux Packaging Spike (research-flag YES)
 - Phase 91: FIX-MPRIS
 
 Tier 2 (sequential, Weeks 2-3):
+
 - Phase 85: Linux Common + AppImage Build
 - Phase 86: Linux Flatpak Build (research-flag YES; depends on Phase 91)
 
 Tier 3 (Week 4):
+
 - Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)
 
 Tier 4 (Week 5+, channel-avatar):
+
 - Phase 89a: DB Migration + Storage Layout
 - Phase 89: YT Channel-Avatar (research-flag YES; depends on 89a + 87)
 - Phase 89b: Twitch Channel-Avatar (depends on 89a + 89)
 
 Tier 5 (Week 6, GBS):
+
 - Phase 87: GBS Marquee + Themed-Day (research-flag YES)
 - Phase 87b: GBS Zero-Token Add (depends on 87)
 
 Tier 6 (Week 7, SomaFM):
+
 - Phase 90: SomaFM Preroll Instrumentation
 - Phase 90b (CONDITIONAL): SomaFM Preroll Fix
 
 Tier 7 (carry-overs):
+
 - Phase 92: FIX-PLS
 - Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up
+
+Tier 8 (post-roadmap addition):
+
+- Phase 94: Sidebar Logo Thumbnail Optimization
 
 ## Performance Metrics
 
@@ -106,6 +118,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 ### Roadmap Evolution
 
 - 2026-05-25: v2.2 roadmap created. 14 phases mapping 62 requirements (61 unconditional + 1 conditional). Phase numbering continues from v2.1's Phase 84. Tier-ordered build: Tier 1 spike + FIX-MPRIS parallel; Tier 2 Linux packaging build; Tier 3 Windows bundle; Tier 4 channel-avatar; Tier 5 GBS polish; Tier 6 SomaFM; Tier 7 carry-overs. Research-flag YES for Phases 85a, 86, 87, 89.
+- 2026-05-25: Phase 94 added — Sidebar logo thumbnail optimization. Investigate sidebar scroll slowdown on large lists (DI.fm cited); hypothesis is that full-resolution station logos are being scaled per-paint. If confirmed, generate pre-scaled small thumbnails for sidebar while preserving full-res for Now Playing. Originally landed in directory as Phase 93 via `phase.add`; manually renumbered to 94 because Phase 93 was already taken by CONDITIONAL BUFFER-MONITOR (no directory existed yet, so SDK didn't detect the clash).
 
 ### Pending Todos
 
@@ -132,9 +145,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-05-25 — v2.2 roadmap created
-Stopped at: ROADMAP.md + REQUIREMENTS.md traceability table populated; awaiting Phase 85a `/gsd:plan-phase` kickoff
-Resume file: `.planning/ROADMAP.md` (current v2.2 milestone section)
+Last session: 2026-05-25T17:34:01.971Z
+Stopped at: Phase 87 context gathered
+Resume file: .planning/phases/87-gbs-fm-marquee-themed-day-detection/87-CONTEXT.md
 
 ## Operator Next Steps
 
