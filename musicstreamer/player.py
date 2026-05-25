@@ -311,6 +311,13 @@ class Player(QObject):
     # Signal could not disambiguate baseline vs grown).
     buffer_duration_changed   = Signal(int, bool)   # (seconds, is_adapted) — main → MainWindow → NowPlayingPanel.set_buffer_duration
 
+    # Phase 84 / D-11 / WR-03 (Phase 84 code review): adaptive growth schedule.
+    # Class-level tuple so the cap-guard ties to len() (no separate magic number)
+    # and the schedule is surfaced as one searchable constant. _growth_step indexes
+    # this BEFORE incrementing: step 0 → _GROWTH_SCHEDULE[0] = 60; step 1 → [1] = 120.
+    # When _growth_step == len(_GROWTH_SCHEDULE), the cap is held (no further growth).
+    _GROWTH_SCHEDULE = (60, 120)
+
     # Phase 70 / DS-01: streaming/bus thread → main: persist sample_rate_hz / bit_depth
     # for the playing stream. Emitted with QueuedConnection on the receiver side
     # (MainWindow wires the slot in Plan 70-05 — qt-glib-bus-threading.md Rule 2).
@@ -1179,9 +1186,14 @@ class Player(QObject):
         """Phase 84 / D-11 / BUG-09 Commit B — STAGE next adaptive
         buffer-duration value after an in-session underrun cycle close.
 
-        Schedule: 30s → 60s → 120s (cap at step 2). Inline literals per
-        84-RESEARCH Alternatives §"Schedule 30→60→120 (cap)" — keep at
-        callsite, NOT module-level (Phase 78 in-Player convention).
+        Schedule: 30s → 60s → 120s (cap at len(_GROWTH_SCHEDULE)). The
+        schedule itself is the class-level tuple ``Player._GROWTH_SCHEDULE``
+        (WR-03 — Phase 84 code review): replacing the prior dict-literal
+        lookup ties the cap-guard to the schedule's length (no separate
+        magic number) and surfaces the schedule for future tuning. The
+        prior dict form raised KeyError off-by-one if the cap-guard were
+        ever refactored incorrectly; the tuple form keeps the failure
+        mode "no-op at cap" by gating with ``>= len(...)`` before indexing.
 
         Per 84-RESEARCH §D-11 Resolution: the mid-session
         ``set_property("buffer-duration", N)`` write is a silent no-op for
@@ -1192,13 +1204,13 @@ class Player(QObject):
         stats-for-nerds row reflects the new target as soon as the
         underrun cycle closes.
 
-        Cap-guard: third+ cycle_close at step 2 is a no-op (no spurious
-        Signal re-emit — Pitfall 3 / Pattern S-3 invariant).
+        Cap-guard: subsequent cycle_close at the cap is a no-op (no
+        spurious Signal re-emit — Pitfall 3 / Pattern S-3 invariant).
         """
-        if self._growth_step >= 2:
+        if self._growth_step >= len(self._GROWTH_SCHEDULE):
             return  # cap held — no further growth, no Signal re-emit
+        new_s = self._GROWTH_SCHEDULE[self._growth_step]  # index BEFORE increment
         self._growth_step += 1
-        new_s = {1: 60, 2: 120}[self._growth_step]
         self._pending_buffer_duration_s = new_s
         self._current_buffer_duration_s = new_s
         # WR-02: is_adapted=True — any growth-step write is by definition adapted.
