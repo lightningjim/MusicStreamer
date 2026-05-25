@@ -2,6 +2,7 @@
 created: 2026-05-10T19:00:00.000Z
 title: PLS auto-resolve — fall back to URL parsing for codec/bitrate when title lacks them
 area: import
+resolves_phase: 92
 files:
   - musicstreamer/playlist_parser.py:212 — _extract_bitrate (title-only)
   - musicstreamer/playlist_parser.py:223 — _extract_codec (title-only)
