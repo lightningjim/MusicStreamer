@@ -95,6 +95,20 @@ _BANNED_SPELLINGS = {
     "high-percent",
 }
 
+# IN-03 (Phase 84 code review): module-level invariant lock — a property name
+# must NEVER appear on both the allowlist and the banned set. If a future
+# commit drifts (e.g. adds "buffer_duration" to the allowlist by accident),
+# this assert fires at import time so the gate's failure mode stays well-
+# defined (allowlist + banned set tests would otherwise produce confusing
+# overlapping diagnostics).
+assert _ALLOWED_PIPELINE_PROPERTIES.isdisjoint(_BANNED_SPELLINGS), (
+    "Phase 84 / D-11 / Pattern 4 drift-guard config FAIL: a property name "
+    "appears on both _ALLOWED_PIPELINE_PROPERTIES and _BANNED_SPELLINGS: "
+    f"{_ALLOWED_PIPELINE_PROPERTIES & _BANNED_SPELLINGS}. Fix by removing "
+    "the duplicate from whichever set is wrong, then update the offending "
+    "commit's phase decision to document the change."
+)
+
 # Matches ``self._pipeline.set_property("NAME", ...)`` or
 # ``self._pipeline.set_property('NAME', ...)``. Strings / comments are
 # blanked in ``_scan_setproperty_args`` before this regex runs, so
