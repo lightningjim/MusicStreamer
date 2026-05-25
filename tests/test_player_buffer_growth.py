@@ -506,6 +506,45 @@ def test_non_recovered_outcomes_do_not_trigger_growth(qtbot, outcome):
     assert player._pending_buffer_duration_s is None
 
 
+def test_failover_timer_uses_grown_buffer_duration(qtbot):
+    """WR-01 (Phase 84 code review): the failover-timeout watchdog at
+    _try_next_stream's tail must arm at self._current_buffer_duration_s,
+    NOT the static BUFFER_DURATION_S baseline. After growth bumps the
+    target to 60s or 120s, a stream that legitimately needs the full
+    grown window to fill its enlarged buffer would otherwise be
+    incorrectly failed-over to the next queue entry after the baseline
+    30s — actively defeating Commit B's intent that the larger buffer
+    give jittery streams more recovery headroom.
+    """
+    player = make_player(qtbot)
+    # Simulate "growth happened on prior URL; this bind is the next station"
+    # by setting _current_buffer_duration_s directly. (After CR-02, a real
+    # _try_next_stream would reset to baseline first; but the failover-timer
+    # arm runs AFTER the reset/apply pair, so we test the post-reset value.
+    # To exercise grown-value semantics we patch the field after construction.)
+    player._current_buffer_duration_s = 60
+
+    player._streams_queue = [
+        SimpleNamespace(url="http://example/", id=1, station_id=1)
+    ]
+    player._is_first_attempt = False
+
+    with patch.object(player, "_failover_timer", MagicMock()) as fo_timer, \
+         patch.object(player, "_reset_buffer_duration_to_baseline"):
+        # Disable reset so the grown value survives into the failover-timer arm.
+        player._try_next_stream()
+
+    fo_timer.start.assert_called_once()
+    (interval_ms,), _kwargs = fo_timer.start.call_args
+    assert interval_ms == 60 * 1000, (
+        f"WR-01 FAIL: _failover_timer.start was called with {interval_ms}ms "
+        f"(expected 60_000ms = grown buffer-duration). The watchdog must "
+        f"track self._current_buffer_duration_s, not BUFFER_DURATION_S, or "
+        f"jittery streams that need the grown window will be force-failed "
+        f"before they can recover."
+    )
+
+
 def test_buffer_duration_changed_signal_at_class_scope():
     """D-12 contract pin: Player.buffer_duration_changed must exist as a
     class-level Signal so the wire wave (Plan 84-03) cannot silently

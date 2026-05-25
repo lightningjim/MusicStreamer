@@ -1324,7 +1324,7 @@ class Player(QObject):
         else:
             self._set_uri(url)
             # Arm failover timeout for direct GStreamer URIs
-            self._failover_timer.start(BUFFER_DURATION_S * 1000)
+            self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
     def _set_uri(self, uri: str) -> None:
         uri = aa_normalize_stream_url(uri)  # WIN-01 / D-01: DI.fm HTTPS->HTTP at URI funnel
@@ -1383,7 +1383,7 @@ class Player(QObject):
         # hangs (regression vs. pre-Phase 83 _try_next_stream:1087 arm).
         # _on_timeout above routes through the preroll-cleanup branch
         # (disconnect + flag clear + seq bump) before advancing.
-        self._failover_timer.start(BUFFER_DURATION_S * 1000)
+        self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
     def _on_preroll_about_to_finish_callback(self, pipeline) -> None:
         """Phase 83 D-05 / Pattern 1 — GStreamer streaming-thread callback.
@@ -1527,7 +1527,7 @@ class Player(QObject):
         # Arm failover-timeout watchdog for the new URL (mirrors
         # _try_next_stream:1087 — BUFFER_DURATION_S window before we give up
         # and advance through _streams_queue).
-        self._failover_timer.start(BUFFER_DURATION_S * 1000)
+        self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
     def _on_gst_eos_during_preroll(self, bus, msg) -> None:
         """Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED).
@@ -1666,7 +1666,7 @@ class Player(QObject):
         """Main-thread handler: hand the resolved HLS URL to playbin3 and arm
         the failover timer like any other direct stream."""
         self._set_uri(resolved_url)
-        self._failover_timer.start(BUFFER_DURATION_S * 1000)
+        self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
     def _on_youtube_resolution_failed(self, msg: str) -> None:
         """Main-thread handler: surface the error and advance the failover
@@ -1743,7 +1743,7 @@ class Player(QObject):
     def _on_twitch_resolved(self, resolved_url: str) -> None:
         """Runs on main thread (connected via Qt.QueuedConnection in __init__)."""
         self._set_uri(resolved_url)
-        self._failover_timer.start(BUFFER_DURATION_S * 1000)
+        self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
     # ------------------------------------------------------------------ #
     # Phase 83 — SomaFM preroll backfill (D-13 daemon worker, Pattern 4)
