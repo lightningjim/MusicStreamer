@@ -1,215 +1,239 @@
-# Feature Research
+# Feature Research — MusicStreamer v2.2
 
-**Domain:** Cross-platform (Linux + Windows) desktop audio-stream player — Qt/PySide6 port of GTK MusicStreamer v1.5
-**Researched:** 2026-04-10
-**Confidence:** MEDIUM-HIGH (Windows integration verified via official docs + community; packaging verified via multiple sources)
+**Domain:** Personal GNOME desktop streaming app — packaging parity + targeted QOL polish
+**Researched:** 2026-05-25
+**Confidence:** HIGH (packaging best-practices verified against official Flathub/AppImage docs; UX recommendations drawn from established design-system patterns; provider-avatar APIs confirmed via current YouTube/Twitch developer documentation)
 
----
+## Scope Note
 
-## Scope
+This is a **subsequent milestone** for an existing, shipped product (v2.1, 1462 tests passing, 42 phases delivered). The "table stakes vs. differentiator" framing here is scoped to **what v2.2 is adding** — not what users expect from a streaming app in general (that was answered across v1.0–v2.1). Every feature below presumes the v2.1 baseline is intact.
 
-This file covers NEW capabilities needed for v2.0. All v1.5 features (station library, now-playing,
-failover, discovery, import, Twitch, cookies, MPRIS2, accent color) are pre-validated and ported
-as-is. This document does not re-list them.
+The six v2.2 capability areas (per `milestone_context`):
+1. Linux AppImage distribution
+2. Linux Flatpak distribution
+3. GBS.FM themed-day detection (logo hash drift + marquee keyword sniff)
+4. GBS.FM announcement banner (first pipe-segment of marquee)
+5. GBS.FM zero-token single-song add (UX never framed as "1 token")
+6. Provider channel-avatar in cover slot for ICY-disabled YT/Twitch stations
 
----
+Plus pre-committed carry-overs: Windows SMTC AUMID Start-Menu shortcut (WIN-02), Win11 packaging UAT (VER-02-J + WIN-05 retest), SomaFM preroll consistency, Phase 77 MPRIS2 test repair, PLS URL fallback (FIX-PLS), and the conditional 2-week buffer-events.log monitor.
 
 ## Feature Landscape
 
-### Table Stakes (Users Expect These)
+### Table Stakes (Users Expect These for the New Capabilities)
 
-| Feature | Platform | Why Expected | Complexity | Notes |
-|---------|----------|--------------|------------|-------|
-| Qt/PySide6 UI at v1.5 feature parity | Both | Without this nothing else exists | HIGH | Core milestone deliverable; GTK retired entirely |
-| Platform-correct user data paths | Both | Windows apps that write to their own install folder break under UAC and antivirus heuristics | LOW | `%LOCALAPPDATA%\MusicStreamer` on Windows; `~/.local/share/musicstreamer` on Linux unchanged. `platformdirs` library resolves both. |
-| Windows SMTC (SystemMediaTransportControls) | Windows-only | Keyboard media keys, taskbar thumbnail transport, and lock-screen Now Playing all route through SMTC on Win10/11 | MEDIUM | `pywinrt` / `winsdk` packages provide Python bindings. Replaces dbus-python MPRIS2 on Windows. Linux keeps MPRIS2. Implement via platform-dispatch shim (`sys.platform` guard). |
-| MPRIS2 retained on Linux | Linux-only | Current behavior; Linux users expect media-key passthrough via D-Bus | LOW | Keep existing `mpris.py`; guard with `sys.platform == 'linux'` |
-| High-DPI scaling | Both (critical Windows) | Windows 10/11 defaults to 125–150% scaling; unscaled Qt app looks tiny or blurry | LOW | Qt 6 handles automatically when `QApplication.setHighDpiScaleFactorRoundingPolicy(PassThrough)` is set. Porting checklist: confirm no hardcoded pixel sizes survive the GTK port. |
-| Dark-mode respect on Windows | Windows-only | Windows 11 users with system dark mode expect apps to follow it | MEDIUM | Qt 6.5+ reads Windows color scheme via `QStyleHints.colorScheme`. The default Windows style does NOT reliably respect it — only Fusion does. Recommendation: ship Fusion style with manual palette override on Windows. `pyqtdarktheme` library provides a consistent palette as a fallback. Known bug in PySide 6.8.0.1 — test carefully. |
-| Windows Defender SmartScreen — signed executable | Windows-only | Unsigned EXE shows "Windows protected your PC" block dialog; many users won't know the bypass | HIGH | As of 2024, EV certs no longer bypass SmartScreen instantly — reputation builds over time regardless of cert type. For personal/small distribution: self-signed is acceptable if users are trusted. For wider distribution: OV code-signing cert (~$100–300/yr) reduces friction. Hardware token required by CA/B Forum since June 2023. |
-| Single-instance enforcement | Both | Second instance would start a second GStreamer pipeline; on Windows there is no session D-Bus to arbitrate | LOW | Windows: named mutex via `ctypes.windll.kernel32.CreateMutexW`. Linux: lock file in XDG runtime dir. On second launch, raise the existing window. |
-| Bundled SVG icon set (replace GNOME symbolic icons) | Both | `QIcon.fromTheme()` returns nothing on Windows; GNOME symbolic icons don't exist there | MEDIUM | Use Material Symbols or Fluent System Icons (both Apache 2.0); subset to ~20 icons. Compile into Qt resources (`.qrc`). Pattern: `QIcon.fromTheme("media-playback-start", QIcon(":/icons/play.svg"))` — Linux themes win when present, bundled SVGs everywhere else. `QtSvg` plugin must be included in the PyInstaller bundle. |
-| System font on Windows (Segoe UI) | Windows-only | Qt defaults to Segoe UI on Windows automatically. No action needed, but the Adwaita Sans assumption must not be hardcoded anywhere in the Qt UI code | LOW | Porting checklist item: confirm no `setFont("Adwaita Sans")` calls survive the port. |
-| Manual settings export/import | Both | Stated v2.0 milestone requirement for cross-machine moves | MEDIUM | See dedicated section below. |
-| Windows installer / distributable binary | Windows-only | Windows users expect an installer EXE; a raw folder is not an acceptable deliverable | MEDIUM | See packaging section below. |
+Features users will assume exist the moment a v2.2 capability lands. Missing these = the new capability feels half-built.
 
-### Differentiators (Nice-to-Haves)
+| # | Feature | Why Expected | Complexity | Depends On |
+|---|---------|--------------|------------|------------|
+| TS-01 | **AppImage runs from any location, no install step** | Core AppImage promise — download-and-double-click portability. If user has to extract or run setup, it's not a real AppImage. | LOW | None (PyInstaller already produces a portable bundle) |
+| TS-02 | **AppImage `.desktop` integration when launched via AppImageLauncher** | Without it, users see no menu entry / no icon and assume the app didn't install. AppImageLauncher prompts on first run; we just need to embed a valid `.desktop` + icon in the AppDir. | LOW | linuxdeploy `--desktop-file` + icon at `usr/share/icons/hicolor/256x256/apps/musicstreamer.png` |
+| TS-03 | **AppImage bundles its own GStreamer + Qt + Node.js** | Users expect zero dependency surprises. Existing PKG-04 conda-forge approach on Windows proves the model; Linux must match. linuxdeploy-plugin-gstreamer + linuxdeploy-plugin-qt are the canonical tools. | MEDIUM | Phase 43 plugin-presence lessons + PKG-04 conda recipe (must reapply learning about `gst-libav` for AAC) |
+| TS-04 | **AppImage embeds update info (zsync URL)** even if v2.2 doesn't ship an actual update server | AppImageUpdate is the de-facto standard. Even if we never publish a delta, embedding the field makes the binary forward-compatible. **Always with user consent** — never silent. | LOW | None — appimagetool flag |
+| TS-05 | **AppImage does NOT register MIME associations for `.pls`/`.m3u`** | This is what users of a curated-library app actually expect. Surfaced here because Flathub reviewers will ask. Anti-pattern explained in AF-01. | n/a | n/a |
+| TS-06 | **Flatpak audio works without Flatseal hand-tuning** | Users expect "install from Flathub → launch → audio works." Requires `--socket=pulseaudio` in finish-args. Anything that forces Flatseal is a Flathub review fail. | LOW | finish-args boilerplate |
+| TS-07 | **Flatpak MPRIS2 controls work with GNOME media keys** | Existing v2.0 MPRIS2 backend must survive sandbox. Requires `--own-name=org.mpris.MediaPlayer2.musicstreamer` (or the AUMID we pick) in finish-args, NOT `--socket=session-bus`. | MEDIUM | ARCHITECTURE.md MPRIS2 D-Bus contract; Flathub forbids broad session-bus access for non-dev-tools |
+| TS-08 | **Flatpak network access** | Streaming app — obviously needs it. `--share=network`. | LOW | None |
+| TS-09 | **Flatpak settings persist between launches** | `~/.var/app/<id>/data/musicstreamer.sqlite3` should work transparently. Code must use XDG_DATA_HOME (already does via `paths.py`). | LOW | `paths.py` already XDG-correct |
+| TS-10 | **Flatpak auto-updates via GNOME Software / `flatpak update`** | This is the entire pitch of Flatpak vs. AppImage. Falls out for free once we're on Flathub. | LOW | Flathub submission |
+| TS-11 | **GBS.FM themed-logo detected within the session of joining the GBS view** | If user opens GBS and the logo doesn't reflect today's theme, the feature is invisible. Session-scoped fetch at GBS tab open (per milestone_context) is the right scope. | LOW–MED | Phase 76 QtWebEngine subprocess (cookied logo URL fetch) |
+| TS-12 | **GBS.FM announcement banner is dismissible** | Persistent in-window banners without a dismiss control are universally hated. Established UX rule: persistent banners must be dismissible; one-shot info is auto-fade toast. Carbon and Fluent both codify this. | LOW | New banner widget — sits above StationListPanel/NowPlayingPanel split |
+| TS-13 | **GBS.FM zero-token affordance works exactly once when tokens=0 AND queue is empty** | This is the literal user expectation per milestone_context: "out of tokens but no queued song, present the affordance as a single-use add button." Anything else is a bug. | LOW | Phase 60.4 token counter / Phase 76 GBS-AUTH-01 |
+| TS-14 | **Channel avatar in cover slot loads within ~1s of station play for ICY-disabled stations** | Users won't wait. The slot currently shows the duplicate thumbnail "fast" — replacement must be at least as fast or the change reads as a regression. Pre-fetch + disk cache required. | MEDIUM | Phase 73 cover-art cache pattern (iTunes session dedup model); new YT/Twitch avatar cache layer |
+| TS-15 | **Channel avatar fallback to existing thumbnail when avatar unavailable** | YouTube channel data fetch can fail (rate limit, network). Must degrade to the v2.1 behavior, not blank slot. | LOW | Existing cover-slot fallback chain |
+| TS-16 | **SomaFM prerolls actually play on stations that currently miss them (Boot Liquor etc.)** | Regression-class bug — Phase 74 set the expectation that all SomaFM stations have prerolls. Inconsistency surprises users. | MEDIUM | Phase 74 (SOMA-01..17) preroll wiring |
+| TS-17 | **Windows SMTC Start-Menu shortcut sets correct AUMID** | WIN-02 carry-over. Without it, SMTC media keys break on first-launch-from-Start-Menu (Inno installer currently produces a shortcut without the `System.AppUserModel.ID` property). Documented in v2.1 close. | LOW | v2.0 Phase 43.1 AUMID setting (Python side already does it; the shortcut file itself needs the matching AUMID property) |
 
-| Feature | Platform | Value Proposition | Complexity | Notes |
-|---------|----------|-------------------|------------|-------|
-| Minimize-to-tray | Both (more relevant Windows) | Music player running in background with no taskbar clutter; standard for media players | LOW | `QSystemTrayIcon` + `QMenu` is well-supported on both platforms. Hide window on minimize, show tray icon, left-click restores. First close should offer "minimize to tray" vs "quit". |
-| Windows accent color seed on first run | Windows-only | App accent matches user's Windows color, replacing the custom GNOME accent picker for that platform | MEDIUM | `QPalette::Accent` via `QGuiApplication.palette()` reads Windows accent. Broken in PySide 6.8.0.1 (showed gray). Registry fallback: `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`. Decision: keep custom accent picker as primary; optionally seed it from Windows accent on first launch only. |
-| Toast replacement via QSystemTrayIcon.showMessage | Both | Current Adw.Toast has no Qt equivalent; failover and "Connecting…" toasts need a cross-platform replacement | LOW | `QSystemTrayIcon.showMessage()` is the correct baseline — it works on both platforms, has no additional dependencies, and covers the non-blocking notification use case adequately. |
-| Global media hotkeys beyond SMTC | Windows-only | Some users remap media keys or use global shortcuts outside SMTC | MEDIUM | SMTC covers standard media keys natively. Global hotkeys beyond that (e.g., `Ctrl+Alt+P`) require `RegisterHotKey` Win32 API or the `keyboard` PyPI package. Defer unless SMTC proves insufficient in practice. |
+### Differentiators (Set v2.2 Apart from "Just Another Streaming App")
 
-### Anti-Features (Commonly Requested, Often Problematic)
+Features that lean into MusicStreamer's curated-library identity and the niche GBS.FM/SomaFM integrations. Not table stakes for streaming apps in general, but **table stakes for *this* app's identity**.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| MSIX packaging | Modern Microsoft format, avoids SmartScreen | Requires Microsoft Store submission or sideloading config, mandatory signing with hardware token, complex build pipeline. Overkill for a personal app. | PyInstaller + NSIS EXE installer |
-| Auto-update | Nice for end-users | Single-user personal app. Auto-update infrastructure adds ~50 LOC of error-prone code (GitHub Releases API check, download, re-exec, signature verify) for zero real benefit. | Manual download when a new build is wanted |
-| Native Windows toast (Windows.UI.Notifications / winrt) | Native feel | Requires AUMID registration, COM machinery, significantly more setup than the value justifies. Broken in some Python WinRT versions. | `QSystemTrayIcon.showMessage()` covers the need completely |
-| Cookie export in settings bundle | Completeness | Cookies contain live session tokens; exporting them in a portable ZIP creates a credential exposure risk. Google session cookies especially sensitive. | Document: cookies must be re-imported manually on a new machine |
-| Twitch token export in settings bundle | Completeness | Same credential exposure risk as cookies | Document: re-auth manually on new machine |
-| adwaita-qt pixel-perfect theming | Match GNOME look on Linux | `adwaita-qt` gives approximate parity; chasing pixel-perfection means maintaining a custom style engine. GNOME users understand Qt apps look slightly different from native GTK apps. | Ship Fusion + adwaita-qt, accept the visual delta |
-| Windows Jump List | Recently-played stations in taskbar right-click | Very high complexity (`winrt` Jump List API), fragile, and the station library is always one click away in the app. Marginal value. | In-app recently-played section (already v1.5) |
-| Taskbar thumbnail toolbar (play/pause buttons on hover) | Convenience | `ITaskbarList3::ThumbBarAddButtons` Win32 COM; high complexity. SMTC already covers this use case for Windows. | SMTC lock-screen / taskbar integration |
-| File association (.pls / .m3u double-click opens app) | Standard player behavior | Requires registry writes at install time, a URL handler protocol, and a CLI entry point that imports/plays a file — significant cross-cutting scope. This app's workflow is library-first, not file-first. | Defer to v2.1 if requested |
+| # | Feature | Value Proposition | Complexity | Depends On |
+|---|---------|-------------------|------------|------------|
+| D-01 | **AppImage + Flatpak ship simultaneously** (not one or the other) | Most niche Linux apps ship only AppImage *or* only Flatpak. Shipping both at v2.2 launch covers the two largest Linux desktop user populations (portable-binary purists + GNOME Software / Discover users) without forcing a choice. | HIGH (two pipelines, but mostly independent) | TS-01..10 |
+| D-02 | **GBS.FM themed-day detection via logo hash drift** | Niche radio stations often swap their logo for holidays / station birthdays / themed days. Detecting it automatically (via SHA-256 of `logo_3.png` vs. last-known hash) lets the app surface "today is special" without GBS.FM exposing any structured API. Genuine craft signal. | MEDIUM | Phase 76 in-app login subprocess (cookied logo fetch); SQLite key for last-known hash |
+| D-03 | **GBS.FM themed-day surfaces visually distinct from announcement banner** | Two signals (themed-day + marquee announcement) must not be conflated in UI. Themed-day = ambient (replaced logo, optional accent retint); announcement = explicit (top banner with text). The differentiator is *not collapsing them into one notification*. | MEDIUM | D-02; existing accent retint plumbing (Phase 75) |
+| D-04 | **GBS.FM announcement banner surfaces only when marquee text is NEW** | Permanently-on banner = noise. Hash the first pipe-segment, store last-seen hash in SQLite, only show banner when hash changes. Restores to "seen" state on user dismiss. This is the UX that respects the user's attention. | MEDIUM | Banner widget; SQLite key `gbs_last_seen_announcement_hash` |
+| D-05 | **GBS.FM zero-token affordance worded as action, not currency** | "Add a song" / "Queue 1 song" — never "Use your last token." Milestone_context is explicit: the feature must "never be framed as '1 token'." This follows through the GBS-AUTH-01 token-paste DROP (Phase 76 D-03): we deliberately keep the user out of the token-economy mental model. | LOW | Phase 76 GBS panel UI |
+| D-06 | **Provider channel-avatar uses circular crop** (vs. square station logo) | YouTube and Twitch both use circular avatars throughout their own UIs. Matching that visual convention in the cover slot signals "this is a creator, not a radio brand." Visually distinguishes ICY-disabled creator streams from radio streams at a glance. | LOW | QPixmap clip-path; existing cover-slot QLabel |
+| D-07 | **AppImage embeds a hand-designed `.desktop` icon at multiple resolutions** (256, 128, 64, 48, 32) | Most AppImages ship one icon size or rely on extraction-time scaling artifacts. Multi-size hicolor icon theme makes the app look native at any HiDPI factor (even though our deploy target is DPR=1.0 per MEMORY.md, Flathub review checks this). | LOW | Existing app icon asset |
+| D-08 | **Flatpak uses `--filesystem=xdg-music:ro` or zero filesystem perms** | Most audio apps over-request filesystem access. We're streaming-only (no local files per PROJECT.md Out of Scope) — we genuinely need zero filesystem perms beyond the app's own `~/.var/app/<id>/`. This is a positive signal during Flathub review. | LOW | None — just don't add filesystem= to finish-args |
 
----
+### Anti-Features (Will Be Requested, Must Decline)
 
-## Settings Export/Import — Feature Shape
+Features that seem reasonable but conflict with the v2.2 scope, project identity, or the existing user contract.
 
-**What the bundle contains:**
-
-| Data | Include | Rationale |
-|------|---------|-----------|
-| Stations (name, provider, tags, logo path, ICY disabled) | YES | Core library |
-| Station streams (URL, quality, label, position) | YES | Multi-stream model |
-| Favorites (track titles with station/provider/genre) | YES | User data |
-| App settings (volume, accent color) | YES | Preferences |
-| Logo image files | YES — embedded in archive | Without logos, import looks broken |
-| cookies.txt | NO | Live session tokens; credential risk |
-| Twitch OAuth token | NO | Live credential; credential risk |
-
-**Format:** Zip archive (`.musicstreamer` extension or `.zip`) containing:
-- `export.json` — all station/stream/favorites/settings data with a `schema_version` field
-- `logos/` — image files referenced by station records by relative path
-
-Rationale over alternatives: A SQLite snapshot is binary-diff-unfriendly and couples the export format to internal schema migrations. A flat JSON + images zip is human-inspectable, version-tolerant, trivially implemented with stdlib (`zipfile`, `json`), and easy to validate on import.
-
-**Import conflict resolution:** Replace-on-URL-match. If an existing station has the same primary stream URL, update its metadata. Otherwise insert. Do not silently discard. Surface a summary dialog ("3 updated, 12 added") after import completes.
-
----
-
-## Windows Packaging — Recommendation
-
-**Toolchain:** PyInstaller 6.x → NSIS installer EXE
-
-- PyInstaller bundles Python + GStreamer + PySide6 into a single-folder dist. Well-documented for PySide6 (pythonguis.com tutorial current 2025, PyInstaller 6.19 on PyPI).
-- NSIS wraps the dist folder into a standard Windows installer EXE. Generates uninstaller, Start Menu shortcut, optional desktop shortcut. Small footprint, scriptable, widely used.
-- Pipeline: `pyinstaller musicstreamer.spec` → `makensis installer.nsi` → distributable `MusicStreamer-Setup.exe`.
-- **Highest-complexity packaging concern:** GStreamer on Windows requires the GStreamer Windows runtime installer or bundled GStreamer plugins. This is non-trivial and needs its own phase-level research before implementation.
-- User data location: `%LOCALAPPDATA%\MusicStreamer` (not `%APPDATA%` — avoid roaming profile replication of large logo image files).
-- Auto-update: none. Personal app, one user.
-- SmartScreen: for personal use, unsigned or self-signed is acceptable (user clicks "More info → Run anyway"). For distribution to others, OV cert removes the block after reputation builds.
-
----
-
-## Cross-Platform Icon Strategy
-
-**Recommendation:** Bundle a custom SVG icon set as Qt resources.
-
-- Source: Material Symbols (Google, Apache 2.0) or Fluent System Icons (Microsoft, MIT). Subset to ~20 icons actually used.
-- Compile into a `.qrc` resource file so icons are embedded in the binary — no external asset files at runtime.
-- Call pattern: `QIcon.fromTheme("media-playback-start", QIcon(":/icons/play.svg"))` — Linux GNOME icon themes win when present; bundled SVGs are the universal fallback.
-- The `QtSvg` plugin must be included in the PyInstaller bundle via `--collect-all PySide6.QtSvg`.
-- GNOME symbolic icons (current v1.5 approach via GTK) are entirely unavailable in Qt; do not attempt to reuse them.
-
----
+| # | Feature | Why It Seems Good | Why It's Wrong Here | Alternative |
+|---|---------|-------------------|---------------------|-------------|
+| AF-01 | AppImage / Flatpak registers as default handler for `.pls` / `.m3u` files | "User clicks a playlist link, my app opens" | MusicStreamer is a curated-library app, not a generic stream player. PROJECT.md explicitly excludes "Local music library / file playback" from scope. MIME handler registration would invite users to dump arbitrary playlists at the app and complain when they don't show up in the library. | Keep the import flows (Import dialog → AudioAddict / YouTube / Radio-Browser tabs) as the only entry points. |
+| AF-02 | Snap packaging | "More users can install it" | User explicitly chose AppImage + Flatpak per milestone_context. Snap's auto-update model is more invasive and its sandbox semantics differ from Flatpak in ways that would force a third packaging code path. | Decline. Document in PROJECT.md Out of Scope alongside iOS / Android / Web. |
+| AF-03 | Flatpak with `--filesystem=home` | "Easier than thinking about portals" | Flathub reviewers will reject or downgrade trust score; users will (rightly) flag in Flatseal that the app over-reaches. We have no use case requiring home access. | Use only the app's own per-app data dir + portals for the file-picker import flows (which already work via the standard Qt FileDialog, which is portal-routed inside Flatpak automatically). |
+| AF-04 | Flatpak with broad `--socket=session-bus` for MPRIS2 | "MPRIS2 needs D-Bus" | Flathub forbids broad session-bus for non-dev-tools. Correct pattern is `--own-name=org.mpris.MediaPlayer2.<id>` which scopes us to the one well-known name we need. | Use `--own-name` only. Verify MPRIS2 client (gnome-shell / playerctl) can still talk to us — they can, via the standard MPRIS2 discovery flow. |
+| AF-05 | Themed-day push notification (libnotify toast on day-of) | "Tell the user something special is happening" | Pushing OS-level notifications for a desktop streaming app is the kind of behavior users disable globally and never re-enable. The themed logo IS the notification. | Surface only in-app: themed logo + (separately) the announcement banner when marquee is new. |
+| AF-06 | Themed-day persists in UI until dismissed (carries across days) | "User shouldn't miss it" | If the theme is a logo swap initiated by GBS, the theme ends when GBS ends it (next logo fetch returns the default hash). Don't manufacture a persistence layer that fights the upstream signal. | Session-scoped fetch + cache (per milestone_context); next session re-checks. |
+| AF-07 | Zero-token affordance always visible (even when tokens > 0) | "Discoverability" | Phase 76 already surfaces the token count. A persistent "add a song" button that does different things based on token state is confusing. The affordance must appear ONLY when (tokens == 0 AND queue is empty) — that's its meaning. | Conditional render gated on `tokens == 0 and queue_len == 0`. |
+| AF-08 | Channel avatar replaces logo slot too (not just cover slot) | "Consistency" | The logo slot is the station identity. Replacing it with a YouTube channel avatar conflates "the station I curated" with "the creator behind it." Cover slot is the right place — it was the duplicate before, now it's the creator badge. | Cover slot only; logo slot keeps the station-as-curated-by-me identity. |
+| AF-09 | Channel avatar refreshed on every play | "Always fresh" | YouTube avatars change ~never; Twitch avatars change ~monthly at most. Refreshing on every play burns API quota and adds latency for zero user benefit. | One-time fetch on station create/edit + a manual "refresh" affordance in EditStationDialog (matches the existing YT thumbnail refresh pattern from Phase 6/17). |
+| AF-10 | AppImage silent auto-update on launch | "Always current" | AppImageUpdate docs are explicit: never download updates without user consent. Silent auto-update is a privacy/bandwidth/trust violation. | Embed zsync URL (so AppImageUpdate *can* update); show "Update available" non-blocking toast on launch when a newer build is detected; require explicit user click. |
 
 ## Feature Dependencies
 
 ```
-Qt/PySide6 port (all UI)
-    └──required by──> SMTC integration (Windows media keys)
-    └──required by──> Tray icon / minimize-to-tray (QSystemTrayIcon)
-    └──required by──> Dark mode palette
-    └──required by──> Windows accent color seed
-    └──required by──> Toast replacement (QSystemTrayIcon.showMessage)
-    └──required by──> Bundled icon set (Qt resources)
+v2.1 baseline (assumed intact)
+├── Phase 76 (GBS-AUTH-01 QtWebEngine login subprocess)
+│    ├── D-02 themed-day logo hash fetch
+│    ├── D-04 marquee announcement fetch
+│    └── D-05 zero-token affordance state
+│
+├── Phase 60.4 (GBS token counter)
+│    └── TS-13/AF-07 zero-token affordance gating
+│
+├── Phase 74 (SomaFM SOMA-01..17)
+│    └── TS-16 SomaFM preroll consistency fix
+│
+├── Phase 73 (cover-art cache pattern + 1 req/sec gate)
+│    └── TS-14 channel avatar cache + rate limit (Twitch Helix)
+│
+├── Phase 47 (stream ordering / codec rank)
+│    └── (no new v2.2 dependency, but FIX-PLS lives in this codepath)
+│
+├── v2.0 Phase 43.1 (Windows AUMID setting)
+│    └── TS-17 WIN-02 Start-Menu shortcut AUMID
+│
+└── Phase 77 (deferred items reconciliation)
+     └── FIX-MPRIS test repair (7 MPRIS2 cross-file failures)
 
-Platform data paths (%LOCALAPPDATA% / ~/.local/share)
-    └──required by──> Settings export/import (knows where DB lives)
-    └──required by──> Windows installer NSIS script
+v2.2 internal dependencies:
+TS-01..05 (AppImage) ──independent of── TS-06..10 (Flatpak)
+       │                                       │
+       └────────── D-07 hicolor multi-size icon shared ─────────┘
 
-Settings export/import
-    └──enhances──> Cross-machine workflow (stated v2.0 goal)
-    └──must exclude──> cookies.txt, Twitch token (credential risk)
+TS-11 (themed-day fetch) ──before── D-02 (logo hash drift logic)
+                              ──before── D-03 (visual distinction from announcement)
 
-PyInstaller bundle
-    └──required by──> NSIS installer
-    └──GStreamer Windows runtime──> needs phase-specific research
+TS-12 (banner dismissible) ──before── D-04 (banner appears only on new hash)
 
-Single-instance enforcement
-    └──enhances──> Tray icon (second launch raises existing window rather than refusing)
+TS-13 (zero-token works once) ──before── D-05 (wording: "Add a song", not "1 token")
+
+TS-14 (avatar load <1s) ──before── D-06 (circular crop) — perf first, polish second
+
+TS-16 (SomaFM preroll fix) ──independent── of all other v2.2 work (carry-over)
+TS-17 (WIN-02 AUMID shortcut) ──independent── (Windows-only, no other deps)
 ```
 
 ### Dependency Notes
 
-- SMTC requires the port to be functionally complete so the Now Playing metadata (station name, track title, art) is available to push into SMTC.
-- The bundled icon set must be decided before UI implementation begins so icons are not hardcoded as theme-only references.
-- GStreamer Windows runtime bundling is a hard dependency for the installer to produce a working binary; it must be resolved in the early packaging phase, not deferred to the end.
-
----
+- **Phase 76 is the keystone**: three of the six v2.2 capability areas (themed-day, announcement banner, zero-token UX) reuse the QtWebEngine subprocess Phase 76 established. If Phase 76's session storage / cookie jar behavior changes, all three are affected.
+- **AppImage and Flatpak are independent tracks**: they share the hicolor icon asset (D-07) and the application logic (no code changes for sandbox awareness, since `paths.py` already uses XDG dirs), but their build pipelines, finish-args / desktop files, and update mechanisms are fully separate. Can ship in either order.
+- **Channel avatar work depends on cover-art cache pattern from Phase 73**, not iTunes specifically. The 1 req/sec gate is iTunes-specific; Twitch Helix has its own (much higher) rate limit. YouTube channel snippet via yt-dlp is essentially free (we already fetch video metadata; channel snippet is a separate API call but rare).
+- **TS-13 + D-05 are the same feature decomposed by lens**: TS-13 is the functional requirement (works exactly once), D-05 is the UX framing (wording). Implementation is a single widget but reviewer should check both.
+- **FIX-MPRIS (Phase 77 carry-over) blocks Flatpak validation**: if the MPRIS2 tests don't pass before Flatpak submission, we can't guarantee MPRIS2 works in-sandbox. Sequence: fix MPRIS tests → Flatpak build → manual MPRIS-in-Flatpak verification.
 
 ## MVP Definition
 
-### Launch With (v2.0)
+### Must Ship in v2.2 (P1)
 
-- [ ] Qt/PySide6 UI at v1.5 feature parity — without this nothing else functions
-- [ ] Platform-correct user data paths (`%LOCALAPPDATA%` on Windows, unchanged on Linux)
-- [ ] Cross-platform media keys shim (SMTC on Windows, MPRIS2 on Linux)
-- [ ] Bundled SVG icon set replacing GNOME symbolic icons
-- [ ] Dark mode on Windows via Fusion + palette (imperfect but functional)
-- [ ] Single-instance enforcement
-- [ ] Settings export/import (stated v2.0 milestone requirement)
-- [ ] Windows installer (PyInstaller + NSIS)
-- [ ] High-DPI scaling (Qt 6 default; porting checklist to catch hardcoded pixel sizes)
-- [ ] Toast replacement via `QSystemTrayIcon.showMessage`
+The milestone goal per PROJECT.md is "packaging parity" — AppImage + Flatpak are non-negotiable. The GBS.FM and ICY-disabled polish are the headline QOL.
 
-### Add After Port Stabilizes (v2.1)
+- [ ] **TS-01..05 AppImage** with `.desktop`, icon, GStreamer plugins bundled, zsync update info embedded
+- [ ] **TS-06..10 Flatpak** with minimal finish-args, MPRIS2 via `--own-name`, on Flathub
+- [ ] **TS-11 + D-02 + D-03 GBS.FM themed-day** detection + session-scoped + visually distinct from banner
+- [ ] **TS-12 + D-04 GBS.FM announcement banner** dismissible + new-hash gated
+- [ ] **TS-13 + D-05 GBS.FM zero-token affordance** worded as action, gated on `(tokens==0 AND queue empty)`
+- [ ] **TS-14 + TS-15 + D-06 + AF-09 channel avatar** in cover slot for ICY-disabled YT/Twitch, circular, cached, fallback-safe, refresh-on-demand
+- [ ] **TS-16 SomaFM preroll consistency** (carry-over investigation + fix)
+- [ ] **TS-17 WIN-02 SMTC AUMID Start-Menu shortcut**
+- [ ] **FIX-MPRIS** Phase 77's 7 D-03-deferred MPRIS2 cross-file test failures repaired
+- [ ] **VER-02-J + WIN-05** Win11 VM packaging UAT (sign-off bundled)
 
-- [ ] Minimize-to-tray — low complexity, high UX value once port is stable
-- [ ] Windows accent color seed on first run — differentiator, low risk
+### Should Add If Capacity Allows (P2)
 
-### Future Consideration (v2.2+)
+- [ ] **D-07 hicolor multi-resolution icon set** — quality polish, low effort, only needs design pass once
+- [ ] **D-08 Flatpak with zero filesystem permissions** explicitly documented (vs. just "we didn't add any") — defensible answer for Flathub reviewer
+- [ ] **FIX-PLS Phase 58 PLS URL-fallback for codec/bitrate** (carry-over pending todo)
 
-- [ ] File association for .pls / .m3u — high complexity, niche benefit for a library-first app
-- [ ] Windows Jump List — very high complexity, marginal value
-- [ ] Taskbar thumbnail toolbar — very high complexity, covered by SMTC
+### Conditional (P3 — Trigger-Gated)
 
----
+- [ ] **BUFFER-MONITOR 2-week follow-up** — only if any of the 3 Follow-Up Triggers in 84-VERIFICATION.md fires during v2.2 dev window
+- [ ] **AppImage publishing infrastructure** (zsync server, release feed) — only if user actually wants to ship updates between milestones; for v2.2, embedding the update info is sufficient
+
+### Out of Scope (Document in PROJECT.md if Asked)
+
+- Snap packaging (AF-02)
+- AppImage MIME associations for `.pls` / `.m3u` (AF-01)
+- Themed-day system notifications (AF-05)
+- Channel avatar replacing logo slot (AF-08)
+- Silent auto-update (AF-10)
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Qt/PySide6 port (parity) | HIGH | HIGH | P1 |
-| Platform data paths | HIGH | LOW | P1 |
-| SMTC (Windows media keys) | HIGH | MEDIUM | P1 |
-| Bundled SVG icons | HIGH | MEDIUM | P1 |
-| Windows installer | HIGH | MEDIUM | P1 |
-| Settings export/import | HIGH | MEDIUM | P1 |
-| Single-instance enforcement | MEDIUM | LOW | P1 |
-| High-DPI scaling | HIGH | LOW | P1 |
-| Dark mode (Windows) | MEDIUM | MEDIUM | P1 |
-| Toast via QSystemTrayIcon | MEDIUM | LOW | P1 |
-| Minimize-to-tray | MEDIUM | LOW | P2 |
-| Windows accent color seed | LOW | MEDIUM | P2 |
-| File association .pls/.m3u | LOW | HIGH | P3 |
-| Jump List | LOW | HIGH | P3 |
+| # | Feature | User Value | Implementation Cost | Priority |
+|---|---------|------------|---------------------|----------|
+| TS-01 | AppImage portable run | HIGH | LOW | P1 |
+| TS-02 | AppImage .desktop integration | HIGH | LOW | P1 |
+| TS-03 | AppImage bundles GStreamer/Qt/Node | HIGH | MEDIUM | P1 |
+| TS-04 | AppImage embeds zsync update info | MEDIUM | LOW | P1 |
+| TS-06 | Flatpak audio (pulseaudio socket) | HIGH | LOW | P1 |
+| TS-07 | Flatpak MPRIS2 via --own-name | HIGH | MEDIUM | P1 |
+| TS-08–10 | Flatpak network/data/updates | HIGH | LOW | P1 |
+| TS-11 | Themed-day session-scoped fetch | MEDIUM | LOW–MED | P1 |
+| TS-12 | Banner dismissible | HIGH (avoids annoyance) | LOW | P1 |
+| TS-13 | Zero-token affordance works once | HIGH | LOW | P1 |
+| TS-14 | Avatar loads <1s | HIGH | MEDIUM | P1 |
+| TS-15 | Avatar fallback to thumbnail | HIGH | LOW | P1 |
+| TS-16 | SomaFM preroll consistency | MEDIUM | MEDIUM | P1 |
+| TS-17 | WIN-02 SMTC AUMID shortcut | HIGH (on Windows) | LOW | P1 |
+| D-01 | Both AppImage + Flatpak at launch | HIGH | HIGH (two pipelines) | P1 |
+| D-02 | Themed-day via logo hash drift | MEDIUM | MEDIUM | P1 |
+| D-03 | Themed-day visually distinct from banner | HIGH (UX clarity) | MEDIUM | P1 |
+| D-04 | Banner only on new hash | HIGH | MEDIUM | P1 |
+| D-05 | Zero-token worded as action | HIGH | LOW | P1 |
+| D-06 | Avatar circular crop | MEDIUM | LOW | P1 |
+| D-07 | Hicolor multi-size icon | LOW | LOW | P2 |
+| D-08 | Flatpak zero-filesystem-perms documented | MEDIUM (review signal) | LOW | P2 |
+| FIX-MPRIS | Phase 77 MPRIS2 tests | HIGH (blocks Flatpak verify) | MEDIUM | P1 |
+| FIX-PLS | Phase 58 PLS URL-fallback | LOW–MED | LOW | P2 |
+| BUFFER-MONITOR | 2-week buffer-events.log watch | conditional | LOW (if triggered) | P3 |
 
----
+## Competitor / Reference Feature Analysis
+
+The closest reference points for v2.2's packaging + niche-radio-app patterns:
+
+| Feature Area | Reference 1 | Reference 2 | MusicStreamer Approach |
+|--------------|-------------|-------------|------------------------|
+| Audio app on Flathub | Amberol (GNOME) — minimal finish-args, MPRIS2 via own-name, `--socket=pulseaudio` only | Lollypop — broader perms, uses `--filesystem=xdg-music` for local library | Mirror Amberol's posture: minimal perms, no filesystem access, MPRIS2 via own-name. We're streaming-only so we're *less* invasive than even Amberol. |
+| AppImage Qt+GStreamer | Tenacity / Audacity AppImages — use linuxdeploy-plugin-qt + linuxdeploy-plugin-gstreamer | OBS Studio AppImage — bundles GStreamer via custom script | Use the official linuxdeploy plugins; PyInstaller produces the PySide6 bundle, linuxdeploy walks deps and packages GStreamer plugins per Phase 43 lessons (`gst-libav` for AAC etc.) |
+| Themed-day in niche radio | Lainchan radio (themed logo on holidays) | SomaFM (logo doesn't change but station list does — different model) | GBS.FM-specific: hash-drift detection of `logo_3.png`, session-scoped, ambient visual treatment (logo + optional accent retint), never a system notification |
+| Persistent announcement banner | GNOME Software "release notes available" banner — top-of-window, dismissible | Slack channel banner — top-of-channel, dismissible, shows again on changes | Match the GNOME Software pattern: above main split, dismissible, hash-gated so it doesn't re-appear until marquee changes |
+| Token-economy framing avoidance | Apple Music "Add Station" (no count, just CTA) | Spotify "Save to library" (no count) | Frame as **action** ("Add a song", "Queue 1 song"), never **currency** ("Spend a token") |
+| Provider avatar in audio UI | Pocket Casts (podcast avatars circular, cover slot) | Lollypop (album art square, artist photo circular) | Circular crop matches creator-content convention; rectangular logo for radio-station identity stays in the logo slot |
+
+## Open Questions for Requirements Phase
+
+1. **Zero-token wording final pick**: "Add a song" vs. "Queue 1 song" vs. "Queue this song" — needs UAT pass once the widget is wired. Recommendation: start with "Add a song" (shortest, most action-oriented, no implied state).
+2. **Themed-day visual treatment**: just the logo swap, or also an accent retint? If both, retint how — sample from new logo's dominant color via existing Phase 59 accent picker code? Recommendation: logo swap only in P1; accent retint as P2 polish if time allows.
+3. **Channel avatar fetch path on station create**: should EditStationDialog auto-fetch on URL paste (like the existing YT thumbnail behavior in Phase 6/17) or require a separate button? Recommendation: auto-fetch on paste — consistent with established UX.
+4. **AppImage zsync update URL**: where will the release feed live? QNAP Gitea releases, GitHub releases (via mirror), or "embed a 404 URL and never ship updates between milestones"? This is a deploy/infra decision, not a code decision — flag for milestone planning, not blocking.
+5. **Flatpak app ID**: `org.gbsfm.MusicStreamer`? `io.github.kcreasey.MusicStreamer`? Reverse-DNS rules from Flathub apply. Needs to be locked before first manifest commit; can't change after Flathub listing.
 
 ## Sources
 
-- Qt High DPI docs: https://doc.qt.io/qtforpython-6/overviews/qtdoc-highdpi.html
-- QSystemTrayIcon docs + example: https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSystemTrayIcon.html
-- Qt Dark Mode on Windows 11 (Qt blog, Qt 6.5): https://www.qt.io/blog/dark-mode-on-windows-11-with-qt-6.5
-- QStyleHints.colorScheme docs: https://doc.qt.io/qtforpython-6/PySide6/QtGui/QStyleHints.html
-- PySide6 accent color bug (6.8.0.1): https://github.com/TagStudioDev/TagStudio/issues/668
-- PyWinRT / python-winsdk (SMTC bindings): https://github.com/pywinrt/python-winsdk
-- winsdk on PyPI: https://pypi.org/project/winsdk/
-- SMTC Microsoft docs: https://learn.microsoft.com/en-us/windows/apps/develop/media-playback/system-media-transport-controls
-- Windows SmartScreen / OV vs EV (2024 change): https://learn.microsoft.com/en-us/answers/questions/417016/reputation-with-ov-certificates-and-are-ev-certifi
-- Packaging PySide6 with PyInstaller + InstallForge: https://www.pythonguis.com/tutorials/packaging-pyside6-applications-windows-pyinstaller-installforge/
-- MSIX + PyInstaller (2025): https://82phil.github.io/python/2025/04/24/msix_pyinstaller.html
-- Qt icon themes cross-platform guide: https://openapplibrary.org/dev-tutorials/qt-icon-themes
-- QIcon fromTheme docs: https://doc.qt.io/qt-6/qicon.html
-- SingleApplication (Qt6 single-instance): https://github.com/itay-grudev/SingleApplication
+- [AppImageLauncher project](https://appimagelauncher.com/) — first-run prompt UX, integration model
+- [AppImage update documentation](https://docs.appimage.org/packaging-guide/optional/updates.html) — zsync embedding, consent requirement
+- [AppImageUpdate (zsync2) home](https://appimage.github.io/AppImageUpdate/) — delta update mechanics
+- [linuxdeploy user guide](https://docs.appimage.org/packaging-guide/from-source/linuxdeploy-user-guide.html) — AppDir build flow
+- [linuxdeploy-plugin-gstreamer (awesome-linuxdeploy list)](https://github.com/linuxdeploy/awesome-linuxdeploy) — GStreamer plugin bundling
+- [Flathub requirements](https://docs.flathub.org/docs/for-app-authors/requirements) — app submission rules
+- [Flatpak sandbox permissions documentation](https://docs.flatpak.org/en/latest/sandbox-permissions.html) — finish-args reference, audio app guidance
+- [Flathub App Submission wiki](https://github.com/flathub/flathub/wiki/App-Submission) — review process, permission minimization
+- [Flathub PySide6 BaseApp](https://flathub.org/en/apps/io.qt.PySide.BaseApp) — confirms PySide6 deployment model on Flathub
+- [Flatpak XDG Desktop Portal](https://flatpak.github.io/xdg-desktop-portal/) — portal-routed file pickers (free for Qt apps), permission store
+- [YouTube Data API channels documentation](https://developers.google.com/youtube/v3/docs/channels) — channel thumbnail (88×88 avatar) via channels.list endpoint
+- [Twitch API: avatars via /helix/users (forum thread)](https://discuss.dev.twitch.com/t/avatars-profile-pictures-on-helix-streams/25809) — `profile_image_url` field via `/helix/users?login=<name>` with App Access token
+- [Carbon Design System notification pattern](https://carbondesignsystem.com/patterns/notification-pattern/) — toast vs banner distinction
+- [LogRocket: Toast notifications UX best practices](https://blog.logrocket.com/ux-design/toast-notifications/) — dismissibility and persistence rules
+- [yt-dlp issue #10090: channel thumbnails / avatar_uncropped](https://github.com/yt-dlp/yt-dlp/issues/10090) — confirms yt-dlp exposes channel avatar separately from video thumbnails
 
 ---
-
-*Feature research for: MusicStreamer v2.0 OS-Agnostic Qt/PySide6 port*
-*Researched: 2026-04-10*
+*Feature research for: MusicStreamer v2.2 packaging + targeted QOL*
+*Researched: 2026-05-25*

@@ -1,446 +1,385 @@
-# Pitfalls Research — MusicStreamer v2.0 OS-Agnostic Port
+# Pitfalls Research — MusicStreamer v2.2
 
-**Domain:** Qt/PySide6 port of a Linux GNOME Python desktop app (GTK4/Libadwaita + GStreamer) to Linux + Windows
-**Researched:** 2026-04-10
-**Confidence:** HIGH (GStreamer/Qt threading patterns, subprocess Windows flags, PyInstaller AV) | MEDIUM (WebEngine cookie store, Windows ACL, souphttpsrc SSL bundling specifics)
+**Domain:** Adding Linux packaging (AppImage + Flatpak), Windows SMTC AUMID, GBS.FM scraping, channel-avatar fallback, and SomaFM preroll debug to an existing Python/PySide6/GStreamer audio app.
+**Researched:** 2026-05-25
+**Confidence:** HIGH (most pitfalls verified against existing MusicStreamer codebase artifacts — Phase 35/43/43.1/56/69/76 lessons — plus current upstream issue trackers for linuxdeploy-plugin-gstreamer, Flathub QtWebEngine BaseApp, yt-dlp issue #10090, and Inno Setup `[Icons]` AppUserModelID semantics).
+
+## Scope
+
+These pitfalls are specific to ADDING the v2.2 capabilities. Generic Python/Qt/GStreamer warnings are EXCLUDED — see `.planning/codebase/CONCERNS.md` for those. Where a pitfall mirrors a behavior of an external project, the rule is cited per `feedback_mirror_decisions_cite_source.md` (never paraphrased). Where a pitfall is testable only via source-level grep (not behavioral mocks), it is flagged with the `feedback_gstreamer_mock_blind_spot.md` lens. Where a pitfall would have been caught by widget-extreme-sweep diagnostics, it is flagged with the `feedback_ui_bug_verify_with_extremes.md` lens.
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: GStreamer Bus Callbacks Delivered on Wrong Thread
+### Pitfall 1: AppImage built on too-new a host distro silently bumps the GLIBC baseline
 
 **What goes wrong:**
-v1.5 uses `GLib.idle_add()` to marshal GStreamer bus messages to the GTK main thread. When GTK is gone, there is no GMainLoop to pump. `bus.add_signal_watch()` — which hooks into the GLib main context — silently delivers nothing. ICY track titles and EOS/ERROR events stop working with no crash or error log.
+The AppImage produced on a current dev box (Ubuntu 24.04 / Fedora 41 / Arch) refuses to launch on older but still-supported distros (Ubuntu 22.04, Debian 12). Error is a non-actionable `version 'GLIBC_2.38' not found (required by ./AppRun)` at exec time.
 
 **Why it happens:**
-`bus.add_signal_watch()` attaches to the default GLib main context. The Qt event loop does not pump that context. The Qt event loop does not pump a GMainLoop.
+glibc symbol versioning is forward-compatible only. Anything dynamically linked against a newer host's `libc.so.6` carries the host's GLIBC symbol requirement. libstdc++ has the same problem and is even worse because conda-forge's `libstdc++.so.6` is often newer than the system one — when the AppImage runtime picks the system loader, it can mix-and-match in ways that explode at runtime ([AppImage best practices](https://docs.appimage.org/reference/best-practices.html), [pkg2appimage #173](https://github.com/AppImage/pkg2appimage/issues/173)).
 
 **How to avoid:**
-Use `bus.enable_sync_message_emission()` + connect to the `sync-message` signal, then immediately re-emit as a Qt signal across a queued connection. The GStreamer sync handler runs on the streaming thread; a queued Qt signal delivers to the main thread slot automatically.
-
-```python
-self._bus = self._pipeline.get_bus()
-self._bus.enable_sync_message_emission()
-self._bus.connect("sync-message", self._on_gst_message)
-
-def _on_gst_message(self, bus, msg):
-    # Runs on GStreamer streaming thread — emit Qt signal only, no widget access
-    self.gst_message.emit(msg)  # auto-queued to main thread
-
-# In main window (main thread slot):
-@Slot(object)
-def _handle_gst_message(self, msg): ...
-```
-
-Do NOT call any `QWidget` method directly from inside `_on_gst_message`.
+- Build the AppImage in a pinned-old Docker container — Ubuntu 22.04 LTS (jammy) is the minimum reasonable baseline today; 20.04 if you want to support Mint/older RHEL derivatives.
+- Bundle `libstdc++.so.6` from the build host into `usr/lib/` and have the AppRun script check at startup: `objdump -T /lib/x86_64-linux-gnu/libstdc++.so.6 | grep -q GLIBCXX_3.4.30 || export LD_LIBRARY_PATH=...$APPDIR/usr/lib`.
+- Do NOT use conda-forge directly as the AppImage build env — its glibc/libstdc++ ABI is too modern and is not portable. Use a conda env *only* to produce `dist/` (PyInstaller-style staging), then assemble the AppImage in the old-host container.
+- Verify with `strings AppRun_or_main_so | grep GLIBC_ | sort -V | tail -1` — must be ≤ target baseline.
 
 **Warning signs:**
-- ICY track titles never update after porting
-- Stream errors and EOS events not caught; app hangs at stream end
-- Works with a dummy GMainLoop running but not in production
+- `dpkg --compare-versions` shows the build host's glibc is newer than 2.35
+- `ldd dist/MusicStreamer | grep 'not found'` returns anything on a target VM
+- User reports "AppImage just exits with no output" — almost always a dynamic loader symbol-version mismatch dumped to stderr that the user didn't capture
 
-**Phase to address:** scaffold — establish this pattern in the player module before any UI code touches the bus.
+**Phase to address:**
+v2.2 Linux AppImage packaging phase (suggested: Phase 85). Set up the build container BEFORE writing the recipe — recipe is built around the container constraints, not the other way around. Spike-first candidate.
 
 ---
 
-### Pitfall 2: GStreamer Plugin Path Not Set in PyInstaller Bundle (Windows)
+### Pitfall 2: linuxdeploy-plugin-gstreamer copies plugins but `gst-plugin-scanner` paths leak the build host
 
 **What goes wrong:**
-On Windows, GStreamer looks for plugins under `%GSTREAMER_ROOT%\lib\gstreamer-1.0`. When bundled with PyInstaller, that path does not exist relative to the exe. Result: `gst.parse_launch()` finds zero elements and pipelines fail immediately with cryptic errors like `no element "playbin3"`.
+The AppImage runs on the build host but on other distros `gst-plugin-scanner` exits non-zero and `gst-launch-1.0 -v playbin uri=...` reports "no element 'souphttpsrc'". The plugins ARE inside the AppImage but the scanner cache is built with build-host absolute paths that don't exist on the target system.
 
 **Why it happens:**
-On Linux, GStreamer is a system package with compile-time plugin paths baked in. On Windows, the GStreamer installer sets `GST_PLUGIN_PATH` in the system environment, but that variable is absent in a PyInstaller bundle unless explicitly set at app startup.
+`linuxdeploy-plugin-gstreamer.sh` invokes the host's `gst-plugin-scanner`, which writes a binary registry cache (`~/.cache/gstreamer-1.0/registry.x86_64.bin`) containing absolute paths from the BUILD host. On a target distro with different library locations (especially openSUSE/Fedora, where `/usr/lib64` differs from `/usr/lib/x86_64-linux-gnu`), every plugin's runtime dependency resolution fails ([linuxdeploy-plugin-gstreamer #17](https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer/issues/17), [#9](https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer/issues/9)).
 
 **How to avoid:**
-At app startup, before `Gst.init()`, detect a PyInstaller bundle and set the environment:
-
-```python
-import sys, os
-if getattr(sys, 'frozen', False):
-    bundle_dir = sys._MEIPASS
-    os.environ['GST_PLUGIN_PATH'] = os.path.join(bundle_dir, 'gst-plugins')
-    os.environ['GST_PLUGIN_SCANNER'] = ''   # disable scanner; all plugins collected
-    os.environ['GST_REGISTRY'] = os.path.join(bundle_dir, 'registry.bin')
-```
-
-In the `.spec` file, add a `Tree()` block collecting the required plugin DLLs: `playback`, `soup`, `libav`, `audioconvert`, `autodetect`, `volume`, `typefindfunctions`.
+- AppRun must FORCE a re-scan on first launch by `unset GST_REGISTRY` and setting `GST_REGISTRY_FORK=no`, then point `GST_PLUGIN_SCANNER=$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner`.
+- Bundle `gst-plugin-scanner` itself into `$APPDIR/usr/libexec/gstreamer-1.0/` — do not rely on the host's scanner.
+- Set `GST_PLUGIN_SYSTEM_PATH_1_0=$APPDIR/usr/lib/gstreamer-1.0` AND `GST_PLUGIN_PATH_1_0=$APPDIR/usr/lib/gstreamer-1.0` (both, not just one — the underscored `_1_0` form is what 1.28+ honors).
+- Mirror the Phase 69 Windows lesson (`tools/check_bundle_plugins.py`) on Linux: post-build, the AppRun must dlopen `gstlibav.so` + `gstaudioparsers.so` and verify `avdec_aac` + `aacparse` are present. Exit code 10 if not (parity with `packaging/windows/build.ps1` step 4b).
+- Test on at least Ubuntu 22.04 + Fedora 40 + openSUSE Tumbleweed before publishing.
 
 **Warning signs:**
-- `no element "playbin3"` on Windows packaged build
-- Works in development (system GStreamer installed) but fails after packaging
-- First launch fails; second launch works (registry rebuilt) — classic registry race
+- `gst-inspect-1.0 -b` from inside `$APPDIR/AppRun-shell` shows zero plugins
+- `GST_DEBUG=2 ./MusicStreamer.AppImage` on a fresh target shows "no plugins" warnings before pipeline construction
+- Different bitrate or codec works on build host but fails on target — almost always missing `gst-libav` plugin chain at runtime
 
-**Phase to address:** packaging — required quality gate before calling the Windows bundle done.
+**Phase to address:**
+Same Linux AppImage phase (Phase 85). The plugin-presence drift-guard test should be added to `tests/test_packaging_spec.py` in the same phase, parallel to the existing Windows guard. Source-level grep gate per `feedback_gstreamer_mock_blind_spot.md`: `assert "GST_PLUGIN_SYSTEM_PATH_1_0" in apprun_text` and `assert "GST_PLUGIN_SCANNER" in apprun_text`.
 
 ---
 
-### Pitfall 3: souphttpsrc SSL Failure on Windows (Missing glib-networking)
+### Pitfall 3: charset_normalizer mypyc shared module is silently dropped by PyInstaller AND linuxdeploy
 
 **What goes wrong:**
-HTTPS radio stream URLs fail silently or with `TLS/SSL support not available; install glib-networking`. The `souphttpsrc` element delegates TLS to `glib-networking` (`libgiognutls.dll` on Windows). This DLL is not auto-collected by PyInstaller hooks and may be absent from minimal GStreamer runtime installations.
+On Linux AppImage builds (just as on Phase 35/36 GTK retirement), `requests` works in dev but throws `CharsetNormalizerError: No module named 'charset_normalizer.md__mypyc'` at runtime when fetching from iTunes / MusicBrainz / Twitch Helix / GBS.FM.
 
 **Why it happens:**
-On Linux, `glib-networking` is a system package installed alongside GLib. On Windows, it ships in the GStreamer MSVC runtime as a separate DLL. PyInstaller's GStreamer hook does not scan it as a Python import dependency.
+`charset_normalizer >= 3` ships a precompiled mypyc shared object (`md__mypyc.cpython-312-x86_64-linux-gnu.so`) that is not auto-detected by either PyInstaller's collector or linuxdeploy's library walker. This is the same pitfall MusicStreamer hit when retiring GTK4 — the Windows installer uses `chardet>=5,<6` instead (see `PROJECT.md` line 51).
 
 **How to avoid:**
-- Use the GStreamer MSVC runtime installer — it includes `libgiognutls.dll` and the CA cert bundle.
-- In the PyInstaller `.spec`, explicitly add `libgiognutls.dll` and `lib\gio\modules\` to `binaries`.
-- Test an HTTPS stream URL (e.g., a `https://` SomaFM endpoint) on the freshly packaged build as an explicit quality gate.
-- Fallback: per-station `ssl-strict=false` property on `souphttpsrc` as a last resort for debugging — never as a production default.
+Same fix as Windows: pin `chardet>=5,<6` in `pyproject.toml` and verify with `import charset_normalizer; charset_normalizer.from_bytes(b'x')` runs without the `md__mypyc` error in the staged build directory. Do NOT install `charset_normalizer` at all — `requests` falls back to `chardet` automatically.
 
 **Warning signs:**
-- HTTP `http://` streams work; HTTPS `https://` streams fail immediately
-- Error log: `TLS/SSL support not available`
+- `python -c "import requests; requests.get('https://itunes.apple.com/search?term=x')"` from inside the staged `usr/bin/` directory throws ImportError on `md__mypyc`
+- iTunes/Twitch/MB calls work in dev but fail with the bundled AppImage on a fresh VM
 
-**Phase to address:** packaging.
+**Phase to address:**
+Linux AppImage phase (Phase 85). Add a `tests/test_packaging_spec.py::test_pyproject_pins_chardet_over_charset_normalizer` source-level guard.
 
 ---
 
-### Pitfall 4: subprocess Console Window Flash on Windows (yt-dlp, streamlink, mpv)
+### Pitfall 4: Flatpak QtWebEngine sandbox-in-sandbox blocks GBS.FM login subprocess
 
 **What goes wrong:**
-Every call to `yt-dlp`, `streamlink`, or `mpv` as a subprocess pops a CMD window for a fraction of a second. Highly visible and makes the app look broken.
+The Phase 76 GBS in-app login subprocess (QtWebEngine) crashes inside the Flatpak with `Failed to move to new namespace: PID namespaces supported, Network namespace supported, but failed: errno = Operation not permitted` (Chromium SUID sandbox cannot nest inside Flatpak's bubblewrap sandbox).
 
 **Why it happens:**
-On Windows, `subprocess.Popen` creates a console window for console-subsystem executables unless `creationflags=subprocess.CREATE_NO_WINDOW` is passed.
+Chromium's renderer-sandbox uses `unshare()` to enter new namespaces. Flatpak's bubblewrap already entered them, and the kernel does not allow nesting these specific capabilities. This is documented Chromium behavior, not a Flatpak bug ([Flathub QtWebEngine BaseApp](https://github.com/flathub/io.qt.qtwebengine.BaseApp), [Qt WebEngine Platform Notes](https://doc.qt.io/qt-6/qtwebengine-platform-notes.html)).
 
 **How to avoid:**
-Centralize all subprocess calls behind a helper:
-
-```python
-import subprocess, sys
-
-def _popen(args, **kwargs):
-    if sys.platform == "win32":
-        kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
-    return subprocess.Popen(args, **kwargs)
-```
-
-Also set `stdin=subprocess.DEVNULL` on all fire-and-forget subprocesses to prevent the child from blocking on stdin.
-
-Never use `shell=True` on Windows with any user-controlled content — use list args and the helper.
+- Use the `io.qt.qtwebengine.BaseApp` extension and set `QTWEBENGINE_DISABLE_SANDBOX=1` in the Flatpak manifest's `finish-args`. This disables Chromium's internal sandbox; Flatpak's bubblewrap still contains the renderer. Cite the BaseApp manifest for the exact env-var spelling per `feedback_mirror_decisions_cite_source.md` — do not paraphrase as `--no-sandbox` (which is a CLI flag, not an env var, and not the form QtWebEngine respects).
+- Do NOT use `--device=all` to "fix" the crash — the actual issue is sandbox-nesting, not device access.
+- Document the security trade-off in the manifest: Flatpak sandbox provides the outer containment; Chromium's inner sandbox is intentionally disabled because the kernel does not permit nesting.
 
 **Warning signs:**
-- Black CMD window flashes during stream start on Windows
-- No crash, no error — purely a UX artifact
+- `flatpak run --command=sh com.musicstreamer.MusicStreamer` followed by `QT_DEBUG_PLUGINS=1 python -c "from PySide6.QtWebEngineWidgets import QWebEngineView; ..."` reports the namespace error
+- GBS.FM login button does nothing in Flatpak builds but works in AppImage builds — sandbox-nesting is the most likely cause
 
-**Phase to address:** platform — part of the Windows subprocess compatibility layer, built before the first YouTube/Twitch playback test.
+**Phase to address:**
+Linux Flatpak phase (suggested: Phase 86, after Phase 85 AppImage). Spike-first candidate — verify the BaseApp + `QTWEBENGINE_DISABLE_SANDBOX=1` combination on a real Flathub-stage build before locking the manifest. Do not lock manifest decisions without quoting the BaseApp source.
 
 ---
 
-### Pitfall 5: Subprocess Pipe Deadlock (yt-dlp stdout + stderr)
+### Pitfall 5: QtWebEngine cookie store is not shared between the login subprocess and main process by default
 
 **What goes wrong:**
-`subprocess.Popen` with `stdout=PIPE, stderr=PIPE` deadlocks when the child writes enough to fill the OS pipe buffer (~64 KB on Windows) before the parent reads it. yt-dlp with `--verbose` or cookie auth can produce megabytes of stderr. The calling thread hangs indefinitely.
+User logs into GBS.FM via the Phase 76 subprocess. The subprocess exits cleanly. Main process tries to fetch the authenticated marquee from `https://gbs.fm/api/marquee` — gets 401. Cookies appear to have been "lost" between the two QtWebEngine instances.
 
 **Why it happens:**
-Child fills `stderr`, blocks. Parent is blocked on `stdout.read()`. Neither makes progress. This is a known, documented Python subprocess issue on Windows specifically.
+`QWebEngineProfile`'s default constructor creates an OFF-THE-RECORD profile — cookies are in-memory only and die with the subprocess. To persist cookies on disk and have them survive across processes, you must (a) construct the profile with a non-empty storage name (`QWebEngineProfile("musicstreamer-gbs", parent)`), (b) explicitly call `setPersistentCookiesPolicy(QWebEngineProfile.ForcePersistentCookies)`, and (c) call `setPersistentStoragePath()` to a path under `~/.local/share/musicstreamer/` ([QWebEngineProfile docs](https://doc.qt.io/qt-6/qwebengineprofile.html)).
 
 **How to avoid:**
-Use `subprocess.run(capture_output=True, timeout=30)` for all one-shot yt-dlp URL extractions. For long-running processes (mpv), redirect stderr to `subprocess.DEVNULL` or a rotating log file — never pipe it unless actively consuming it in a separate thread.
-
-```python
-result = subprocess.run(
-    ["yt-dlp", "--get-url", url],
-    capture_output=True, text=True, timeout=30,
-    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-)
-```
+- Both the login subprocess AND the main-process marquee fetcher MUST construct `QWebEngineProfile` with the SAME storage name and the same `setPersistentStoragePath()` value.
+- The marquee fetcher should not use `QNetworkAccessManager` — it cannot read Chromium's cookie store. It must either (a) reuse a hidden `QWebEnginePage` instance with the persisted profile, or (b) export cookies to `requests`-readable form via `QWebEngineCookieStore.cookieAdded` signal at login time.
+- Test: kill the subprocess, restart the app, verify the marquee fetch still works without re-login.
+- Source-grep gate: `assert "PersistentCookiesPolicy" in source` AND `assert "setPersistentStoragePath" in source` — per `feedback_gstreamer_mock_blind_spot.md`, this is the kind of API contract that mocks will silently pass-through.
 
 **Warning signs:**
-- App freezes during YouTube stream resolution on Windows
-- Works with short URLs, hangs with authenticated/playlist URLs
-- No timeout fires (no timeout was set)
+- The cookies file at `~/.local/share/musicstreamer/QtWebEngine/Default/Cookies` (SQLite) doesn't exist after first login
+- Marquee fetch works ONLY immediately after login and fails after app restart — classic in-memory cookie symptom
+- Two `QWebEngineProfile` instances with different storage names = two cookie jars; do not let the planner paraphrase "they should share automatically" — they don't.
 
-**Phase to address:** platform — audit all subprocess calls during Windows compatibility phase.
+**Phase to address:**
+GBS.FM themed-day / marquee phase (suggested: Phase 87). Must not establish a parallel QtWebEngine session — the Phase 76 profile must be reused. Spike-first to verify cookie persistence across process boundaries before locking the marquee architecture.
 
 ---
 
-### Pitfall 6: Hard-Coded `~/.local/share/musicstreamer` Path Breaks on Windows
+### Pitfall 6: SMTC AUMID mismatch silently breaks the Win+K media overlay
 
 **What goes wrong:**
-Every module that constructs `~/.local/share/musicstreamer/` puts data in a non-standard Windows location that users can't find via Explorer. Worse: `os.makedirs` may fail if the intermediate `.local/share` path doesn't exist on Windows by default.
+After installing the v2.2 Windows build, the SMTC overlay shows "Unknown app" even though `SetCurrentProcessExplicitAppUserModelID` is called at startup.
 
 **Why it happens:**
-XDG base directory conventions are Linux-only. `os.path.expanduser("~/.local/...")` technically works on Windows but produces a non-conventional path.
+Three independent failure modes:
+1. The .lnk file's `System.AppUserModel.ID` shell property is missing or differs from the value passed to `SetCurrentProcessExplicitAppUserModelID`. Windows binds SMTC to the AUMID that the running process declared; the shortcut's AUMID must match exactly, character-for-character, casing included.
+2. The `[Icons]` directive in older Inno Setup versions does not set the AUMID property unless `AppUserModelID:` is explicitly supplied ([Inno Setup [Icons] section](https://jrsoftware.org/ishelp/topic_iconssection.htm)).
+3. Re-installing creates a new .lnk but does NOT remove a previously-pinned-to-taskbar .lnk that the user already pinned. The pinned shortcut retains the OLD AUMID. The user perceives this as "the new version broke media keys".
 
 **How to avoid:**
-Compute `DATA_DIR` once at startup using `QStandardPaths`:
-
-```python
-from PySide6.QtCore import QStandardPaths, QCoreApplication
-QCoreApplication.setOrganizationName("")
-QCoreApplication.setApplicationName("MusicStreamer")
-DATA_DIR = QStandardPaths.writableLocation(
-    QStandardPaths.StandardLocation.AppLocalDataLocation
-)
-# Linux: ~/.local/share/MusicStreamer
-# Windows: C:\Users\<user>\AppData\Roaming\MusicStreamer
-```
-
-Store this in `constants.py` and use `DATA_DIR` everywhere — never construct the path inline. On Linux, if the old `~/.local/share/musicstreamer` exists and the QStandardPaths location is new/empty, migrate it on first run.
-
-Note: `QCoreApplication` must be constructed before `QStandardPaths.writableLocation` is called.
+- AUMID literal must be defined ONCE in a constants file and consumed by BOTH `musicstreamer/__main__.py` (the `SetCurrentProcessExplicitAppUserModelID` call) AND `packaging/windows/MusicStreamer.iss` (the `[Icons]` `AppUserModelID:` clause). The existing `tests/test_aumid_string_parity.py` enforces this on every Linux-CI run — do not delete it (per `packaging/windows/README.md`). Extend it to also assert the Inno `[Icons]` line literally contains `AppUserModelID: "org.lightningjim.MusicStreamer"`.
+- Inno Setup uninstaller must remove the old .lnk explicitly via `[InstallDelete]` Type: `files` Name: `{userprograms}\MusicStreamer\MusicStreamer.lnk` BEFORE the new shortcut is created. Otherwise the SHELL caches the old AUMID against the file path.
+- Document the "unpin from taskbar before upgrading" footnote in the WIN-02 release notes — there is no fully-automated fix for pre-existing pinned shortcuts. Microsoft's API for this is intentionally restricted to MSIX packages.
+- Verify on a Win11 VM that has had v2.1 installed BEFORE installing v2.2 — fresh-VM test is insufficient.
 
 **Warning signs:**
-- Cookie file not found by yt-dlp on Windows (absolute path baked into the call)
-- Database created at wrong path; settings not persisted between sessions
+- `PowerShell: [Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime] | Out-Null; (Get-StartApps | Where Name -eq 'MusicStreamer').AppID` returns a different string than `__main__.py`'s `_WIN_AUMID`.
+- SMTC works for the first user-session after install but breaks after `explorer.exe` is killed and restarted (Shell cache invalidation).
 
-**Phase to address:** scaffold — zero-day decision; every file path in the codebase must use `DATA_DIR`.
+**Phase to address:**
+WIN-02 SMTC AUMID phase (suggested: Phase 88, bundled with VER-02-J Win11 UAT + WIN-05 AAC retest per `PROJECT.md` line 17). Mirror-source rule: when CONTEXT.md says "follows Microsoft's AUMID guidance", cite [Microsoft Learn — Application User Model IDs](https://learn.microsoft.com/en-us/windows/win32/shell/appids) with the specific paragraph about per-process binding via `SetCurrentProcessExplicitAppUserModelID`. Do not paraphrase.
 
 ---
 
-### Pitfall 7: QObject C++ Lifetime vs. Python GC (`RuntimeError: Internal C++ object already deleted`)
+### Pitfall 7: yt-dlp `thumbnail` is the video preview, not the channel avatar
 
 **What goes wrong:**
-Qt destroys the C++ object (e.g., when a dialog closes and destroys its children) while Python still holds a reference. Any subsequent attribute access raises `RuntimeError: Internal C++ object already deleted`. This is the most common PySide6 crash and has no GTK equivalent — GTK widgets are Python-owned; Qt widgets are C++-owned.
+The new channel-avatar fetch worker calls `yt_dlp.YoutubeDL().extract_info(channel_url)` and saves `info['thumbnail']`. The image is a video frame (or "latest live stream" preview), not the channel avatar. When ICY is disabled and the cover slot falls back to the channel avatar, users see a video still instead of the channel icon.
 
 **Why it happens:**
-When a `QDialog` closes without `exec()` keeping it alive, Qt can delete it and all children. A GStreamer callback that was running while the dialog was open may try to update a now-dead label.
+yt-dlp's YouTube extractor returns thumbnails from MULTIPLE sources — video frames, channel banners, uploader avatars. The top-level `thumbnail` field is the video thumbnail when extracting a video; for a channel/playlist URL it's the latest entry's thumbnail. The actual channel avatar is in `info['channel_thumbnails']` or `info['uploader_thumbnails']`, with separate `id` discriminators (`avatar_uncropped`, `banner_uncropped`) ([yt-dlp #10090](https://github.com/yt-dlp/yt-dlp/issues/10090), [#14041](https://github.com/yt-dlp/yt-dlp/issues/14041)).
 
 **How to avoid:**
-- Always give every widget a parent (`parent=` constructor arg) or store as `self.widget`. Never create widgets in local scope without parenting.
-- Dialogs: use `dialog.exec()` (blocks) or store as `self._dialog` on the parent window.
-- Connect to `dialog.finished` or `dialog.destroyed` to clear the Python reference.
-- GStreamer callbacks that update UI: check `sip.isdeleted(widget)` or use a `try/except RuntimeError` guard. Better: the callback only emits a Qt signal; the slot in the main window checks whether the widget is still live.
+- Call `extract_info(channel_url, download=False, process=False)` with `extract_flat=True` to get the channel metadata only.
+- Filter `info.get('thumbnails', [])` to entries with `id == 'avatar_uncropped'` (preferred — highest resolution unsquared avatar). Fall back to `id == 'avatar'`. Reject anything with `width != height` (banner aspect ratio, not avatar).
+- Channel URL normalization: `@handle`, `/c/name`, `/channel/UC...`, and bare video URLs all need to resolve to a channel page. yt-dlp's `youtube:tab` extractor handles `@handle` and `/c/` automatically; bare video URLs need a two-step resolve (video → `info['channel_id']` → `https://youtube.com/channel/{channel_id}`).
+- Source-grep gate: `assert "'avatar_uncropped'" in source or "'avatar'" in source` per `feedback_gstreamer_mock_blind_spot.md`. Do not let the planner paraphrase "we use yt-dlp's thumbnail field" — that field is the wrong one.
 
 **Warning signs:**
-- `RuntimeError: Internal C++ object already deleted` in stderr
-- Crash when re-opening a dialog after it was previously dismissed
-- Crash after a dialog is dismissed while a background thread is still running
+- Lofi Girl shows a girl-with-headphones video still as the "channel avatar" instead of the chill-beats icon
+- Different live streams from the same channel give different "avatars" — proves the field is the video thumbnail
+- The image is 1280×720 (16:9, video aspect) instead of square — banner or video frame, not avatar
 
-**Phase to address:** port — apply as a code review gate on every dialog and every GStreamer callback that references UI widgets.
+**Phase to address:**
+YouTube channel-avatar fetch phase (suggested: Phase 89, part of ICY-disabled cover fallback). Spike-first: run `yt-dlp -J <channel_url>` for 3 channel-URL shapes (`@`, `/c/`, `/channel/`) plus 2 video URLs and document the actual JSON keys returned per [yt-dlp issue #10090](https://github.com/yt-dlp/yt-dlp/issues/10090). Mirror-source: when CONTEXT.md says "we mirror yt-dlp's thumbnail conventions", cite the actual `_extract_thumbnails` source in `youtube.py` with a permalink.
 
 ---
 
-### Pitfall 8: GTK CSS → QSS — Semantics Are Completely Different
+### Pitfall 8: Channel-avatar overrides legitimate cover art when ICY title is non-empty but iTunes returns no result
 
 **What goes wrong:**
-The v1.5 accent color system writes GTK CSS via `Gtk.CssProvider` at `PRIORITY_USER`. QSS looks syntactically similar but behaves differently in ways that matter:
-
-- QSS selectors use Qt widget class names (`QLabel`, `QPushButton`) not element names (`label`, `button`).
-- No cascade priority system — `QApplication.setStyleSheet()` is global; setting it on a widget overrides global for that widget's subtree only.
-- No CSS custom properties (`--accent-bg-color`). Every accent token must be string-interpolated at generation time.
-- No `@define-color`. No `:root`. Selectors map to widget types, not DOM elements.
-- `border-radius` on a `QWidget` requires `background-color` also set — otherwise no visual effect.
-
-**How to avoid:**
-Re-implement the accent system from scratch for Qt. Do not port the GTK CSS string. Generate a minimal QSS snippet with hardcoded hex values. Use Qt's `QPalette` API for semantic color roles where possible — palette changes propagate correctly; QSS string patches do not.
-
-**Warning signs:**
-- QSS applied but no visible change
-- `border-radius` works on some widgets, not others
-- Accent color leaks into unintended widgets
-
-**Phase to address:** port — accent color is a re-implement, not a translate.
-
----
-
-### Pitfall 9: Libadwaita Compound Widgets Have No Qt Equivalent — Map First
-
-**What goes wrong:**
-`Adw.ExpanderRow`, `Adw.ActionRow`, `Adw.SwitchRow`, `Adw.ComboRow`, and `Adw.ToggleGroup` are compound Libadwaita widgets with built-in spacing, icon slots, subtitles, and activation semantics. Developers look for 1:1 Qt replacements, find none, and bolt together `QFrame` + `QHBoxLayout` + `QLabel` combos that don't match the interaction model.
-
-**How to avoid:**
-Establish the widget mapping table before writing a line of Qt UI code:
-
-| Libadwaita | Qt replacement |
-|-----------|----------------|
-| `Adw.ExpanderRow` (provider groups) | Custom `QWidget` with expand/collapse toggle + hidden child `QListWidget` |
-| `Adw.ActionRow` (station rows) | Custom `QWidget` set via `QListWidget.setItemWidget` |
-| `Adw.SwitchRow` | `QWidget` + `QCheckBox` in a form layout |
-| `Adw.ComboRow` | `QComboBox` |
-| `Adw.ToggleGroup` (Stations/Favorites) | Exclusive `QButtonGroup` with `QPushButton` |
-| `Adw.Toast` | Custom overlay `QLabel` with `QTimer` auto-dismiss, or `QStatusBar` |
-| `Adw.FlowBox` chip strip | Qt's `FlowLayout` example, or `QScrollArea` with wrapping `QWidget` |
-| `Adw.Dialog` | `QDialog` |
-| `Adw.HeaderBar` | `QMenuBar` + `QToolBar` or just `QMenuBar` |
-
-Accept that visual output will look different from v1.5 on GNOME. This is expected for a cross-platform port.
-
-**Warning signs:**
-- Nested `QFrame` soup trying to replicate `Adw.ActionRow`
-- Expand/collapse state not persisting across filter changes (re-learned the v1.2 lesson)
-
-**Phase to address:** port — decide the mapping table during scaffold; implement during port.
-
----
-
-### Pitfall 10: Daemon Thread + `GLib.idle_add` — Wrong Migration to QThread
-
-**What goes wrong:**
-v1.5 uses `threading.Thread(daemon=True)` + `GLib.idle_add(callback)` for all background I/O. The naive Qt port subclasses `QThread` and calls `QWidget` methods from `run()` — crash. A slightly less naive port uses `moveToThread` but puts the worker in the wrong thread (QThread lives in the spawning thread, not the thread it manages).
-
-**How to avoid:**
-Use the **worker-object + `moveToThread`** pattern:
-
-```python
-class FetchWorker(QObject):
-    result_ready = Signal(str)
-
-    def fetch(self, url):        # runs in worker thread via Signal invocation
-        data = do_blocking_work(url)
-        self.result_ready.emit(data)  # queued to main thread slot
-
-# Setup:
-self._worker = FetchWorker()       # no parent — required for moveToThread
-self._thread = QThread()
-self._worker.moveToThread(self._thread)
-self._thread.start()
-self._worker.result_ready.connect(self._on_result)  # queued connection
-```
-
-Key rules:
-- `moveToThread` fails if the worker has a parent — never set parent before moving.
-- The `QThread` object lives in the spawning thread; do not access worker attributes directly from the main thread after moving.
-- `GLib.idle_add` is replaced by emitting a Qt signal — queued connection delivers to the main thread slot.
-- For one-shot tasks, `QThreadPool` + `QRunnable` is simpler and avoids lifetime management.
-
-**Warning signs:**
-- `QObject: Cannot move to target thread` warning in stderr
-- Random crashes during import or thumbnail fetch
-- UI updates that work 90% of the time and crash 10%
-
-**Phase to address:** scaffold — establish the threading pattern before any feature porting. Every background worker must use it.
-
----
-
-### Pitfall 11: WebKit2Gtk → QtWebEngine for Twitch OAuth — Different Cookie API
-
-**What goes wrong:**
-v1.5 captures the Twitch auth token by spawning a WebKit2 subprocess, intercepting the `access_token` cookie from the WebKit2 cookie store, and writing it to `TWITCH_TOKEN_PATH`. QtWebEngine uses a Chromium-based `QWebEngineCookieStore` with an async API — cookies are delivered via the `cookieAdded` signal, not synchronously readable after navigation.
-
-Additionally, QtWebEngine adds ~150MB to a packaged build and requires a separate `QtWebEngineProcess.exe` bundled alongside the app.
-
-**How to avoid:**
-Keep the subprocess isolation pattern. Spawn a minimal Qt script (`oauth_helper.py`) that embeds `QWebEngineView`, connects to `profile.cookieStore().cookieAdded`, filters for `access_token`, writes the token to a temp file, and exits. The main app reads the temp file. This isolates the QtWebEngine weight to a subprocess rather than importing it into the main process.
-
-If QtWebEngine size is prohibitive: explore the `webbrowser.open()` + local redirect server pattern (OAuth PKCE flow) as an alternative that requires no embedded browser.
-
-**Warning signs:**
-- OAuth window opens but token is never captured
-- `QtWebEngineProcess.exe` not found in packaged build
-- Main process imports `QtWebEngineWidgets` and takes 3 seconds to start
-
-**Phase to address:** platform — Twitch OAuth is platform-specific. Address as a dedicated task in the Windows auth/cookies phase.
-
----
-
-### Pitfall 12: `os.chmod(0o600)` Is a No-Op on Windows
-
-**What goes wrong:**
-v1.5 sets `0o600` permissions on `cookies.txt` and `TWITCH_TOKEN_PATH` via `os.chmod()`. On Windows, `os.chmod()` is silently ignored for all permission bits except read-only. The files are created but are readable by any local user — no exception is raised.
+A station with ICY enabled plays a track that returns no iTunes match (e.g. Vaporwave / niche electronic — see `project_vaporwave_mb_caa_coverage.md`). Phase 73 MB-CAA fallback should kick in. Instead, because the developer added channel-avatar fallback at the wrong precedence level, the cover slot shows the channel avatar — masking the iTunes-empty/MB-CAA-should-have-found-it state.
 
 **Why it happens:**
-Windows uses ACLs, not POSIX permission bits. Python's `os.chmod()` on Windows only honors the "read-only" attribute.
+The natural design temptation is "if cover_art_result is None, show channel_avatar". But Phase 73's MB-CAA fallback is ALSO triggered when cover_art_result is None and ICY is non-empty. If channel-avatar is checked first, MB-CAA never runs.
 
 **How to avoid:**
-Wrap in a platform check:
-
-```python
-import sys, os, stat
-def set_private_permissions(path: str) -> None:
-    if sys.platform != "win32":
-        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-    # Windows: os.chmod is a no-op for ownership; document gap explicitly
-    # For a single-user personal app this is acceptable risk
-```
-
-Do not add a `pywin32` ACL dependency for a personal single-user app. Document the gap in a code comment and move on.
+- Precedence order MUST be (and source-grep test MUST verify): `ICY → iTunes → MB-CAA → channel-avatar → placeholder`. Channel-avatar is the SECOND-TO-LAST fallback, not the first. Per `feedback_gstreamer_mock_blind_spot.md`, add a source-level grep gate that asserts the cover-resolution function calls `_mb_caa_lookup` BEFORE `_channel_avatar_lookup` in source order.
+- Channel-avatar fallback fires ONLY when ICY is empty/disabled OR when iTunes returned a result AND MB-CAA returned a result AND BOTH were rejected by junk-detection. The "ICY is non-empty + iTunes-empty + MB-CAA-empty" state should remain the placeholder, not channel-avatar — channel-avatar makes the cover slot look "right" but masks the genuine coverage gap that motivated Phase 73.
+- Stick to: channel-avatar replaces the PLACEHOLDER for stations where ICY is permanently disabled (YouTube live streams that never emit titles, etc.). That's the only valid use case.
 
 **Warning signs:**
-- Security scanner flags world-readable credential files on Windows
+- Vaporwave / niche-electronic stations show the YouTube channel avatar instead of the placeholder — proves channel-avatar runs ahead of MB-CAA
+- Phase 73 MB-CAA hit-rate telemetry drops after v2.2 ships — proves MB-CAA is being short-circuited
 
-**Phase to address:** platform — document during Windows compatibility review.
+**Phase to address:**
+ICY-disabled cover fallback phase (Phase 89, same as Pitfall 7). Drift-guard test: `tests/test_cover_resolution_precedence.py::test_mb_caa_runs_before_channel_avatar` doing source introspection on the resolver function.
 
 ---
 
-### Pitfall 13: PyInstaller GStreamer Hook Does Not Auto-Collect Native Plugin DLLs
+### Pitfall 9: GBS.FM themed-logo detection drifts via CDN cache invalidation, not real theme change
 
 **What goes wrong:**
-PyInstaller's `gi.repository.Gst` hook collects Python bindings but does NOT auto-collect native GStreamer plugin DLLs. The packaged exe starts but has no audio — `playbin3` has no elements available.
+The themed-day detector watches `Last-Modified` on `https://gbs.fm/logo_3.png`. CDN edge cache rotates → `Last-Modified` bumps → MusicStreamer applies a Halloween logo on a random Tuesday in March.
 
 **Why it happens:**
-GStreamer plugins are native DLLs in `gstreamer-1.0/` that PyInstaller does not discover as Python imports. The hook (PyInstaller 5.6+) provides `include_plugins` / `exclude_plugins` but requires explicit enumeration.
+HTTP `Last-Modified` is a property of the CACHE, not the resource. CDN purges, edge migrations, and infrastructure events all bump the timestamp without the underlying file changing. The correct signal is content-hash, not header-timestamp.
 
 **How to avoid:**
-In `.spec`, explicitly collect the required plugin DLLs:
-
-```python
-gst_plugins = r"C:\gstreamer\1.0\msvc_x86_64\lib\gstreamer-1.0"
-a.datas += Tree(gst_plugins, prefix='gst-plugins')
-```
-
-Required plugins: `playback`, `soup`, `libav`, `audioconvert`, `autodetect`, `volume`, `typefindfunctions`. Test the packaged build against both HTTP and HTTPS streams before declaring packaging done.
+- Download the file and compute SHA-256 of the bytes. Compare against a known-canonical hash of the year-round logo. Themed-day fires ONLY when the hash differs from the canonical AND a marquee keyword sniff (Phase 87 spec) corroborates the day.
+- "Marquee keyword sniff" must be conservative — require an exact-substring match against a small whitelist (`"Memorial Day"`, `"4th of July"`, etc.), not a fuzzy match. Do NOT let the planner paraphrase "GBS announces themed days in the marquee" without citing the actual marquee text for at least 3 historical themed days per `feedback_mirror_decisions_cite_source.md`.
+- Persist the themed-day decision in-memory for the session only (per `PROJECT.md` line 23 — "session-scoped at GBS launch"). Do not write themed state to SQLite — a player restart mid-weekend re-evaluates and may correctly de-theme if the canonical logo has returned by then.
 
 **Warning signs:**
-- Packaged exe starts, UI appears, but audio never plays
-- `gst-inspect-1.0 playbin3` returns nothing inside the bundle
+- Themed logo fires on non-holidays (or in months without GBS themed days)
+- The logo hash changes but the marquee has no themed keyword — exit the themed state instead of trusting the hash alone
+- User reports "themed logo stuck on for a week" — almost always the SQLite-persistence mistake
 
-**Phase to address:** packaging — explicit quality gate.
+**Phase to address:**
+GBS.FM themed-day phase (Phase 87). Spike-first: harvest 3 known themed-day responses + 5 non-themed-day responses from the real GBS site and lock the canonical-logo SHA-256 in a constant before writing the detector.
 
 ---
 
-### Pitfall 14: Antivirus False Positives and SmartScreen on Unsigned PyInstaller Exe
+### Pitfall 10: GBS marquee pipe-segment parsing breaks on literal `|` in announcement text
 
 **What goes wrong:**
-PyInstaller bundles the interpreter and extracts to a temp dir at runtime — behavior matching common malware packers. Windows Defender and third-party AV products flag unsigned PyInstaller executables as `Trojan.GenericKD`. SmartScreen blocks launch with "Windows protected your PC."
-
-**How to avoid:**
-- Use `--onedir` mode, not `--onefile`. The extraction behavior that triggers AV heuristics is `--onefile` only.
-- Do NOT use UPX compression (`--no-upx`). UPX-compressed Python exes have extremely high AV false-positive rates.
-- For personal use: document that users must click "Run Anyway" on first launch. For distribution: get a code-signing certificate (EV cert = immediate SmartScreen reputation).
-- Build the PyInstaller bootloader from source — different binary hash reduces detection rate.
-
-**Warning signs:**
-- Windows Defender quarantines the exe on first launch on a clean VM
-- SmartScreen "unknown publisher" dialog on first run
-
-**Phase to address:** packaging — test on a clean Windows VM with Defender enabled before declaring packaging done.
-
----
-
-### Pitfall 15: "Improve While Porting" Scope Creep Causes Feature Drift
-
-**What goes wrong:**
-Every widget re-implementation is a temptation: "while I'm rewriting the station list, I'll also restructure to use `QAbstractListModel`" or "Qt's model/view is more elegant so I'll refactor the data layer too." These improvements compound, the port takes 3x as long, bugs are introduced in areas that weren't broken, and v1.5 behavior is no longer the baseline.
+GBS announces "Tonight | DJ Pulse | 8 pm" expecting users to read "Tonight | DJ Pulse | 8 pm". The marquee parser takes `text.split('|')[0]` → "Tonight" appears as the banner. Loss of context.
 
 **Why it happens:**
-Port work touches every UI file. Qt idioms (model/view, `QAbstractListModel`) suggest architectural refactors not needed with GTK. Developers naturally improve as they touch code.
+The "first pipe-segment is the banner" rule (per `PROJECT.md` line 18) assumes the pipe is a structural delimiter. It isn't always — sometimes it's content.
 
 **How to avoid:**
-- Establish a written "port-only" rule before the first phase: every plan must reference a specific v1.5 behavior as the target and say "match this exactly."
-- Create a feature-parity checklist from v1.5 requirements before writing a line of Qt code. Each checkbox maps to a testable behavior.
-- New improvements, architecture changes, Qt-idiomatic refactors go into a labeled backlog — not into port phases.
-- Phase plans during the port must include: "No new behavior introduced in this phase."
-- The only new behavior in v2.0 is: `QStandardPaths` path migration, manual settings export/import, cross-platform media keys, and Windows installer.
+- Inspect at least 10 real marquee samples before writing the parser. Document the exact delimiter pattern (e.g., `" | "` with surrounding spaces is delimiter, `|` without spaces is content).
+- If the delimiter is ambiguous, define the banner as "the first segment until either a delimiter OR newline OR end-of-string, whichever comes first, with a max length of N characters". Test against the 10 samples.
+- Per `feedback_mirror_decisions_cite_source.md`: when CONTEXT.md says "the banner is the first pipe-segment", quote 3 actual marquee strings + the expected banner output, not just the rule. Spike-first.
 
 **Warning signs:**
-- Phase plan descriptions contain "also improved" or "also refactored"
-- Test count drops (old behavior tests deleted rather than adapted)
-- Phase estimates doubling mid-execution
+- Banner is one word ("Tonight", "Now") instead of a sentence
+- Banner is empty when the marquee starts with `|` (defensive: strip leading delimiter before split)
 
-**Phase to address:** all phases — process rule, not a code fix. Enforce at the plan-writing stage.
+**Phase to address:**
+GBS.FM themed-day / marquee phase (Phase 87).
 
 ---
 
-### Pitfall 16: pytest Tests That Use Xvfb Won't Run on Windows CI
+### Pitfall 11: SomaFM preroll diagnostic harvest corrupts the user's live session
 
 **What goes wrong:**
-GTK widget tests require a display — handled on Linux CI via Xvfb. On Windows there is no X11. Any test that imports GTK (even indirectly) crashes the test suite at import time. When Qt widget tests are added naively (without `pytest-qt`), they fail on headless CI too.
+The diagnostic added to investigate missing prerolls on Boot Liquor opens a SECOND GStreamer pipeline to the same URL "just to probe". User hears the audio double-up, or worse, the diagnostic interferes with the main session's ICY tag stream.
+
+**Why it happens:**
+The natural temptation is to use the real `playbin3` to probe. But playbin3 is stateful and noisy; two of them sharing the same URL can compete for the same upstream connection on SomaFM's side (some servers cap concurrent connections per IP).
 
 **How to avoid:**
-- Use `pytest-qt` for all Qt widget tests. It automatically sets `QT_QPA_PLATFORM=offscreen` when no display is available — headless and cross-platform.
-- Set `QT_QPA_PLATFORM=offscreen` in CI environment config as belt-and-suspenders.
-- All GStreamer and subprocess calls in tests remain monkeypatched — no real media pipeline in tests.
-- Do not create real widget objects in tests without `qtbot` — use `qtbot.addWidget()` for lifecycle management.
+- Use a NON-DESTRUCTIVE probe: a single `requests.get(url, stream=True, headers={'Icy-MetaData': '1'})` that reads ICY metadata for 30 seconds and exits. No GStreamer involvement.
+- Log the harvest to a separate file (`buffer-events.log` precedent from Phase 78 — use `preroll-probe.log`). Do not commingle with user-facing toast/logging.
+- The probe is OPT-IN via hamburger menu, not automatic. The user explicitly triggers it; the harvest log is exported via the existing settings-export ZIP flow.
+- Mirror the Phase 78/84 "ship+monitor" pattern (per `PROJECT.md` line 233): the probe gathers data, a follow-up phase analyzes if signal is sufficient.
 
 **Warning signs:**
-- `could not connect to display` on Windows CI
-- Tests pass on Linux dev machine, import-error on Windows
+- Probe pipeline shows up in `pactl list sink-inputs` alongside the user's playback
+- Audio doubles up briefly when probe starts
+- Probe drops the user's main connection (SomaFM's per-IP cap)
 
-**Phase to address:** scaffold — establish `pytest-qt` + offscreen before writing any Qt widget test.
+**Phase to address:**
+SomaFM preroll consistency phase (suggested: Phase 90). Mirror-source rule: when CONTEXT.md says "Boot Liquor has no preroll because…", cite the actual server response (curl output with headers + first 8KB) — do not paraphrase. Spike-first to capture the actual responses from 5 SomaFM stations (4 known-good per `PROJECT.md` line 19 + Boot Liquor) before designing the fix.
+
+---
+
+### Pitfall 12: Touching player.py for preroll debug regresses Phase 84 buffer adaptation
+
+**What goes wrong:**
+Adding preroll-probe instrumentation requires logging from `_on_gst_tag` or `_on_gst_stream_start`. The developer adds a `print()` or a log-emit on the GLib bus thread. The Phase 84 stage-and-apply fallback (per `PROJECT.md` line 233 — "stage at _on_underrun_cycle_closed, apply at next URI bind") relies on a specific ordering of signal emissions. The new log statement perturbs Qt's signal coalescing — the `set_property` write that was supposed to be staged fires too early.
+
+**Why it happens:**
+GStreamer bus → Qt signal marshaling is fragile (per `.planning/codebase/CONCERNS.md` "GStreamer Bus-Loop Threading Model" and "MPRIS2 Service Registration"). Any new signal/slot path or new code in the bus handler can change the queue order under load.
+
+**How to avoid:**
+- Preroll instrumentation MUST go in a new function called from existing `_on_gst_tag` AT THE END, never INSERT into the middle. Never add it to `_on_gst_buffering` or `_on_underrun_cycle_closed`.
+- Add a regression test that pins the Phase 84 stage-and-apply ordering via source-grep, not behavior: assert that in `_try_next_stream`, the `_set_uri` call appears in source AFTER any stage-and-apply marker (per `feedback_gstreamer_mock_blind_spot.md` — source-grep over mocked behavior).
+- Re-run the Phase 84 D-11 acceptance test (12-event harvest replay) before merging the preroll-probe phase. If the harvest replay diverges, revert.
+- BUFFER-MONITOR (`PROJECT.md` line 21) is gated on three Follow-Up Triggers; the preroll-probe phase must not fire any of them spuriously.
+
+**Warning signs:**
+- After adding preroll instrumentation, the buffer-events.log shows underruns recovering at 30s when previously they grew to 60s
+- Pause/resume on AAC streams introduces a new glitch (BUG-03 reopened)
+- New flakiness in `test_player_*.py` — Qt signal ordering tests are the most sensitive
+
+**Phase to address:**
+SomaFM preroll phase (Phase 90). Add the Phase 84 stage-and-apply order drift-guard as part of Phase 90's deliverables, not as a separate phase.
+
+---
+
+### Pitfall 13: Phase 71 sibling rendering regression when touching NowPlayingPanel for cover-avatar fallback
+
+**What goes wrong:**
+The cover-slot fallback chain (Pitfall 8) requires conditional rendering in `NowPlayingPanel`. The developer touches `_set_cover_pixmap` to add the avatar branch. The Phase 71 "Also on:" sibling line stops rendering (or renders twice, or renders the wrong chips) because the panel's overall paint path was reshuffled.
+
+**Why it happens:**
+`now_playing_panel.py` is one of the large modules (645 lines per `.planning/codebase/CONCERNS.md` "Module Size & Cognitive Load") with multiple intersecting state machines. Per-row sibling chips (Phase 71 D-14, D-15 — manual chips show `×`, AA chips don't) depend on subtle widget composition order.
+
+**How to avoid:**
+- Read Phase 71's `71-CONTEXT.md` D-14 + D-15 locked decisions BEFORE editing the panel. The "the presence/absence of the × button is the sole visual distinction" rule has no other indicator — any rendering reorder that drops the × button silently breaks the manual-vs-AA distinction.
+- Add `test_richtext_baseline_unchanged_by_phase_89` mirroring Phase 71's existing `test_richtext_baseline_unchanged_by_phase_71` drift-guard (per `PROJECT.md` Phase 71 row).
+- Run a manual UAT on a station that HAS siblings (cross-network AA station) AND ICY-disabled cover-avatar fallback in the same session. Both must render correctly.
+- Apply `feedback_ui_bug_verify_with_extremes.md`: before fixing any perceived layout issue, sweep widget through extreme states (empty / full siblings list; placeholder / avatar / iTunes cover) and confirm what the user actually sees — do not chase shadows.
+
+**Warning signs:**
+- Sibling chips render but show all as manual (with ×) or all as AA (without ×) — the discriminator was lost in a refactor
+- Sibling line disappears entirely on YouTube/ICY-disabled stations after the avatar fallback ships
+- `test_richtext_baseline_unchanged_by_phase_71` fails — Phase 71's existing guard caught the regression at the right time
+
+**Phase to address:**
+ICY-disabled cover fallback phase (Phase 89). Required test addition: Phase 71 baseline drift-guard parity.
+
+---
+
+### Pitfall 14: Phase 76 GBS subprocess reuse mistake — establishing a parallel session for marquee fetch
+
+**What goes wrong:**
+Marquee fetcher spawns its own QtWebEngine subprocess "for isolation". Each marquee poll prompts a fresh login. The user logs in once via the Phase 76 flow and is then surprised by repeated login prompts when the themed-day/marquee detector polls.
+
+**Why it happens:**
+The natural design temptation is "subprocess = clean state = no risk of UI freeze". But the Phase 76 cookies are bound to the FIRST subprocess's persistent storage path (Pitfall 5). A second subprocess without the same storage-path argument is a fresh anonymous session.
+
+**How to avoid:**
+- Single source of truth: define `GBS_WEB_PROFILE_NAME = "musicstreamer-gbs"` and `GBS_WEB_STORAGE_PATH = paths.gbs_web_storage_dir()` as module-level constants in `musicstreamer/gbs_auth.py` (the Phase 76 module).
+- Marquee fetcher imports the same constants and constructs its `QWebEngineProfile` with them.
+- Source-grep gate: `assert GBS_WEB_PROFILE_NAME in marquee_source` AND `assert "QWebEngineProfile(" in marquee_source and "gbs_auth" in marquee_source` per `feedback_gstreamer_mock_blind_spot.md`.
+- Drift-guard test: introspect both source files and assert they reference the same constant identifier (parallel to Phase 77's FakePlayer-only-in-_fake_player.py rule per `PROJECT.md` line 231).
+
+**Warning signs:**
+- User reports "GBS login keeps popping up" — instant signal of a parallel session
+- `~/.local/share/musicstreamer/QtWebEngine/` has two directories instead of one
+
+**Phase to address:**
+GBS.FM themed-day / marquee phase (Phase 87). Constants must move into `gbs_auth.py` in Phase 87's first plan (not its last).
+
+---
+
+### Pitfall 15: Phase 77 D-03-deferred MPRIS2 tests masquerade as environment-gap when the bug is in the test fixture
+
+**What goes wrong:**
+The 7 D-03-deferred MPRIS2 tests fail on Linux CI. The developer attributes the failures to "PyGObject not installed" (per `PROJECT.md` line 60). PyGObject IS installed. The real cause is a test-fixture bug — the FakePlayer pattern is duplicated in the failing test file, violating Phase 77 D-04 (per `PROJECT.md` line 231 — "only tests/_fake_player.py may declare FakePlayer").
+
+**Why it happens:**
+"Environment gap" is a comforting hypothesis that absolves the test author. The failure modes look identical (collection error or `AttributeError`), so without source-grep verification, the wrong cause is locked in.
+
+**How to avoid:**
+- Run `grep -rn "class FakePlayer(QObject)" tests/` BEFORE running the failing tests. If any file other than `tests/_fake_player.py` matches, the failure is structural, not environmental.
+- Reuse the Phase 77 source-introspection drift-guards. If `tests/test_mpris2_*.py` declares its own FakePlayer, delete that declaration and import from `tests/_fake_player.py`.
+- If after the import-fix the tests still fail, gather the actual error message (not the surface symptom) and verify against current PyGObject release notes. PyGObject does NOT silently disable D-Bus when it's missing — it raises ImportError loudly at the top of the failing test file.
+
+**Warning signs:**
+- "Environment gap" appears in two consecutive phase docs without resolution — usually means nobody verified the hypothesis
+- `grep "class FakePlayer" tests/ | wc -l` returns > 1
+
+**Phase to address:**
+FIX-MPRIS phase (suggested: Phase 91, the existing v2.2 carry-over). The first plan of Phase 91 is the source-grep verification, not the test fix.
+
+---
+
+### Pitfall 16: Don't break Windows packaging while building Linux packaging
+
+**What goes wrong:**
+The developer adds an AppImage-specific `AppRun` path to `musicstreamer/paths.py` or `musicstreamer/__main__.py`. A latent Windows code path stops working because the new branch unconditionally reads `os.environ['APPDIR']` (which is None on Windows).
+
+**Why it happens:**
+AppImage's AppRun environment is invisible from Linux dev boxes that don't extract+run the AppImage. A "this only fires inside AppImage" branch is easy to write without realizing it imports or references something Windows-specific.
+
+**How to avoid:**
+- Every Linux-specific path must be gated by `sys.platform == 'linux'` AT THE TOP. Never read `os.environ['APPDIR']` without a `sys.platform` check first.
+- After every Linux packaging change, run `tools/check_subprocess_guard.py`, `tools/check_spec_entry.py`, and the Windows packaging-spec drift-guards (per `packaging/windows/README.md`) on the Linux dev box BEFORE committing. These tests run cross-platform; they catch most Windows regressions.
+- The Phase 69 packaging drift-guards (`tests/test_packaging_spec.py`) must be extended to ALSO cover the Linux recipe — single suite enforcing both targets.
+
+**Warning signs:**
+- `tools/check_bundle_plugins.py` exits non-zero on a Win11 VM after a Linux-only PR
+- `tests/test_packaging_spec.py` adds a new test but the file's existing Windows tests start failing — usually a copy-paste import issue
+
+**Phase to address:**
+Linux AppImage phase (Phase 85) and Linux Flatpak phase (Phase 86) — both must have a "verify Windows build still works" success criterion. Bundled UAT (per `PROJECT.md` line 17 — "Win11 VM packaging UAT bundled with WIN-05 AAC retest") should happen AFTER both Linux phases, not before.
 
 ---
 
@@ -448,12 +387,16 @@ GTK widget tests require a display — handled on Linux CI via Xvfb. On Windows 
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Keep `threading.Thread` alongside `QThread` | Avoids full threading refactor | Two threading systems; non-Qt threads can't emit Qt signals safely | Never — pick one |
-| `shell=True` on Windows subprocess | Avoids path lookup complexity | Security risk; hides `CREATE_NO_WINDOW` | Never |
-| Hardcode plugin list in PyInstaller spec | Fast to ship | Breaks when GStreamer version changes | Acceptable if version-pinned in requirements |
-| Skip `os.chmod` on Windows with a comment | Avoids `pywin32` dependency | Credential files world-readable | Acceptable for single-user personal app |
-| Keep subprocess OAuth pattern (no in-process WebEngine) | Avoids 150MB WebEngine dep in main process | Subprocess spawning is fragile | Acceptable — isolation is good architecture |
-| Port to `QListWidget` + `setItemWidget` instead of `QAbstractListModel` | Faster to implement, matches GTK flat-list mental model | Harder to filter/sort at scale | Acceptable for 50–200 station library |
+| Use `os.environ['APPDIR']` directly without `sys.platform` check | One-line branch | Silently breaks Windows imports | **Never** — always gate with platform check |
+| Skip the AppImage cross-distro test matrix | "It works on my Ubuntu, ship it" | Cascading user reports from Fedora/openSUSE | **Never** — test on at least 3 distros before publishing |
+| Inline the AUMID literal in `__main__.py` and `MusicStreamer.iss` separately | Faster initial code | Silent SMTC breakage on drift | **Never** — single constant, parity test enforced |
+| Use yt-dlp's `thumbnail` field for channel avatar | One-line fetch | Wrong image type (video frame, not avatar) | **Never** — filter by `id == 'avatar_uncropped'` |
+| Spawn a second QtWebEngine subprocess for marquee | "Isolation" | Re-login storm | **Never** — reuse the Phase 76 profile |
+| Inline channel-avatar branch BEFORE MB-CAA fallback in cover resolver | Simpler control flow | Phase 73 MB-CAA dies silently for Vaporwave/niche electronic | **Never** — channel-avatar is second-to-last, not first |
+| Disable QtWebEngine sandbox in AppImage manifest "just in case" | Avoids one class of crash | Defeats security model with no benefit | Acceptable inside Flatpak (sandbox-in-sandbox is impossible — Pitfall 4), never in AppImage |
+| Track GBS themed-day via `Last-Modified` header | Cheap probe | CDN cache invalidation = false positive | **Never** — use SHA-256 of content + marquee keyword corroboration |
+| Probe SomaFM preroll with a real GStreamer pipeline | Reuses existing infra | Doubles up audio, fights for upstream connection | **Never** — use `requests.get(stream=True, headers={'Icy-MetaData': '1'})` |
+| Persist GBS themed-day decision to SQLite | Survives restart | Sticks past the actual themed day | **Never** — session-scoped (per `PROJECT.md` line 23) |
 
 ---
 
@@ -461,116 +404,163 @@ GTK widget tests require a display — handled on Linux CI via Xvfb. On Windows 
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| GStreamer + Qt event loop | `bus.add_signal_watch()` with no GMainLoop | `enable_sync_message_emission()` + emit Qt signal from sync handler |
-| GStreamer + PyInstaller | Rely on auto-collection for native plugin DLLs | Explicit `Tree()` in spec + `GST_PLUGIN_PATH` at startup |
-| GStreamer + Windows SSL | No `libgiognutls.dll` in bundle | Explicitly collect DLL + test HTTPS stream on packaged build |
-| yt-dlp subprocess | `stdout=PIPE, stderr=PIPE` no timeout | `subprocess.run(capture_output=True, timeout=30)` |
-| mpv subprocess | stderr piped for logging | Redirect to `DEVNULL` or rotating log file |
-| `QStandardPaths` | Called before `QCoreApplication` constructed | Construct app with org/name first; then call `writableLocation` |
-| Twitch OAuth + WebEngine | Import `QtWebEngineWidgets` in main process | Subprocess isolation — spawn `oauth_helper.py` |
+| linuxdeploy-plugin-gstreamer | Trust host's `gst-plugin-scanner` cache | Bundle scanner, force re-scan at AppRun, set `GST_REGISTRY_FORK=no` |
+| Flatpak QtWebEngine | `--filesystem=host` to "fix" cookie persistence | Use `io.qt.qtwebengine.BaseApp` + `QTWEBENGINE_DISABLE_SANDBOX=1` + `setPersistentStoragePath()` to `~/.var/app/com.musicstreamer.MusicStreamer/data/` (XDG-redirected automatically) |
+| Flathub Node.js runtime | Assume Node is in the GNOME runtime | Add `org.freedesktop.Sdk.Extension.node20` (or current LTS) to `sdk-extensions:` and `append-path: /usr/lib/sdk/node20/bin` to `build-options:` |
+| yt-dlp channel avatar | Use top-level `thumbnail` | Iterate `thumbnails[]` and filter by `id == 'avatar_uncropped'` |
+| Twitch Helix `/users` for avatar | Reuse Phase 32 user token without checking scopes | Helix `/users` accepts both user and app token; cache `profile_image_url` per [Twitch API docs](https://dev.twitch.tv/docs/api/) (24 hr is community standard); rate limit is 800 req/min/client, well above need |
+| Inno Setup `[Icons]` | Omit `AppUserModelID:` clause | Add clause + `tests/test_aumid_string_parity.py` extension that greps the `.iss` literal |
+| QtWebEngine cookie store | New `QWebEngineProfile()` per process | Single `QWebEngineProfile("musicstreamer-gbs", parent)` + `setPersistentStoragePath()` + `ForcePersistentCookies` policy, shared across subprocess and main process by storage path identity |
+| GBS.FM marquee parse | `text.split('|')[0]` | Inspect 10 real samples, define delimiter as `" | "` (spaces required), fall back to newline / max-length |
+| SomaFM preroll probe | Spawn second `playbin3` | `requests.get` with `Icy-MetaData: 1`, 30 s read, separate log file |
+| MPRIS2 deferred tests | Blame "environment gap" | `grep "class FakePlayer" tests/` first; expected count is 1 |
+
+---
+
+## Performance Traps
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Channel-avatar fetch races playback start | UI flicker — placeholder → real cover → channel avatar → placeholder | Fetch avatar in background ONLY when ICY tag fires empty/disabled; never on playback start | Any station with > 100 ms avatar fetch latency |
+| AppImage GStreamer plugin re-scan on every launch | 2–4 s cold-start delay | Persist `$XDG_CACHE_HOME/musicstreamer/gstreamer-1.0/registry.x86_64.bin`, invalidate on AppImage version change | Always — eliminate via cached registry |
+| Twitch Helix `/users` polled per-render | Rate-limit at 800 req/min × users | Cache `profile_image_url` for 24 hours; refresh on stream-start, not on UI render | > 30 Twitch stations with offline polling |
+| QtWebEngine subprocess startup on every marquee poll | 1–2 s lag per poll, login storms | Persistent QtWebEngine profile, hidden `QWebEnginePage` reused; poll cadence ≥ 5 min | Any cadence < 5 min |
+| GBS themed-logo SHA-256 recomputed every poll | Bandwidth + CPU | Cache hash for session; recompute only on `Last-Modified` change (use header as INVALIDATION trigger, not authority) | Always — combine both signals |
+| SomaFM preroll-probe consumes user's connection slot | Main playback drops during probe | Run probe ONLY when user is not actively playing that station, OR use a separate stream tier so SomaFM doesn't dedupe | When probe is automatic, not opt-in |
+
+---
+
+## Security Mistakes
+
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| `--filesystem=host` in Flatpak manifest | Defeats sandbox entirely | Use `--filesystem=xdg-music:ro` (read-only music dir) + XDG-redirected app data; nothing else |
+| Flatpak `--socket=session-bus` for MPRIS2 with no portal | Exposes full session D-Bus | Use `--talk-name=org.mpris.MediaPlayer2.*` ONLY (most-specific bus name allow-list) |
+| GBS.FM cookie file world-readable inside AppImage | Cookie theft via shared system | `chmod 0700` on `~/.local/share/musicstreamer/QtWebEngine/` at first-write; same pattern as `cookies.txt` 0o600 (per `PROJECT.md` line 72) |
+| Twitch token re-used for Helix `/users` without scope check | Phase 32 TAUTH-01 token may lack required scope | Helix `/users` for OTHER users (not self) needs only client-id, no token; for self use app access token. Channel-avatar fetch is for arbitrary streamers → use app access token, not the user's OAuth token |
+| Inno Setup uninstaller leaves cookies/tokens in `%APPDATA%\musicstreamer` | Stranded sensitive data on uninstall | Existing decision (per `packaging/windows/README.md` D-03) is intentional preservation; document it in the EULA + give users a hamburger-menu "Wipe local data" action if they want manual cleanup |
+| Marquee fetcher follows redirects to off-domain URLs | XSS via redirect-to-attacker-domain | Pin allowed hosts: `gbs.fm`, `www.gbs.fm`, `cdn.gbs.fm`. Reject any redirect outside this set |
+
+---
+
+## UX Pitfalls
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| "1 token" or "tokens remaining" terminology in GBS single-song add | Users don't know what tokens are; feels gamified | Frame as "Add this song" with no quantity (per `PROJECT.md` line 18 — "zero-token single-song add, UX never framed as '1 token'") |
+| Channel-avatar suddenly replacing a working cover slot | Visual surprise — looks broken | Avatar fallback only when ICY is empty/disabled. Fade-in transition, not hard swap |
+| Themed logo fires once and never updates | User restarts mid-weekend, doesn't see themed look | Re-evaluate themed-day on every GBS launch (session-scoped, not persistent) — accept the trade-off that closing and reopening can change the answer |
+| AppImage requires `chmod +x` before running | First-run friction | Document in README + ship a wrapper `.desktop` file that GNOME associates automatically |
+| Flatpak launches but media keys silent | Confusing — same app, different behavior | Document MPRIS2 D-Bus access in Flathub description; provide a "Test media keys" diagnostic in hamburger menu |
+| SMTC "Unknown app" after upgrade | User pinned a pre-AUMID shortcut | One-time release-note prompt: "Unpin and re-pin MusicStreamer from your taskbar after this update" |
+| Background art makes UI look broken at extreme widget states | Per `feedback_ui_bug_verify_with_extremes.md` — three rounds of hardening chasing a headphones-illustration stroke | Before fixing a perceived layout bug, sweep widget through 0/100% and ask user to confirm what they see |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **GStreamer bus:** ICY titles update after port — not just "pipeline plays"
-- [ ] **Windows subprocess:** No CMD flash on yt-dlp, streamlink, mpv calls
-- [ ] **HTTPS streams:** HTTPS URL plays in packaged build (not just HTTP)
-- [ ] **Data paths:** `DATA_DIR` used in every file path — no `~/.local` literals remain
-- [ ] **QStandardPaths migration:** Old Linux path migrated on upgrade if it exists and new path is empty
-- [ ] **Threading:** No `QObject: Cannot move to target thread` warnings in stderr during import
-- [ ] **Widget lifetime:** 10-minute smoke test with no `RuntimeError: Internal C++ object deleted`
-- [ ] **AV false positive:** Packaged exe runs on clean Windows VM with Defender enabled
-- [ ] **Accent color:** Changes apply to all targeted widgets, not just some
-- [ ] **pytest-qt:** All tests pass headless on both Linux and Windows
+- [ ] **AppImage:** Often missing GLIBC baseline pinning — verify with `strings AppRun_or_main_so | grep GLIBC_ | sort -V | tail -1 ≤ 2.35`
+- [ ] **AppImage:** Often missing `gst-plugin-scanner` — verify with `test -x $APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner`
+- [ ] **AppImage:** Often missing `gst-libav` — verify with `gst-inspect-1.0 avdec_aac` inside the AppImage shell
+- [ ] **AppImage:** Often missing `chardet>=5,<6` pin — verify `requests` works in staged build dir without `charset_normalizer` errors
+- [ ] **Flatpak:** Often missing `QTWEBENGINE_DISABLE_SANDBOX=1` in finish-args — verify GBS login subprocess opens without namespace error
+- [ ] **Flatpak:** Often missing Node.js extension — verify with `flatpak run --command=node com.musicstreamer.MusicStreamer --version`
+- [ ] **Flatpak:** Often missing MPRIS2 D-Bus access — verify with `flatpak run --command=dbus-send com.musicstreamer.MusicStreamer --session --print-reply --dest=org.mpris.MediaPlayer2.MusicStreamer /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.GetAll string:org.mpris.MediaPlayer2.Player`
+- [ ] **Flatpak:** Often `--filesystem=host` slipped in — verify manifest greps clean for `host` outside of comments
+- [ ] **SMTC AUMID:** Often `MusicStreamer.iss` AUMID literal drifted from `__main__.py` — verify `tests/test_aumid_string_parity.py` passes
+- [ ] **SMTC AUMID:** Often old .lnk not removed by uninstaller — verify with VM that has v2.1 installed FIRST, then upgrades to v2.2
+- [ ] **SMTC AUMID:** Often AUMID set AFTER `QApplication()` — verify with `ProcessExplorer` or `Get-StartApps` after launch (per `packaging/windows/README.md` Phase 43.1 Pitfall #7)
+- [ ] **GBS marquee:** Often single `|` content treated as delimiter — verify with 10 historical marquee samples
+- [ ] **GBS themed-day:** Often persisted to SQLite — verify session-only, restart mid-weekend produces fresh evaluation
+- [ ] **Channel avatar:** Often using top-level `thumbnail` — verify the saved image is square (avatar) not 16:9 (video frame)
+- [ ] **Channel avatar:** Often runs BEFORE MB-CAA — verify cover-resolver source order via grep gate
+- [ ] **SomaFM preroll:** Often probe is a real `playbin3` — verify probe is `requests.get` only, no GStreamer
+- [ ] **Phase 77 deferred MPRIS2:** Often blamed on env-gap — verify `grep "class FakePlayer" tests/ | wc -l == 1` first
+
+---
+
+## Recovery Strategies
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| AppImage GLIBC mismatch shipped | HIGH | Rebuild on older container, version-bump, push out as patch release; users who hit the error get no playback at all |
+| linuxdeploy GStreamer scanner cache poisoned | MEDIUM | Ship a new AppImage that force-rebuilds the registry on first launch; users delete `~/.cache/musicstreamer/gstreamer-1.0/` |
+| Flatpak QtWebEngine sandbox crash | LOW | Add `QTWEBENGINE_DISABLE_SANDBOX=1` to manifest, push update via Flathub; users get update automatically |
+| SMTC AUMID parity drift | LOW (fresh installs) / HIGH (pinned shortcuts) | Parity test catches drift before ship; for already-pinned shortcuts, instruct user to unpin+repin |
+| Channel-avatar overrides MB-CAA (Pitfall 8) | MEDIUM | Re-order cover resolver, add drift-guard test, push patch release; affected stations remain on placeholder in the interim |
+| GBS themed-day false positive | LOW | Hot-fix the SHA-256 canonical-logo constant, push release; user-visible bug is cosmetic |
+| GBS subprocess login storm (Pitfall 14) | MEDIUM | Refactor marquee fetcher to import Phase 76 constants; users re-login once after the fix |
+| SomaFM preroll probe disrupts main session | LOW | Make probe opt-in via hamburger menu (it already should be — Pitfall 11); users who haven't triggered the probe are unaffected |
+| Phase 84 buffer adaptation regressed by preroll instrumentation | HIGH | Revert preroll commits, re-run Phase 84 D-11 acceptance test, redesign instrumentation with strict bus-handler discipline |
+| Phase 71 sibling rendering regressed | MEDIUM | Restore baseline drift-guard, fix render order; sibling line briefly missing for affected stations |
+| Phase 77 deferred MPRIS2 misdiagnosed | LOW | Run source-grep first, fix FakePlayer duplication, tests pass without env changes |
 
 ---
 
 ## Pitfall-to-Phase Mapping
 
+Phase numbers are suggested (continuing from Phase 84 per `PROJECT.md` line 23). Final numbering is roadmap-author's call.
+
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| GStreamer bus on wrong thread | scaffold | ICY titles update; EOS caught in integration test |
-| GST_PLUGIN_PATH missing | packaging | Fresh Windows VM: stream plays within 10s |
-| souphttpsrc SSL missing | packaging | HTTPS SomaFM stream plays in packaged build |
-| Console window flash | platform | No CMD flash during stream start (manual test) |
-| Pipe deadlock | platform | yt-dlp `--verbose` call does not hang; 30s timeout fires |
-| Hard-coded data paths | scaffold | `DATA_DIR` constant; no `~/.local` literals; `grep` clean |
-| C++ object deleted crash | port | No RuntimeError in 10-min smoke; dialog open/close cycle passes |
-| GTK CSS vs QSS | port | Accent color applies to all targeted widget types |
-| Libadwaita widget mapping | port | Mapping table reviewed before first UI file written |
-| Thread migration | scaffold | No `Cannot move to target thread` warnings; no import crash |
-| WebEngine OAuth | platform | Twitch token captured on Windows without in-process WebEngine |
-| chmod no-op | platform | Documented in code comment; no exception on Windows |
-| PyInstaller plugins missing | packaging | Packaged exe plays audio (HTTP + HTTPS) |
-| AV false positives | packaging | Clean VM with Defender: exe runs without quarantine |
-| Scope creep | all phases | Phase plans state "no new behavior"; parity checklist gates each phase |
-| Xvfb/display in tests | scaffold | `pytest-qt` + offscreen; full suite passes on Windows CI |
+| 1: AppImage GLIBC baseline | Phase 85 (AppImage) | `strings $APPDIR/AppRun \| grep -oE 'GLIBC_[0-9.]+' \| sort -V \| tail -1` ≤ 2.35 on every CI build |
+| 2: GStreamer plugin scanner paths | Phase 85 (AppImage) | `tests/test_packaging_spec.py::test_apprun_sets_gst_plugin_paths` source-grep |
+| 3: charset_normalizer mypyc dropped | Phase 85 (AppImage) | `tests/test_packaging_spec.py::test_pyproject_pins_chardet_over_charset_normalizer` |
+| 4: Flatpak QtWebEngine sandbox | Phase 86 (Flatpak) | Manifest contains `QTWEBENGINE_DISABLE_SANDBOX=1` AND `io.qt.qtwebengine.BaseApp` extension; live GBS login works in Flatpak build |
+| 5: QtWebEngine cookie store sharing | Phase 87 (GBS marquee) | `tests/test_gbs_marquee.py::test_marquee_fetcher_reuses_gbs_auth_profile` source-grep + manual: kill+restart subprocess, marquee still authed |
+| 6: SMTC AUMID mismatch | Phase 88 (WIN-02) | Extended `tests/test_aumid_string_parity.py` covers `.iss` + uninstaller `InstallDelete` clause |
+| 7: yt-dlp channel-avatar field | Phase 89 (cover-avatar fallback) | `tests/test_channel_avatar.py::test_uses_avatar_uncropped_id_filter` source-grep + golden-master JSON from `yt-dlp -J` for 3 channel URL shapes |
+| 8: Channel-avatar precedence vs MB-CAA | Phase 89 (cover-avatar fallback) | `tests/test_cover_resolution_precedence.py::test_mb_caa_runs_before_channel_avatar` source-introspection |
+| 9: GBS themed-logo CDN drift | Phase 87 (GBS themed-day) | `tests/test_gbs_themed.py::test_themed_decision_uses_content_hash_not_last_modified` + marquee keyword corroboration |
+| 10: Marquee pipe-segment parsing | Phase 87 (GBS marquee) | Golden-master test with 10 historical marquee strings + expected banner outputs |
+| 11: SomaFM preroll probe destruction | Phase 90 (SomaFM preroll) | `tests/test_somafm_preroll.py::test_probe_uses_requests_not_gstreamer` source-grep |
+| 12: Phase 84 buffer adaptation regression | Phase 90 (SomaFM preroll) | `tests/test_player.py::test_phase_84_stage_and_apply_order_unchanged_by_phase_90` source-introspection drift-guard |
+| 13: Phase 71 sibling rendering regression | Phase 89 (cover-avatar fallback) | `tests/test_now_playing.py::test_richtext_baseline_unchanged_by_phase_89` (mirror Phase 71's existing guard) |
+| 14: Phase 76 GBS subprocess parallel session | Phase 87 (GBS marquee) | Constants module test: `marquee_fetcher` source imports from `gbs_auth` module |
+| 15: Phase 77 MPRIS2 env-gap misdiagnosis | Phase 91 (FIX-MPRIS) | `grep "class FakePlayer" tests/ \| wc -l == 1` as first plan deliverable |
+| 16: Windows packaging regression from Linux work | Phase 85 + 86 + 88 (all packaging) | Existing `tools/check_subprocess_guard.py`, `tools/check_spec_entry.py`, `tests/test_packaging_spec.py` must pass after every Linux PR |
+
+---
+
+## Spike-First Candidates
+
+The following items are recommended for explicit spike phases or spike-style first plans BEFORE locking architecture:
+
+1. **AppImage build container baseline** — pick Ubuntu 22.04 or 20.04, build a hello-world GTK+GStreamer AppImage, test on 3 target distros. Decide baseline BEFORE Phase 85.
+2. **Flatpak QtWebEngine BaseApp** — build a minimal QtWebEngine-based Flatpak that loads `https://gbs.fm` and reads cookies on restart. Decide manifest shape BEFORE Phase 86.
+3. **QtWebEngine cookie persistence cross-process** — verify `setPersistentStoragePath()` + `ForcePersistentCookies` survives subprocess exit, restart, and is readable by a hidden `QWebEnginePage` in the main process. BEFORE Phase 87.
+4. **yt-dlp channel-avatar field discovery** — run `yt-dlp -J` against 5 channel URL shapes, harvest the actual JSON, document which `thumbnails[].id` values are reliable. BEFORE Phase 89.
+5. **SomaFM preroll harvest** — non-destructive `requests.get(stream=True, headers={'Icy-MetaData': '1'})` on Boot Liquor + 4 known-good stations, capture 30 s of metadata. BEFORE Phase 90 design.
 
 ---
 
 ## Sources
 
-- [GStreamer GstBus documentation](https://gstreamer.freedesktop.org/documentation/gstreamer/gstbus.html)
-- [Qt Forum: Howto push GST thread into Qt Main Thread](https://forum.qt.io/topic/132596/howto-push-gst-thread-into-qt-main-thread)
-- [GStreamer Discourse: Qt GStreamer Event Loop Woes](https://discourse.gstreamer.org/t/qt-gstreamer-event-loop-woes/5766)
-- [GStreamer souphttpsrc SSL issue #451](https://gitlab.freedesktop.org/gstreamer/gst-plugins-good/-/issues/451)
-- [GStreamer installing on Windows](https://gstreamer.freedesktop.org/documentation/installing/on-windows.html)
-- [PyInstaller/Kivy GStreamer bundling issue #6126](https://github.com/kivy/kivy/issues/6126)
-- [yt-dlp Windows GUI console window issue #1251](https://github.com/yt-dlp/yt-dlp/issues/1251)
-- [Python subprocess deadlock CPython issue #14872](https://bugs.python.org/issue14872)
-- [PyInstaller AV false positives guide](https://www.pythonguis.com/faq/problems-with-antivirus-software-and-pyinstaller/)
-- [PyInstaller SmartScreen signing issue #6747](https://github.com/pyinstaller/pyinstaller/issues/6747)
-- [QStandardPaths Qt for Python docs](https://doc.qt.io/qtforpython-6/PySide6/QtCore/QStandardPaths.html)
-- [PySide6 QThread multithreading guide](https://www.pythonguis.com/tutorials/multithreading-pyside6-applications-qthreadpool/)
-- [QThread correct usage](https://www.haccks.com/posts/how-to-use-qthread-correctly-p1/)
-- [QWebEngineCookieStore Qt for Python docs](https://doc.qt.io/qtforpython-6/PySide6/QtWebEngineCore/QWebEngineCookieStore.html)
-- [Porting from Qt WebKit to Qt WebEngine](https://doc.qt.io/qtforpython-6.5/overviews/qtwebenginewidgets-qtwebkitportingguide.html)
-- [oschmod — cross-platform chmod alternative](https://pypi.org/project/oschmod/)
-- [pytest-qt troubleshooting / offscreen platform](https://pytest-qt.readthedocs.io/en/latest/troubleshooting.html)
+- [AppImage best practices — GLIBC compatibility](https://docs.appimage.org/reference/best-practices.html)
+- [pkg2appimage #173 — Bundle libstdc++ and decide at runtime](https://github.com/AppImage/pkg2appimage/issues/173)
+- [linuxdeploy-plugin-gstreamer — official repo](https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer)
+- [linuxdeploy-plugin-gstreamer #17 — gst-plugin-scanner library path](https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer/issues/17)
+- [linuxdeploy-plugin-gstreamer #9 — built on Ubuntu 18.04 doesn't run on 18.04](https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer/issues/9)
+- [Flathub io.qt.qtwebengine.BaseApp](https://github.com/flathub/io.qt.qtwebengine.BaseApp)
+- [Qt WebEngine Platform Notes — sandboxing](https://doc.qt.io/qt-6/qtwebengine-platform-notes.html)
+- [QWebEngineProfile docs — persistent storage and cookies](https://doc.qt.io/qt-6/qwebengineprofile.html)
+- [flatpak/flatpak #4032 — Chromium or Flatpak sandbox is active?](https://github.com/flatpak/flatpak/issues/4032)
+- [Flathub Discourse — Distributing a Qt app in a flatpak with WebEngine](https://discourse.flathub.org/t/distributing-a-qt-app-in-a-flatpak-with-webengine/5224)
+- [yt-dlp #10090 — Channel thumbnails often missing banner_uncropped](https://github.com/yt-dlp/yt-dlp/issues/10090)
+- [yt-dlp #14041 — Better way to handle thumbnails](https://github.com/yt-dlp/yt-dlp/issues/14041)
+- [Inno Setup [Icons] section](https://jrsoftware.org/ishelp/topic_iconssection.htm)
+- [Twitch API Concepts — rate limits](https://dev.twitch.tv/docs/api/guide)
+- [Twitch Developer Forums — 800 req/min app access token](https://discuss.dev.twitch.com/t/what-is-the-rate-limit/30504)
+- [Microsoft Learn — Application User Model IDs](https://learn.microsoft.com/en-us/windows/win32/shell/appids)
+- Internal: `packaging/windows/README.md` (Phase 43.1 + Phase 56 + Phase 69 lessons)
+- Internal: `.planning/codebase/CONCERNS.md` (GStreamer Bus-Loop Threading Model, MPRIS2 Service Registration, Windows Packaging Case-Sensitivity Collision)
+- Internal: `.planning/PROJECT.md` (Phase 71 sibling rendering decisions D-14/D-15; Phase 73 ART-MB precedence; Phase 76 GBS-AUTH-01; Phase 77 D-04 FakePlayer rule; Phase 84 D-11 stage-and-apply)
+- Internal: `feedback_gstreamer_mock_blind_spot.md` (source-grep gates over behavioral mocks)
+- Internal: `feedback_mirror_decisions_cite_source.md` (quote external rules, never paraphrase)
+- Internal: `feedback_ui_bug_verify_with_extremes.md` (sweep widget states before fixing perceived layout bugs)
+- Internal: `project_vaporwave_mb_caa_coverage.md` (MB-CAA coverage gap motivating Pitfall 8 precedence rule)
 
 ---
 
-## Archived — v1.4 Pitfalls (GTK4/GStreamer)
-
-Prior pitfall research for v1.4 (GStreamer buffer tuning, AudioAddict art, accent color) is archived below for reference. These pitfalls are already addressed in v1.5 shipped code.
-
-<details>
-<summary>Expand v1.4 pitfalls (archived)</summary>
-
-### P1: Buffer Tuning Delays ICY Metadata Delivery
-Set `buffer-duration` ≤5s. Prefer `buffer-duration` over `buffer-size`. Validate time-to-first-TAG-message.
-
-### P2: `souphttpsrc` Properties Not Accessible at Pipeline Construction
-Connect to `source-setup` signal on `playbin3`. Do not call `get_by_name("source")` before `READY` state.
-
-### P3: AA Logo Fetch Blocks Import Worker
-Decouple logo fetch from insert loop. Use `ThreadPoolExecutor` post-insert pass.
-
-### P4: AA API Logo URL Format Undocumented
-Inspect raw JSON first. Normalize URLs. Treat missing logos as non-fatal.
-
-### P5: AA URL Detection False Positives
-Gate detection on explicit `NETWORKS` domain list from `aa_import.py`.
-
-### P6: 16:9 Slot Breaks Square iTunes Art
-Use `ContentFit.CONTAIN`; keep slot `160x160`. Adaptive slot complicates the panel layout.
-
-### P7: Changing `cover_stack` Size Reflows Panel
-Test at min window size after any dimension change.
-
-### P8: CSS Variable Scope — `--accent-bg-color` Must Be on `:root`
-Use `:root` selector + `PRIORITY_APPLICATION`.
-
-### P9: Invalid Hex Silent No-Op
-Validate hex in Python (`re.fullmatch`) before passing to GTK CSS provider.
-
-### P10: GNOME 47+ System Accent Overwrites App Override
-Use `PRIORITY_APPLICATION` (600). Reload provider on every change, not just startup.
-
-</details>
-
----
-
-*Pitfalls research for: MusicStreamer v2.0 Qt/PySide6 port to Linux + Windows*
-*Researched: 2026-04-10*
+*Pitfalls research for: MusicStreamer v2.2 — packaging + GBS.FM + channel-avatar + SomaFM preroll*
+*Researched: 2026-05-25*
