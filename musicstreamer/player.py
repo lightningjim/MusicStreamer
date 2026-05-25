@@ -789,6 +789,14 @@ class Player(QObject):
         SYNCHRONOUS log write (not via _underrun_cycle_closed queued Signal):
         closeEvent is followed by QApplication.quit(); queued slots may never
         run. Same instinct as MediaKeysBackend.shutdown() at main_window.py:355.
+
+        WR-05 (Phase 84 code review): also increments _underrun_event_count
+        so the cumulative cycle counter symmetric with _on_underrun_cycle_closed
+        (which the comment block there calls out as "every NON-SHUTDOWN outcome";
+        this method handles the shutdown outcome's counter parity). No emit is
+        performed here: receivers (MainWindow → NowPlayingPanel) are being torn
+        down during closeEvent; the in-process counter is what matters, the
+        durable record is the file-sink log line written above.
         """
         prior_close = self._tracker.force_close("shutdown")
         if prior_close is not None:
@@ -801,6 +809,10 @@ class Player(QObject):
                 prior_close.station_id, prior_close.station_name,
                 prior_close.url, prior_close.outcome, prior_close.cause_hint,
             )
+            # WR-05: count parity with _on_underrun_cycle_closed. NO emit (Signal
+            # receivers are torn down during closeEvent and any queued slot
+            # would race the QApplication.quit() that follows).
+            self._underrun_event_count += 1
         self._underrun_dwell_timer.stop()
 
     # ------------------------------------------------------------------ #

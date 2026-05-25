@@ -116,3 +116,45 @@ def test_signal_emits_with_count_value(qtbot):
     player._on_underrun_cycle_closed(rec)
     qtbot.wait(50)
     assert received == [1, 2]
+
+
+def test_shutdown_underrun_tracker_increments_count(qtbot):
+    """WR-05 (Phase 84 code review): shutdown_underrun_tracker must increment
+    _underrun_event_count when it force-closes an in-flight cycle, so the
+    cumulative counter is symmetric with _on_underrun_cycle_closed's
+    "every NON-SHUTDOWN outcome" semantics. No emit is performed (receivers
+    are torn down during closeEvent) but the in-process counter MUST be
+    updated for symmetry with the file-sink log line that is written.
+    """
+    player = make_player(qtbot)
+    # Open a cycle so force_close("shutdown") returns a non-None record.
+    # Tracker lifecycle: bind_url → observe(100) arms → observe(<100) opens.
+    player._tracker.bind_url(station_id=7, station_name="Test", url="http://x/")
+    player._tracker.observe(100)  # arm
+    player._tracker.observe(0)    # open cycle
+    assert player._underrun_event_count == 0
+
+    player.shutdown_underrun_tracker()
+
+    assert player._underrun_event_count == 1, (
+        "WR-05 FAIL: shutdown_underrun_tracker did not increment "
+        "_underrun_event_count. Without this, a shutdown-during-cycle is "
+        "silently lost from the cumulative counter even though the log "
+        "line IS written."
+    )
+
+
+def test_shutdown_underrun_tracker_no_count_when_no_open_cycle(qtbot):
+    """WR-05 corollary: when no cycle is open at shutdown,
+    shutdown_underrun_tracker is a no-op for the counter (no spurious
+    increment). force_close returns None in this case.
+    """
+    player = make_player(qtbot)
+    assert player._underrun_event_count == 0
+
+    player.shutdown_underrun_tracker()
+
+    assert player._underrun_event_count == 0, (
+        "WR-05 corollary FAIL: shutdown with no open cycle should not "
+        "increment the counter."
+    )
