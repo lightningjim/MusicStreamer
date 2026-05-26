@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MusicStreamer Spike
+Comment=Phase 85a hello-world playbin3 spike
+Exec=AppRun
+Icon=musicstreamer-spike
+Terminal=true
+Categories=Audio;AudioVideo;Player;
