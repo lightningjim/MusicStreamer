@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 85a context gathered
-last_updated: "2026-05-25T23:18:46.752Z"
-last_activity: 2026-05-25 -- Phase 87 execution started
+last_updated: "2026-05-26T00:15:48.712Z"
+last_activity: 2026-05-26 -- Phase 85a planning complete
 progress:
   total_phases: 14
   completed_phases: 0
-  total_plans: 6
+  total_plans: 14
   completed_plans: 1
   percent: 0
 ---
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 Phase: 87 (gbs-fm-marquee-themed-day-detection) — EXECUTING
 Plan: 1 of 6
-Status: Executing Phase 87
-Last activity: 2026-05-25 -- Phase 87 execution started
+Status: Ready to execute
+Last activity: 2026-05-26 -- Phase 85a planning complete
 
 ## v2.2 Phase Roster
 
