@@ -6,6 +6,11 @@
 #   2 = linuxdeploy/bundle failed
 #   3 = smoke failed (reserved; smoke runs in Plan 06 / run-smoke.sh)
 #   4 = GLIBC > 2.35 (Pitfall 1 negative pivot trigger)
+#
+# Pitfall 11 (spike-discovered): linuxdeploy.AppImage self-mounts via FUSE,
+# which fails in rootless containers (--user mapping). The --appimage-extract-and-run
+# flag is the documented escape hatch. The PRODUCED AppImage also inherits this
+# behavior — consumers in containers/CI must use the same flag.
 
 set -euo pipefail
 
@@ -106,7 +111,12 @@ docker run --rm --privileged \
     export GSTREAMER_HELPERS_DIR="$APPDIR/usr/conda/libexec/gstreamer-1.0"
 
     # Bundle
-    /tmp/linuxdeploy.AppImage --appdir "$APPDIR" \
+    # --appimage-extract-and-run: FUSE escape hatch for rootless container.
+    # Required because we run as non-root via --user; FUSE setuid fallback
+    # (which works for root) is unavailable. Extract-and-run unpacks the
+    # AppImage to a temp dir and execs the inner binary directly, skipping
+    # FUSE entirely. See Pitfall 11 in 85A-SPIKE-FINDINGS.md (Plan 08).
+    /tmp/linuxdeploy.AppImage --appimage-extract-and-run --appdir "$APPDIR" \
       --plugin conda \
       --plugin gstreamer \
       --desktop-file "$APPDIR/musicstreamer-spike.desktop" \
