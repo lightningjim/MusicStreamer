@@ -62,6 +62,11 @@ export GST_PLUGIN_SCANNER="\${APPDIR}/usr/conda/libexec/gstreamer-1.0/gst-plugin
 export GST_PLUGIN_SCANNER_1_0="\${APPDIR}/usr/conda/libexec/gstreamer-1.0/gst-plugin-scanner"
 export GST_REGISTRY_FORK="no"
 export GIO_EXTRA_MODULES="\${APPDIR}/usr/conda/lib/gio/modules"
+# Pitfall 17 mitigation — must mirror AppRun's SSL_CERT_FILE so bundled OpenSSL
+# can validate the conda-forge CA bundle (HTTPS playback). Without this the
+# smoke harness reproduces the "Unacceptable TLS certificate" failure that AppRun
+# itself was patched to avoid; see 85A-SPIKE-FINDINGS.md Pitfall 17.
+export SSL_CERT_FILE="\${APPDIR}/usr/conda/ssl/cacert.pem"
 export GI_TYPELIB_PATH="\${APPDIR}/usr/conda/lib/girepository-1.0"
 export PYTHONHOME="\${APPDIR}/usr/conda"
 export PATH="\${APPDIR}/usr/conda/bin:\${PATH}"
