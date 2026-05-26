@@ -38,6 +38,20 @@
 # 85 production builds can either (a) re-derive the patched SHA from the
 # documented transformation, or (b) maintain a vendored copy of the patched
 # script in the repo and pin its SHA directly.
+#
+# Pitfall 14 (spike-discovered): linuxdeploy walks every .so file already
+# present in the AppDir at invocation time and tries to resolve each one's
+# DT_NEEDED entries via the host's standard library-search rules
+# (/etc/ld.so.cache, /usr/lib, /usr/lib/x86_64-linux-gnu, LD_LIBRARY_PATH,
+# and AppDir/usr/lib). The conda-bundled layout puts every GStreamer lib
+# at $APPDIR/usr/conda/lib/ — which is NOT in any default search path.
+# Without LD_LIBRARY_PATH set, linuxdeploy fails with
+#   "Could not find dependency: libgstbase-1.0.so.0"
+# even though the library is sitting right there in the AppDir. AppRun
+# handles this at runtime via its own LD_LIBRARY_PATH/GST_PLUGIN_PATH
+# exports; linuxdeploy needs the same hint at build time.
+# Mitigation: export LD_LIBRARY_PATH covering $APPDIR/usr/conda/lib (and
+# the gstreamer-1.0 subdir defensively) before invoking linuxdeploy.
 
 set -euo pipefail
 
@@ -150,6 +164,21 @@ docker run --rm --privileged \
     # (Pitfall 2 mitigation; without this the plugin scans /usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0 and bundles nothing)
     export GSTREAMER_PLUGINS_DIR="$APPDIR/usr/conda/lib/gstreamer-1.0"
     export GSTREAMER_HELPERS_DIR="$APPDIR/usr/conda/libexec/gstreamer-1.0"
+
+    # Pitfall 14 mitigation: linuxdeploy walks the AppDir for existing .so
+    # files and tries to resolve their NEEDED deps via standard library
+    # search (/usr/lib, /usr/lib/x86_64-linux-gnu, LD_LIBRARY_PATH,
+    # AppDir/usr/lib). The conda layout puts GStreamer libs at
+    # $APPDIR/usr/conda/lib/ — NOT in any default search path. Without
+    # LD_LIBRARY_PATH set, linuxdeploy fails with "Could not find
+    # dependency: libgstbase-1.0.so.0" even though the lib is right there
+    # in the AppDir. AppRun handles this at runtime via its own env
+    # exports; linuxdeploy needs the same hint at build time.
+    # See 85A-SPIKE-FINDINGS.md (Plan 08) Pitfall 14.
+    # NOTE: no apostrophes in these comments — the entire docker bash -c
+    # body is wrapped in a single-quoted string and an unescaped quote
+    # would terminate the heredoc.
+    export LD_LIBRARY_PATH="$APPDIR/usr/conda/lib:$APPDIR/usr/conda/lib/gstreamer-1.0:${LD_LIBRARY_PATH:-}"
 
     # Bundle
     # --appimage-extract-and-run: FUSE escape hatch for rootless container.
