@@ -1,6 +1,6 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.2
+conmilestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 85a context gathered

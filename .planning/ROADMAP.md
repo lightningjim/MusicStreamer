@@ -64,7 +64,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] 85A-04-PLAN.md — hello_world.py + AppRun template + smoke_test.py (Wave 2)
 - [x] 85A-05-PLAN.md — build.sh end-to-end AppImage assembly (Wave 3)
 - [x] 85A-06-PLAN.md — Distrobox scripts + per-distro programmatic smoke (Wave 4)
-- [ ] 85A-07-PLAN.md — Audible-PASS protocol per distro + screenshots (Wave 5, manual)
+- [x] 85A-07-PLAN.md — Audible-PASS protocol per distro + screenshots (Wave 5, manual)
 - [ ] 85A-08-PLAN.md — SPIKE-FINDINGS.md + skill APPEND wrap-up + teardown (Wave 6)
 
 **Research flag**: YES — `/gsd:plan-phase --research-phase 85a` recommended.
@@ -299,7 +299,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 85a. Linux Packaging Spike | 6/8 | In Progress|  |
+| 85a. Linux Packaging Spike | 7/8 | In Progress|  |
 | 91. FIX-MPRIS | 0/? | Not started | - |
 | 85. Linux Common + AppImage Build | 0/? | Not started | - |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
