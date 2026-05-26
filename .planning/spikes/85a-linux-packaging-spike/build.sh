@@ -61,6 +61,13 @@
 # so cost is mostly cosmetic. Alternative for Phase 85: upgrade build base to
 # ubuntu:24.04 (newer binutils 2.42), but that pushes GLIBC baseline to 2.39
 # (Pitfall 1 regression — fewer distros supported). Spike picks SKIP_CLEANUP.
+#
+# Pitfall 16 (spike-discovered): GLIBC detection via `strings | grep ^GLIBC_`
+# yields false positives from random ASCII coincidences in the compressed
+# squashfs payload (round 8 saw GLIBC_2.147 from one such coincidence even
+# though real ELF symbols topped at 2.17). Mitigation: extract AppImage and
+# walk ELFs with objdump -T to enumerate actual DT_VERNEED symbols. Adds
+# ~10-30s to the build but eliminates the false-positive class.
 
 set -euo pipefail
 
@@ -215,16 +222,47 @@ docker run --rm --privileged \
     mv "$AppImage_path" /work/artifacts/MusicStreamer-spike-x86_64.AppImage
   ' || { echo "BUILD_FAIL exit=$?" >&2; exit 2; }
 
-# Step 4: GLIBC grep on host (Pitfall 1 / success criterion #2)
+# Step 4: GLIBC check on host (Pitfall 1 / success criterion #2)
 APPIMG="${ARTIFACTS}/MusicStreamer-spike-x86_64.AppImage"
 [[ -f "$APPIMG" ]] || { echo "BUILD_FAIL no_appimage=$APPIMG" >&2; exit 2; }
 
-GLIBC_MAX="$(strings "$APPIMG" | grep -E '^GLIBC_[0-9]+\.[0-9]+$' | sort -V | tail -1 || echo "GLIBC_unknown")"
-echo "GLIBC_GREP $GLIBC_MAX"
+# Pitfall 16 mitigation: objdump-based DT_VERNEED scan replaces the prior
+# strings-grep which produced false-positive GLIBC_2.147 from random ASCII
+# coincidence in the compressed squashfs payload. Real GLIBC requirements
+# live in ELF DT_VERNEED sections, which objdump -T enumerates explicitly.
+TMPEXTRACT="$(mktemp -d "${TMPDIR:-/tmp}/85a-glibc-scan.XXXXXX")"
+# Defensive cleanup: trap is per-script-end; we also rm at end of block
+trap 'rm -rf "$TMPEXTRACT"' EXIT INT TERM
 
-# Compare against 2.35
+(
+  cd "$TMPEXTRACT"
+  "$APPIMG" --appimage-extract-and-run --appimage-extract > /dev/null 2>&1 \
+    || "$APPIMG" --appimage-extract > /dev/null 2>&1 \
+    || { echo "BUILD_FAIL: could not extract AppImage for GLIBC scan" >&2; exit 2; }
+)
+
+# Walk all ELFs (objdump silently errors on non-ELFs; harmless). Use find -L
+# to follow conda's symlink farm for libs. Aggregate distinct GLIBC_* tokens.
+GLIBC_MAX="$(
+  find -L "$TMPEXTRACT/squashfs-root" -type f \
+    \( -name '*.so' -o -name '*.so.*' -o -perm /u+x \) \
+    -exec objdump -T {} \; 2>/dev/null \
+  | grep -oE 'GLIBC_[0-9]+\.[0-9]+' \
+  | sort -V -u \
+  | tail -1
+)"
+GLIBC_MAX="${GLIBC_MAX:-GLIBC_unknown}"
+echo "GLIBC_OBJDUMP $GLIBC_MAX (real DT_VERNEED scan)"
+
+# Clean up scan dir before exit-code branches
+rm -rf "$TMPEXTRACT"
+trap - EXIT INT TERM
+
+# Compare against 2.35. The GLIBC_2.[0-9] clause covers single-digit minor
+# (e.g., GLIBC_2.4); GLIBC_2.1? and GLIBC_2.2? cover 10-19 and 20-29;
+# GLIBC_2.3[0-5] covers 30-35.
 case "$GLIBC_MAX" in
-  GLIBC_2.1?|GLIBC_2.2?|GLIBC_2.3[0-5]) echo "GLIBC_OK $GLIBC_MAX <= 2.35" ;;
+  GLIBC_2.[0-9]|GLIBC_2.1?|GLIBC_2.2?|GLIBC_2.3[0-5]) echo "GLIBC_OK $GLIBC_MAX <= 2.35" ;;
   *) echo "GLIBC_FAIL $GLIBC_MAX > 2.35  (Pitfall 1 negative pivot trigger)" >&2; exit 4 ;;
 esac
 
