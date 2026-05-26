@@ -1,0 +1,45 @@
+# Phase 85a Linux Packaging Spike — conda env shape
+#
+# Locked by Phase 43 stack lock (conda-forge channel-only, no `defaults`,
+# no `nodefaults`) and RESEARCH.md §Conda-forge env shape (lines 52-88).
+#
+# Channel pinning rationale:
+#   conda-forge is the ONLY viable bridge between PyGObject + GStreamer 1.28+
+#   and the AppImage. Phase 43 (Windows spike) proved this channel; PKG-LIN-APP-03
+#   ("same plugin set as the Windows installer") inherits the channel choice.
+#   No `defaults` channel — package squatting risk + Phase 43 stack lock (per
+#   spike-findings-musicstreamer/references/windows-gstreamer-bundling.md).
+#
+# Linux-specific divergences from Phase 43's Windows env (RESEARCH.md §Pitfall 7):
+#   - gst-libav        : Linux conda-forge ships AAC/H.264 decoders here (NOT in
+#                        gst-plugins-bad as on Windows). Required for the
+#                        `gst-inspect-1.0 avdec_aac` resolution test.
+#   - gst-python       : Linux must list explicitly (Windows conda-forge meta-pulls).
+#   - glib-networking  : Linux must list explicitly for TLS modules — `souphttpsrc`
+#                        HTTPS path (D-08, `https://ice6.somafm.com/...`) fails with
+#                        "TLS/SSL support not available" without it.
+#
+# Package legitimacy: all 11 packages verified via direct HTTP probe of
+# `anaconda.org/conda-forge/<pkg>/files` (HTTP 200) + Phase 43 production use.
+# See RESEARCH.md §Package Legitimacy Audit (lines 109-127).
+#
+# Version pinning policy: only python is pinned (=3.12). Other packages let
+# conda's solver pick the latest compatible — Plan 08's findings doc captures the
+# actual resolved versions for Phase 85's pin decision. This keeps the spike's
+# input minimal and the failure-surface narrow (the spike is de-risking
+# linuxdeploy-plugin-conda + linuxdeploy-plugin-gstreamer behavior, not solver pins).
+name: spike-linux
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pyside6
+  - pygobject
+  - gst-python
+  - gstreamer
+  - gst-plugins-base
+  - gst-plugins-good
+  - gst-plugins-bad
+  - gst-plugins-ugly
+  - gst-libav
+  - glib-networking
