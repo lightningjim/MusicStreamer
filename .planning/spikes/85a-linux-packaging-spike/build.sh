@@ -20,6 +20,24 @@
 #   CONDA_FETCH_THREADS=1  : serialize conda downloads (env var overrides condarc)
 # Phase 85: production CI should use both. Alternative is to build natively
 # on the host (loses GLIBC <= 2.35 baseline if host is newer than ubuntu:22.04).
+#
+# Pitfall 13 / 13b (spike-discovered, approach P): linuxdeploy-plugin-conda
+# hardcodes the Miniconda3-latest installer URL. Miniconda3 24.x's base
+# condarc declares Anaconda's `defaults` channels (pkgs/main + pkgs/r), and
+# the ToS gate in conda 24.x trips on channel PRESENCE — so even with
+# CONDA_CHANNELS=conda-forge the install aborts asking for ToS acceptance.
+# The plugin's documented CONDA_DOWNLOAD_DIR hook does NOT let us substitute
+# a pre-staged Miniforge installer either, because the plugin runs
+# `touch -d '@0'` + `wget -N` (line 125 of pinned upstream), forcing a
+# re-download regardless of the cached file's mtime.
+#
+# Approach P: post-download SHA-verify the upstream plugin-conda, then apply
+# a deterministic sed transformation that swaps the Miniconda3 URL/filename
+# for Miniforge3 (which ships with conda-forge only, no ToS). Re-verify
+# against LINUXDEPLOY_PLUGIN_CONDA_PATCHED_SHA256 for auditability. Phase
+# 85 production builds can either (a) re-derive the patched SHA from the
+# documented transformation, or (b) maintain a vendored copy of the patched
+# script in the repo and pin its SHA directly.
 
 set -euo pipefail
 
@@ -75,8 +93,10 @@ docker run --rm --privileged \
   -v "${ARTIFACTS}":/work/artifacts \
   -e LINUXDEPLOY_URL -e LINUXDEPLOY_SHA256 \
   -e LINUXDEPLOY_PLUGIN_CONDA_URL -e LINUXDEPLOY_PLUGIN_CONDA_SHA256 \
+  -e LINUXDEPLOY_PLUGIN_CONDA_PATCHED_SHA256 \
   -e LINUXDEPLOY_PLUGIN_GSTREAMER_URL -e LINUXDEPLOY_PLUGIN_GSTREAMER_SHA256 \
   -e MINICONDA_VERSION \
+  -e MINIFORGE_TAG -e MINIFORGE_URL -e MINIFORGE_SHA256 \
   -e CONDA_CHANNELS -e CONDA_PACKAGES \
   ms-spike-build:22.04 \
   bash -euo pipefail -c '
@@ -93,6 +113,16 @@ docker run --rm --privileged \
 
     curl -fsSL -o /tmp/linuxdeploy-plugin-conda.sh "$LINUXDEPLOY_PLUGIN_CONDA_URL"
     echo "$LINUXDEPLOY_PLUGIN_CONDA_SHA256  /tmp/linuxdeploy-plugin-conda.sh" | sha256sum --check
+    # Approach P (Pitfall 13/13b mitigation): deterministic sed patch to swap
+    # the hardcoded Miniconda3 URL to Miniforge3. We narrowly target the
+    # x86_64 path; the dead x86 (32-bit) and aarch64 branches in the upstream
+    # script are intentionally left untouched (they never execute on x86_64
+    # hosts). Re-verify post-patch SHA against the documented pin for audit.
+    sed -i \
+      -e "s|Miniconda3-latest-Linux-x86_64\.sh|Miniforge3-${MINIFORGE_TAG}-Linux-x86_64.sh|g" \
+      -e "s|https://repo\.anaconda\.com/miniconda/|https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_TAG}/|g" \
+      /tmp/linuxdeploy-plugin-conda.sh
+    echo "$LINUXDEPLOY_PLUGIN_CONDA_PATCHED_SHA256  /tmp/linuxdeploy-plugin-conda.sh" | sha256sum --check
     chmod +x /tmp/linuxdeploy-plugin-conda.sh
 
     curl -fsSL -o /tmp/linuxdeploy-plugin-gstreamer.sh "$LINUXDEPLOY_PLUGIN_GSTREAMER_URL"

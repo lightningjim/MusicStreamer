@@ -26,5 +26,6 @@ check_pin() {
 check_pin linuxdeploy "$LINUXDEPLOY_URL" "$LINUXDEPLOY_SHA256"
 check_pin linuxdeploy-plugin-conda "$LINUXDEPLOY_PLUGIN_CONDA_URL" "$LINUXDEPLOY_PLUGIN_CONDA_SHA256"
 check_pin linuxdeploy-plugin-gstreamer "$LINUXDEPLOY_PLUGIN_GSTREAMER_URL" "$LINUXDEPLOY_PLUGIN_GSTREAMER_SHA256"
+check_pin miniforge "$MINIFORGE_URL" "$MINIFORGE_SHA256"
 
 printf 'ALL_PINS_VERIFIED\n'
