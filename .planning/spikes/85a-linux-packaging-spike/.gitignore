@@ -1,0 +1,26 @@
+# Phase 85a Linux Packaging Spike — .gitignore
+#
+# Excludes build artifacts and per-run logs from version control. The build
+# pipeline lives IN build.sh / verify-pins.sh (committed); their outputs do not.
+
+# Build artifact tree (linuxdeploy outputs live here)
+artifacts/
+
+# AppImage outputs (large binary, regenerable from build.sh)
+*.AppImage
+
+# AppDir staging trees (intermediate; mksquashfs source)
+*.AppDir/
+
+# Per-run logs (captured into findings doc when relevant, but raw logs are regenerable)
+build.log
+smoke.log
+
+# Per-distro evidence artifacts (originals embedded in 85A-SPIKE-FINDINGS.md)
+*-screenshot.png
+*-transcript.log
+
+# Plan 03 pin-verification lock file (regenerable from verify-pins.sh; the pin
+# SOURCE lives in build.sh as SHA256 constants — only the verification artifact
+# is gitignored)
+verify-pins.lock
