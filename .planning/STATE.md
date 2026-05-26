@@ -4,8 +4,8 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 85a context gathered
-last_updated: "2026-05-26T00:15:48.712Z"
-last_activity: 2026-05-26 -- Phase 85a planning complete
+last_updated: "2026-05-26T12:50:47.266Z"
+last_activity: 2026-05-26 -- Phase 85A execution started
 progress:
   total_phases: 14
   completed_phases: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87 — gbs-fm-marquee-themed-day-detection
+**Current focus:** Phase 85A — linux-packaging-spike
 
 ## Current Position
 
-Phase: 87 (gbs-fm-marquee-themed-day-detection) — EXECUTING
-Plan: 1 of 6
-Status: Ready to execute
-Last activity: 2026-05-26 -- Phase 85a planning complete
+Phase: 85A (linux-packaging-spike) — EXECUTING
+Plan: 1 of 8
+Status: Executing Phase 85A
+Last activity: 2026-05-26 -- Phase 85A execution started
 
 ## v2.2 Phase Roster
 

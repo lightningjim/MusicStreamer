@@ -58,7 +58,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   4. Spike outcome document captures the AppRun env-var template (`GST_PLUGIN_SYSTEM_PATH_1_0`, `GST_PLUGIN_PATH_1_0`, `GST_PLUGIN_SCANNER`, `GST_REGISTRY_FORK=no`) ready for Phase 85 consumption.
 
 **Plans**: 8 plans across 6 waves
-- [ ] 85A-01-PLAN.md — Host tooling install + environment manifest (Wave 0)
+- [x] 85A-01-PLAN.md — Host tooling install + environment manifest (Wave 0)
 - [ ] 85A-02-PLAN.md — Dockerfile + environment-spike.yml (Wave 1, parallel with 03)
 - [ ] 85A-03-PLAN.md — Toolchain SHA256 pins + verify-pins.sh drift-guard (Wave 1, parallel with 02)
 - [ ] 85A-04-PLAN.md — hello_world.py + AppRun template + smoke_test.py (Wave 2)
@@ -299,7 +299,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 85a. Linux Packaging Spike | 0/? | Not started | - |
+| 85a. Linux Packaging Spike | 1/8 | In Progress|  |
 | 91. FIX-MPRIS | 0/? | Not started | - |
 | 85. Linux Common + AppImage Build | 0/? | Not started | - |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
