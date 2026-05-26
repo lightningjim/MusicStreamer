@@ -11,6 +11,15 @@
 # which fails in rootless containers (--user mapping). The --appimage-extract-and-run
 # flag is the documented escape hatch. The PRODUCED AppImage also inherits this
 # behavior — consumers in containers/CI must use the same flag.
+#
+# Pitfall 12 (spike-discovered): docker bridge networking + conda parallel
+# fetch over HTTPS = intermittent CondaSSLError record-layer failures on
+# multi-MB conda-forge package downloads (qt6-main, libllvm22, etc.).
+# Mitigations applied:
+#   --network=host         : bypasses docker bridge MTU/proxy
+#   CONDA_FETCH_THREADS=1  : serialize conda downloads (env var overrides condarc)
+# Phase 85: production CI should use both. Alternative is to build natively
+# on the host (loses GLIBC <= 2.35 baseline if host is newer than ubuntu:22.04).
 
 set -euo pipefail
 
@@ -57,9 +66,11 @@ export CONDA_PACKAGES="python=3.12;pyside6;pygobject;gst-python;gstreamer;gst-pl
 # Plugin scripts placed in /tmp/ + PATH=/tmp:$PATH inside container — non-root cannot
 # cp into /usr/local/bin; linuxdeploy resolves plugins via `command -v linuxdeploy-plugin-<name>`.
 docker run --rm --privileged \
+  --network=host \
   --user "$(id -u):$(id -g)" \
   -e HOME=/tmp/_home \
   -e XDG_CACHE_HOME=/tmp/_cache \
+  -e CONDA_FETCH_THREADS=1 \
   -v "${HERE}":/work \
   -v "${ARTIFACTS}":/work/artifacts \
   -e LINUXDEPLOY_URL -e LINUXDEPLOY_SHA256 \
