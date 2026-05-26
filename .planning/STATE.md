@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 conmilestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 85a context gathered
-last_updated: "2026-05-26T12:50:47.266Z"
+status: ready_to_plan
+stopped_at: Phase 85A complete (8/8) — ready to discuss Phase 87
+last_updated: 2026-05-26T23:48:38.502Z
 last_activity: 2026-05-26 -- Phase 85A execution started
 progress:
   total_phases: 14
   completed_phases: 0
   total_plans: 14
-  completed_plans: 1
+  completed_plans: 9
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 85A — linux-packaging-spike
+**Current focus:** Phase 87 — gbs fm marquee themed day detection
 
 ## Current Position
 
-Phase: 85A (linux-packaging-spike) — EXECUTING
-Plan: 1 of 8
-Status: Executing Phase 85A
-Last activity: 2026-05-26 -- Phase 85A execution started
+Phase: 87
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-26
 
 ## v2.2 Phase Roster
 
@@ -76,7 +76,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 200+ (v1.0–v2.1 combined)
+- Total plans completed: 208+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 

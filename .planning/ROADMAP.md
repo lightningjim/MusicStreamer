@@ -299,7 +299,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 85a. Linux Packaging Spike | 8/8 | Complete   | 2026-05-26 |
+| 85a. Linux Packaging Spike | 8/8 | Complete    | 2026-05-26 |
 | 91. FIX-MPRIS | 0/? | Not started | - |
 | 85. Linux Common + AppImage Build | 0/? | Not started | - |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
