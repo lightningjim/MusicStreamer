@@ -52,6 +52,15 @@
 # exports; linuxdeploy needs the same hint at build time.
 # Mitigation: export LD_LIBRARY_PATH covering $APPDIR/usr/conda/lib (and
 # the gstreamer-1.0 subdir defensively) before invoking linuxdeploy.
+#
+# Pitfall 15 (spike-discovered): ubuntu:22.04's binutils 2.38 `strip` segfaults
+# on newer conda-forge .so files (OpenVINO ~2026.0.0, absl ~2601.0.0, etc.)
+# during plugin-conda's cleanup-strip pass. Mitigation: CONDA_SKIP_CLEANUP=strip
+# (documented opt-out exposed by plugin-conda).
+# Trade-off: larger AppImage. Conda-forge ships pre-stripped tarballs already
+# so cost is mostly cosmetic. Alternative for Phase 85: upgrade build base to
+# ubuntu:24.04 (newer binutils 2.42), but that pushes GLIBC baseline to 2.39
+# (Pitfall 1 regression — fewer distros supported). Spike picks SKIP_CLEANUP.
 
 set -euo pipefail
 
@@ -103,6 +112,7 @@ docker run --rm --privileged \
   -e HOME=/tmp/_home \
   -e XDG_CACHE_HOME=/tmp/_cache \
   -e CONDA_FETCH_THREADS=1 \
+  -e CONDA_SKIP_CLEANUP=strip \
   -v "${HERE}":/work \
   -v "${ARTIFACTS}":/work/artifacts \
   -e LINUXDEPLOY_URL -e LINUXDEPLOY_SHA256 \
