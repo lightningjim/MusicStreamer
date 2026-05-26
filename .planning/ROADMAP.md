@@ -63,7 +63,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] 85A-03-PLAN.md — Toolchain SHA256 pins + verify-pins.sh drift-guard (Wave 1, parallel with 02)
 - [x] 85A-04-PLAN.md — hello_world.py + AppRun template + smoke_test.py (Wave 2)
 - [x] 85A-05-PLAN.md — build.sh end-to-end AppImage assembly (Wave 3)
-- [ ] 85A-06-PLAN.md — Distrobox scripts + per-distro programmatic smoke (Wave 4)
+- [x] 85A-06-PLAN.md — Distrobox scripts + per-distro programmatic smoke (Wave 4)
 - [ ] 85A-07-PLAN.md — Audible-PASS protocol per distro + screenshots (Wave 5, manual)
 - [ ] 85A-08-PLAN.md — SPIKE-FINDINGS.md + skill APPEND wrap-up + teardown (Wave 6)
 
@@ -299,7 +299,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 85a. Linux Packaging Spike | 5/8 | In Progress|  |
+| 85a. Linux Packaging Spike | 6/8 | In Progress|  |
 | 91. FIX-MPRIS | 0/? | Not started | - |
 | 85. Linux Common + AppImage Build | 0/? | Not started | - |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
