@@ -195,7 +195,7 @@ SPIKE_OK url='http://ice1.somafm.com/groovesalad-128-mp3' time_to_play_s=0.23 fi
 
 | Flag | File | Description |
 |------|------|-------------|
-| threat_flag: bundle-defect | .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage | **HTTPS playback fails on all three distros AND on the bare host** with `Internal data stream error / Stream doesn't contain enough data / Can't typefind stream` from souphttpsrc + typefindelement. TLS handshake completes (curl confirms `200 OK` from ice6.somafm.com:443; smoke's `--assert-tls` mode confirms `GTlsBackendOpenssl + has_default_database=True`). Reproduces on bare host using the same extracted AppImage + manual env-export, so this is a **bundle / GStreamer-config defect, not a container or per-distro issue**. Per CONTEXT.md D-08: "If HTTP works but HTTPS doesn't, Phase 85's bundle is incomplete and we want to know NOW." This needs Kyle's decision: (a) accept HTTPS gap as documented finding and continue, OR (b) Plan 05 redo to investigate (likely missing or misconfigured `glib-networking` / `souphttpsrc` interaction with Icecast-over-TLS streams). |
+| ~~threat_flag: bundle-defect~~ **RESOLVED** | ~~MusicStreamer-spike-x86_64.AppImage~~ | **CLOSED** in post-Plan-06 debug session (commits d5c275c, f8cc059). Root cause: bundled OpenSSL's default trust-store search path didn't include the conda env's CA bundle, producing "Unacceptable TLS certificate" at the libsoup layer (TLS backend itself loaded correctly, hence the misleading `--assert-tls` pass). Fix: `export SSL_CERT_FILE="${APPDIR}/usr/conda/ssl/cacert.pem"` in both AppRun and run-smoke.sh's manual env-export block. Captured as **Pitfall 17** in the spike findings. Re-run of `run-smoke.sh all` against the rebuilt AppImage produces `SPIKE_OK` on HTTPS for all three distros (Ubuntu 22.04: 35.08s, Fedora 40: 35.08s, Tumbleweed: 35.07s — all `time_to_play_s ≤ 0.37`). D-08 gap fully closed; AppImage remains self-contained (no host `/etc/ssl/certs/` dependency). |
 
 ## Tasks completed
 
@@ -204,7 +204,7 @@ SPIKE_OK url='http://ice1.somafm.com/groovesalad-128-mp3' time_to_play_s=0.23 fi
 | 1    | Author create/teardown scripts; create 3 distroboxes | 459fb0b, 53255c7 | tools/linux-spike/create-distroboxes.sh, teardown-distroboxes.sh |
 | 2    | Author run-smoke.sh; capture per-distro transcripts | 8f4d3f7 | tools/linux-spike/run-smoke.sh; 3 transcripts at .planning/spikes/.../artifacts/ |
 
-## Self-Check: PASSED (with HTTPS-finding flagged)
+## Self-Check: PASSED (HTTPS gap closed post-Plan-06 via Pitfall 17 fix)
 
 - [x] AppImage copied from primary worktree into agent worktree (504 MB, byte-identical)
 - [x] tools/linux-spike/create-distroboxes.sh present + executable + `bash -n` clean + no `--init` flag
@@ -217,7 +217,7 @@ SPIKE_OK url='http://ice1.somafm.com/groovesalad-128-mp3' time_to_play_s=0.23 fi
 - [x] GLIBC max ≤ 2.35 on each (`GLIBC_2.17` from the bundled python; well below cap)
 - [x] `plugin_resolved=avdec_aac` AND `plugin_resolved=aacparse` per transcript
 - [x] TLS backend asserted on each (`GTlsBackendOpenssl + has_default_database=True`)
-- [ ] **HTTPS playback succeeds on at least Ubuntu 22.04 (D-08): FAILS — bundle defect, reproducible on host. Flagged as `threat_flag: bundle-defect`. Plan 06 cannot resolve this; it is a Plan 05 / Phase 85a pivot question.**
+- [x] **HTTPS playback succeeds on all 3 distros (D-08 fully closed)** — initial Plan 06 run flagged a bundle defect (`Unacceptable TLS certificate`); post-Plan-06 debug session traced it to missing `SSL_CERT_FILE` export in AppRun (Pitfall 17). Fix committed (`d5c275c` AppRun + `f8cc059` run-smoke.sh), AppImage rebuilt, smoke re-run produces SPIKE_OK on HTTPS across all 3 distros.
 - [x] 3 commits made on the agent worktree branch (459fb0b feat + 53255c7 fix + 8f4d3f7 feat); SUMMARY.md commit pending
 - [x] STATE.md / ROADMAP.md NOT modified (per orchestrator instruction)
 - [x] Files verified present:
