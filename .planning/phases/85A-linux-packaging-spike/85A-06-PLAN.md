@@ -212,12 +212,14 @@ Both scripts chmod +x. RUN create-distroboxes.sh after writing both files. Captu
     - content-grep: `grep -q 'avdec_aac' tools/linux-spike/run-smoke.sh`
     - content-grep: `grep -q 'http://ice1.somafm.com/groovesalad' tools/linux-spike/run-smoke.sh`
     - content-grep: `grep -q 'https://ice6.somafm.com/groovesalad' tools/linux-spike/run-smoke.sh`
+    - content-grep (double-quoted host-side APPIMG passthrough — Issue #3 fix): `grep -qE 'env APPIMG="\$APPIMG"' tools/linux-spike/run-smoke.sh`
+    - content-grep (no broken single-quoted variant): `! grep -qE "env APPIMG='\\\$APPIMG'" tools/linux-spike/run-smoke.sh`
     - file-exists (3 transcripts): `test -f .planning/spikes/85a-linux-packaging-spike/artifacts/ubuntu22-transcript.log && test -f .planning/spikes/85a-linux-packaging-spike/artifacts/fedora40-transcript.log && test -f .planning/spikes/85a-linux-packaging-spike/artifacts/tumbleweed-transcript.log`
     - content-grep (SPIKE_OK present per distro): `for d in ubuntu22 fedora40 tumbleweed; do grep -v '^#' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log | grep -q SPIKE_OK || { echo "NO SPIKE_OK $d"; exit 1; }; done`
     - content-grep (GLIBC <= 2.35 per distro): `for d in ubuntu22 fedora40 tumbleweed; do grep -E 'GLIBC_[0-9]+\.[0-9]+' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log | sort -V | tail -1 | grep -qE 'GLIBC_2\.(1[0-9]|2[0-9]|3[0-5])$' || { echo "GLIBC drift $d"; exit 1; }; done`
-    - content-grep (avdec_aac + aacparse resolved per distro): `for d in ubuntu22 fedora40 tumbleweed; do grep -qE 'plugin_resolved=.avdec_aac' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -qE 'plugin_resolved=.aacparse' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log || { echo "plugin miss $d"; exit 1; }; done`
+    - content-grep (avdec_aac + aacparse resolved per distro — literal `plugin_resolved=` marker substring contract with Plan 04 Task 3): `for d in ubuntu22 fedora40 tumbleweed; do grep -qE 'plugin_resolved=.avdec_aac' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -qE 'plugin_resolved=.aacparse' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log || { echo "plugin miss $d"; exit 1; }; done`
   </acceptance_criteria>
-  <action>(A) Create `tools/linux-spike/run-smoke.sh`:
+  <action>(A) Create `tools/linux-spike/run-smoke.sh`. Single approach (no alternative paths): smoke_test.py is referenced via its absolute host path on `$SPIKE_DIR` — distrobox $HOME sharing makes the path resolve identically inside the container. APPIMG is passed via `env` with **double quotes** so the host shell expands the variable before `distrobox enter` runs (Issue #3 fix). The inner heredoc that emits the in-container script body uses **unquoted `<<INNER`** so host-side variables `$APPIMG` and `$SPIKE_DIR` are interpolated at heredoc-emit time; markers we want to appear literally in the in-container script are NOT used (the in-container body just references `$APPIMG` from its `env`-injected environment, with no further escaping needed since the variable name is the same inside and outside).
 
 ```
 #!/usr/bin/env bash
@@ -228,7 +230,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPIKE_DIR="$(cd "${HERE}/../../.planning/spikes/85a-linux-packaging-spike" && pwd)"
 APPIMG="${SPIKE_DIR}/artifacts/MusicStreamer-spike-x86_64.AppImage"
+SMOKE_PY="${SPIKE_DIR}/smoke_test.py"
 [[ -x "$APPIMG" ]] || { echo "MISSING_APPIMAGE $APPIMG (run Plan 05 build.sh first)" >&2; exit 1; }
+[[ -f "$SMOKE_PY" ]] || { echo "MISSING_SMOKE $SMOKE_PY (run Plan 04 first)" >&2; exit 1; }
 
 TARGET="${1:-all}"
 case "$TARGET" in
@@ -239,27 +243,32 @@ case "$TARGET" in
   *)           echo "USAGE: $0 [ubuntu22|fedora40|tumbleweed|all]" >&2; exit 1 ;;
 esac
 
+# Build the in-container script body. Host-side variables ($APPIMG, $SMOKE_PY) are
+# interpolated at emit time via the UNQUOTED heredoc tag `<<INNER`. The in-container
+# script reads $APPIMG from the env passed via `env APPIMG="$APPIMG"` below.
 run_modes_in_box() {
-  local box="$1"
-  cat <<'INNER'
+  cat <<INNER
 set -x
-echo "DISTRO_PROBE start=$(date -u +%s)"
+echo "DISTRO_PROBE start=\$(date -u +%s)"
 echo "CONTAINER_OS_RELEASE_BEGIN"
 cat /etc/os-release || true
 echo "CONTAINER_OS_RELEASE_END"
 
-APPIMG="$APPIMG"
+# APPIMG comes from the env passthrough below; SMOKE_PY is the absolute host path
+# (distrobox shares \$HOME so the same path resolves inside the container).
+SMOKE_PY="${SMOKE_PY}"
+
 # Mode 1: GLIBC (run from inside container; sees container's libc + AppImage's referenced symbols)
-"$APPIMG" --appimage-extract-and-run python /work/smoke_test.py --check-glibc "$APPIMG" || echo "SPIKE_FAIL mode=glibc"
+"\$APPIMG" --appimage-extract-and-run python "\$SMOKE_PY" --check-glibc "\$APPIMG" || echo "SPIKE_FAIL mode=glibc"
 # Mode 2: plugin resolution
-"$APPIMG" --appimage-extract-and-run python /work/smoke_test.py --check-plugins avdec_aac,aacparse
+"\$APPIMG" --appimage-extract-and-run python "\$SMOKE_PY" --check-plugins avdec_aac,aacparse
 # Mode 3: TLS backend
-"$APPIMG" --appimage-extract-and-run python /work/smoke_test.py --assert-tls
+"\$APPIMG" --appimage-extract-and-run python "\$SMOKE_PY" --assert-tls
 # Mode 4: HTTP playback (primary stream, D-07)
-"$APPIMG" --appimage-extract-and-run python /work/smoke_test.py --uri http://ice1.somafm.com/groovesalad-128-mp3 --timeout 35
+"\$APPIMG" --appimage-extract-and-run python "\$SMOKE_PY" --uri http://ice1.somafm.com/groovesalad-128-mp3 --timeout 35
 # Mode 5: HTTPS playback (D-08)
-"$APPIMG" --appimage-extract-and-run python /work/smoke_test.py --uri https://ice6.somafm.com/groovesalad-128-mp3 --timeout 35
-echo "DISTRO_PROBE end=$(date -u +%s)"
+"\$APPIMG" --appimage-extract-and-run python "\$SMOKE_PY" --uri https://ice6.somafm.com/groovesalad-128-mp3 --timeout 35
+echo "DISTRO_PROBE end=\$(date -u +%s)"
 INNER
 }
 
@@ -267,23 +276,26 @@ for box in "${DISTROS[@]}"; do
   short="${box#ms-spike-}"
   log="${SPIKE_DIR}/artifacts/${short}-transcript.log"
   echo "RUN_SMOKE box=$box log=$log"
-  script -q -c "distrobox enter $box --no-tty -- env APPIMG='$APPIMG' bash -c \"$(run_modes_in_box "$box")\"" "$log"
+  # NOTE: env APPIMG="$APPIMG" uses DOUBLE quotes so the host shell interpolates $APPIMG
+  # before `distrobox enter` is invoked. (Single quotes would pass the literal string `$APPIMG`.)
+  script -q -c "distrobox enter $box --no-tty -- env APPIMG=\"$APPIMG\" bash -c \"$(run_modes_in_box)\"" "$log"
 done
 
 echo "ALL_DISTROS_SMOKED"
 ```
 
-Note: `distrobox enter --no-tty` keeps stdin/stdout sane under `script(1)`. The AppImage path `/work` inside distrobox resolves to host's `$HOME` parent share by default since distrobox mounts $HOME — but the AppImage path inside the container should be the host absolute path (distrobox shares $HOME so /home/kcreasey/... resolves the same in-container). Use the full host path of the AppImage inside the container — distrobox path passthrough handles it via $HOME share.
+Key invariants (Issue #3 + Issue #4 fixes):
+- The `env APPIMG="$APPIMG"` form on the `distrobox enter` line uses double quotes so the host shell expands `$APPIMG` to its actual path BEFORE the subprocess is launched. (The previous single-quoted form passed the literal string `$APPIMG` to env, which would have broken plugin resolution inside the container.)
+- The `run_modes_in_box` heredoc uses unquoted `<<INNER` so `${SMOKE_PY}` interpolates at emit time, while `\$APPIMG` and `\$SMOKE_PY` are escaped so they remain literal `$APPIMG` / `$SMOKE_PY` in the emitted script (the container shell expands them from the env passthrough).
+- smoke_test.py is referenced at its absolute host path (`$SPIKE_DIR/smoke_test.py`) — single approach. The previous "alternatively run from `/work/`" paragraph has been DELETED; there is one path here.
 
-Also expose smoke_test.py to the container by mounting it via the AppImage's `--appimage-extract-and-run` flag (the AppImage embeds smoke_test.py per Plan 05 task). Alternatively run smoke_test.py from the host-shared $HOME path: `python "${SPIKE_DIR}/smoke_test.py"` (distrobox $HOME share means the same file). Use that simpler path — drop the `/work/` prefix and use absolute paths to `${SPIKE_DIR}/smoke_test.py`.
-
-(B) Run `bash tools/linux-spike/run-smoke.sh all`. This populates the three transcript files. Verify SPIKE_OK appears in each, GLIBC <= 2.35 grep matches in each, avdec_aac + aacparse plugin_resolved markers present in each.
+(B) Run `bash tools/linux-spike/run-smoke.sh all`. This populates the three transcript files. Verify SPIKE_OK appears in each, GLIBC <= 2.35 grep matches in each, `plugin_resolved=avdec_aac` + `plugin_resolved=aacparse` marker substrings present in each (the literal `plugin_resolved=` prefix is locked at author-time in Plan 04 Task 3 — see Issue #4 fix in that plan).
 
 If any distro fails programmatically: STOP and report (per CONTEXT.md D-09 negative-pivot policy). Do not try to "fix" by silently relaxing assertions.</action>
   <verify>
-    <automated>test -x tools/linux-spike/run-smoke.sh && bash -n tools/linux-spike/run-smoke.sh && grep -q 'distrobox enter' tools/linux-spike/run-smoke.sh && grep -q 'script -q' tools/linux-spike/run-smoke.sh && bash tools/linux-spike/run-smoke.sh all && for d in ubuntu22 fedora40 tumbleweed; do test -f .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -q SPIKE_OK .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -E 'GLIBC_[0-9]+\.[0-9]+' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log | sort -V | tail -1 | grep -qE 'GLIBC_2\.(1[0-9]|2[0-9]|3[0-5])$' && grep -qE 'plugin_resolved=.avdec_aac' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -qE 'plugin_resolved=.aacparse' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log; done</automated>
+    <automated>test -x tools/linux-spike/run-smoke.sh && bash -n tools/linux-spike/run-smoke.sh && grep -q 'distrobox enter' tools/linux-spike/run-smoke.sh && grep -q 'script -q' tools/linux-spike/run-smoke.sh && grep -qE 'env APPIMG="\$APPIMG"' tools/linux-spike/run-smoke.sh && bash tools/linux-spike/run-smoke.sh all && for d in ubuntu22 fedora40 tumbleweed; do test -f .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -q SPIKE_OK .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -E 'GLIBC_[0-9]+\.[0-9]+' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log | sort -V | tail -1 | grep -qE 'GLIBC_2\.(1[0-9]|2[0-9]|3[0-5])$' && grep -qE 'plugin_resolved=.avdec_aac' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log && grep -qE 'plugin_resolved=.aacparse' .planning/spikes/85a-linux-packaging-spike/artifacts/${d}-transcript.log; done</automated>
   </verify>
-  <done>run-smoke.sh exists + executable + syntax-valid; running `run-smoke.sh all` produces three transcripts; each has SPIKE_OK + GLIBC <= 2.35 + both plugins resolved.</done>
+  <done>run-smoke.sh exists + executable + syntax-valid; APPIMG passthrough uses double-quoted host-shell interpolation; running `run-smoke.sh all` produces three transcripts; each has SPIKE_OK + GLIBC <= 2.35 + both `plugin_resolved=` markers.</done>
 </task>
 
 </tasks>
@@ -292,7 +304,7 @@ If any distro fails programmatically: STOP and report (per CONTEXT.md D-09 negat
 - 3 scripts under `tools/linux-spike/` committed
 - 3 transcripts under `.planning/spikes/85a-linux-packaging-spike/artifacts/` (gitignored but produced)
 - All three transcripts contain: `SPIKE_OK` (playback PASS), `GLIBC_2.x` line with x <= 35, `plugin_resolved=avdec_aac`, `plugin_resolved=aacparse`
-- HTTPS variant succeeds on at least Ubuntu 22.04 distrobox (D-08 coverage)
+- HTTPS variant succeeds on at least Ubuntu 22.04 distrobox (D-08 programmatic coverage; D-08 audible coverage lives in Plan 07 Task 1 step 8)
 </verification>
 
 <success_criteria>
@@ -305,3 +317,5 @@ If any distro fails programmatically: STOP and report (per CONTEXT.md D-09 negat
 <output>
 Create `.planning/phases/85A-linux-packaging-spike/85A-06-SUMMARY.md` when done. Capture: per-distro GLIBC max observed, per-distro elected audio sink (Pitfall 10 logging), HTTPS TLS backend module filename observed, any distro-specific notes (e.g., Tumbleweed kernel surprises).
 </output>
+</content>
+</invoke>

@@ -589,32 +589,39 @@ distrobox list
 | A5 | Distrobox passes `XDG_RUNTIME_DIR` (pipewire socket) into the container by default for audio | Architecture diagram | If audio doesn't work in distrobox on first try, add `--additional-flags "--volume $XDG_RUNTIME_DIR:$XDG_RUNTIME_DIR"` to `create-distroboxes.sh` |
 | A6 | `gnome-screenshot --window` works on GNOME Wayland for capturing a single window | Per-Distro Evidence Workflow | If portal-only screenshot is enforced on the host's GNOME version, fall back to `grim` (Sway-compatible but works on most wlroots; on GNOME may need `gdbus call --session --dest=org.gnome.Shell.Screenshot ...`) |
 
-## Open Questions
+## Open Questions (RESOLVED-VIA-SPIKE)
+
+> All five open questions carry a `Recommendation:` that plans implement, so they are NOT blockers — they are answered either at planning time (by the planner adopting the recommendation) or at execution time (when the spike actually runs and observes behavior). Per-question disposition below.
 
 1. **Does `linuxdeploy-plugin-gstreamer` honor `GSTREAMER_PLUGINS_DIR` when pointed at a non-multiarch flat layout?**
    - What we know: The plugin source supports `GSTREAMER_PLUGINS_DIR` as an override. The fall-through scan order is multiarch-first.
    - What's unclear: Whether the plugin's discovery loop walks subdirectories or assumes a flat `*.so` listing.
    - Recommendation: Spike's first iteration is this test; if it fails, the spike's PRIMARY finding is "plugin needs hand-rolled replacement" — this is the load-bearing unknown.
+   - **Status:** ANSWERED-AT-EXECUTION (Plan 05 build.sh exercises the override; outcome documented in 85A-SPIKE-FINDINGS.md)
 
 2. **Does Phase 43's `GST_PLUGIN_SCANNER_1_0` env var (note the trailing `_1_0`) supersede `GST_PLUGIN_SCANNER` in 1.28+?**
    - What we know: The plugin's hook sets `GST_PLUGIN_SCANNER_1_0` (suffix); Phase 43 Windows uses `GST_PLUGIN_SCANNER` (no suffix).
    - What's unclear: Whether the suffix-form is current and the no-suffix is legacy, or vice versa.
    - Recommendation: AppRun template sets BOTH defensively; smoke_test logs which one GStreamer actually picked up.
+   - **Status:** RESOLVED via Plan 04 Task 2 (AppRun sets both spellings defensively)
 
 3. **Does conda-forge ship `glib-networking` with OpenSSL or GnuTLS backend on linux-64?**
    - What we know: Phase 43 (Windows) flipped to OpenSSL in 1.28.x. Linux side hasn't been validated.
    - What's unclear: Which `.so` ships in `$CONDA_PREFIX/lib/gio/modules/`.
    - Recommendation: smoke_test's TLS assertion is backend-agnostic (`has_default_database`); findings doc captures the module filename.
+   - **Status:** RESOLVED via Plan 04 Task 3 (smoke_test.py TLS assertion is backend-agnostic — just asserts HTTPS URL reaches PLAYING)
 
 4. **Will Tumbleweed's rolling kernel introduce a runtime surprise the build container can't predict?**
    - What we know: As of 2026-05, Tumbleweed ships GLIBC 2.42. The AppImage built against GLIBC 2.35 binary-runs on 2.42 (forward-compatible).
    - What's unclear: Whether any GStreamer or Qt library inside the bundle has a glibc-version-conditional behavior (rare but possible).
    - Recommendation: Tumbleweed is the third (hardest) distro for a reason — if it fails, the failure mode itself is the finding.
+   - **Status:** ANSWERED-AT-EXECUTION (Plan 07 Task 3 audible PASS on Tumbleweed distrobox; if surprise occurs, finding documented per negative-pivot policy)
 
 5. **Is the dev rig's GNOME version recent enough for `gnome-screenshot --window` to capture distrobox-launched windows?**
    - What we know: Host is Ubuntu 26.04 + GNOME Wayland; `gnome-screenshot` is installable via apt.
    - What's unclear: Whether the host's xdg-desktop-portal version supports capturing windows owned by distrobox-side processes.
    - Recommendation: Test once before spike begins; fall back to `grim` if needed.
+   - **Status:** RESOLVED via Plan 01 (host probe + both tools installed) and Plan 07 (`.action` documents grim fallback if gnome-screenshot --window fails)
 
 ## Environment Availability
 

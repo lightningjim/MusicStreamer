@@ -26,6 +26,7 @@ must_haves:
     - "GSTREAMER_PLUGINS_DIR + GSTREAMER_HELPERS_DIR exports happen INSIDE the Docker build context BEFORE ./linuxdeploy --plugin gstreamer (Pitfall 2 mitigation)"
     - "build.sh GLIBC-greps the produced AppImage and exits 4 if > GLIBC_2.35 (Pitfall 1 + success criterion #2)"
     - "Final AppImage lands at .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage"
+    - "AppImage discovery in the build container uses `find` with explicit exclusion of linuxdeploy plugin AppImages (Issue #5 fix — broad `./*.AppImage` glob is fragile and could match linuxdeploy.AppImage)"
     - "Minimum viable .desktop + icon present so linuxdeploy accepts the AppDir as well-formed (no MIME=audio yet; that's Phase 85)"
   artifacts:
     - path: ".planning/spikes/85a-linux-packaging-spike/build.sh"
@@ -109,6 +110,7 @@ export GSTREAMER_HELPERS_DIR="$APPDIR/usr/conda/libexec/gstreamer-1.0"
 | T-85A-05-SC | Tampering | Toolchain asset drift between pin time and build time | mitigate | build.sh sources pins.env then calls `verify-pins.sh` as its FIRST step (after Dockerfile check); fail-fast on drift before any other side-effects |
 | T-85A-05-SC2 | Tampering | conda solver pulls package that wasn't in environment-spike.yml | accept (low) | Channel-only conda-forge pin; environment-spike.yml is the deps source-of-truth; Phase 85 will pin specific versions |
 | T-85A-05-EoP | EoP | Docker container running as root | accept | Docker container is throwaway; produces only an .AppImage file copied back to host workspace; no host filesystem modifications outside `.planning/spikes/85a-linux-packaging-spike/artifacts/` |
+| T-85A-05-AR | Tampering | AppImage produced filename glob picking up linuxdeploy.AppImage | mitigate | Use `find` with `-not -name 'linuxdeploy*'` + `-not -name 'linuxdeploy-plugin-*'` + `-newer /work/AppRun` exclusion (Issue #5 fix) instead of the broad `./*.AppImage` glob; hard-fail with `SPIKE_FAIL: no AppImage produced` if find returns empty |
 </threat_model>
 
 <tasks>
@@ -195,6 +197,9 @@ If `desktop-file-validate` is not installed in the host shell, the test's `||tru
     - content-grep: `grep -q 'GSTREAMER_HELPERS_DIR' .planning/spikes/85a-linux-packaging-spike/build.sh`
     - content-grep (order check): the line containing `GSTREAMER_PLUGINS_DIR=` MUST appear BEFORE the line containing `linuxdeploy.*--plugin gstreamer`: `awk '/GSTREAMER_PLUGINS_DIR=/{ord=NR} /linuxdeploy.*--plugin gstreamer/{if(NR<ord||ord==0){exit 1}} END{exit 0}' .planning/spikes/85a-linux-packaging-spike/build.sh`
     - content-grep: `grep -qE 'docker (build|run).*ubuntu' .planning/spikes/85a-linux-packaging-spike/build.sh`
+    - content-grep (Issue #5 — robust AppImage discovery): `grep -qE "find .*-not -name 'linuxdeploy" .planning/spikes/85a-linux-packaging-spike/build.sh` (uses find with linuxdeploy exclusion, not the fragile broad glob)
+    - content-grep (Issue #5 — explicit "no AppImage" hard-fail path): `grep -q 'SPIKE_FAIL: no AppImage produced' .planning/spikes/85a-linux-packaging-spike/build.sh`
+    - content-grep (Issue #5 — fragile broad glob is GONE): `! grep -qE 'mv ./\\*\.AppImage' .planning/spikes/85a-linux-packaging-spike/build.sh`
     - content-grep: `grep -qE 'strings.*GLIBC_|GLIBC_2\\.35' .planning/spikes/85a-linux-packaging-spike/build.sh` (GLIBC grep present)
     - content-grep: `grep -qE 'exit 4' .planning/spikes/85a-linux-packaging-spike/build.sh` (GLIBC > 2.35 exit path present)
     - file-exists post-build: `test -f .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage`
@@ -290,9 +295,18 @@ docker run --rm --privileged \
       --icon-file "$APPDIR/musicstreamer-spike.svg" \
       --output appimage
 
-    # Move output to artifacts/
-    mv MusicStreamer*Spike*.AppImage /work/artifacts/MusicStreamer-spike-x86_64.AppImage 2>/dev/null \
-      || mv ./*.AppImage /work/artifacts/MusicStreamer-spike-x86_64.AppImage
+    # Locate the produced AppImage robustly (Issue #5 fix):
+    #   - linuxdeploy may use any of: MusicStreamer_Spike-*.AppImage, "MusicStreamer Spike-*.AppImage",
+    #     MusicStreamer-Spike-*.AppImage, etc. — the exact form depends on .desktop Name= sanitization.
+    #   - The broad "./*.AppImage" glob is unsafe: linuxdeploy.AppImage + linuxdeploy-plugin-*.AppImage
+    #     also live in /tmp/ but could be copied into /work/ at any stage.
+    #   - Use `find` with explicit exclusions of linuxdeploy plugin AppImages + `-newer /work/AppRun`
+    #     so we only catch AppImages produced AFTER the AppDir was assembled.
+    AppImage_path=$(find /work -maxdepth 1 -name "*.AppImage" \
+      -not -name "linuxdeploy*" -not -name "linuxdeploy-plugin-*" \
+      -newer /work/AppRun 2>/dev/null | head -1)
+    [ -n "$AppImage_path" ] || { echo "SPIKE_FAIL: no AppImage produced"; exit 2; }
+    mv "$AppImage_path" /work/artifacts/MusicStreamer-spike-x86_64.AppImage
   ' || { echo "BUILD_FAIL exit=$?" >&2; exit 2; }
 
 # Step 4: GLIBC grep on host (Pitfall 1 / success criterion #2)
@@ -311,13 +325,15 @@ esac
 echo "BUILD_OK appimage=$APPIMG glibc=$GLIBC_MAX"
 ```
 
+Note on Issue #5 fix: The `find` invocation explicitly excludes `linuxdeploy*` and `linuxdeploy-plugin-*` AppImages (which live under `/tmp/` but could in theory be picked up if anyone copies them into `/work/`). The `-newer /work/AppRun` clause adds a temporal safety belt — the AppRun is copied into AppDir before linuxdeploy runs, so any AppImage newer than AppRun is by-construction the output of this build run. If `find` returns empty, the script hard-fails with `SPIKE_FAIL: no AppImage produced` rather than silently moving the wrong file. The previous `mv MusicStreamer*Spike*.AppImage ... || mv ./*.AppImage ...` chain has been removed because the second clause was unsafe (would match `linuxdeploy.AppImage` if it were ever in `/work/`).
+
 Pause and ASK Kyle to confirm the build ran to completion (or report any failure with the exact failure mode for negative-pivot per D-09).</action>
   <resume-signal>Kyle types "built" once the build.sh run produced the AppImage with GLIBC <= 2.35. If it failed, Kyle reports the failure mode verbatim so the spike can either (a) fix the build-script issue or (b) record the negative pivot in findings (per Pitfalls 1/2/8 trigger conditions).</resume-signal>
   <verify>
-    <automated>test -x .planning/spikes/85a-linux-packaging-spike/build.sh && bash -n .planning/spikes/85a-linux-packaging-spike/build.sh && grep -q 'set -euo pipefail' .planning/spikes/85a-linux-packaging-spike/build.sh && grep -q 'GSTREAMER_PLUGINS_DIR' .planning/spikes/85a-linux-packaging-spike/build.sh && awk '/GSTREAMER_PLUGINS_DIR=/{ord=NR} /linuxdeploy.*--plugin gstreamer/{if(NR<ord||ord==0){exit 1}} END{exit 0}' .planning/spikes/85a-linux-packaging-spike/build.sh && test -f .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage && strings .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage | grep -E '^GLIBC_[0-9]+\.[0-9]+$' | sort -V | tail -1 | grep -qE 'GLIBC_2\.(1[0-9]|2[0-9]|3[0-5])$'</automated>
+    <automated>test -x .planning/spikes/85a-linux-packaging-spike/build.sh && bash -n .planning/spikes/85a-linux-packaging-spike/build.sh && grep -q 'set -euo pipefail' .planning/spikes/85a-linux-packaging-spike/build.sh && grep -q 'GSTREAMER_PLUGINS_DIR' .planning/spikes/85a-linux-packaging-spike/build.sh && awk '/GSTREAMER_PLUGINS_DIR=/{ord=NR} /linuxdeploy.*--plugin gstreamer/{if(NR<ord||ord==0){exit 1}} END{exit 0}' .planning/spikes/85a-linux-packaging-spike/build.sh && grep -qE "find .*-not -name 'linuxdeploy" .planning/spikes/85a-linux-packaging-spike/build.sh && grep -q 'SPIKE_FAIL: no AppImage produced' .planning/spikes/85a-linux-packaging-spike/build.sh && test -f .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage && strings .planning/spikes/85a-linux-packaging-spike/artifacts/MusicStreamer-spike-x86_64.AppImage | grep -E '^GLIBC_[0-9]+\.[0-9]+$' | sort -V | tail -1 | grep -qE 'GLIBC_2\.(1[0-9]|2[0-9]|3[0-5])$'</automated>
     <human-check>Kyle confirms build success.</human-check>
   </verify>
-  <done>build.sh exists + is executable + syntax-valid + has the GSTREAMER_PLUGINS_DIR export BEFORE linuxdeploy invocation; running it produces artifacts/MusicStreamer-spike-x86_64.AppImage with GLIBC <= 2.35; Kyle approved.</done>
+  <done>build.sh exists + is executable + syntax-valid + has the GSTREAMER_PLUGINS_DIR export BEFORE linuxdeploy invocation + uses `find`-with-exclusions to locate the produced AppImage (Issue #5 fix); running it produces artifacts/MusicStreamer-spike-x86_64.AppImage with GLIBC <= 2.35; Kyle approved.</done>
 </task>
 
 </tasks>
@@ -325,6 +341,7 @@ Pause and ASK Kyle to confirm the build ran to completion (or report any failure
 <verification>
 - `build.sh` exists, is executable, passes `bash -n`
 - The line setting `GSTREAMER_PLUGINS_DIR` appears BEFORE the line invoking `linuxdeploy --plugin gstreamer` (awk gate)
+- AppImage discovery uses `find` with linuxdeploy/linuxdeploy-plugin exclusions and `-newer /work/AppRun` (Issue #5 fix)
 - `artifacts/MusicStreamer-spike-x86_64.AppImage` exists post-run
 - GLIBC grep returns 2.35 or lower
 - AppImage at least self-mounts (--appimage-extract-and-run --help exits 0)
@@ -340,3 +357,5 @@ Pause and ASK Kyle to confirm the build ran to completion (or report any failure
 <output>
 Create `.planning/phases/85A-linux-packaging-spike/85A-05-SUMMARY.md` when done. Capture: final AppImage size, GLIBC max symbol observed, MINICONDA_VERSION used, build duration, any deviations or negative-pivot triggers hit.
 </output>
+</content>
+</invoke>

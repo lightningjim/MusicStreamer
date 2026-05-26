@@ -6,6 +6,7 @@ nyquist_compliant: true
 wave_0_complete: false
 created: 2026-05-25
 plans_written: 2026-05-25
+revised: 2026-05-25  # Iteration 1 — checker BLOCKER #1 + 4 warnings applied
 ---
 
 # Phase 85a — Validation Strategy
@@ -57,7 +58,7 @@ plans_written: 2026-05-25
 | 85A-05-02 | 05 | 3 | build.sh produces AppImage with GLIBC <= 2.35 | shell-exit + GLIBC-grep + manual-checkpoint | `bash build.sh && test -f artifacts/MusicStreamer-spike-x86_64.AppImage && strings artifacts/MusicStreamer-spike-x86_64.AppImage \| grep -E '^GLIBC_[0-9]+\.[0-9]+$' \| sort -V \| tail -1 \| grep -qE 'GLIBC_2\.(1[0-9]\|2[0-9]\|3[0-5])$'` + Kyle "built" | ⬜ pending |
 | 85A-06-01 | 06 | 4 | create + teardown distrobox scripts; 3 named containers created | shell-exit | `bash create-distroboxes.sh && distrobox list \| grep -c 'ms-spike-' \| grep -qE '^3$'` | ⬜ pending |
 | 85A-06-02 | 06 | 4 | Per-distro programmatic smoke transcripts (3 SPIKE_OK + GLIBC + plugin-resolved) | shell-exit + content-grep | `bash run-smoke.sh all && for d in ubuntu22 fedora40 tumbleweed; do grep -q SPIKE_OK artifacts/${d}-transcript.log && grep -qE 'plugin_resolved=.avdec_aac' artifacts/${d}-transcript.log; done` | ⬜ pending |
-| 85A-07-01 | 07 | 5 | Audible PASS protocol — Ubuntu 22.04 (D-06 7-step + screenshot) | manual-checkpoint + PNG-magic | `file artifacts/ubuntu22-screenshot.png \| grep -qi PNG` + Kyle "ubuntu22 audible OK" + relaunch_time_to_play_s logged | ⬜ pending |
+| 85A-07-01 | 07 | 5 | Audible PASS protocol — Ubuntu 22.04 (D-06 7-step + D-08 step 8 HTTPS audible + screenshot) | manual-checkpoint + PNG-magic + grep | `file artifacts/ubuntu22-screenshot.png \| grep -qi PNG` + `grep -q 'https_audible: PASS' artifacts/audible-pass-log.md` + Kyle "ubuntu22 audible OK + HTTPS audible PASS" + relaunch_time_to_play_s logged + step 8 HTTPS URL logged | ⬜ pending |
 | 85A-07-02 | 07 | 5 | Audible PASS protocol — Fedora 40 | manual-checkpoint + PNG-magic | `file artifacts/fedora40-screenshot.png \| grep -qi PNG` + Kyle "fedora40 audible OK" | ⬜ pending |
 | 85A-07-03 | 07 | 5 | Audible PASS protocol — Tumbleweed | manual-checkpoint + PNG-magic | `file artifacts/tumbleweed-screenshot.png \| grep -qi PNG` + Kyle "tumbleweed audible OK" | ⬜ pending |
 | 85A-08-01 | 08 | 6 | 85A-SPIKE-FINDINGS.md with per-distro + pitfalls + Phase 85 hand-off | content-grep (multi-assertion) | 3 distro sections + GST_REGISTRY_FORK + GST_REGISTRY_REUSE_PLUGIN_SCANNER + 10 pitfalls + 3 SHA256 lines + >= 200 lines | ⬜ pending |
@@ -91,7 +92,7 @@ plans_written: 2026-05-25
 | Audible playback on Fedora 40 distrobox | 85A-07-02 | Same; Pitfall 10 sink-election is per-distro | Plan 07 Task 2 |
 | Audible playback on openSUSE Tumbleweed distrobox | 85A-07-03 | Same; Tumbleweed is the third (hardest) distro per CONTEXT.md D-05 rationale | Plan 07 Task 3 |
 | Wayland screenshot captures running AppImage window | 85A-07-01..03 | Visual confirmation; tool-dependent on session compositor | `gnome-screenshot --window` (primary) or `grim` (fallback per Assumption A6) |
-| HTTPS variant audibly plays (TLS bundle coverage) | 85A-07-01 (Ubuntu primary) | TLS path failure mode is silent at smoke level; require Kyle's ear-on-PipeWire confirmation | Use HTTPS URL `https://ice6.somafm.com/groovesalad-128-mp3` for the Ubuntu audible run |
+| HTTPS variant audibly plays (TLS bundle coverage; D-08) | 85A-07-01 step 8 (Ubuntu primary) | TLS path failure mode is silent at smoke level; require Kyle's ear-on-PipeWire confirmation | Plan 07 Task 1 step 8 (8-step protocol): relaunch AppImage with `https://ice6.somafm.com/groovesalad-128-mp3`, confirm 10s audible playback, log `https_audible: PASS` + URL to `audible-pass-log.md` under `## Ubuntu 22.04` |
 | /gsd:spike-wrap-up APPEND completed | 85A-08-02 | Slash-command workflow; Claude monitors output but human invokes | Plan 08 Task 2 |
 
 ---

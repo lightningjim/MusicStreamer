@@ -27,6 +27,7 @@ must_haves:
     - "AppRun template's GST_* env vars point under $APPDIR/usr/conda/ (linuxdeploy-plugin-conda layout) NOT $APPDIR/usr/ (research-discovered distinction)"
     - "AppRun template sets GST_REGISTRY_FORK=no EXPLICITLY (the plugin's hook only sets GST_REGISTRY_REUSE_PLUGIN_SCANNER=no — a DIFFERENT flag per Pitfall 3)"
     - "smoke_test.py mirrors Phase 43 shape: playbin3 + bus state-machine + GLIBC grep + gst-inspect resolution + SomaFM-only fallback chain (Groove Salad -> Drone Zone -> Beat Blender)"
+    - "smoke_test.py source contains the literal marker substring `plugin_resolved=` (locks the cross-plan transcript contract with Plan 06 Task 2 grep gates per Issue #4 fix)"
     - "Test URL manifest captures HTTP + HTTPS SomaFM URLs from D-07/D-08/D-09"
   artifacts:
     - path: ".planning/spikes/85a-linux-packaging-spike/hello_world.py"
@@ -52,6 +53,10 @@ must_haves:
       to: "run-smoke.sh (Plan 06)"
       via: "Plan 06's distrobox wrapper invokes `python smoke_test.py --uri <url> --timeout 30` inside the AppRun shell"
       pattern: "smoke_test\\.py"
+    - from: "smoke_test.py `plugin_resolved=` marker emission"
+      to: "Plan 06 Task 2 transcript grep gate"
+      via: "Plan 06 acceptance criteria grep for `plugin_resolved=.avdec_aac` and `plugin_resolved=.aacparse`; this plan author-locks the literal `plugin_resolved=` prefix in smoke_test.py source so the contract can't drift"
+      pattern: "plugin_resolved="
     - from: "AppRun GST_REGISTRY_FORK"
       to: "D-06 audible PASS protocol step 7 (relaunch)"
       via: "Relaunch is THE protocol step that exercises GST_REGISTRY_FORK — Pitfall 3 mitigation verified there"
@@ -212,14 +217,14 @@ Also append GST_PLUGIN_SCANNER_1_0 (with `_1_0` suffix) set to the same path as 
     - argv: `smoke_test.py --uri <URL> [--timeout 30] [--assert-tls] [--check-glibc <path>] [--check-plugins avdec_aac,aacparse]`
     - Reads test_url.txt if --uri is missing (fallback chain: HTTP_PRIMARY -> HTTPS_PRIMARY -> FALLBACK_2 -> FALLBACK_3 in that order; hard-fail if all unreachable)
     - GLIBC grep mode (--check-glibc <appimage_path>): runs `strings <path> | grep GLIBC_ | sort -V | tail -1`; exits 4 if result > GLIBC_2.35; emits SPIKE_DIAG glibc_max=GLIBC_X.YZ
-    - Plugin inspection mode (--check-plugins): runs `gst-inspect-1.0 <name>` for each comma-separated name; exits 5 if any returns non-zero; emits SPIKE_DIAG plugin_resolved=name
+    - Plugin inspection mode (--check-plugins): runs `gst-inspect-1.0 <name>` for each comma-separated name; exits 5 if any returns non-zero; emits `SPIKE_DIAG plugin_resolved=<name> status=ok` (the literal `plugin_resolved=` prefix is REQUIRED — Plan 06 Task 2 transcript grep gate depends on this exact marker substring per Issue #4 cross-plan contract)
     - TLS assertion (--assert-tls): inspects Gio.TlsBackend.get_default().get_default_database() is not None; logs which module .so was loaded
     - Playback mode (default): mirrors hello_world.py exactly + adds:
       - URL validation (scheme http/https; host *.somafm.com per §Security V5)
       - Audio sink election logging (Pitfall 10: logs whichever sink playbin3 selected — pulsesink/alsasink/autoaudiosink chain)
       - TAG message timestamp capture (Pitfall 9)
     - Exit codes: 0 OK, 1 setup, 2 runtime, 3 timeout, 4 GLIBC > 2.35, 5 plugin missing, 6 TLS backend absent (extends hello_world.py's 0/1/2/3 set)
-    - Stdout markers: SPIKE_OK, SPIKE_FAIL, SPIKE_DIAG (stable greppable prefixes)
+    - Stdout markers: SPIKE_OK, SPIKE_FAIL, SPIKE_DIAG (stable greppable prefixes); `plugin_resolved=<name>` is a stable substring under SPIKE_DIAG (locked in source per Issue #4)
   </behavior>
   <acceptance_criteria>
     - file-exists: `test -f .planning/spikes/85a-linux-packaging-spike/smoke_test.py`
@@ -231,6 +236,7 @@ Also append GST_PLUGIN_SCANNER_1_0 (with `_1_0` suffix) set to the same path as 
     - content-grep: `grep -q 'gst-inspect-1.0' .planning/spikes/85a-linux-packaging-spike/smoke_test.py`
     - content-grep: `grep -q 'somafm\.com' .planning/spikes/85a-linux-packaging-spike/smoke_test.py` (host validation present per V5)
     - content-grep: `grep -qE '(Gio\.TlsBackend|GIO_EXTRA_MODULES)' .planning/spikes/85a-linux-packaging-spike/smoke_test.py`
+    - content-grep (Issue #4 — literal cross-plan marker substring locked at author-time): `grep -q "plugin_resolved=" .planning/spikes/85a-linux-packaging-spike/smoke_test.py` (the `plugin_resolved=` literal prefix MUST be present in source so Plan 06 Task 2's transcript greps for `plugin_resolved=.avdec_aac` / `plugin_resolved=.aacparse` cannot drift)
     - shell-exit (test_url.txt has 4 entries): `grep -cE '^(http|https)://' .planning/spikes/85a-linux-packaging-spike/test_url.txt | grep -qE '^4$'`
     - content-grep (HTTP + HTTPS coverage per D-08): `grep -q '^http://ice1.somafm.com/groovesalad' .planning/spikes/85a-linux-packaging-spike/test_url.txt && grep -q '^https://ice6.somafm.com/groovesalad' .planning/spikes/85a-linux-packaging-spike/test_url.txt`
     - shell-exit (usage-handler runs without GStreamer): `python3 .planning/spikes/85a-linux-packaging-spike/smoke_test.py 2>&1 | grep -q 'SPIKE_FAIL\|usage\|--uri'` (argv parsing exits cleanly with usage when invoked bare)
@@ -250,7 +256,7 @@ http://ice1.somafm.com/beatblender-128-mp3
 - Use `argparse` (stdlib only) for `--uri`, `--timeout` (default 30), `--assert-tls`, `--check-glibc <path>`, `--check-plugins <comma-list>` flags.
 - URL validation: `from urllib.parse import urlparse`; assert scheme in {"http","https"} and netloc ends with `.somafm.com` per RESEARCH.md §Security V5.
 - GLIBC mode: `subprocess.run(["strings", path], capture_output=True, text=True)`, filter lines matching `GLIBC_\d+\.\d+`, sort by version tuple, take max. Compare against (2,35); exit 4 if greater.
-- Plugin mode: for each name, `subprocess.run(["gst-inspect-1.0", name], check=False, capture_output=True)`; exit 5 on any non-zero.
+- Plugin mode: for each name, `subprocess.run(["gst-inspect-1.0", name], check=False, capture_output=True)`; **emit the diagnostic line using the literal `plugin_resolved=<name>` prefix substring** — e.g. `_emit("SPIKE_DIAG", plugin_resolved=name, status="ok")` (writes `SPIKE_DIAG plugin_resolved='avdec_aac' status='ok'`). This is the cross-plan contract Plan 06 Task 2 greps for; do NOT change to alternative forms like `plugin=name status=resolved` because that would break Plan 06's acceptance gates while still passing this plan's own gates (Issue #4 fix). Exit 5 on any non-zero subprocess return.
 - TLS mode: `from gi.repository import Gio; b = Gio.TlsBackend.get_default(); has_db = b.get_default_database() is not None`; emit `SPIKE_DIAG tls_backend=type(b).__name__ has_default_database=has_db gio_modules=os.environ.get("GIO_EXTRA_MODULES","")`; exit 6 if not has_db.
 - Playback mode: mirrors hello_world.py main() with three additions: (1) URL validation gate; (2) bus state-changed handler ALSO logs the elected audio-sink chain via pipeline.get_by_name("playbin") + property inspection where possible (or via parsing the bus STATE_CHANGED for the autoaudiosink elements); (3) TAG message timestamps captured per Pitfall 9.
 - Argv-parsing block: when no args given (`len(sys.argv) == 1`) print usage line containing the word "usage" to stdout and exit 1 with `SPIKE_FAIL reason='usage'` so the shell-exit acceptance test passes without needing PyGObject.
@@ -258,9 +264,9 @@ http://ice1.somafm.com/beatblender-128-mp3
 
 Defer the deep playback-mode implementation to copy-paste-and-extend from hello_world.py — they share 80% of structure.</action>
   <verify>
-    <automated>test -f .planning/spikes/85a-linux-packaging-spike/smoke_test.py && test -f .planning/spikes/85a-linux-packaging-spike/test_url.txt && python3 -c "import ast; ast.parse(open('.planning/spikes/85a-linux-packaging-spike/smoke_test.py').read())" && grep -q 'avdec_aac' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q 'aacparse' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q 'GLIBC_' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q 'somafm' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -cE '^(http|https)://' .planning/spikes/85a-linux-packaging-spike/test_url.txt | grep -qE '^4$' && python3 .planning/spikes/85a-linux-packaging-spike/smoke_test.py 2>&1 | grep -q 'SPIKE_FAIL\|usage\|--uri'</automated>
+    <automated>test -f .planning/spikes/85a-linux-packaging-spike/smoke_test.py && test -f .planning/spikes/85a-linux-packaging-spike/test_url.txt && python3 -c "import ast; ast.parse(open('.planning/spikes/85a-linux-packaging-spike/smoke_test.py').read())" && grep -q 'avdec_aac' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q 'aacparse' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q 'GLIBC_' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q 'somafm' .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -q "plugin_resolved=" .planning/spikes/85a-linux-packaging-spike/smoke_test.py && grep -cE '^(http|https)://' .planning/spikes/85a-linux-packaging-spike/test_url.txt | grep -qE '^4$' && python3 .planning/spikes/85a-linux-packaging-spike/smoke_test.py 2>&1 | grep -q 'SPIKE_FAIL\|usage\|--uri'</automated>
   </verify>
-  <done>smoke_test.py parses + handles all 4 validation modes (--check-glibc, --check-plugins, --assert-tls, playback) + has the SomaFM host gate + exit-code conventions; test_url.txt has the 4 SomaFM URLs.</done>
+  <done>smoke_test.py parses + handles all 4 validation modes (--check-glibc, --check-plugins, --assert-tls, playback) + has the SomaFM host gate + exit-code conventions + literal `plugin_resolved=` marker substring locked in source (Issue #4 cross-plan contract); test_url.txt has the 4 SomaFM URLs.</done>
 </task>
 
 </tasks>
@@ -269,13 +275,14 @@ Defer the deep playback-mode implementation to copy-paste-and-extend from hello_
 - All four files exist, are syntactically valid, and trip the negative tests where applicable
 - AppRun template's Pitfall 3 distinction (GST_REGISTRY_FORK vs GST_REGISTRY_REUSE_PLUGIN_SCANNER) is documented in comments
 - All GST_* paths point under usr/conda/ (NOT usr/) per linuxdeploy-plugin-conda layout finding
+- smoke_test.py source contains literal `plugin_resolved=` prefix (cross-plan contract with Plan 06 Task 2 locked at author-time per Issue #4)
 - SomaFM-only fallback chain per D-09 (Groove Salad -> Drone Zone -> Beat Blender; no QNAP)
 </verification>
 
 <success_criteria>
 - hello_world.py: minimal playbin3 driver, no Qt bridge, exit codes 0/1/2/3
 - AppRun: 8 env-var exports including GST_REGISTRY_FORK=no explicitly, paths under usr/conda/, executable bit set
-- smoke_test.py: GLIBC + gst-inspect + TLS + playback + URL host gate modes
+- smoke_test.py: GLIBC + gst-inspect + TLS + playback + URL host gate modes; emits `plugin_resolved=<name>` literal marker
 - test_url.txt: 4 SomaFM URLs (HTTP + HTTPS primary + 2 fallbacks)
 - Plan 05 (build.sh) and Plan 06 (run-smoke.sh) have deterministic inputs to bundle and verify against
 </success_criteria>
@@ -283,3 +290,5 @@ Defer the deep playback-mode implementation to copy-paste-and-extend from hello_
 <output>
 Create `.planning/phases/85A-linux-packaging-spike/85A-04-SUMMARY.md` when done. Capture: AppRun final env-var list with file:line citations to RESEARCH.md for each; smoke_test.py exit-code table; any deviations from RESEARCH.md §Pattern 1.
 </output>
+</content>
+</invoke>
