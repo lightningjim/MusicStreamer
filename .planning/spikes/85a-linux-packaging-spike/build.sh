@@ -32,16 +32,40 @@ docker build -f "${HERE}/Dockerfile" -t ms-spike-build:22.04 "${HERE}"
 #   - Mount HERE as /work
 #   - Mount ARTIFACTS as /work/artifacts
 #   - Pass through pins.env via -e LINUXDEPLOY_* (so the inner shell doesn't re-curl from raw URLs without the SHA gate)
+# conda env spec passed to plugin-conda via env vars.
+# IMPORTANT: plugin-conda does NOT consume environment.yml — verified against
+# the pinned plugin-conda.sh source (line 74 warns when CONDA_PACKAGES is empty,
+# line 157 reads packages from CONDA_PACKAGES with ';' as IFS). The yml file
+# in this repo is documentation/source-of-truth; Phase 85 may want to bypass
+# plugin-conda and run `conda env create -f environment-spike.yml` directly
+# so the yml is the functional input (see 85A-05-SUMMARY.md for the finding).
+# Order matches environment-spike.yml (11 packages).
+export CONDA_CHANNELS="conda-forge"
+export CONDA_PACKAGES="python=3.12;pyside6;pygobject;gst-python;gstreamer;gst-plugins-base;gst-plugins-good;gst-plugins-bad;gst-plugins-ugly;gst-libav;glib-networking"
+
+# --user $(id -u):$(id -g) maps the container process to the host user so the
+# produced AppDir/, artifacts/, and any _temp_home/ residue are owned by kcreasey
+# (prior attempts left root-owned dirs that orphaned the worktree).
+# HOME=/tmp/_home: linuxdeploy-plugin-conda writes to $HOME during install; with
+# --user uid:gid (non-root) the default $HOME defaults to / which is unwritable.
+# XDG_CACHE_HOME=/tmp/_cache: defensive for conda's cache.
+# Plugin scripts placed in /tmp/ + PATH=/tmp:$PATH inside container — non-root cannot
+# cp into /usr/local/bin; linuxdeploy resolves plugins via `command -v linuxdeploy-plugin-<name>`.
 docker run --rm --privileged \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp/_home \
+  -e XDG_CACHE_HOME=/tmp/_cache \
   -v "${HERE}":/work \
   -v "${ARTIFACTS}":/work/artifacts \
   -e LINUXDEPLOY_URL -e LINUXDEPLOY_SHA256 \
   -e LINUXDEPLOY_PLUGIN_CONDA_URL -e LINUXDEPLOY_PLUGIN_CONDA_SHA256 \
   -e LINUXDEPLOY_PLUGIN_GSTREAMER_URL -e LINUXDEPLOY_PLUGIN_GSTREAMER_SHA256 \
   -e MINICONDA_VERSION \
+  -e CONDA_CHANNELS -e CONDA_PACKAGES \
   ms-spike-build:22.04 \
   bash -euo pipefail -c '
     set -x
+    mkdir -p /tmp/_home /tmp/_cache
     cd /work
     APPDIR=/work/AppDir
     rm -rf "$APPDIR" && mkdir -p "$APPDIR"
@@ -59,9 +83,13 @@ docker run --rm --privileged \
     echo "$LINUXDEPLOY_PLUGIN_GSTREAMER_SHA256  /tmp/linuxdeploy-plugin-gstreamer.sh" | sha256sum --check
     chmod +x /tmp/linuxdeploy-plugin-gstreamer.sh
 
-    # Place plugin scripts where linuxdeploy expects: PATH-resolved adjacent
-    cp /tmp/linuxdeploy-plugin-conda.sh /usr/local/bin/
-    cp /tmp/linuxdeploy-plugin-gstreamer.sh /usr/local/bin/
+    # Plugin scripts go in /tmp/ (non-root cannot write /usr/local/bin).
+    # linuxdeploy resolves plugins via `command -v linuxdeploy-plugin-<name>`
+    # (NO .sh suffix) — create extensionless wrappers and put /tmp on PATH.
+    ln -sf /tmp/linuxdeploy-plugin-conda.sh /tmp/linuxdeploy-plugin-conda
+    ln -sf /tmp/linuxdeploy-plugin-gstreamer.sh /tmp/linuxdeploy-plugin-gstreamer
+    chmod +x /tmp/linuxdeploy-plugin-conda /tmp/linuxdeploy-plugin-gstreamer
+    export PATH=/tmp:$PATH
 
     # AppDir skeleton
     cp /work/AppRun "$APPDIR/AppRun"
@@ -76,11 +104,6 @@ docker run --rm --privileged \
     # (Pitfall 2 mitigation; without this the plugin scans /usr/lib/$(uname -m)-linux-gnu/gstreamer-1.0 and bundles nothing)
     export GSTREAMER_PLUGINS_DIR="$APPDIR/usr/conda/lib/gstreamer-1.0"
     export GSTREAMER_HELPERS_DIR="$APPDIR/usr/conda/libexec/gstreamer-1.0"
-
-    # conda env shape passed to plugin-conda
-    export CONDA_PACKAGES=""   # empty; plugin-conda reads environment.yml when CONDA_CHANNELS unset
-    export CONDA_CHANNELS=conda-forge
-    cp /work/environment-spike.yml /work/environment.yml   # plugin-conda looks for this exact name
 
     # Bundle
     /tmp/linuxdeploy.AppImage --appdir "$APPDIR" \
