@@ -59,8 +59,8 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 
 **Plans**: 8 plans across 6 waves
 - [x] 85A-01-PLAN.md — Host tooling install + environment manifest (Wave 0)
-- [ ] 85A-02-PLAN.md — Dockerfile + environment-spike.yml (Wave 1, parallel with 03)
-- [ ] 85A-03-PLAN.md — Toolchain SHA256 pins + verify-pins.sh drift-guard (Wave 1, parallel with 02)
+- [x] 85A-02-PLAN.md — Dockerfile + environment-spike.yml (Wave 1, parallel with 03)
+- [x] 85A-03-PLAN.md — Toolchain SHA256 pins + verify-pins.sh drift-guard (Wave 1, parallel with 02)
 - [ ] 85A-04-PLAN.md — hello_world.py + AppRun template + smoke_test.py (Wave 2)
 - [ ] 85A-05-PLAN.md — build.sh end-to-end AppImage assembly (Wave 3)
 - [ ] 85A-06-PLAN.md — Distrobox scripts + per-distro programmatic smoke (Wave 4)
@@ -299,7 +299,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 85a. Linux Packaging Spike | 1/8 | In Progress|  |
+| 85a. Linux Packaging Spike | 3/8 | In Progress|  |
 | 91. FIX-MPRIS | 0/? | Not started | - |
 | 85. Linux Common + AppImage Build | 0/? | Not started | - |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
