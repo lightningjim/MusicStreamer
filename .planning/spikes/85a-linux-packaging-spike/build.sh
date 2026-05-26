@@ -14,8 +14,15 @@ ARTIFACTS="${HERE}/artifacts"
 mkdir -p "${ARTIFACTS}"
 
 # Step 1: source pins, verify upstream hasn't drifted
+# `set -a` auto-exports every variable assigned in pins.env so that the
+# `docker run -e LINUXDEPLOY_URL` (value-less) flag below can forward them
+# into the container. pins.env uses bare KEY=VALUE form (no `export`) so
+# without this they're shell vars, not env vars, and the in-container
+# `set -u` trips with "LINUXDEPLOY_URL: unbound variable".
+set -a
 # shellcheck source=./pins.env
 source "${HERE}/pins.env"
+set +a
 bash "${HERE}/verify-pins.sh"  # exits 2 on drift; set -e propagates
 
 # Step 2: docker build the ubuntu:22.04 base

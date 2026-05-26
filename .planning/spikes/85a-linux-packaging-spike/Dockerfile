@@ -23,6 +23,16 @@
 #                       executor records the actual package used in spike findings.
 #   - desktop-file-utils : linuxdeploy validates the bundled .desktop file via
 #                          desktop-file-validate(1); without this, linuxdeploy aborts.
+#   - patchelf         : linuxdeploy-plugin-gstreamer hard-requires patchelf to
+#                        rewrite RPATH on bundled GStreamer .so files. Without
+#                        it the plugin aborts with "Error: patchelf not found"
+#                        before bundling a single plugin (observed Plan 05 first run).
+#   - binutils         : provides strip(1); linuxdeploy-plugin-conda's prune pass
+#                        invokes `find ... -exec strip {} \;` on every bundled .so.
+#                        Missing strip is non-fatal (find prints "No such file or
+#                        directory" warnings per .so and continues) but produces
+#                        a much-larger AppImage and pollutes the build log; bundle
+#                        with binutils so the size grep + log are clean.
 #
 # What this image does NOT contain (intentional — keeps Dockerfile readable + portable):
 #   - No COPY of the spike source tree. Plan 05's build.sh drives the container
@@ -45,7 +55,9 @@ RUN apt-get update && \
       bzip2 \
       file \
       libfuse2 \
-      desktop-file-utils && \
+      desktop-file-utils \
+      patchelf \
+      binutils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
