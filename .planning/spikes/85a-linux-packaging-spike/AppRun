@@ -1,0 +1,80 @@
+#!/bin/bash
+# =============================================================================
+# Phase 85a spike AppRun template — THE PRIMARY DELIVERABLE of this spike.
+#
+# Source: 85A-RESEARCH.md §Pattern 1 (lines 207-249).
+#
+# Phase 85 hand-off: copy this file verbatim into Phase 85's AppImage
+# scaffolding; the ONLY change required is the final exec line:
+#     exec "${APPDIR}/usr/conda/bin/python" -m musicstreamer "$@"
+# (in place of the hello_world.py invocation used here).
+#
+# -----------------------------------------------------------------------------
+# CRITICAL: GST_REGISTRY_FORK="no" is NOT the same flag as
+# GST_REGISTRY_REUSE_PLUGIN_SCANNER="no". See 85A-RESEARCH.md §Pitfall 3
+# (lines 311-325):
+#   * GST_REGISTRY_FORK=no               — disables the fork()-then-scan path
+#                                          on registry rebuild; registry IS
+#                                          reused. This is what we want.
+#   * GST_REGISTRY_REUSE_PLUGIN_SCANNER=no
+#                                        — disables scanner-PROCESS reuse but
+#                                          does NOT prevent registry rebuild
+#                                          on second launch.
+# `linuxdeploy-plugin-gstreamer`'s generated apprun-hook sets the LATTER
+# (verified: plugin source line 17). This template OVERRIDES that by exporting
+# the former AFTER the plugin hook would have been sourced. The D-06 audible
+# PASS protocol step 7 (relaunch) is what exercises this; second launch must
+# NOT regress time-to-PLAYING by >5s.
+#
+# -----------------------------------------------------------------------------
+# CRITICAL: GIO_EXTRA_MODULES is required for HTTPS support
+# (souphttpsrc -> Gio.TlsBackend.get_default()). Without it, HTTPS streams
+# fail with "TLS/SSL support not available; install glib-networking". This
+# mirrors the Phase 43 windows-gstreamer-bundling.md cross-platform finding;
+# see 85A-RESEARCH.md §Pitfall 4 (lines 327-337).
+#
+# -----------------------------------------------------------------------------
+# Path layout note: ALL GST_* paths point under ${APPDIR}/usr/conda/ — the
+# linuxdeploy-plugin-conda layout — NOT ${APPDIR}/usr/lib/ (which would be
+# the multiarch Debian default that `linuxdeploy-plugin-gstreamer` falls back
+# to when no override is set; see 85A-RESEARCH.md §Pitfall 2 lines 299-309).
+# Phase 85 builds and Phase 43 Windows runtime_hook.py confirm this layout.
+# =============================================================================
+
+HERE="$(dirname "$(readlink -f "${0}")")"
+export APPDIR="${HERE}"
+
+# --- GStreamer env: bundle paths win over any ambient env --------------------
+export GST_PLUGIN_SYSTEM_PATH_1_0="${APPDIR}/usr/conda/lib/gstreamer-1.0"
+export GST_PLUGIN_PATH_1_0="${APPDIR}/usr/conda/lib/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="${APPDIR}/usr/conda/libexec/gstreamer-1.0/gst-plugin-scanner"
+
+# Defensive: set both spellings of the scanner env var. Per RESEARCH.md
+# Open Question 2, GStreamer 1.28+ may honor either GST_PLUGIN_SCANNER (no
+# suffix; Phase 43 Windows form) or GST_PLUGIN_SCANNER_1_0 (with suffix;
+# linuxdeploy-plugin-gstreamer hook form). Smoke_test.py logs which one
+# actually resolved at runtime; both are set here so neither codepath can
+# silently break.
+export GST_PLUGIN_SCANNER_1_0="${APPDIR}/usr/conda/libexec/gstreamer-1.0/gst-plugin-scanner"
+
+# Pitfall 3 mitigation — disable fork-then-scan so the cached registry IS
+# reused on the second launch (D-06 relaunch protocol).
+export GST_REGISTRY_FORK="no"
+
+# --- GIO TLS backend (HTTPS via souphttpsrc) ---------------------------------
+# Pitfall 4 mitigation. The conda-forge `glib-networking` package ships its
+# TLS module(s) (libgiognutls.so and/or libgioopenssl.so) at this path.
+export GIO_EXTRA_MODULES="${APPDIR}/usr/conda/lib/gio/modules"
+
+# --- GI typelibs (PyGObject introspection) -----------------------------------
+export GI_TYPELIB_PATH="${APPDIR}/usr/conda/lib/girepository-1.0"
+
+# --- Python: use the bundled conda interpreter -------------------------------
+export PYTHONHOME="${APPDIR}/usr/conda"
+export PATH="${APPDIR}/usr/conda/bin:${PATH}"
+
+# --- Launch the app ----------------------------------------------------------
+# In the spike, "the app" is hello_world.py with a SomaFM URL forwarded from
+# the caller (build/test harness). Phase 85 replaces this line with:
+#     exec "${APPDIR}/usr/conda/bin/python" -m musicstreamer "$@"
+exec "${APPDIR}/usr/conda/bin/python" "${APPDIR}/hello_world.py" "$@"

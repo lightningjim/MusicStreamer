@@ -1,0 +1,8 @@
+# Phase 85a SomaFM test URLs (CONTEXT.md D-07 / D-08 / D-09).
+# Fallback order: HTTP primary -> HTTPS primary -> Drone Zone -> Beat Blender.
+# smoke_test.py walks this list when --uri is not supplied; hard-fail if all
+# four are unreachable (SPIKE_FAIL step='fallback_exhausted').
+http://ice1.somafm.com/groovesalad-128-mp3
+https://ice6.somafm.com/groovesalad-128-mp3
+http://ice1.somafm.com/dronezone-128-mp3
+http://ice1.somafm.com/beatblender-128-mp3
