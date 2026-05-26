@@ -16,7 +16,28 @@ for name in "${!BOXES[@]}"; do
   if distrobox list 2>/dev/null | grep -qE "(^|\s)$name(\s|$)"; then
     echo "EXISTS $name (skipping create)"
   else
-    distrobox create --image "$image" --name "$name" --yes
+    # --unshare-devsys: skip host /dev + /sys bind-mounts. Required on this host
+    # because VirtualBox USB devices under /dev/vboxusb/* cannot be re-mounted
+    # into rootless podman containers (user-namespace + char-device perms).
+    # Audio via PipeWire socket lives in $XDG_RUNTIME_DIR (separate bind),
+    # so this does NOT break Plan 07's audible test.
+    extra_args=()
+    # binutils provides `strings`, which smoke_test.py --check-glibc uses to
+    # read GLIBC_X.Y symbol versions out of the AppImage. The base images for
+    # all three distros omit binutils; distrobox --additional-packages installs
+    # it during initial container setup so it's ready by the time run-smoke.sh
+    # invokes the harness.
+    extra_args+=(--additional-packages "binutils")
+    case "$name" in
+      ms-spike-tumbleweed)
+        # Tumbleweed image (2026-05) ships zypp.conf only at /usr/etc/zypp/zypp.conf
+        # (vendor path); distrobox-init's setup_zypper sed's /etc/zypp/zypp.conf and
+        # fails when missing. Pre-init copy from vendor -> admin path keeps init
+        # otherwise verbatim. Other distros do not need this hook.
+        extra_args+=(--pre-init-hooks "mkdir -p /etc/zypp && [ -f /etc/zypp/zypp.conf ] || cp -p /usr/etc/zypp/zypp.conf /etc/zypp/zypp.conf")
+        ;;
+    esac
+    distrobox create --image "$image" --name "$name" --unshare-devsys "${extra_args[@]}" --yes
     echo "CREATED $name image=$image"
   fi
 done
