@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-conmilestone: v2.2
+milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: ready_to_plan
-stopped_at: Phase 85A complete (8/8) — ready to discuss Phase 87
-last_updated: 2026-05-26T23:48:38.502Z
-last_activity: 2026-05-26 -- Phase 85A execution started
+status: planning
+stopped_at: Phase 91 context gathered (closure as bookkeeping)
+last_updated: "2026-05-27T04:27:50.986Z"
+last_activity: 2026-05-26
 progress:
   total_phases: 14
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 14
   completed_plans: 9
-  percent: 0
+  percent: 7
 ---
 
 # Project State
@@ -147,9 +147,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-05-25T23:18:46.744Z
-Stopped at: Phase 85a context gathered
-Resume file: .planning/phases/85A-linux-packaging-spike/85A-CONTEXT.md
+Last session: 2026-05-27T04:27:50.976Z
+Stopped at: Phase 91 context gathered (closure as bookkeeping)
+Resume file: .planning/phases/91-fix-mpris-phase-77-deferred-mpris2-tests/91-CONTEXT.md
 
 ## Operator Next Steps
 
