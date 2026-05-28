@@ -6,6 +6,8 @@
 #   2 = linuxdeploy/bundle failed
 #   3 = smoke failed (reserved; smoke runs in Plan 06 / run-smoke.sh)
 #   4 = GLIBC > 2.35 (Pitfall 1 negative pivot trigger)
+#   5 = GPG_KEY_ID unset and SKIP_SIGN != 1 (D-09 fail-fast guard)
+#   6 = gpg2 --detach-sign failed (D-08 signing step)
 #
 # Pitfall 11 (spike-discovered): linuxdeploy.AppImage self-mounts via FUSE,
 # which fails in rootless containers (--user mapping). The --appimage-extract-and-run
@@ -70,6 +72,17 @@
 # ~10-30s to the build but eliminates the false-positive class.
 
 set -euo pipefail
+
+# D-09 fail-fast: signing is mandatory for release artifacts; SKIP_SIGN=1 is the
+# local-iteration escape hatch (CI never sets SKIP_SIGN per D-09).
+# POSITIONING: this block MUST stay above the first `docker run`/`docker build`
+# call (currently around line 91 from Plan 85-01). Moving it below docker
+# invocations would cause unset-key runs to hang on a daemon probe instead of
+# failing fast -- see warning #2 in the Plan 85-02 checker pass.
+if [[ -z "${GPG_KEY_ID:-}" && "${SKIP_SIGN:-0}" != "1" ]]; then
+  echo "BUILD_FAIL reason=gpg_key_unset (set GPG_KEY_ID=<keyid> or SKIP_SIGN=1 for local iteration; CI must set the key) (D-09)" >&2
+  exit 5
+fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARTIFACTS="${HERE}/artifacts"
@@ -279,4 +292,21 @@ case "$GLIBC_MAX" in
   *) echo "GLIBC_FAIL $GLIBC_MAX > 2.35  (Pitfall 1 negative pivot trigger)" >&2; exit 4 ;;
 esac
 
-echo "BUILD_OK appimage=$APPIMG glibc=$GLIBC_MAX"
+# D-08 / PKG-LIN-APP-10: GPG-sign the produced AppImage. The signature is a
+# detached, armored sidecar at <appimage>.sig and is published alongside
+# the AppImage in the release artifact set. linuxdeploy itself supports a
+# --sign flag, but the standalone gpg2 invocation here keeps the signing
+# surface visible at the build-driver level (easier to audit / disable).
+if [[ "${SKIP_SIGN:-0}" != "1" ]]; then
+  gpg2 --detach-sign --armor --local-user "$GPG_KEY_ID" --output "${APPIMG}.sig" "$APPIMG" \
+    || { echo "BUILD_FAIL reason=signing_failed (gpg2 --detach-sign exited non-zero for key=$GPG_KEY_ID)" >&2; exit 6; }
+  echo "SIGN_OK signature=${APPIMG}.sig key=$GPG_KEY_ID"
+else
+  echo "SIGN_SKIPPED SKIP_SIGN=1 (local-iteration mode; no .sig sidecar produced)"
+fi
+
+if [[ "${SKIP_SIGN:-0}" != "1" ]]; then
+  echo "BUILD_OK appimage=$APPIMG glibc=$GLIBC_MAX signature=${APPIMG}.sig"
+else
+  echo "BUILD_OK appimage=$APPIMG glibc=$GLIBC_MAX signature=skipped"
+fi
