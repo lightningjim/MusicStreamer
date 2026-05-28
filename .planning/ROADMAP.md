@@ -104,8 +104,8 @@ Plans:
 
 **Wave 2** *(parallel; both depend on 85-01)*
 
-- [ ] 85-02-PLAN.md — GPG signing + zsync embedding + REQUIREMENTS PKG-LIN-APP-10 row (D-08/D-09/D-10/D-11/D-12)
-- [ ] 85-03-PLAN.md — .github/workflows/linux-appimage.yml workflow_dispatch CI scaffold (D-13/D-14/D-15/D-16)
+- [x] 85-02-PLAN.md — GPG signing + zsync embedding + REQUIREMENTS PKG-LIN-APP-10 row (D-08/D-09/D-10/D-11/D-12)
+- [x] 85-03-PLAN.md — .github/workflows/linux-appimage.yml workflow_dispatch CI scaffold (D-13/D-14/D-15/D-16)
 
 **Wave 3** *(blocked on Waves 1+2)*
 
@@ -315,7 +315,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 85a. Linux Packaging Spike | 8/8 | Complete    | 2026-05-26 |
 | 91. FIX-MPRIS | 0/? | Not started | - |
-| 85. Linux Common + AppImage Build | 1/4 | In Progress|  |
+| 85. Linux Common + AppImage Build | 3/4 | In Progress|  |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
 | 88. Windows Packaging Bundle | 0/? | Not started | - |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
