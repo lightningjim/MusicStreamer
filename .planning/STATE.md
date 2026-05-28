@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
+status: executing
 stopped_at: Phase 91 context gathered (closure as bookkeeping)
-last_updated: "2026-05-27T04:27:50.986Z"
-last_activity: 2026-05-26
+last_updated: "2026-05-28T14:26:58.687Z"
+last_activity: 2026-05-28 -- Phase 85 execution started
 progress:
   total_phases: 14
   completed_phases: 1
-  total_plans: 14
+  total_plans: 18
   completed_plans: 9
   percent: 7
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87 — gbs fm marquee themed day detection
+**Current focus:** Phase 85 — linux-common-appimage-build
 
 ## Current Position
 
-Phase: 87
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-05-26
+Phase: 85 (linux-common-appimage-build) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 85
+Last activity: 2026-05-28 -- Phase 85 execution started
 
 ## v2.2 Phase Roster
 
