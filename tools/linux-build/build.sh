@@ -200,11 +200,20 @@ docker run --rm --privileged \
     # (which works for root) is unavailable. Extract-and-run unpacks the
     # AppImage to a temp dir and execs the inner binary directly, skipping
     # FUSE entirely. See Pitfall 11 in 85A-SPIKE-FINDINGS.md (Plan 08).
+    # D-11 / PKG-LIN-APP-06: embed zsync update-info pointing at the GitHub-Releases-
+    # flavored host. linuxdeploy writes this into the AppImage .upd_info section.
+    # The companion .zsync file at that URL is published by a future infra milestone
+    # (PKG-LIN-APP-UPDATE -- REQUIREMENTS.md deferred); Phase 85 closes
+    # the embedding (D-12), not the serving.
+    # Note the literal "kcreasey" matches the GitHub mirror namespace per
+    # reference_qnap_github_mirror.md; do not change to "lightningjim" -- the
+    # QNAP-Gitea origin pushes to github.com/kcreasey/MusicStreamer.
     /tmp/linuxdeploy.AppImage --appimage-extract-and-run --appdir "$APPDIR" \
       --plugin conda \
       --plugin gstreamer \
       --desktop-file "$APPDIR/org.lightningjim.MusicStreamer.desktop" \
       --icon-file "$APPDIR/org.lightningjim.MusicStreamer.svg" \
+      --updateinformation "gh-releases-zsync|kcreasey|MusicStreamer|latest|MusicStreamer-*-x86_64.AppImage.zsync" \
       --output appimage
 
     # D-03: install musicstreamer itself via pip --no-deps into the bundled conda env.
