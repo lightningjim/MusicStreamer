@@ -100,7 +100,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 Plans:
 **Wave 1**
 
-- [ ] 85-01-PLAN.md — environment.yml + build.sh refactor + production AppRun (D-01/D-02/D-03 single-source-of-truth bundle; Pitfalls 19/20)
+- [x] 85-01-PLAN.md — environment.yml + build.sh refactor + production AppRun (D-01/D-02/D-03 single-source-of-truth bundle; Pitfalls 19/20)
 
 **Wave 2** *(parallel; both depend on 85-01)*
 
@@ -315,7 +315,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 85a. Linux Packaging Spike | 8/8 | Complete    | 2026-05-26 |
 | 91. FIX-MPRIS | 0/? | Not started | - |
-| 85. Linux Common + AppImage Build | 0/? | Not started | - |
+| 85. Linux Common + AppImage Build | 1/4 | In Progress|  |
 | 86. Linux Flatpak Build | 0/? | Not started | - |
 | 88. Windows Packaging Bundle | 0/? | Not started | - |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
