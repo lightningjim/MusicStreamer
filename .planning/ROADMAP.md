@@ -87,7 +87,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 
 **Goal**: Users can download a single `MusicStreamer-<version>-x86_64.AppImage`, mark executable, and run it portably on Ubuntu 22.04 LTS, Fedora 40, and openSUSE Tumbleweed with full audio, MPRIS2, and YouTube playback working out of the box.
 **Depends on**: Phase 85a (spike outcome consumed: AppRun template + conda-plugin compatibility verified)
-**Requirements**: PKG-LIN-APP-01, PKG-LIN-APP-02, PKG-LIN-APP-03, PKG-LIN-APP-04, PKG-LIN-APP-05, PKG-LIN-APP-06, PKG-LIN-APP-07, PKG-LIN-APP-08, PKG-LIN-APP-09
+**Requirements**: PKG-LIN-APP-01, PKG-LIN-APP-02, PKG-LIN-APP-03, PKG-LIN-APP-04, PKG-LIN-APP-05, PKG-LIN-APP-06, PKG-LIN-APP-07, PKG-LIN-APP-08, PKG-LIN-APP-09, PKG-LIN-APP-10
 **Success Criteria** (what must be TRUE):
 
   1. User downloads the AppImage, runs `chmod +x` and double-clicks; the app launches with no install step and plays a stream within seconds.
@@ -96,7 +96,21 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   4. OS media keys (play/pause/stop) control the AppImage's playback via MPRIS2 from the host session, and the Windows packaging drift-guards (`tools/check_bundle_plugins.py`, `tests/test_packaging_spec.py`) still pass after the Linux PR lands (Pitfall 16 mitigation).
   5. `tests/test_packaging_spec.py` source-grep checks confirm GLIBC baseline ≤ 2.35, no `.pls`/`.m3u` MIME associations registered, and zsync update info is embedded in the AppImage payload.
 
-**Plans**: TBD
+**Plans:** 4 plans across 3 waves
+Plans:
+**Wave 1**
+
+- [ ] 85-01-PLAN.md — environment.yml + build.sh refactor + production AppRun (D-01/D-02/D-03 single-source-of-truth bundle; Pitfalls 19/20)
+
+**Wave 2** *(parallel; both depend on 85-01)*
+
+- [ ] 85-02-PLAN.md — GPG signing + zsync embedding + REQUIREMENTS PKG-LIN-APP-10 row (D-08/D-09/D-10/D-11/D-12)
+- [ ] 85-03-PLAN.md — .github/workflows/linux-appimage.yml workflow_dispatch CI scaffold (D-13/D-14/D-15/D-16)
+
+**Wave 3** *(blocked on Waves 1+2)*
+
+- [ ] 85-04-PLAN.md — Cross-distro smoke harness + Linux drift-guard pytest + README + REQUIREMENTS bookkeeping (D-04/D-05/D-06/D-07/D-17 + close)
+
 **Research flag**: NO — spike consumed in Phase 85a; standard pattern in Phase 85.
 
 #### Phase 86: Linux Flatpak Build
