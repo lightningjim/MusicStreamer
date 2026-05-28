@@ -1,0 +1,62 @@
+# Phase 85 Linux AppImage Build — conda env shape
+#
+# Source-of-truth contract (D-01 / D-02 / D-03):
+#   D-01: build.sh parses this file at build start via yq to synthesize CONDA_PACKAGES
+#         (single source of truth — no duplicate list in build.sh).
+#   D-02: this file is the dedicated production build env; naming mirrors Phase 85a
+#         environment-spike.yml but name: is changed to "musicstreamer-build".
+#   D-03: musicstreamer itself is installed via `pip install --no-deps .` AFTER
+#         linuxdeploy-plugin-conda finishes; the pip: sublist below feeds that step.
+#
+# Locked by Phase 43 stack lock (conda-forge channel-only, no `defaults`,
+# no `nodefaults`) and RESEARCH.md §Conda-forge env shape (lines 52-88).
+#
+# Channel pinning rationale:
+#   conda-forge is the ONLY viable bridge between PyGObject + GStreamer 1.28+
+#   and the AppImage. Phase 43 (Windows spike) proved this channel; PKG-LIN-APP-03
+#   ("same plugin set as the Windows installer") inherits the channel choice.
+#   No `defaults` channel — package squatting risk + Phase 43 stack lock (per
+#   spike-findings-musicstreamer/references/windows-gstreamer-bundling.md).
+#
+# Linux-specific divergences from Phase 43's Windows env (RESEARCH.md §Pitfall 7):
+#   - gst-libav        : Linux conda-forge ships AAC/H.264 decoders here (NOT in
+#                        gst-plugins-bad as on Windows). Required for the
+#                        `gst-inspect-1.0 avdec_aac` resolution test.
+#   - gst-python       : Linux must list explicitly (Windows conda-forge meta-pulls).
+#   - glib-networking  : Linux must list explicitly for TLS modules — `souphttpsrc`
+#                        HTTPS path (D-08, `https://ice6.somafm.com/...`) fails with
+#                        "TLS/SSL support not available" without it.
+#
+# Package legitimacy: all packages verified via direct HTTP probe of
+# `anaconda.org/conda-forge/<pkg>/files` (HTTP 200) + Phase 43 production use.
+# See RESEARCH.md §Package Legitimacy Audit (lines 109-127).
+#
+# Version pinning policy: only python is pinned (=3.12). Other packages let
+# conda's solver pick the latest compatible. Phase 85a spike captured actual
+# resolved versions in 85A-05-SUMMARY.md.
+name: musicstreamer-build
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pyside6
+  - pygobject
+  - gst-python
+  - gstreamer
+  - gst-plugins-base
+  - gst-plugins-good
+  - gst-plugins-bad
+  - gst-plugins-ugly
+  - gst-libav
+  - glib-networking
+  - nodejs  # PKG-LIN-APP-04: host-independent Node runtime for yt-dlp EJS solver
+  - pip
+  - pip:
+      - mutagen
+      - pillow
+      - requests
+      - yt-dlp
+      - streamlink
+      - platformdirs
+      - chardet<6
+  # musicstreamer itself installed via D-03 pip install --no-deps . AFTER plugin-conda
