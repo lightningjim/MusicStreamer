@@ -1,0 +1,137 @@
+# Phase 85 — Linux AppImage build CI scaffold.
+#
+# Manually-triggerable parity build (D-13). Runs the same tools/linux-build/build.sh
+# the dev rig runs, on a known-clean ubuntu-22.04 runner (D-13 — GLIBC <= 2.35 baseline).
+#
+# Scope discipline (D-15):
+#   - This workflow produces a SIGNED, GLIBC-pinned AppImage + .sig sidecar.
+#   - This workflow does NOT publish to GitHub Releases (manual artifact download only).
+#   - This workflow does NOT do cross-distro smoke (lives on dev rig via distrobox).
+#   - This workflow does NOT do GUI/MPRIS/screenshot tests (no desktop session in CI; Pitfalls 18/19/20).
+#
+# Trigger discipline (D-16 security gate):
+#   workflow_dispatch ONLY. No push/PR/schedule. Fork-PR cannot expose LINUX_SIGNING_KEY.
+
+name: Linux AppImage Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build signed AppImage (ubuntu-22.04, GLIBC <= 2.35)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build prerequisites (yq + docker is preinstalled)
+        run: |
+          set -euo pipefail
+          # yq parses environment.yml in build.sh (D-01). ubuntu-22.04 runner ships
+          # docker preinstalled; libfuse2 + the rest live inside the build container.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends yq
+          docker --version
+          yq --version
+
+      - name: Validate signing secrets (D-16 fail-fast)
+        env:
+          LINUX_SIGNING_KEY: ${{ secrets.LINUX_SIGNING_KEY }}
+          LINUX_SIGNING_KEY_ID: ${{ secrets.LINUX_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${LINUX_SIGNING_KEY:-}" || -z "${LINUX_SIGNING_KEY_ID:-}" ]]; then
+            echo "WORKFLOW_FAIL: signing secrets missing (set LINUX_SIGNING_KEY and LINUX_SIGNING_KEY_ID in repo secrets)" >&2
+            exit 1
+          fi
+          echo "SECRETS_OK key_id_present=true key_block_length=${#LINUX_SIGNING_KEY}"
+
+      - name: Import signing key into ephemeral GNUPGHOME (D-16)
+        env:
+          LINUX_SIGNING_KEY: ${{ secrets.LINUX_SIGNING_KEY }}
+          LINUX_SIGNING_KEY_ID: ${{ secrets.LINUX_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          # Ephemeral GNUPGHOME: key material is scoped to this job's filesystem
+          # and not persisted across runs. mktemp -d in /tmp; GitHub runners are
+          # ephemeral so the whole runner FS is destroyed at job end regardless,
+          # but the scoped GNUPGHOME makes the intent explicit and isolates
+          # the keyring from any other gpg invocation in later steps.
+          GNUPGHOME="$(mktemp -d)"
+          echo "GNUPGHOME=${GNUPGHOME}" >> "$GITHUB_ENV"
+          chmod 700 "${GNUPGHOME}"
+          # gpg --batch suppresses interactive prompts; pinentry must be loopback-compatible
+          echo "allow-loopback-pinentry" >> "${GNUPGHOME}/gpg-agent.conf"
+          echo "pinentry-mode loopback" >> "${GNUPGHOME}/gpg.conf"
+          printf '%s' "${LINUX_SIGNING_KEY}" | gpg --batch --import
+          # Export GPG_KEY_ID for build.sh's signing step (D-09 / Plan 85-02).
+          echo "GPG_KEY_ID=${LINUX_SIGNING_KEY_ID}" >> "$GITHUB_ENV"
+
+      - name: Verify toolchain pins (drift-guard)
+        run: bash tools/linux-build/verify-pins.sh
+
+      - name: Build signed AppImage
+        run: bash tools/linux-build/build.sh
+
+      - name: Locate produced artifacts
+        id: locate
+        run: |
+          set -euo pipefail
+          APPIMG="$(find tools/linux-build/artifacts -maxdepth 1 -name 'MusicStreamer-*.AppImage' -not -name '*.sig' | head -1)"
+          SIG="${APPIMG}.sig"
+          [[ -f "$APPIMG" ]] || { echo "WORKFLOW_FAIL: AppImage not produced at $APPIMG" >&2; exit 1; }
+          [[ -f "$SIG" ]]    || { echo "WORKFLOW_FAIL: signature sidecar missing at $SIG" >&2; exit 1; }
+          echo "appimage=${APPIMG}" >> "$GITHUB_OUTPUT"
+          echo "signature=${SIG}"   >> "$GITHUB_OUTPUT"
+          echo "ARTIFACTS_FOUND appimage=${APPIMG} signature=${SIG}"
+
+      - name: Single-distro parity smoke (D-15)
+        # Smoke is a parity check, not a substitute for cross-distro coverage.
+        # Cross-distro lives on the dev rig via tools/linux-build/run-smoke.sh (Plan 85-04).
+        # CI smoke MUST use --appimage-extract-and-run because:
+        #   (a) GitHub-hosted runners do not provide /dev/fuse to ordinary processes (Pitfall 11)
+        #   (b) The AppImage's AppRun exec is `python -m musicstreamer "$@"` (Pitfall 20)
+        #       so we forward `--smoke <url>` to drive the headless backend.
+        # If tools/linux-build/smoke_test.py exists (Plan 85-04 introduces it), prefer running
+        # that as the production-import smoke (D-05). Otherwise fall back to `--smoke <url>`
+        # against the production module's headless harness.
+        run: |
+          set -euo pipefail
+          APPIMG="${{ steps.locate.outputs.appimage }}"
+          chmod +x "$APPIMG"
+          if [[ -f tools/linux-build/smoke_test.py ]]; then
+            echo "SMOKE_MODE=production_import (tools/linux-build/smoke_test.py present)"
+            "$APPIMG" --appimage-extract-and-run python tools/linux-build/smoke_test.py \
+              --uri http://ice1.somafm.com/groovesalad-128-mp3 --timeout 35
+          else
+            echo "SMOKE_MODE=headless_module (tools/linux-build/smoke_test.py absent; using --smoke)"
+            "$APPIMG" --appimage-extract-and-run --smoke http://ice1.somafm.com/groovesalad-128-mp3
+          fi
+
+      - name: Verify signature
+        run: |
+          set -euo pipefail
+          gpg --verify "${{ steps.locate.outputs.signature }}" "${{ steps.locate.outputs.appimage }}"
+
+      - name: Upload AppImage + signature as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MusicStreamer-AppImage
+          path: |
+            tools/linux-build/artifacts/MusicStreamer-*.AppImage
+            tools/linux-build/artifacts/MusicStreamer-*.AppImage.sig
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Scrub ephemeral GNUPGHOME (defense-in-depth)
+        if: always()
+        run: |
+          if [[ -n "${GNUPGHOME:-}" && -d "${GNUPGHOME}" ]]; then
+            rm -rf "${GNUPGHOME}"
+            echo "SCRUBBED ${GNUPGHOME}"
+          fi
