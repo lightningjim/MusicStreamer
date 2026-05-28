@@ -19,8 +19,9 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [ ] **PKG-LIN-APP-05**: AppImage registers a `.desktop` entry (icon, name, MIME=audio) when run via AppImageLauncher; standalone execution still works without integration
 - [ ] **PKG-LIN-APP-06**: AppImage embeds zsync update info pointing at the GitHub-releases-flavored host (via the QNAP→GitHub mirror) so future AppImageUpdate clients can find newer builds
 - [ ] **PKG-LIN-APP-07**: AppImage's MPRIS2 D-Bus service is reachable from the host session — OS media keys control pause/resume/stop just like the conda-from-source run
-- [ ] **PKG-LIN-APP-08**: AppImage's GLIBC baseline stays at GLIBC_2.35 or lower (Ubuntu 22.04 LTS baseline) verified by source-grep check in `tests/test_packaging_spec.py`
+- [ ] **PKG-LIN-APP-08**: AppImage's GLIBC baseline stays at GLIBC_2.35 or lower (Ubuntu 22.04 LTS baseline) verified by source-grep check in `tests/test_packaging_linux_spec.py`
 - [ ] **PKG-LIN-APP-09**: AppImage build does NOT register MIME associations for `.pls` / `.m3u` (curated-library identity — playlist files are import inputs, not user-facing files)
+- [ ] **PKG-LIN-APP-10**: AppImage release artifacts are GPG-signed — `build.sh` produces a detached armored signature sidecar (`MusicStreamer-<version>-x86_64.AppImage.sig`) using the key identified by the `GPG_KEY_ID` build-env variable. CI workflow (`.github/workflows/linux-appimage.yml`) consumes the signing key from `secrets.LINUX_SIGNING_KEY` + `secrets.LINUX_SIGNING_KEY_ID`. Build fails fast (exit 5) when `GPG_KEY_ID` is unset and `SKIP_SIGN=1` is not set; CI never sets `SKIP_SIGN`. Verification: `gpg --verify MusicStreamer-<version>-x86_64.AppImage.sig MusicStreamer-<version>-x86_64.AppImage` succeeds with the published signing key.
 
 ### Linux Packaging — Flatpak (PKG-LIN-FP)
 
@@ -160,6 +161,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | PKG-LIN-APP-07 | Phase 85 | Pending |
 | PKG-LIN-APP-08 | Phase 85 | Pending |
 | PKG-LIN-APP-09 | Phase 85 | Pending |
+| PKG-LIN-APP-10 | Phase 85 | Pending |
 | PKG-LIN-FP-01 | Phase 86 | Pending |
 | PKG-LIN-FP-02 | Phase 86 | Pending |
 | PKG-LIN-FP-03 | Phase 86 | Pending |
@@ -215,12 +217,12 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Pending (trigger-gated) |
 
 **Coverage:**
-- v2.2 requirements: 62 total (61 unconditional + 1 conditional)
-- Mapped to phases: 62/62 ✓
+- v2.2 requirements: 63 total (62 unconditional + 1 conditional)
+- Mapped to phases: 63/63 ✓
 - Unmapped: 0 ✓
 - Double-mapped: 0 ✓
 
 ---
 
 *Requirements defined: 2026-05-25*
-*Last updated: 2026-05-25 — traceability table populated by roadmap creation (14 phases: 85a, 85, 86, 87, 87b, 88, 89a, 89, 89b, 90, 90b, 91, 92, 93)*
+*Last updated: 2026-05-28 — Phase 85 Plan 85-02: added PKG-LIN-APP-10 (GPG signing, D-10); corrected PKG-LIN-APP-08 verification target to test_packaging_linux_spec.py (D-10)*
