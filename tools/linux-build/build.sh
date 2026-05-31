@@ -86,6 +86,10 @@ fi
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARTIFACTS="${HERE}/artifacts"
+# Repo root is two levels up from tools/linux-build/. It holds the installable
+# musicstreamer package (pyproject.toml + musicstreamer/), which is NOT in HERE.
+# Mounted read-only as /src so the in-container D-03 pip step can install it.
+REPO_ROOT="$(cd "${HERE}/../.." && pwd)"
 mkdir -p "${ARTIFACTS}"
 
 # Step 1: source pins, verify upstream hasn't drifted
@@ -126,15 +130,27 @@ echo "BUILD_DIAG conda_packages=${CONDA_PACKAGES}"
 # XDG_CACHE_HOME=/tmp/_cache: defensive for conda's cache.
 # Plugin scripts placed in /tmp/ + PATH=/tmp:$PATH inside container — non-root cannot
 # cp into /usr/local/bin; linuxdeploy resolves plugins via `command -v linuxdeploy-plugin-<name>`.
+# CONDA_SKIP_CLEANUP=site-packages;strip — opt out of two linuxdeploy-plugin-conda
+#   cleanups: (a) site-packages, which otherwise deletes pip and breaks the D-03
+#   `pip install` below; (b) strip, whose container binutils segfaults (exit 139)
+#   on a bundled Qt/PySide6 lib and aborts the build. Quoted because of the `;`.
+# CONDA_REMOTE_{MAX_RETRIES,BACKOFF_FACTOR} — raise conda's download retry budget
+#   above the default 3 so transient TLS record-layer failures on flaky links do
+#   not abort a ~10-min build.
+# -v REPO_ROOT:/src:ro — read-only repo root so the D-03 step can install the
+#   musicstreamer package (which lives at the root, not under HERE=/work).
 docker run --rm --privileged \
   --network=host \
   --user "$(id -u):$(id -g)" \
   -e HOME=/tmp/_home \
   -e XDG_CACHE_HOME=/tmp/_cache \
   -e CONDA_FETCH_THREADS=1 \
-  -e CONDA_SKIP_CLEANUP=strip \
+  -e "CONDA_SKIP_CLEANUP=site-packages;strip" \
+  -e CONDA_REMOTE_MAX_RETRIES=6 \
+  -e CONDA_REMOTE_BACKOFF_FACTOR=2 \
   -v "${HERE}":/work \
   -v "${ARTIFACTS}":/work/artifacts \
+  -v "${REPO_ROOT}":/src:ro \
   -e LINUXDEPLOY_URL -e LINUXDEPLOY_SHA256 \
   -e LINUXDEPLOY_PLUGIN_CONDA_URL -e LINUXDEPLOY_PLUGIN_CONDA_SHA256 \
   -e LINUXDEPLOY_PLUGIN_CONDA_PATCHED_SHA256 \
@@ -150,12 +166,15 @@ docker run --rm --privileged \
     APPDIR=/work/AppDir
     rm -rf "$APPDIR" && mkdir -p "$APPDIR"
 
-    # Download + SHA-verify pinned assets
-    curl -fsSL -o /tmp/linuxdeploy.AppImage "$LINUXDEPLOY_URL"
+    # Download + SHA-verify pinned assets.
+    # --retry-all-errors makes curl retry transient TLS record-layer failures
+    # (exit 56, "bad record mac") seen on flaky links; every asset is
+    # sha256-checked immediately after, so a corrupted retry cannot slip through.
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /tmp/linuxdeploy.AppImage "$LINUXDEPLOY_URL"
     echo "$LINUXDEPLOY_SHA256  /tmp/linuxdeploy.AppImage" | sha256sum --check
     chmod +x /tmp/linuxdeploy.AppImage
 
-    curl -fsSL -o /tmp/linuxdeploy-plugin-conda.sh "$LINUXDEPLOY_PLUGIN_CONDA_URL"
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /tmp/linuxdeploy-plugin-conda.sh "$LINUXDEPLOY_PLUGIN_CONDA_URL"
     echo "$LINUXDEPLOY_PLUGIN_CONDA_SHA256  /tmp/linuxdeploy-plugin-conda.sh" | sha256sum --check
     # Approach P (Pitfall 13/13b mitigation): deterministic sed patch to swap
     # the hardcoded Miniconda3 URL to Miniforge3. We narrowly target the
@@ -169,7 +188,7 @@ docker run --rm --privileged \
     echo "$LINUXDEPLOY_PLUGIN_CONDA_PATCHED_SHA256  /tmp/linuxdeploy-plugin-conda.sh" | sha256sum --check
     chmod +x /tmp/linuxdeploy-plugin-conda.sh
 
-    curl -fsSL -o /tmp/linuxdeploy-plugin-gstreamer.sh "$LINUXDEPLOY_PLUGIN_GSTREAMER_URL"
+    curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /tmp/linuxdeploy-plugin-gstreamer.sh "$LINUXDEPLOY_PLUGIN_GSTREAMER_URL"
     echo "$LINUXDEPLOY_PLUGIN_GSTREAMER_SHA256  /tmp/linuxdeploy-plugin-gstreamer.sh" | sha256sum --check
     chmod +x /tmp/linuxdeploy-plugin-gstreamer.sh
 
@@ -214,27 +233,52 @@ docker run --rm --privileged \
     # AppImage to a temp dir and execs the inner binary directly, skipping
     # FUSE entirely. See Pitfall 11 in 85A-SPIKE-FINDINGS.md (Plan 08).
     # D-11 / PKG-LIN-APP-06: embed zsync update-info pointing at the GitHub-Releases-
-    # flavored host. linuxdeploy writes this into the AppImage .upd_info section.
-    # The companion .zsync file at that URL is published by a future infra milestone
-    # (PKG-LIN-APP-UPDATE -- REQUIREMENTS.md deferred); Phase 85 closes
-    # the embedding (D-12), not the serving.
+    # flavored host. This is consumed by the appimage OUTPUT plugin (appimagetool),
+    # NOT by linuxdeploy itself -- linuxdeploy has no such update-info flag and
+    # aborts with "Flag could not be matched: updateinformation" if given one.
+    # The pinned linuxdeploy continuous build (SHA f2aa8e8b...) bundles a plugin
+    # that reads update-info ONLY from the LDAI_UPDATE_INFORMATION env var (verified
+    # via `strings` on the bundled linuxdeploy-plugin-appimage binary -- it exposes
+    # LDAI_-prefixed vars only, no legacy UPDATE_INFORMATION). Setting it makes
+    # appimagetool write the .upd_info section AND emit the companion .zsync file.
+    # The .zsync is served by a future infra milestone (PKG-LIN-APP-UPDATE --
+    # REQUIREMENTS.md deferred); Phase 85 closes the embedding (D-12), not the serving.
     # Note the literal "kcreasey" matches the GitHub mirror namespace per
     # reference_qnap_github_mirror.md; do not change to "lightningjim" -- the
     # QNAP-Gitea origin pushes to github.com/kcreasey/MusicStreamer.
+    export LDAI_UPDATE_INFORMATION="gh-releases-zsync|kcreasey|MusicStreamer|latest|MusicStreamer-*-x86_64.AppImage.zsync"
+    # CONDA_SKIP_CLEANUP (skip site-packages + strip cleanups) and the conda
+    # network-retry knobs are passed in via docker -e flags on the run command
+    # above -- see the rationale block there. Kept out of this single-quoted
+    # bash -c body to minimize apostrophe-quoting hazards.
     /tmp/linuxdeploy.AppImage --appimage-extract-and-run --appdir "$APPDIR" \
       --plugin conda \
       --plugin gstreamer \
       --desktop-file "$APPDIR/org.lightningjim.MusicStreamer.desktop" \
       --icon-file "$APPDIR/org.lightningjim.MusicStreamer.svg" \
-      --updateinformation "gh-releases-zsync|kcreasey|MusicStreamer|latest|MusicStreamer-*-x86_64.AppImage.zsync" \
       --output appimage
 
     # D-03: install musicstreamer itself via pip --no-deps into the bundled conda env.
     # Conda-forge does not package musicstreamer; --no-deps avoids re-resolving the
     # already-conda-managed dependency graph. The pip: sublist in environment.yml
     # is installed via plugin-conda BEFORE this step.
+    #
+    # Source: /src is the repo root, bind-mounted READ-ONLY (the package source
+    # lives there, NOT in /work which is tools/linux-build/). We do NOT point pip
+    # at /src directly: the working tree is multi-GB of gitignored build artifacts
+    # and pip PEP517 copies its entire source dir into a temp build area. Instead
+    # copy only the minimal buildable tree (pyproject.toml + the musicstreamer
+    # package) into a scratch dir. pyproject.toml references no other files
+    # (no readme/license/MANIFEST/dynamic fields -- verified), so this is complete.
+    #
+    # Invoke via `python -m pip` (not the bin/pip console script) so the install
+    # is robust to the conda plugin console-script handling; pip itself is
+    # preserved by CONDA_SKIP_CLEANUP=site-packages (set via docker -e above).
     export PATH="$APPDIR/usr/conda/bin:$PATH"
-    pip install --no-deps /work
+    PKGSRC=/tmp/pkgsrc
+    rm -rf "$PKGSRC" && mkdir -p "$PKGSRC"
+    cp -r /src/pyproject.toml /src/musicstreamer "$PKGSRC"/
+    python -m pip install --no-deps "$PKGSRC"
 
     # Locate the produced AppImage robustly (Issue #5 fix):
     #   - linuxdeploy may use any of: MusicStreamer_Spike-*.AppImage, "MusicStreamer Spike-*.AppImage",
@@ -295,12 +339,17 @@ esac
 # D-08 / PKG-LIN-APP-10: GPG-sign the produced AppImage. The signature is a
 # detached, armored sidecar at <appimage>.sig and is published alongside
 # the AppImage in the release artifact set. linuxdeploy itself supports a
-# --sign flag, but the standalone gpg2 invocation here keeps the signing
+# --sign flag, but the standalone gpg invocation here keeps the signing
 # surface visible at the build-driver level (easier to audit / disable).
+# Binary resolution: GnuPG 2.x ships as `gpg` on modern distros (Ubuntu 24.04,
+# Arch, Fedora) and as `gpg2` on older ones. Prefer gpg2 when present for
+# back-compat, else fall back to gpg -- both are GnuPG 2.x here.
 if [[ "${SKIP_SIGN:-0}" != "1" ]]; then
-  gpg2 --detach-sign --armor --local-user "$GPG_KEY_ID" --output "${APPIMG}.sig" "$APPIMG" \
-    || { echo "BUILD_FAIL reason=signing_failed (gpg2 --detach-sign exited non-zero for key=$GPG_KEY_ID)" >&2; exit 6; }
-  echo "SIGN_OK signature=${APPIMG}.sig key=$GPG_KEY_ID"
+  GPG_BIN="$(command -v gpg2 || command -v gpg || true)"
+  [[ -n "$GPG_BIN" ]] || { echo "BUILD_FAIL reason=no_gpg (install gnupg / gnupg2)" >&2; exit 6; }
+  "$GPG_BIN" --detach-sign --armor --local-user "$GPG_KEY_ID" --output "${APPIMG}.sig" "$APPIMG" \
+    || { echo "BUILD_FAIL reason=signing_failed ($GPG_BIN --detach-sign exited non-zero for key=$GPG_KEY_ID)" >&2; exit 6; }
+  echo "SIGN_OK signature=${APPIMG}.sig key=$GPG_KEY_ID gpg=$GPG_BIN"
 else
   echo "SIGN_SKIPPED SKIP_SIGN=1 (local-iteration mode; no .sig sidecar produced)"
 fi

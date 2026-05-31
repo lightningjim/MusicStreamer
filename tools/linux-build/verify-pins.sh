@@ -13,7 +13,10 @@ check_pin() {
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/${name}.XXXXXX")"
   trap 'rm -f "$tmp"' RETURN
-  curl -fsSL --retry 3 --retry-delay 2 -o "$tmp" "$url"
+  # --retry-all-errors: plain --retry does NOT retry curl exit-56 (SSL_read
+  # "bad record mac" -- transient TLS record-layer corruption seen on flaky
+  # links). --retry-all-errors makes curl retry those mid-stream failures too.
+  curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o "$tmp" "$url"
   local actual
   actual="$(sha256sum "$tmp" | awk '{print $1}')"
   if [[ "$actual" != "$expected" ]]; then

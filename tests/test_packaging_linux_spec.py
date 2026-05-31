@@ -102,11 +102,20 @@ def test_build_sh_pins_glibc_ceiling_at_2_35(build_sh_source: str) -> None:
 # --- PKG-LIN-APP-06 / D-11: zsync update-info embedding ---------------------
 
 def test_build_sh_embeds_zsync_update_info(build_sh_source: str) -> None:
-    """PKG-LIN-APP-06 / D-11: linuxdeploy invocation must embed the
-    canonical zsync update-info literal for the kcreasey/MusicStreamer
-    GitHub Releases mirror."""
-    assert "--updateinformation" in build_sh_source, (
-        "build.sh must pass --updateinformation to linuxdeploy (D-11)."
+    """PKG-LIN-APP-06 / D-11: the build must embed the canonical zsync
+    update-info literal for the kcreasey/MusicStreamer GitHub Releases
+    mirror via the appimage output plugin's LDAI_UPDATE_INFORMATION env
+    var. linuxdeploy has no --updateinformation flag (it aborts the run);
+    the var is what appimagetool actually reads (verified against the
+    pinned plugin binary)."""
+    assert "LDAI_UPDATE_INFORMATION" in build_sh_source, (
+        "build.sh must export LDAI_UPDATE_INFORMATION for the appimage "
+        "output plugin (D-11). The legacy --updateinformation flag is NOT "
+        "accepted by linuxdeploy and fails the build."
+    )
+    assert "--updateinformation" not in build_sh_source, (
+        "build.sh must NOT pass --updateinformation as a linuxdeploy flag "
+        "-- linuxdeploy rejects it with 'Flag could not be matched'."
     )
     assert (
         "gh-releases-zsync|kcreasey|MusicStreamer|latest|MusicStreamer-*-x86_64.AppImage.zsync"
@@ -118,15 +127,57 @@ def test_build_sh_embeds_zsync_update_info(build_sh_source: str) -> None:
     )
 
 
+def test_build_sh_preserves_pip_for_app_install(build_sh_source: str) -> None:
+    """D-03: musicstreamer is installed via `pip install --no-deps` into the
+    bundled conda env AFTER linuxdeploy runs. linuxdeploy-plugin-conda deletes
+    site-packages/{setuptools,pip} during cleanup by default, which breaks that
+    install ('No module named pip'). build.sh must opt out of the site-packages
+    cleanup so pip survives for the app install step."""
+    assert "CONDA_SKIP_CLEANUP" in build_sh_source and "site-packages" in build_sh_source, (
+        "build.sh must include 'site-packages' in CONDA_SKIP_CLEANUP, or "
+        "linuxdeploy-plugin-conda removes pip and the D-03 pip install fails."
+    )
+    assert "strip" in build_sh_source, (
+        "build.sh must include 'strip' in CONDA_SKIP_CLEANUP: the container "
+        "binutils strip segfaults (exit 139) on a bundled Qt/PySide6 lib and "
+        "aborts the build. Skipping the strip cleanup keeps the build correct."
+    )
+    assert "pip install --no-deps" in build_sh_source, (
+        "build.sh must install musicstreamer with --no-deps (D-03) so the "
+        "conda-managed dependency graph is not re-resolved."
+    )
+
+
+def test_build_sh_installs_app_from_repo_root_not_work(build_sh_source: str) -> None:
+    """D-03: the musicstreamer package lives at the repo root, not in
+    HERE=/work (tools/linux-build/). build.sh must mount the repo root and
+    install from there -- NOT `pip install ... /work`, which has no
+    pyproject.toml and fails with 'Neither setup.py nor pyproject.toml found'."""
+    assert "/src" in build_sh_source and ":ro" in build_sh_source, (
+        "build.sh must bind-mount the repo root read-only (e.g. -v REPO_ROOT:/src:ro) "
+        "so the package source is reachable inside the container."
+    )
+    assert "pip install --no-deps /work" not in build_sh_source, (
+        "build.sh must NOT install from /work (tools/linux-build/) -- that dir "
+        "has no pyproject.toml. Install the package from the repo-root source."
+    )
+
+
 # --- PKG-LIN-APP-10 / D-08 / D-09: GPG signing ------------------------------
 
 def test_build_sh_signs_appimage_with_gpg2(build_sh_source: str) -> None:
-    """PKG-LIN-APP-10 / D-08: build.sh must invoke gpg2 --detach-sign
-    --armor against the produced AppImage using the GPG_KEY_ID env var
-    (no hardcoded fingerprint)."""
-    assert "gpg2 --detach-sign --armor --local-user" in build_sh_source, (
-        "build.sh must call `gpg2 --detach-sign --armor --local-user "
+    """PKG-LIN-APP-10 / D-08: build.sh must invoke a GnuPG 2.x binary with
+    --detach-sign --armor against the produced AppImage using the GPG_KEY_ID
+    env var (no hardcoded fingerprint). The binary is resolved at runtime as
+    gpg2-or-gpg, since GnuPG 2.x ships as `gpg` on modern distros."""
+    assert "--detach-sign --armor --local-user" in build_sh_source, (
+        "build.sh must call `<gpg> --detach-sign --armor --local-user "
         "\"$GPG_KEY_ID\"` to produce the .sig sidecar (D-08)."
+    )
+    assert "command -v gpg2" in build_sh_source and "command -v gpg" in build_sh_source, (
+        "build.sh must resolve the GnuPG binary as gpg2-or-gpg (command -v gpg2 "
+        "|| command -v gpg); hardcoding `gpg2` fails on distros where GnuPG 2.x "
+        "is installed as `gpg` (no gpg2 symlink)."
     )
     assert '"$GPG_KEY_ID"' in build_sh_source, (
         "build.sh must reference $GPG_KEY_ID; no hardcoded key ID allowed (D-09)."

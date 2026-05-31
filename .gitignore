@@ -11,6 +11,12 @@ build/
 dist/installer/
 packaging/windows/artifacts/
 packaging/windows/build/
+# Linux AppImage build residue (tools/linux-build/build.sh)
+tools/linux-build/artifacts/
+tools/linux-build/AppDir/
+tools/linux-build/_temp_home/
+tools/linux-build/*.AppImage
+tools/linux-build/*.AppImage.zsync
 
 # Virtual environments
 .venv/
