@@ -36,8 +36,8 @@
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
 
-  <!-- Use <developer> not deprecated <developer_name> tag -->
-  <developer>
+  <!-- Use <developer> with id attribute (appstreamcli info: developer-id-missing if absent) -->
+  <developer id="io.github.kcreasey">
     <name>Kyle Creasey</name>
   </developer>
 
