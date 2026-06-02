@@ -425,3 +425,7 @@
 - Model mix: sonnet throughout
 - Sessions: 1 (completed same day started)
 - Notable: fastest milestone yet — 1 day vs 35 days for v1.0
+
+## Phase 91 — FIX-MPRIS Close-Out (2026-06-02)
+
+Phase 91 (FIX-MPRIS) closed as bookkeeping-only: verified Phase 77 close-out commit 378440c still holds (MPRIS2 cluster-2: 12 passed, 1 skipped, 0 failed), corrected the miswritten SC1 grep to an anchored PCRE form, refreshed the SC2 baseline to 1838 passed (captured 2026-06-02), scrubbed the stale 1462 count from REQUIREMENTS+ROADMAP, and flipped FIX-MPRIS-01/02/03 to Complete. No test or production-code changes.

@@ -94,9 +94,9 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 
 ### Phase 77 MPRIS2 Test Repair (FIX-MPRIS)
 
-- [ ] **FIX-MPRIS-01**: Investigate the 7 D-03-deferred MPRIS2 cross-file test failures from Phase 77 — first plan runs `grep "class FakePlayer" tests/ | wc -l`; if > 1, the failure is structural (FakePlayer duplication) not environmental (dbus-daemon/PyGObject)
-- [ ] **FIX-MPRIS-02**: All 7 failing tests pass cleanly via `uv run --with pytest pytest`; no test-runtime regressions in the 1462-test baseline; only `tests/_fake_player.py` declares `FakePlayer(QObject)` (Phase 77 D-04 convention preserved)
-- [ ] **FIX-MPRIS-03**: Phase 77's `test_richtext_baseline_unchanged_by_phase_71` baseline drift-guard remains green; no source-introspection regressions
+- [x] **FIX-MPRIS-01**: Investigate the 7 D-03-deferred MPRIS2 cross-file test failures from Phase 77 — first plan runs `grep "class FakePlayer" tests/ | wc -l`; if > 1, the failure is structural (FakePlayer duplication) not environmental (dbus-daemon/PyGObject)
+- [x] **FIX-MPRIS-02**: All 7 failing tests pass cleanly via `uv run --with pytest pytest`; no test-runtime regressions in the pre-phase test baseline; only `tests/_fake_player.py` declares `FakePlayer(QObject)` (Phase 77 D-04 convention preserved)
+- [x] **FIX-MPRIS-03**: Phase 77's `test_richtext_baseline_unchanged_by_phase_71` baseline drift-guard remains green; no source-introspection regressions
 
 ### Phase 58 PLS URL-Fallback (FIX-PLS)
 
@@ -210,9 +210,9 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | SOMA-PRE-03 | Phase 90 | Pending |
 | SOMA-PRE-04 | Phase 90 (harvest); Phase 90b (CONDITIONAL fix) | Pending |
 | SOMA-PRE-05 | Phase 90 | Pending |
-| FIX-MPRIS-01 | Phase 91 | Pending |
-| FIX-MPRIS-02 | Phase 91 | Pending |
-| FIX-MPRIS-03 | Phase 91 | Pending |
+| FIX-MPRIS-01 | Phase 91 | Complete |
+| FIX-MPRIS-02 | Phase 91 | Complete |
+| FIX-MPRIS-03 | Phase 91 | Complete |
 | FIX-PLS-01 | Phase 92 | Pending |
 | MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Pending (trigger-gated) |
 
