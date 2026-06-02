@@ -127,7 +127,12 @@ Plans:
   4. OS media keys via MPRIS2 control sandbox playback (`--own-name=org.mpris.MediaPlayer2.MusicStreamer`); no broad `--socket=session-bus` in the manifest.
   5. First launch on a host with existing `~/.local/share/musicstreamer/` offers the in-app import wizard (Phase 25 settings-export ZIP flow); manifest declares zero broad filesystem permissions; `appstreamcli validate` and `desktop-file-validate` both pass pre-flight.
 
-**Plans**: TBD
+**Plans**: 5 plans (3 waves)
+- [ ] 86-01-PLAN.md — Manifest + python3-modules.yaml + .desktop/metainfo artifacts (FP-01/03/04/05/09/10)
+- [ ] 86-02-PLAN.md — First-launch import wizard reusing Phase 25 ZIP flow (FP-06)
+- [ ] 86-03-PLAN.md — Manifest allow/deny-list + runtime-pin + validator + first-launch drift-guards (FP-01/03/04/05/06/08/09/10)
+- [ ] 86-04-PLAN.md — build.sh + workflow_dispatch CI + GPG signing + REQUIREMENTS signing row (FP-02/04/10/11)
+- [ ] 86-05-PLAN.md — UAT evidence bundle: install/launch, AAC, GBS.FM login, MPRIS2 (FP-02/05/07/08)
 **Research flag**: YES — `/gsd:plan-phase --research-phase 86` recommended (QtWebEngine sandbox-in-sandbox, BaseApp version pinning, Flathub policy nuances).
 
 #### Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)
