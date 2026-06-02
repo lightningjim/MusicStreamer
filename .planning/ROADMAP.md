@@ -130,8 +130,8 @@ Plans:
 **Plans**: 5 plans (3 waves)
 - [x] 86-01-PLAN.md — Manifest + python3-modules.yaml + .desktop/metainfo artifacts (FP-01/03/04/05/09/10)
 - [x] 86-02-PLAN.md — First-launch import wizard reusing Phase 25 ZIP flow (FP-06)
-- [ ] 86-03-PLAN.md — Manifest allow/deny-list + runtime-pin + validator + first-launch drift-guards (FP-01/03/04/05/06/08/09/10)
-- [ ] 86-04-PLAN.md — build.sh + workflow_dispatch CI + GPG signing + REQUIREMENTS signing row (FP-02/04/10/11)
+- [x] 86-03-PLAN.md — Manifest allow/deny-list + runtime-pin + validator + first-launch drift-guards (FP-01/03/04/05/06/08/09/10)
+- [x] 86-04-PLAN.md — build.sh + workflow_dispatch CI + GPG signing + REQUIREMENTS signing row (FP-02/04/10/11)
 - [ ] 86-05-PLAN.md — UAT evidence bundle: install/launch, AAC, GBS.FM login, MPRIS2 (FP-02/05/07/08)
 **Research flag**: YES — `/gsd:plan-phase --research-phase 86` recommended (QtWebEngine sandbox-in-sandbox, BaseApp version pinning, Flathub policy nuances).
 
@@ -322,7 +322,7 @@ Plans:
 | 85a. Linux Packaging Spike | 8/8 | Complete    | 2026-05-26 |
 | 91. FIX-MPRIS | 1/1 | Complete | 2026-06-02 |
 | 85. Linux Common + AppImage Build | 3/4 | In Progress|  |
-| 86. Linux Flatpak Build | 2/5 | In Progress|  |
+| 86. Linux Flatpak Build | 4/5 | In Progress|  |
 | 88. Windows Packaging Bundle | 0/? | Not started | - |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
 | 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
