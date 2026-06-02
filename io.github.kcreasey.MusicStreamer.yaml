@@ -56,7 +56,7 @@ finish-args:
   # D-01 (APPROVED ADDITION to FP-04): narrow read-only host mount for first-launch import wizard.
   # The app reads ~/.local/share/musicstreamer/musicstreamer.sqlite3 to detect pre-Flatpak data.
   # Inside the sandbox, XDG_DATA_HOME is remapped, so this literal host path is ONLY accessible
-  # via this explicit :ro mount (RESEARCH.md Pitfall 7). NEVER broaden to :rw or --filesystem=home.
+  # via this explicit :ro mount (RESEARCH.md Pitfall 7). NEVER broaden scope beyond this :ro mount.
   - --filesystem=~/.local/share/musicstreamer:ro
   # QTWEBENGINE_DISABLE_SANDBOX=1 allows the QtWebEngine subprocess (oauth_helper.py) to
   # run inside the Flatpak sandbox by disabling Chromium's inner namespace sandbox.
