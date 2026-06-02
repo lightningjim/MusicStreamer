@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 91 context gathered (closure as bookkeeping)
-last_updated: "2026-06-02T12:59:03.643Z"
-last_activity: 2026-06-02 -- Phase 91 execution started
+stopped_at: Phase 91 complete — FIX-MPRIS-01/02/03 flipped to Complete
+last_updated: "2026-06-02T00:00:00Z"
+last_activity: 2026-06-02 -- Phase 91 plan 01 complete (bookkeeping close-out)
 progress:
   total_phases: 14
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 19
-  completed_plans: 13
-  percent: 14
+  completed_plans: 14
+  percent: 21
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 91 — fix-mpris-phase-77-deferred-mpris2-tests
+**Current focus:** Phase 86 — Linux Flatpak Build (Phase 91 FIX-MPRIS complete; MPRIS2 baseline clean)
 
 ## Current Position
 
-Phase: 91 (fix-mpris-phase-77-deferred-mpris2-tests) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 91
-Last activity: 2026-06-02 -- Phase 91 execution started
+Phase: 91 (fix-mpris-phase-77-deferred-mpris2-tests) — COMPLETE
+Plan: 1 of 1 complete
+Status: Phase 91 complete; next: Phase 85 (Linux AppImage, in progress) or Phase 86 (Flatpak, now unblocked)
+Last activity: 2026-06-02 -- Phase 91 plan 01 complete (bookkeeping close-out)
 
 ## v2.2 Phase Roster
 
@@ -147,9 +147,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-05-27T04:27:50.976Z
-Stopped at: Phase 91 context gathered (closure as bookkeeping)
-Resume file: .planning/phases/91-fix-mpris-phase-77-deferred-mpris2-tests/91-CONTEXT.md
+Last session: 2026-06-02T00:00:00Z
+Stopped at: Phase 91 complete — FIX-MPRIS-01/02/03 flipped to Complete; MPRIS2 baseline 1838 passed
+Resume file: None
 
 ## Operator Next Steps
 
