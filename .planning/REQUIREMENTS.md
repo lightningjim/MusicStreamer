@@ -28,13 +28,14 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [ ] **PKG-LIN-FP-01**: Flatpak app ID is **`io.github.kcreasey.MusicStreamer`** (locked at first manifest commit; reverse-DNS conformant; matches the public GitHub mirror namespace)
 - [ ] **PKG-LIN-FP-02**: User can install via `flatpak install --user io.github.kcreasey.MusicStreamer.flatpak` and launch via GNOME Software or `flatpak run`
 - [ ] **PKG-LIN-FP-03**: Flatpak uses `org.kde.Platform//6.8` + `org.kde.Sdk//6.8` + `io.qt.PySide.BaseApp//6.8` + `org.freedesktop.Platform.ffmpeg-full//24.08` + `org.freedesktop.Sdk.Extension.node20`
-- [ ] **PKG-LIN-FP-04**: Flatpak finish-args expose: `--share=network`, `--socket=pulseaudio`, `--socket=wayland`, `--socket=fallback-x11`, `--own-name=org.mpris.MediaPlayer2.MusicStreamer` — explicitly NOT `--filesystem=home` and NOT `--socket=session-bus` (broadly)
+- [ ] **PKG-LIN-FP-04**: Flatpak finish-args expose: `--share=network`, `--socket=pulseaudio`, `--socket=wayland`, `--socket=fallback-x11`, `--own-name=org.mpris.MediaPlayer2.MusicStreamer` — explicitly NOT `--filesystem=home` and NOT `--socket=session-bus` (broadly); plus the single narrow `--filesystem=~/.local/share/musicstreamer:ro` path (D-01 approved addition for first-launch detection — NOT broad filesystem access)
 - [ ] **PKG-LIN-FP-05**: Flatpak's QtWebEngine GBS-FM login flow works inside the sandbox via `QTWEBENGINE_DISABLE_SANDBOX=1` env-var in `finish-args` (verbatim spelling per Flathub `io.qt.qtwebengine.BaseApp` manifest)
 - [ ] **PKG-LIN-FP-06**: Flatpak's first launch detects existing unsandboxed data at `~/.local/share/musicstreamer/` and offers an in-app import wizard using the existing Phase 25 settings-export ZIP flow (no broad filesystem permission)
 - [ ] **PKG-LIN-FP-07**: Flatpak ships AAC stream playback working (DI.fm, AudioAddict, SomaFM AAC tiers) via the `ffmpeg-full` extension — verified by audible playback during UAT
 - [ ] **PKG-LIN-FP-08**: Flatpak's MPRIS2 binding is verified from inside the sandbox AFTER FIX-MPRIS lands (FIX-MPRIS-01 blocks PKG-LIN-FP-08 acceptance)
 - [ ] **PKG-LIN-FP-09**: `flatpak-pip-generator` outputs a checked-in `python3-modules.yaml` capturing all `pyproject.toml` dependencies for offline Flathub builds
 - [ ] **PKG-LIN-FP-10**: Flatpak appstream metainfo XML passes `appstreamcli validate` and `.desktop` entry passes `desktop-file-validate` (Flathub mandatory pre-flight)
+- [ ] **PKG-LIN-FP-11**: The sideload `.flatpak` is GPG-signed via `flatpak build-bundle --gpg-sign=$GPG_KEY_ID` (reusing `secrets.LINUX_SIGNING_KEY` / `secrets.LINUX_SIGNING_KEY_ID`); `build.sh` fails fast (exit 5) if `GPG_KEY_ID` unset unless `SKIP_SIGN=1` (mirrors Phase 85 PKG-LIN-APP-10 / D-08); signing is inline in the bundle (no `.sig` sidecar — unlike AppImage's detached `.sig`)
 
 ### Windows Packaging Polish (WIN bundle — single Win11 VM session)
 
@@ -172,6 +173,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | PKG-LIN-FP-08 | Phase 86 | Pending (gated on Phase 91 FIX-MPRIS) |
 | PKG-LIN-FP-09 | Phase 86 | Pending |
 | PKG-LIN-FP-10 | Phase 86 | Pending |
+| PKG-LIN-FP-11 | Phase 86 | Pending |
 | WIN-02 | Phase 88 | Pending |
 | WIN-02-A | Phase 88 | Pending |
 | WIN-02-B | Phase 88 | Pending |
@@ -217,12 +219,12 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Pending (trigger-gated) |
 
 **Coverage:**
-- v2.2 requirements: 63 total (62 unconditional + 1 conditional)
-- Mapped to phases: 63/63 ✓
+- v2.2 requirements: 64 total (63 unconditional + 1 conditional)
+- Mapped to phases: 64/64 ✓
 - Unmapped: 0 ✓
 - Double-mapped: 0 ✓
 
 ---
 
 *Requirements defined: 2026-05-25*
-*Last updated: 2026-05-28 — Phase 85 Plan 85-02: added PKG-LIN-APP-10 (GPG signing, D-10); corrected PKG-LIN-APP-08 verification target to test_packaging_linux_spec.py (D-10)*
+*Last updated: 2026-06-02 — Phase 86 Plan 86-04: added PKG-LIN-FP-11 (Flatpak GPG signing, D-08); amended PKG-LIN-FP-04 to enumerate the narrow :ro mount as an approved exception (D-05)*
