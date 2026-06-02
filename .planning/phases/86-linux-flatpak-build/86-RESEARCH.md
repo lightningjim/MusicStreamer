@@ -615,37 +615,43 @@ def test_desktop_file_validate_passes():
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `org.kde.Platform//6.8` use Freedesktop SDK 24.08 internally?**
    - What we know: KDE Platform branches track Freedesktop SDK; 6.7 used 23.08. 6.8 likely uses 24.08.
    - What's unclear: Exact internal SDK version not confirmed from available data.
    - Recommendation: Verify with `flatpak run --command=bash org.kde.Platform//6.8 -c "cat /usr/manifest.json | grep freedesktop"` after installing the runtime. If 24.08 confirmed, `ffmpeg-full//24.08` and `node20//24.08` are correctly versioned.
+   - RESOLVED: Verify empirically in Plan 01 Task 1 (run the `cat /usr/manifest.json | grep -i freedesktop` probe and record the internal SDK version in the README). Accept `//24.08` alignment for `ffmpeg-full` and `node20` pending that empirical confirmation; if the probe shows a different SDK branch, adjust the extension versions to match.
 
 2. **Does GStreamer inside the KDE runtime auto-discover `/app/lib/ffmpeg/` without a GST_PLUGIN_PATH env-var?**
    - What we know: Flatpak extensions with `add-ld-path: .` affect library search but not necessarily `GST_PLUGIN_PATH`.
    - What's unclear: Whether the KDE runtime's GStreamer is configured to scan `/app/lib/` subdirectories, or whether an explicit `--env=GST_PLUGIN_PATH=/app/lib/ffmpeg` is needed in finish-args.
    - Recommendation: Add `--env=GST_PLUGIN_PATH=/app/lib/ffmpeg` to finish-args as a defensive measure. Test with `gst-inspect-1.0 avdec_aac` from inside the running sandbox. Remove the env-var if it proves unnecessary.
+   - RESOLVED: Ship a defensive **commented-out** `# --env=GST_PLUGIN_PATH=/app/lib/ffmpeg` fallback in the manifest finish-args (Plan 01 Task 2) so the allow/deny-list drift-guard still sees a clean allow-list. Confirm auto-discovery live in Plan 05 UAT via `gst-inspect-1.0 avdec_aac`; uncomment the env-var only if AAC decode fails there.
 
 3. **What is the correct `--runtime` flag for flatpak-pip-generator when targeting KDE Platform 6.8?**
    - What we know: The flag is `--runtime='org.freedesktop.Sdk//24.08'` per the tool's docs.
    - What's unclear: Whether using the Freedesktop Sdk vs the KDE Sdk produces different python version or ABI mismatches.
    - Recommendation: Use `--runtime='org.kde.Sdk//6.8'` instead, since the app actually builds against KDE Platform. If that runtime isn't installed locally, fall back to `--runtime='org.freedesktop.Sdk//24.08'`.
+   - RESOLVED: Plan 01 Task 1 runs `flatpak-pip-generator --runtime='org.kde.Sdk//6.8'` first (the app builds against KDE Platform); if that SDK is not resolvable locally, fall back to `--runtime='org.freedesktop.Sdk//24.08'` and note the fallback in the README.
 
 4. **Exact module source-type for the app in the manifest?**
    - What we know: During development, `type: dir` (local path `.`) works; for CI/release, the source should be a `type: archive` or `type: git` pointing at the repo.
    - What's unclear: Whether CI clones the repo or mounts it; whether `type: dir` is acceptable for a non-Flathub sideload build.
    - Recommendation: Use `type: dir, path: .` for local builds. For CI, the `flatpak/flatpak-github-actions` action automatically handles the source as a git checkout; no special source entry needed.
+   - RESOLVED: Use `type: dir, path: .` for the app module (Plan 01 Task 2 local builds). For CI, `flatpak/flatpak-github-actions` handles the source as a git checkout (Plan 04) — no separate `type: git`/`type: archive` source entry is added.
 
 5. **node20 SDK extension branch: `24.08` vs another?**
    - What we know: `flatpak remote-ls` confirms `org.freedesktop.Sdk.Extension.node20 20.20.1 24.08` is available in Flathub.
    - What's unclear: Whether `sdk-extensions: [org.freedesktop.Sdk.Extension.node20]` automatically resolves to the correct branch version, or whether a branch qualifier like `//24.08` is needed.
    - Recommendation: Planner should test both `org.freedesktop.Sdk.Extension.node20` and `org.freedesktop.Sdk.Extension.node20//24.08` in the `sdk-extensions` list; if branch is not specified, flatpak-builder uses the SDK's branch by default.
+   - RESOLVED: Declare `sdk-extensions: [org.freedesktop.Sdk.Extension.node20]` without an explicit branch and let flatpak-builder inherit the SDK's branch (expected `//24.08`); verify empirically alongside OQ1 in Plan 01 Task 1 and pin the branch only if the inherited default does not resolve.
 
 6. **Metainfo XML screenshots requirement for sideload (non-Flathub)?**
    - What we know: Flathub requires screenshots in metainfo. `appstreamcli validate` may issue warnings (not errors) for missing screenshots.
    - What's unclear: Whether `appstreamcli validate --strict` mode is used in FP-10's pre-flight check, and whether missing screenshots are errors or warnings.
    - Recommendation: Include at least one screenshot in metainfo.xml to pass `appstreamcli validate` cleanly. Use the current app Wayland screenshot from Phase 85's evidence bundle.
+   - RESOLVED: Include one screenshot in metainfo.xml (Plan 01 Task 3) so `appstreamcli validate` passes cleanly. Screenshots are not strictly required for an off-Flathub sideload build, so a single Phase 85 Wayland evidence-bundle screenshot (or placeholder caption) is sufficient.
 
 ---
 
