@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metainfo for MusicStreamer Flatpak (FP-10)
+     Required fields per appstreamcli validate (appstreamcli 1.1.2):
+     id, name, summary, description, metadata_license, project_license,
+     developer, url homepage, launchable, screenshots (OQ6), releases, content_rating.
+     Validated with: appstreamcli validate (FP-10 / D-15)
+-->
+<component type="desktop-application">
+  <id>io.github.kcreasey.MusicStreamer</id>
+
+  <name>MusicStreamer</name>
+  <summary>Personal internet radio and live stream player</summary>
+
+  <description>
+    <p>
+      MusicStreamer is a personal GNOME desktop application for listening to curated
+      internet radio and live streams. It supports ShoutCast-style streams (AudioAddict,
+      Soma.FM, etc.) and YouTube live streams, with a library of stations organized by
+      provider and genre.
+    </p>
+    <p>
+      Key features include:
+    </p>
+    <ul>
+      <li>Provider-grouped station library with multi-select filtering by provider and genre</li>
+      <li>Live ICY track title display with cover art from iTunes and MusicBrainz/CAA</li>
+      <li>Stream failover with automatic round-robin queue</li>
+      <li>MPRIS2 integration for OS media keys and playerctl</li>
+      <li>GBS.FM in-app login via QtWebEngine</li>
+      <li>SomaFM full catalog import</li>
+      <li>AudioAddict and YouTube playlist bulk import</li>
+      <li>Settings export/import for migration (ZIP-based)</li>
+    </ul>
+  </description>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <!-- Use <developer> not deprecated <developer_name> tag -->
+  <developer>
+    <name>Kyle Creasey</name>
+  </developer>
+
+  <url type="homepage">https://github.com/kcreasey/MusicStreamer</url>
+  <url type="bugtracker">https://github.com/kcreasey/MusicStreamer/issues</url>
+
+  <launchable type="desktop-id">io.github.kcreasey.MusicStreamer.desktop</launchable>
+
+  <!-- OQ6 (RESEARCH.md): at least one screenshot required for appstreamcli validate to pass cleanly.
+       Screenshot URL uses type="source" so appstreamcli does not attempt a live network check.
+       Image will be hosted at this path in the main branch once Phase 86 lands. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>MusicStreamer playing an internet radio station on Wayland</caption>
+      <image type="source">https://raw.githubusercontent.com/kcreasey/MusicStreamer/main/tools/linux-flatpak/screenshots/musicstreamer-main.png</image>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="2.1.84" date="2026-05-31">
+      <description>
+        <p>
+          Linux Flatpak packaging (Phase 86). MPRIS2 fixes (Phase 91).
+          Buffer-underrun adaptive resilience (Phase 84). SomaFM catalog import
+          (Phase 74). MusicBrainz cover art fallback (Phase 73). GBS.FM in-app
+          login via QtWebEngine (Phase 76).
+        </p>
+      </description>
+    </release>
+  </releases>
+
+  <!-- OARS 1.1 content rating: MusicStreamer has no user-generated content,
+       no chat, no social features — empty content_rating (all attributes = none). -->
+  <content_rating type="oars-1.1"/>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Music</category>
+    <category>Player</category>
+  </categories>
+
+  <keywords>
+    <keyword>radio</keyword>
+    <keyword>stream</keyword>
+    <keyword>internet radio</keyword>
+    <keyword>music</keyword>
+    <keyword>shoutcast</keyword>
+    <keyword>icecast</keyword>
+    <keyword>youtube</keyword>
+  </keywords>
+</component>

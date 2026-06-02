@@ -1,0 +1,25 @@
+# Flatpak pip dependencies for MusicStreamer
+# Generated for use with flatpak-pip-generator.
+#
+# INTENTIONALLY EXCLUDED (provided by Flatpak runtimes — do NOT re-add):
+#   PySide6       — provided by io.qt.PySide.BaseApp//6.8 (Pitfall 5: ABI conflict)
+#   PyGObject     — provided by org.kde.Platform//6.8 system GObject bindings
+#
+# Cross-check against pyproject.toml [project] dependencies:
+#   PySide6>=6.10  → EXCLUDED (BaseApp provides ABI-compatible PySide6)
+#   chardet>=5.2,<6 → included (pure-Python char detection for requests)
+#   yt-dlp         → included
+#   streamlink>=8.3 → included
+#   platformdirs>=4.3 → included
+#
+# Additional runtime deps not in pyproject.toml but required:
+#   mutagen        → audio metadata reading
+#   pillow         → cover art thumbnail processing
+#   requests       → iTunes API / RadioBrowser API / AudioAddict API
+yt-dlp
+streamlink
+platformdirs
+chardet
+mutagen
+pillow
+requests
