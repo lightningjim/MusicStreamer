@@ -4,14 +4,14 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 91 context gathered (closure as bookkeeping)
-last_updated: "2026-05-28T14:26:58.687Z"
-last_activity: 2026-05-28 -- Phase 85 execution started
+last_updated: "2026-06-02T12:59:03.643Z"
+last_activity: 2026-06-02 -- Phase 91 execution started
 progress:
   total_phases: 14
-  completed_phases: 1
-  total_plans: 18
-  completed_plans: 9
-  percent: 7
+  completed_phases: 2
+  total_plans: 19
+  completed_plans: 13
+  percent: 14
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 85 — linux-common-appimage-build
+**Current focus:** Phase 91 — fix-mpris-phase-77-deferred-mpris2-tests
 
 ## Current Position
 
-Phase: 85 (linux-common-appimage-build) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 85
-Last activity: 2026-05-28 -- Phase 85 execution started
+Phase: 91 (fix-mpris-phase-77-deferred-mpris2-tests) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 91
+Last activity: 2026-06-02 -- Phase 91 execution started
 
 ## v2.2 Phase Roster
 
