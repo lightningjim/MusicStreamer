@@ -1,0 +1,136 @@
+# Phase 86 — Linux Flatpak build CI scaffold.
+#
+# Manually-triggerable build (D-07 — no auto-publish). Runs the same
+# tools/linux-flatpak/build.sh the dev rig runs, inside a privileged container
+# with FUSE/OSTree support (RESEARCH.md Pitfall 9).
+#
+# Scope discipline (D-07):
+#   - This workflow produces a SIGNED, bundled .flatpak artifact.
+#   - This workflow does NOT publish to GitHub Releases (manual step per D-06 procedure in README.md).
+#   - This workflow does NOT do GUI/MPRIS/screenshot tests (no desktop session; D-07).
+#   - This workflow does NOT do a smoke launch (no desktop session — CI success = bundle builds + validators pass, D-07).
+#   - No GLIBC scan step (Flatpak bundles its own org.kde.Platform//6.8 runtime; baseline concern is moot).
+#
+# Trigger discipline (D-07 security gate):
+#   workflow_dispatch ONLY. No push/PR/schedule. Fork-PR cannot expose LINUX_SIGNING_KEY.
+#
+# Container: --privileged is required because flatpak-builder uses FUSE and OSTree
+# (RESEARCH.md Pitfall 9). Without --privileged the FUSE mount fails and the build aborts.
+#
+# Signing: mirrors Phase 85 D-16 (PKG-LIN-APP-10) ephemeral GNUPGHOME discipline.
+# Inline bundle signing (flatpak build-bundle --gpg-sign) — no .sig sidecar.
+# Key material never persists beyond the job.
+
+name: Build signed Flatpak (org.kde.Platform//6.8)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build signed Flatpak (org.kde.Platform//6.8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # --privileged is required for FUSE/OSTree used by flatpak-builder (RESEARCH.md Pitfall 9).
+    # Without it the build fails with "fuse: failed to open /dev/fuse: Operation not permitted".
+    options: "--privileged"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate signing secrets (D-07 fail-fast)
+        env:
+          LINUX_SIGNING_KEY: ${{ secrets.LINUX_SIGNING_KEY }}
+          LINUX_SIGNING_KEY_ID: ${{ secrets.LINUX_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${LINUX_SIGNING_KEY:-}" || -z "${LINUX_SIGNING_KEY_ID:-}" ]]; then
+            echo "WORKFLOW_FAIL: signing secrets missing (set LINUX_SIGNING_KEY and LINUX_SIGNING_KEY_ID in repo secrets)" >&2
+            exit 1
+          fi
+          echo "SECRETS_OK key_id_present=true key_block_length=${#LINUX_SIGNING_KEY}"
+
+      - name: Import signing key into ephemeral GNUPGHOME (D-16)
+        env:
+          LINUX_SIGNING_KEY: ${{ secrets.LINUX_SIGNING_KEY }}
+          LINUX_SIGNING_KEY_ID: ${{ secrets.LINUX_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          # Ephemeral GNUPGHOME: key material is scoped to this job's filesystem
+          # and not persisted across runs. mktemp -d in /tmp; GitHub runners are
+          # ephemeral so the whole runner FS is destroyed at job end regardless,
+          # but the scoped GNUPGHOME makes the intent explicit and isolates
+          # the keyring from any other gpg invocation in later steps.
+          # CI imports a passphrase-less key (RESEARCH.md Pitfall 8, mirrors Phase 85 D-16).
+          GNUPGHOME="$(mktemp -d)"
+          echo "GNUPGHOME=${GNUPGHOME}" >> "$GITHUB_ENV"
+          chmod 700 "${GNUPGHOME}"
+          # gpg --batch suppresses interactive prompts; pinentry must be loopback-compatible
+          echo "allow-loopback-pinentry" >> "${GNUPGHOME}/gpg-agent.conf"
+          echo "pinentry-mode loopback" >> "${GNUPGHOME}/gpg.conf"
+          printf '%s' "${LINUX_SIGNING_KEY}" | gpg --batch --import
+          # Export GPG_KEY_ID for build.sh's signing step (D-08 / PKG-LIN-FP-11)
+          echo "GPG_KEY_ID=${LINUX_SIGNING_KEY_ID}" >> "$GITHUB_ENV"
+
+      - name: Install build prerequisites
+        run: |
+          set -euo pipefail
+          # flatpak-builder for building; appstream-utils + desktop-file-utils for
+          # the D-15 hard validator pre-flight (appstreamcli + desktop-file-validate).
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak \
+            flatpak-builder \
+            libappstream-dev \
+            desktop-file-utils
+          flatpak --version
+          flatpak-builder --version
+
+      - name: Add Flathub and install runtimes
+        run: |
+          set -euo pipefail
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          # Install runtimes and SDK extensions required by the manifest (FP-03).
+          # --noninteractive suppresses prompts; --no-auto-pin avoids pinning.
+          flatpak install --user -y flathub \
+            org.kde.Platform//6.8 \
+            org.kde.Sdk//6.8 \
+            io.qt.PySide.BaseApp//6.8 \
+            org.freedesktop.Platform.ffmpeg-full//24.08 \
+            org.freedesktop.Sdk.Extension.node20//24.08
+
+      - name: Build signed Flatpak
+        # GPG_KEY_ID and GNUPGHOME are in the environment from the import step above.
+        # The hard D-15 pre-flight validator gate (appstreamcli + desktop-file-validate)
+        # runs inside build.sh BEFORE flatpak build-bundle — no separate validator step needed.
+        run: bash tools/linux-flatpak/build.sh
+
+      - name: Locate produced artifact
+        id: locate
+        run: |
+          set -euo pipefail
+          BUNDLE="$(find tools/linux-flatpak/artifacts -maxdepth 1 -name 'MusicStreamer-*.flatpak' | head -1)"
+          [[ -f "${BUNDLE}" ]] || { echo "WORKFLOW_FAIL: .flatpak bundle not produced at tools/linux-flatpak/artifacts/" >&2; exit 1; }
+          echo "bundle=${BUNDLE}" >> "$GITHUB_OUTPUT"
+          echo "ARTIFACT_FOUND bundle=${BUNDLE}"
+
+      - name: Upload signed .flatpak as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MusicStreamer-Flatpak
+          # Inline signing — no .sig sidecar (flatpak build-bundle --gpg-sign embeds
+          # the signature inside the bundle itself; Critical Note #1 / PKG-LIN-FP-11).
+          path: tools/linux-flatpak/artifacts/MusicStreamer-*.flatpak
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Scrub ephemeral GNUPGHOME (defense-in-depth)
+        if: always()
+        run: |
+          if [[ -n "${GNUPGHOME:-}" && -d "${GNUPGHOME}" ]]; then
+            rm -rf "${GNUPGHOME}"
+            echo "SCRUBBED ${GNUPGHOME}"
+          fi
