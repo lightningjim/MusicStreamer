@@ -319,3 +319,139 @@ def test_smoke_test_preserves_spike_grep_contract(smoke_source: str) -> None:
             f"smoke_test.py must preserve the spike stdout marker `{marker}` "
             "(downstream run-smoke.sh greps for it)."
         )
+
+
+# =============================================================================
+# Phase 86 / PKG-LIN-FP — Flatpak build.sh and CI drift-guards
+# =============================================================================
+# Source-text assertions that lock in the Flatpak build contract so a future
+# refactor cannot silently regress GPG signing (PKG-LIN-FP-11 / D-08), the
+# hard validator pre-flight (FP-10 / D-15), or the workflow_dispatch-only CI
+# trigger (D-07). Guards follow the same fixture+assertion idiom as the AppImage
+# section above (PATTERNS.md §Drift-guard Fixture Shape).
+
+_FLATPAK_BUILD_SH = (
+    Path(__file__).resolve().parent.parent / "tools" / "linux-flatpak" / "build.sh"
+)
+_FLATPAK_CI_WORKFLOW = (
+    Path(__file__).resolve().parent.parent
+    / ".github" / "workflows" / "linux-flatpak.yml"
+)
+
+
+@pytest.fixture(scope="module")
+def flatpak_build_sh_source() -> str:
+    assert _FLATPAK_BUILD_SH.is_file(), (
+        f"expected Flatpak build.sh at {_FLATPAK_BUILD_SH}"
+    )
+    return _FLATPAK_BUILD_SH.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def flatpak_ci_workflow_source() -> str:
+    assert _FLATPAK_CI_WORKFLOW.is_file(), (
+        f"expected linux-flatpak.yml at {_FLATPAK_CI_WORKFLOW}"
+    )
+    return _FLATPAK_CI_WORKFLOW.read_text(encoding="utf-8")
+
+
+# --- PKG-LIN-FP-11 / D-08: inline GPG signing --------------------------------
+
+def test_flatpak_build_gpg_sign(flatpak_build_sh_source: str) -> None:
+    """PKG-LIN-FP-11 / D-08: tools/linux-flatpak/build.sh must invoke
+    `flatpak build-bundle` with `--gpg-sign` to embed the signature inline
+    in the .flatpak bundle. Unlike the AppImage (detached .sig sidecar),
+    Flatpak signing is inline — no separate .sig file is produced.
+    (Critical Note #1 / PATTERNS.md line 527)"""
+    assert "flatpak build-bundle" in flatpak_build_sh_source, (
+        "tools/linux-flatpak/build.sh must invoke `flatpak build-bundle` to "
+        "produce the .flatpak bundle (PKG-LIN-FP-02 / D-08)."
+    )
+    assert "--gpg-sign" in flatpak_build_sh_source, (
+        "tools/linux-flatpak/build.sh must pass `--gpg-sign` to flatpak "
+        "build-bundle (PKG-LIN-FP-11 / D-08 inline signing; no .sig sidecar)."
+    )
+
+
+def test_flatpak_build_fail_fast_gpg(flatpak_build_sh_source: str) -> None:
+    """PKG-LIN-FP-11 / D-08: tools/linux-flatpak/build.sh exits 5 with
+    `BUILD_FAIL reason=gpg_key_unset` when GPG_KEY_ID is unset AND
+    SKIP_SIGN!=1. CI never sets SKIP_SIGN. Mirrors Phase 85 D-09 discipline."""
+    assert "BUILD_FAIL reason=gpg_key_unset" in flatpak_build_sh_source, (
+        "build.sh must emit BUILD_FAIL reason=gpg_key_unset when GPG_KEY_ID "
+        "is unset and SKIP_SIGN!=1 (PKG-LIN-FP-11 / D-08 fail-fast)."
+    )
+    assert "exit 5" in flatpak_build_sh_source, (
+        "build.sh must exit 5 for the gpg_key_unset case (Phase 85 exit-code "
+        "parity — D-08)."
+    )
+    # SKIP_SIGN must appear in an EXECUTABLE (non-comment) line so the
+    # local-iteration escape hatch actually works.
+    executable = _strip_comments_sh(flatpak_build_sh_source)
+    assert "SKIP_SIGN" in executable, (
+        "build.sh must reference SKIP_SIGN in an executable (non-comment) "
+        "line so `SKIP_SIGN=1` local-iteration mode works (D-08)."
+    )
+
+
+# --- FP-10 / D-15: hard validator pre-flight gate ----------------------------
+
+def test_flatpak_build_validator_gate(flatpak_build_sh_source: str) -> None:
+    """FP-10 / D-15: tools/linux-flatpak/build.sh must run BOTH
+    `appstreamcli validate` and `desktop-file-validate` as a HARD pre-flight
+    gate before flatpak build-bundle. A non-zero exit from either FAILS the
+    build immediately (not a warning). This is the build-time half of D-15;
+    the pytest subprocess gate in this file is the test-time half."""
+    assert "appstreamcli validate" in flatpak_build_sh_source, (
+        "build.sh must run `appstreamcli validate` as a hard pre-flight gate "
+        "before bundling (FP-10 / D-15). Omitting it allows invalid metainfo "
+        "to ship silently."
+    )
+    assert "desktop-file-validate" in flatpak_build_sh_source, (
+        "build.sh must run `desktop-file-validate` as a hard pre-flight gate "
+        "before bundling (FP-10 / D-15). Omitting it allows an invalid .desktop "
+        "entry to ship silently."
+    )
+    # The build must FAIL (not skip) on validator error — assert the error path
+    # exists as a non-comment line.
+    executable = _strip_comments_sh(flatpak_build_sh_source)
+    assert "BUILD_FAIL reason=validator_failed" in executable, (
+        "build.sh must emit BUILD_FAIL reason=validator_failed on validator "
+        "error in an executable line (D-15 hard gate — build FAILS, not warns)."
+    )
+
+
+# --- D-07: workflow_dispatch-only CI, --privileged, invokes build.sh ---------
+
+def test_flatpak_ci_workflow_dispatch_only(flatpak_ci_workflow_source: str) -> None:
+    """D-07 / PATTERNS.md §linux-flatpak.yml: the CI workflow must be
+    workflow_dispatch-only (no push/release auto-trigger) to prevent
+    accidental auto-publish and guard signing key exposure (fork-PRs cannot
+    trigger workflow_dispatch and thus cannot access LINUX_SIGNING_KEY).
+    --privileged is required for FUSE/OSTree (RESEARCH.md Pitfall 9)."""
+    assert "workflow_dispatch" in flatpak_ci_workflow_source, (
+        "linux-flatpak.yml must use `workflow_dispatch` as the only trigger "
+        "(D-07 — manual trigger prevents accidental publish)."
+    )
+    # Deny-list: no push or release auto-trigger.
+    assert "on:\n  push" not in flatpak_ci_workflow_source, (
+        "linux-flatpak.yml must NOT have a `push:` trigger (D-07 — "
+        "workflow_dispatch-only)."
+    )
+    assert "\n  push:" not in flatpak_ci_workflow_source, (
+        "linux-flatpak.yml must NOT have a `push:` trigger (D-07 — "
+        "workflow_dispatch-only; deny-list check)."
+    )
+    assert "--privileged" in flatpak_ci_workflow_source, (
+        "linux-flatpak.yml must specify --privileged for the job container "
+        "(RESEARCH.md Pitfall 9 — FUSE/OSTree require privileged mode; without "
+        "it the build fails with 'fuse: failed to open /dev/fuse')."
+    )
+    assert "tools/linux-flatpak/build.sh" in flatpak_ci_workflow_source, (
+        "linux-flatpak.yml must invoke tools/linux-flatpak/build.sh in the "
+        "build step (key_links contract — the workflow delegates to the build driver)."
+    )
+    assert "if-no-files-found: error" in flatpak_ci_workflow_source, (
+        "linux-flatpak.yml upload-artifact step must set if-no-files-found: error "
+        "so CI fails loudly when the .flatpak bundle is not produced."
+    )
