@@ -112,15 +112,26 @@ docker build -f "${HERE}/Dockerfile" -t ms-linux-build:22.04 "${HERE}"
 #   - Mount ARTIFACTS as /work/artifacts
 #   - Pass through pins.env via -e LINUXDEPLOY_* (so the inner shell doesn't re-curl from raw URLs without the SHA gate)
 # D-01: parse environment.yml at build start; YAML is the single source of truth.
-# The pip: sublist is excluded (it feeds the post-step pip install --no-deps below per D-03);
-# only the bare conda dependency strings become CONDA_PACKAGES.
+# The string deps become CONDA_PACKAGES (fed to linuxdeploy-plugin-conda); the
+# pip: sublist becomes PIP_PACKAGES, installed by the in-container step below
+# BEFORE the D-03 `pip install --no-deps .` of musicstreamer itself. The
+# musicstreamer install is --no-deps precisely because its runtime deps (yt-dlp,
+# mutagen, pillow, requests, streamlink, platformdirs, chardet) are the pip:
+# sublist and must already be present -- so PIP_PACKAGES must be installed first.
+# (Bug fixed 2026-06-01: the pip sublist was previously dropped entirely, so the
+# bundled app crashed at first import of any pip-only dep, e.g. yt_dlp. The D-05
+# smoke guard imported only url_helpers/playlist_parser and never caught it.)
 # Pitfall 8 (plugin-conda doesn't consume environment.yml directly) is the reason
 # this synthesis step exists.
 command -v yq >/dev/null || { echo "BUILD_FAIL reason=yq_missing (install via: snap install yq OR apt install yq)" >&2; exit 1; }
 CONDA_PACKAGES="$(yq -r '.dependencies[] | select(type=="string")' "${HERE}/environment.yml" | tr '\n' ';' | sed 's/;$//')"
 export CONDA_PACKAGES
+PIP_PACKAGES="$(yq -r '.dependencies[] | select(type=="object") | .pip[]' "${HERE}/environment.yml" | tr '\n' ';' | sed 's/;$//')"
+export PIP_PACKAGES
+[[ -n "$PIP_PACKAGES" ]] || { echo "BUILD_FAIL reason=empty_pip_sublist (environment.yml pip: list parsed empty)" >&2; exit 1; }
 export CONDA_CHANNELS="conda-forge"
 echo "BUILD_DIAG conda_packages=${CONDA_PACKAGES}"
+echo "BUILD_DIAG pip_packages=${PIP_PACKAGES}"
 
 # --user $(id -u):$(id -g) maps the container process to the host user so the
 # produced AppDir/, artifacts/, and any _temp_home/ residue are owned by kcreasey
@@ -157,7 +168,7 @@ docker run --rm --privileged \
   -e LINUXDEPLOY_PLUGIN_GSTREAMER_URL -e LINUXDEPLOY_PLUGIN_GSTREAMER_SHA256 \
   -e MINICONDA_VERSION \
   -e MINIFORGE_TAG -e MINIFORGE_URL -e MINIFORGE_SHA256 \
-  -e CONDA_CHANNELS -e CONDA_PACKAGES \
+  -e CONDA_CHANNELS -e CONDA_PACKAGES -e PIP_PACKAGES \
   ms-linux-build:22.04 \
   bash -euo pipefail -c '
     set -x
@@ -282,6 +293,18 @@ docker run --rm --privileged \
     # is robust to the conda plugin console-script handling; pip itself is
     # preserved by CONDA_SKIP_CLEANUP=site-packages (set via docker -e above).
     export PATH="$APPDIR/usr/conda/bin:$PATH"
+
+    # D-03a: install the environment.yml pip: sublist (musicstreamer runtime deps
+    # that are not conda-managed: yt-dlp, mutagen, pillow, requests, streamlink,
+    # platformdirs, chardet). This MUST precede the --no-deps musicstreamer install
+    # below. PIP_PACKAGES is the semicolon-joined sublist synthesized on the host;
+    # split on ; into args. Left UNQUOTED so it word-splits -- a version spec like
+    # chardet<6 stays one literal word (expansion results are not reparsed for the
+    # < redirection operator), so no quoting hazard. Relies on default IFS to split
+    # the space-joined list into separate pip args.
+    PIP_ARGS="$(echo "$PIP_PACKAGES" | tr ";" " ")"
+    python -m pip install $PIP_ARGS
+
     PKGSRC=/tmp/pkgsrc
     rm -rf "$PKGSRC" && mkdir -p "$PKGSRC"
     cp -r /src/pyproject.toml /src/musicstreamer "$PKGSRC"/
