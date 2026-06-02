@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=MusicStreamer
+GenericName=Internet Radio
+# PKG-LIN-APP-09: playlist MIME types (.pls, .m3u) are intentionally absent
+# (curated-library identity; playlist files are import inputs, not file-open targets).
+Exec=musicstreamer %U
+Icon=io.github.kcreasey.MusicStreamer
+Categories=AudioVideo;Audio;Music;Player;
+Comment=Internet radio stream player
+Keywords=radio;stream;music;internet;
+MimeType=audio/mpeg;audio/aac;audio/x-aac;audio/mp4;audio/ogg;audio/flac;audio/wav;audio/webm;
+StartupNotify=true
+StartupWMClass=MusicStreamer
