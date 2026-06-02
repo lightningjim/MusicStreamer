@@ -187,3 +187,72 @@ All 4 task commits verified via `git log`:
 Tests green:
 - tests/test_packaging_linux_spec.py: 15 passed
 - tests/test_packaging_spec.py: 8 passed (Windows side unregressed)
+
+---
+
+## Task 5 Checkpoint Outcome — APPROVED (2026-06-01)
+
+All six verification steps PASS; all 10 PKG-LIN-APP requirements flipped to
+Complete (Task 6). Cross-distro audible protocol signed off on Ubuntu 22.04,
+Fedora 40, openSUSE Tumbleweed.
+
+**Verified:**
+- Step 1 pre-flight pytest: 25 passed (17 Linux drift-guards + 8 Windows; the
+  Linux suite grew from 15→17 during the checkpoint).
+- Step 2 signed AppImage: BUILD_OK, GLIBC_2.34 (≤ 2.35), Good GPG signature
+  (key 02FEDCEE21A97935).
+- Step 3 programmatic smoke: 4/4 codec modes (mp3/aac/aacp/pls) × 3 distros,
+  0 SPIKE_FAIL. GStreamer 1.28.3, OpenSSL TLS, autoaudiosink.
+- Step 4 audible: host launch (GUI + audible MP3/AAC + media-key pause/resume,
+  PKG-LIN-APP-07) + in-container `--appimage-extract-and-run` audible on all
+  three distros. YouTube playback confirmed (PKG-LIN-APP-04: bundled Node +
+  yt-dlp EJS solver, no cookies needed).
+- Step 5 Windows drift-guards: unregressed.
+- Step 6 desktop integration: AppImageLauncher integrate-and-run created
+  `~/Applications/MusicStreamer-x86_64_<hash>.AppImage` +
+  `appimagekit_<hash>-MusicStreamer.desktop` (Name "MusicStreamer (1)",
+  auto-deduped against the existing dev install, which was untouched). zsync
+  "Update this AppImage" action present (PKG-LIN-APP-06). Standalone launch
+  works without integration (PKG-LIN-APP-05).
+
+**Build/harness bugs found AND FIXED during the checkpoint** (the artifact on
+disk at checkpoint start was non-functional; every prior "BUILD_OK" had shipped
+an AppImage without the app inside):
+
+1. **build.sh ordering (critical)** — D-03 pip-installed musicstreamer AFTER
+   linuxdeploy `--output appimage` packaged the squashfs, so the app never
+   entered the image. Fixed with a two-pass linuxdeploy split (deploy → pip
+   install → package). Commit 282de5c.
+2. **build.sh dropped the pip: sublist** — only conda string deps became
+   CONDA_PACKAGES; yt-dlp/mutagen/pillow/requests/streamlink/platformdirs/
+   chardet were never installed, so the app crashed at first pip-only import
+   (yt_dlp). Fixed by synthesizing PIP_PACKAGES and installing it before the
+   --no-deps musicstreamer install. Commit d253181.
+3. **run-smoke.sh AppImage glob** — `MusicStreamer-*-x86_64.AppImage` (versioned
+   pattern) never matched the unversioned build output → MISSING_APPIMAGE.
+   Fixed. Commit 735850b.
+4. **smoke_test.py aacp URL** — `groovesalad-64-aacp` is now HTTP 404; switched
+   to `groovesalad-32-aac` (HE-AAC tier). Commit 735850b.
+5. **smoke_test.py pls resolution** — resolved via aa_normalize_stream_url
+   (identity for SomaFM), so the raw .pls reached playbin3. Added
+   _resolve_pls_via_production() calling the Phase 58 playlist_parser. Commit
+   735850b.
+6. **pins.env linuxdeploy re-pin** — the `continuous` rolling tag was
+   republished upstream (old SHA gone); re-pinned f2aa8e8b → 514d4ffe, verified
+   live. Commit 735850b.
+
+**Root-cause lesson:** the D-05 production-import smoke guard imported only
+url_helpers/playlist_parser (lightweight, no pip deps), so it passed against a
+bundle missing both the app AND its deps. Source-grep drift guards assert a line
+EXISTS, not that it runs in the right order or that the bundle actually imports
+the full app. See memory `feedback_drift_guard_presence_not_semantics`.
+
+**Signing note:** build.sh's `gpg --detach-sign` failed in the headless
+background build context (no tty → curses pinentry unavailable). The key is
+passphrase-less, so signing was completed with
+`gpg --pinentry-mode loopback --batch --passphrase ""`. build.sh's signing step
+remains tty-dependent — a robustness gap for headless/CI use worth a follow-up
+(loopback or `--no-tty` handling), though CI provides the key via secrets and a
+different agent context.
+
+Updated test counts: tests/test_packaging_linux_spec.py now 17 passed (was 15).

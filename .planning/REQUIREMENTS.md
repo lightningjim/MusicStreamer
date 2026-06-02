@@ -12,16 +12,16 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 
 ### Linux Packaging — AppImage (PKG-LIN-APP)
 
-- [ ] **PKG-LIN-APP-01**: User can download a single `MusicStreamer-<version>-x86_64.AppImage`, mark executable, and double-click to launch with no install step
-- [ ] **PKG-LIN-APP-02**: AppImage runs on Ubuntu 22.04 LTS, Fedora 40, and openSUSE Tumbleweed (cross-distro target verified during build)
-- [ ] **PKG-LIN-APP-03**: AppImage bundles GStreamer 1.28+ with `gst-libav`, `gst-plugins-base/good/bad/ugly` from the conda recipe (same plugin set as the Windows installer; AAC, MP3, AACP, PLS resolution all work)
-- [ ] **PKG-LIN-APP-04**: AppImage bundles Node.js runtime so yt-dlp EJS solver resolves YouTube streams without requiring host Node installation
-- [ ] **PKG-LIN-APP-05**: AppImage registers a `.desktop` entry (icon, name, MIME=audio) when run via AppImageLauncher; standalone execution still works without integration
-- [ ] **PKG-LIN-APP-06**: AppImage embeds zsync update info pointing at the GitHub-releases-flavored host (via the QNAP→GitHub mirror) so future AppImageUpdate clients can find newer builds
-- [ ] **PKG-LIN-APP-07**: AppImage's MPRIS2 D-Bus service is reachable from the host session — OS media keys control pause/resume/stop just like the conda-from-source run
-- [ ] **PKG-LIN-APP-08**: AppImage's GLIBC baseline stays at GLIBC_2.35 or lower (Ubuntu 22.04 LTS baseline) verified by source-grep check in `tests/test_packaging_linux_spec.py`
-- [ ] **PKG-LIN-APP-09**: AppImage build does NOT register MIME associations for `.pls` / `.m3u` (curated-library identity — playlist files are import inputs, not user-facing files)
-- [ ] **PKG-LIN-APP-10**: AppImage release artifacts are GPG-signed — `build.sh` produces a detached armored signature sidecar (`MusicStreamer-<version>-x86_64.AppImage.sig`) using the key identified by the `GPG_KEY_ID` build-env variable. CI workflow (`.github/workflows/linux-appimage.yml`) consumes the signing key from `secrets.LINUX_SIGNING_KEY` + `secrets.LINUX_SIGNING_KEY_ID`. Build fails fast (exit 5) when `GPG_KEY_ID` is unset and `SKIP_SIGN=1` is not set; CI never sets `SKIP_SIGN`. Verification: `gpg --verify MusicStreamer-<version>-x86_64.AppImage.sig MusicStreamer-<version>-x86_64.AppImage` succeeds with the published signing key.
+- [x] **PKG-LIN-APP-01**: User can download a single `MusicStreamer-<version>-x86_64.AppImage`, mark executable, and double-click to launch with no install step
+- [x] **PKG-LIN-APP-02**: AppImage runs on Ubuntu 22.04 LTS, Fedora 40, and openSUSE Tumbleweed (cross-distro target verified during build)
+- [x] **PKG-LIN-APP-03**: AppImage bundles GStreamer 1.28+ with `gst-libav`, `gst-plugins-base/good/bad/ugly` from the conda recipe (same plugin set as the Windows installer; AAC, MP3, AACP, PLS resolution all work)
+- [x] **PKG-LIN-APP-04**: AppImage bundles Node.js runtime so yt-dlp EJS solver resolves YouTube streams without requiring host Node installation
+- [x] **PKG-LIN-APP-05**: AppImage registers a `.desktop` entry (icon, name, MIME=audio) when run via AppImageLauncher; standalone execution still works without integration
+- [x] **PKG-LIN-APP-06**: AppImage embeds zsync update info pointing at the GitHub-releases-flavored host (via the QNAP→GitHub mirror) so future AppImageUpdate clients can find newer builds
+- [x] **PKG-LIN-APP-07**: AppImage's MPRIS2 D-Bus service is reachable from the host session — OS media keys control pause/resume/stop just like the conda-from-source run
+- [x] **PKG-LIN-APP-08**: AppImage's GLIBC baseline stays at GLIBC_2.35 or lower (Ubuntu 22.04 LTS baseline) verified by source-grep check in `tests/test_packaging_linux_spec.py`
+- [x] **PKG-LIN-APP-09**: AppImage build does NOT register MIME associations for `.pls` / `.m3u` (curated-library identity — playlist files are import inputs, not user-facing files)
+- [x] **PKG-LIN-APP-10**: AppImage release artifacts are GPG-signed — `build.sh` produces a detached armored signature sidecar (`MusicStreamer-<version>-x86_64.AppImage.sig`) using the key identified by the `GPG_KEY_ID` build-env variable. CI workflow (`.github/workflows/linux-appimage.yml`) consumes the signing key from `secrets.LINUX_SIGNING_KEY` + `secrets.LINUX_SIGNING_KEY_ID`. Build fails fast (exit 5) when `GPG_KEY_ID` is unset and `SKIP_SIGN=1` is not set; CI never sets `SKIP_SIGN`. Verification: `gpg --verify MusicStreamer-<version>-x86_64.AppImage.sig MusicStreamer-<version>-x86_64.AppImage` succeeds with the published signing key.
 
 ### Linux Packaging — Flatpak (PKG-LIN-FP)
 
@@ -152,16 +152,16 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PKG-LIN-APP-01 | Phase 85 | Pending |
-| PKG-LIN-APP-02 | Phase 85 | Pending |
-| PKG-LIN-APP-03 | Phase 85 | Pending |
-| PKG-LIN-APP-04 | Phase 85 | Pending |
-| PKG-LIN-APP-05 | Phase 85 | Pending |
-| PKG-LIN-APP-06 | Phase 85 | Pending |
-| PKG-LIN-APP-07 | Phase 85 | Pending |
-| PKG-LIN-APP-08 | Phase 85 | Pending |
-| PKG-LIN-APP-09 | Phase 85 | Pending |
-| PKG-LIN-APP-10 | Phase 85 | Pending |
+| PKG-LIN-APP-01 | Phase 85 | Complete |
+| PKG-LIN-APP-02 | Phase 85 | Complete |
+| PKG-LIN-APP-03 | Phase 85 | Complete |
+| PKG-LIN-APP-04 | Phase 85 | Complete |
+| PKG-LIN-APP-05 | Phase 85 | Complete |
+| PKG-LIN-APP-06 | Phase 85 | Complete |
+| PKG-LIN-APP-07 | Phase 85 | Complete |
+| PKG-LIN-APP-08 | Phase 85 | Complete |
+| PKG-LIN-APP-09 | Phase 85 | Complete |
+| PKG-LIN-APP-10 | Phase 85 | Complete |
 | PKG-LIN-FP-01 | Phase 86 | Pending |
 | PKG-LIN-FP-02 | Phase 86 | Pending |
 | PKG-LIN-FP-03 | Phase 86 | Pending |
