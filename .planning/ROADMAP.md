@@ -80,7 +80,8 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   2. All 7 previously-deferred MPRIS2 cross-file tests pass via `uv run --with pytest pytest tests/test_media_keys_mpris2*.py`; no test-runtime regressions in the 1462-test baseline.
   3. Phase 77's `test_richtext_baseline_unchanged_by_phase_71` drift-guard remains green; no source-introspection regressions introduced by the repair.
 
-**Plans**: TBD
+**Plans**: 1 plan, 1 wave
+- [ ] 91-01-PLAN.md — Bookkeeping close-out: verify Phase 77 MPRIS2 closure (378440c) holds, fix the miswritten SC1 grep to the anchored PCRE form, refresh the SC2 baseline, flip FIX-MPRIS-01/02/03 to Complete
 **Research flag**: NO — pattern is well-established (Phase 77 D-04 + shared FakePlayer convention).
 
 #### Phase 85: Linux Common + AppImage Build
