@@ -4,8 +4,8 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 86 context gathered
-last_updated: "2026-06-02T19:28:28.746Z"
-last_activity: 2026-06-02 -- Phase 91 plan 01 complete (bookkeeping close-out)
+last_updated: "2026-06-02T19:30:56.291Z"
+last_activity: 2026-06-02 -- Phase 86 execution started
 progress:
   total_phases: 14
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 86 — Linux Flatpak Build (Phase 91 FIX-MPRIS complete; MPRIS2 baseline clean)
+**Current focus:** Phase 86 — linux-flatpak-build
 
 ## Current Position
 
-Phase: 91 (fix-mpris-phase-77-deferred-mpris2-tests) — COMPLETE
-Plan: 1 of 1 complete
-Status: Phase 91 complete; next: Phase 85 (Linux AppImage, in progress) or Phase 86 (Flatpak, now unblocked)
-Last activity: 2026-06-02 -- Phase 91 plan 01 complete (bookkeeping close-out)
+Phase: 86 (linux-flatpak-build) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 86
+Last activity: 2026-06-02 -- Phase 86 execution started
 
 ## v2.2 Phase Roster
 
