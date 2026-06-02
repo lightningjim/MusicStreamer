@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 86 context gathered
-last_updated: "2026-06-02T19:30:56.291Z"
+stopped_at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
+last_updated: "2026-06-02T20:00:32.342Z"
 last_activity: 2026-06-02 -- Phase 86 execution started
 progress:
   total_phases: 14
   completed_phases: 3
   total_plans: 24
-  completed_plans: 14
+  completed_plans: 18
   percent: 21
 ---
 
@@ -147,9 +147,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-02T18:41:59.139Z
-Stopped at: Phase 86 context gathered
-Resume file: .planning/phases/86-linux-flatpak-build/86-CONTEXT.md
+Last session: 2026-06-02T20:00:32.333Z
+Stopped at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
+Resume file: .planning/phases/86-linux-flatpak-build/86-VERIFICATION.md
 
 ## Operator Next Steps
 
