@@ -548,3 +548,421 @@ def test_build_ps1_invokes_plugin_guard_with_exit_10(
         "Otherwise the documented exit code at line 7 would not "
         "actually fire on plugin-missing failure."
     )
+
+
+# ===========================================================================
+# Phase 86 / Flatpak drift-guard suite (D-13 / D-15)
+#
+# ALL guards parse the manifest YAML as data via yaml.safe_load — NOT text
+# grep.  A permission placed inside a YAML comment is invisible to the parser
+# and correctly stays out of finish-args
+# (feedback_drift_guard_presence_not_semantics / T-86-07).
+#
+# Requirements covered: FP-01, FP-03, FP-04, FP-05, FP-06, FP-08, FP-09, FP-10
+# ===========================================================================
+
+import shutil
+import subprocess
+
+import yaml
+
+# ---------------------------------------------------------------------------
+# Path constants — Flatpak artifacts produced by Plan 01
+# ---------------------------------------------------------------------------
+
+_FLATPAK_MANIFEST = (
+    Path(__file__).resolve().parent.parent / "io.github.kcreasey.MusicStreamer.yaml"
+)
+_PYTHON3_MODULES = (
+    Path(__file__).resolve().parent.parent / "python3-modules.yaml"
+)
+_FLATPAK_DESKTOP = (
+    Path(__file__).resolve().parent.parent
+    / "tools" / "linux-flatpak" / "desktop"
+    / "io.github.kcreasey.MusicStreamer.desktop"
+)
+_FLATPAK_METAINFO = (
+    Path(__file__).resolve().parent.parent
+    / "tools" / "linux-flatpak" / "metainfo"
+    / "io.github.kcreasey.MusicStreamer.metainfo.xml"
+)
+
+
+# ---------------------------------------------------------------------------
+# Module-scope YAML fixture — parse once, share across all manifest tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def manifest_data() -> dict:
+    """Load and parse the Flatpak manifest as structured data (D-13).
+
+    Uses yaml.safe_load so that permissions hidden in YAML comments are
+    invisible to the parser and correctly absent from finish-args.
+    """
+    assert _FLATPAK_MANIFEST.is_file(), (
+        f"Flatpak manifest not found at {_FLATPAK_MANIFEST}. "
+        "Plan 01 must produce this artifact before Plan 03 tests can run."
+    )
+    return yaml.safe_load(_FLATPAK_MANIFEST.read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------------------
+# FP-01: App ID
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_manifest_id(manifest_data: dict) -> None:
+    """FP-01: manifest id must be the locked app ID."""
+    assert manifest_data["id"] == "io.github.kcreasey.MusicStreamer", (
+        "Flatpak manifest id must be exactly 'io.github.kcreasey.MusicStreamer' (FP-01)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-03: Runtime version pins
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_runtime_version_pins(manifest_data: dict) -> None:
+    """FP-03: KDE Platform/BaseApp version, ffmpeg-full version, and node20
+    presence are all pinned to the locked values.
+
+    Checked as parsed data so a comment-only version string cannot slip through.
+    """
+    assert manifest_data.get("runtime-version") == "6.8", (
+        "Manifest runtime-version must be '6.8' (FP-03). "
+        f"Got: {manifest_data.get('runtime-version')!r}"
+    )
+    assert manifest_data.get("base-version") == "6.8", (
+        "Manifest base-version must be '6.8' (FP-03 / io.qt.PySide.BaseApp). "
+        f"Got: {manifest_data.get('base-version')!r}"
+    )
+    # ffmpeg-full extension version pin
+    extensions = manifest_data.get("add-extensions", {})
+    assert isinstance(extensions, dict), (
+        "Expected 'add-extensions' to be a YAML mapping."
+    )
+    ffmpeg_ext = extensions.get("org.freedesktop.Platform.ffmpeg-full")
+    assert ffmpeg_ext is not None, (
+        "Manifest must declare org.freedesktop.Platform.ffmpeg-full under "
+        "add-extensions (FP-03 / AAC codec path)."
+    )
+    assert ffmpeg_ext.get("version") == "24.08", (
+        "org.freedesktop.Platform.ffmpeg-full version must be '24.08' (FP-03). "
+        f"Got: {ffmpeg_ext.get('version')!r}"
+    )
+    # node20 SDK extension presence
+    sdk_extensions = manifest_data.get("sdk-extensions", [])
+    assert "org.freedesktop.Sdk.Extension.node20" in sdk_extensions, (
+        "Manifest sdk-extensions must include org.freedesktop.Sdk.Extension.node20 "
+        "(FP-03 / yt-dlp EJS solver requires Node at runtime)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-04 / FP-05 / D-01: finish-args allow-list
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_finish_args_allow_list(manifest_data: dict) -> None:
+    """FP-04 + FP-05 + D-01: every required finish-arg including the narrow :ro
+    mount must be present in the parsed finish-args list.
+
+    Parses YAML as data (D-13) so args hidden in YAML comments are invisible.
+    """
+    args = manifest_data.get("finish-args", [])
+    assert isinstance(args, list), "finish-args must be a YAML sequence."
+
+    required = [
+        "--share=network",
+        "--socket=pulseaudio",
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--own-name=org.mpris.MediaPlayer2.MusicStreamer",
+        "--filesystem=~/.local/share/musicstreamer:ro",
+        "--env=QTWEBENGINE_DISABLE_SANDBOX=1",
+    ]
+    for arg in required:
+        assert arg in args, (
+            f"Required finish-arg {arg!r} is absent from the parsed manifest "
+            "finish-args list (FP-04 allow-list / D-13)."
+        )
+
+
+# ---------------------------------------------------------------------------
+# FP-04 / D-13: finish-args DENY-LIST (SECURITY-CRITICAL)
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_finish_args_deny_list(manifest_data: dict) -> None:
+    """FP-04 / D-13 SECURITY-CRITICAL: forbidden broad permissions must be
+    ABSENT from the parsed finish-args list.
+
+    This is the security-critical half of the drift-guard (D-13).  Parsing
+    YAML as data means a permission added inside a YAML comment is invisible
+    to yaml.safe_load and correctly stays out of the parsed list — a text
+    grep check would miss it (feedback_drift_guard_presence_not_semantics /
+    T-86-07).
+    """
+    args = manifest_data.get("finish-args", [])
+
+    assert "--filesystem=home" not in args, (
+        "SECURITY: --filesystem=home MUST NOT appear in finish-args. "
+        "Broad home filesystem access is forbidden (FP-04 deny-list / D-13). "
+        "Use the narrow --filesystem=~/.local/share/musicstreamer:ro instead (D-01)."
+    )
+    assert "--filesystem=home:rw" not in args, (
+        "SECURITY: --filesystem=home:rw MUST NOT appear in finish-args. "
+        "Broad home read-write access is forbidden (FP-04 deny-list / D-13)."
+    )
+    assert "--socket=session-bus" not in args, (
+        "SECURITY: --socket=session-bus MUST NOT appear in finish-args. "
+        "Broad session-bus access is forbidden (FP-04 deny-list / D-13 / T-86-02). "
+        "Use --own-name=org.mpris.MediaPlayer2.MusicStreamer for MPRIS2 instead (FP-08)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-05: QtWebEngine sandbox disable env var
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_qtwebengine_disable_sandbox(manifest_data: dict) -> None:
+    """FP-05: QTWEBENGINE_DISABLE_SANDBOX=1 must be in finish-args so the
+    QtWebEngine subprocess (oauth_helper.py / GBS.FM login) can run inside
+    the Flatpak sandbox."""
+    args = manifest_data.get("finish-args", [])
+    assert "--env=QTWEBENGINE_DISABLE_SANDBOX=1" in args, (
+        "finish-args must include --env=QTWEBENGINE_DISABLE_SANDBOX=1 (FP-05). "
+        "Without it, the QtWebEngine subprocess fails inside the Flatpak sandbox "
+        "(Pitfall 4 / verbatim spelling from flathub/io.qt.qtwebengine.BaseApp)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-08 (static): MPRIS2 --own-name
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_mpris2_own_name(manifest_data: dict) -> None:
+    """FP-08 static half: --own-name=org.mpris.MediaPlayer2.MusicStreamer must
+    be in finish-args so MusicStreamer can register its MPRIS2 short name on
+    the session bus without broad --socket=session-bus."""
+    args = manifest_data.get("finish-args", [])
+    assert "--own-name=org.mpris.MediaPlayer2.MusicStreamer" in args, (
+        "finish-args must include --own-name=org.mpris.MediaPlayer2.MusicStreamer "
+        "(FP-08 static half / RESEARCH.md Pattern 4 + Pitfall 6). "
+        "This narrow permission lets MPRIS2 work without --socket=session-bus."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-06 / D-01 / D-05: narrow :ro mount is the ONLY filesystem exception
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_narrow_ro_mount(manifest_data: dict) -> None:
+    """FP-06 / D-01 / D-05 reconciliation: the narrow read-only host mount is
+    present, AND no other --filesystem entry exists in finish-args.
+
+    The :ro mount is an APPROVED addition to the FP-04 allow-list (D-05).
+    No other --filesystem paths are permitted.
+    """
+    args = manifest_data.get("finish-args", [])
+
+    # Must have the approved :ro mount
+    assert "--filesystem=~/.local/share/musicstreamer:ro" in args, (
+        "finish-args must include --filesystem=~/.local/share/musicstreamer:ro "
+        "(D-01 approved narrow :ro mount for first-launch import wizard / FP-06)."
+    )
+
+    # Exactly one --filesystem entry: the approved :ro path
+    filesystem_args = [a for a in args if a.startswith("--filesystem=")]
+    assert filesystem_args == ["--filesystem=~/.local/share/musicstreamer:ro"], (
+        "finish-args must contain EXACTLY one --filesystem entry: "
+        "--filesystem=~/.local/share/musicstreamer:ro. "
+        f"Found: {filesystem_args!r}. "
+        "No broad --filesystem=home or additional paths are permitted (D-01/D-05/FP-06)."
+    )
+
+
+# ===========================================================================
+# Task 2: python3-modules.yaml, FP-10 validators, first-launch detection
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# FP-09: python3-modules.yaml validity
+# ---------------------------------------------------------------------------
+
+
+def test_python3_modules_yaml_exists() -> None:
+    """FP-09 + T-86-08: python3-modules.yaml must exist, be valid YAML, and
+    must NOT contain PySide6 (which conflicts with the PySide6 provided by
+    io.qt.PySide.BaseApp — RESEARCH.md Pitfall 5).
+    """
+    assert _PYTHON3_MODULES.is_file(), (
+        f"python3-modules.yaml not found at {_PYTHON3_MODULES}. "
+        "Run flatpak-pip-generator to generate it (FP-09)."
+    )
+    content = _PYTHON3_MODULES.read_text(encoding="utf-8")
+    data = yaml.safe_load(content)
+    assert data is not None, (
+        "python3-modules.yaml must be valid (non-empty) YAML (FP-09)."
+    )
+    # T-86-08: PySide6 in python3-modules.yaml causes ABI conflicts at
+    # runtime because io.qt.PySide.BaseApp already provides PySide6.
+    assert "PySide6" not in content, (
+        "python3-modules.yaml must NOT contain 'PySide6'. "
+        "PySide6 is provided by io.qt.PySide.BaseApp and must NOT be "
+        "re-installed via flatpak-pip-generator (RESEARCH.md Pitfall 5 / T-86-08). "
+        "Use a curated flatpak-requirements.txt that excludes PySide6."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-10: AppStream + .desktop validators (skip-if-not-installed — D-15)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    not shutil.which("appstreamcli"),
+    reason="appstreamcli not installed — validator test skipped (D-15 dual-mode)",
+)
+def test_appstreamcli_validate_passes() -> None:
+    """FP-10 / T-86-09: appstreamcli must validate the metainfo XML cleanly.
+
+    Skip guard keeps the suite green on hosts without appstreamcli while
+    still gating where the tool is installed (D-15 dual-mode; the hard
+    pre-flight gate lives in Plan 04 build.sh + CI).
+    """
+    assert _FLATPAK_METAINFO.is_file(), (
+        f"Metainfo file not found at {_FLATPAK_METAINFO}. "
+        "Plan 01 must produce this artifact."
+    )
+    # --no-net: skip URL-reachability checks (screenshot, homepage, bugtracker).
+    # Those URLs reference the GitHub repo which may not yet be published at
+    # the time the test runs (Phase 86 pre-publication dev workflow).
+    # The structural validity of the XML is fully checked without network access.
+    result = subprocess.run(
+        ["appstreamcli", "validate", "--explain", "--no-net", str(_FLATPAK_METAINFO)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"appstreamcli validate failed for {_FLATPAK_METAINFO}.\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )
+
+
+@pytest.mark.skipif(
+    not shutil.which("desktop-file-validate"),
+    reason="desktop-file-validate not installed — validator test skipped (D-15 dual-mode)",
+)
+def test_desktop_file_validate_passes() -> None:
+    """FP-10 / T-86-09: desktop-file-validate must pass for the Flatpak .desktop.
+
+    Skip guard keeps the suite green on hosts without desktop-file-validate
+    while still gating where the tool is installed (D-15 dual-mode).
+    """
+    assert _FLATPAK_DESKTOP.is_file(), (
+        f"Flatpak .desktop file not found at {_FLATPAK_DESKTOP}. "
+        "Plan 01 must produce this artifact."
+    )
+    result = subprocess.run(
+        ["desktop-file-validate", str(_FLATPAK_DESKTOP)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"desktop-file-validate failed for {_FLATPAK_DESKTOP}.\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# PKG-LIN-APP-09 preserved: no playlist MIME in the Flatpak .desktop
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_desktop_no_playlist_mime() -> None:
+    """PKG-LIN-APP-09 preserved: the Flatpak .desktop must not register
+    playlist MIME types (.pls / .m3u), mirroring the AppImage guard in
+    test_packaging_linux_spec.py::test_desktop_file_has_no_playlist_mime_entries.
+
+    Playlist files are import inputs (curated-library identity), not
+    file-open targets.
+    """
+    assert _FLATPAK_DESKTOP.is_file(), (
+        f"Flatpak .desktop file not found at {_FLATPAK_DESKTOP}."
+    )
+    desktop_text = _FLATPAK_DESKTOP.read_text(encoding="utf-8")
+    assert "audio/x-mpegurl" not in desktop_text, (
+        "PKG-LIN-APP-09 violation: Flatpak .desktop must not register "
+        "audio/x-mpegurl (x-mpegurl = .m3u playlist — import input, not "
+        "file-open target)."
+    )
+    assert "x-scpls" not in desktop_text, (
+        "PKG-LIN-APP-09 violation: Flatpak .desktop must not register "
+        "audio/x-scpls (x-scpls = .pls playlist — import input, not "
+        "file-open target)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-06 (detection + offer-once): first-launch detection integration test
+# ---------------------------------------------------------------------------
+
+
+def test_first_launch_detection(tmp_path, monkeypatch) -> None:
+    """FP-06 detection + offer-once (D-03): exercise the flatpak_first_launch
+    module with a monkeypatched _HOST_DB and sandbox data dir.
+
+    Scenario:
+      1. Host DB exists → has_unsandboxed_data() True
+      2. No offer flag → should_offer_import_wizard() True
+      3. write_offered_flag() creates the flag
+      4. should_offer_import_wizard() now False (offer-once D-03)
+    """
+    import musicstreamer.flatpak_first_launch as ffl
+    import musicstreamer.paths as paths
+
+    # Create a fake host DB file (Plan 02 _HOST_DB constant)
+    fake_host_db = tmp_path / "host" / "musicstreamer.sqlite3"
+    fake_host_db.parent.mkdir(parents=True)
+    fake_host_db.touch()
+
+    # Monkeypatch _HOST_DB to the fake path
+    monkeypatch.setattr(ffl, "_HOST_DB", str(fake_host_db))
+
+    # Monkeypatch paths._root_override to redirect data_dir() into tmp_path
+    # so write_offered_flag() writes the flag into an isolated sandbox dir
+    sandbox_data_dir = tmp_path / "sandbox"
+    sandbox_data_dir.mkdir()
+    monkeypatch.setattr(paths, "_root_override", str(sandbox_data_dir))
+
+    # 1. Host DB exists → has_unsandboxed_data() True
+    assert ffl.has_unsandboxed_data() is True, (
+        "has_unsandboxed_data() must return True when _HOST_DB exists."
+    )
+
+    # 2. No offer flag → should_offer_import_wizard() True
+    assert ffl.should_offer_import_wizard() is True, (
+        "should_offer_import_wizard() must return True when host DB exists "
+        "and the offer-once flag is absent."
+    )
+
+    # 3. write_offered_flag() creates the flag in the (monkeypatched) sandbox
+    ffl.write_offered_flag()
+    flag_path = ffl.import_offered_flag_path()
+    assert Path(flag_path).is_file(), (
+        f"write_offered_flag() must create the offer-once flag at {flag_path}."
+    )
+
+    # 4. should_offer_import_wizard() now False (offer-once D-03)
+    assert ffl.should_offer_import_wizard() is False, (
+        "should_offer_import_wizard() must return False after write_offered_flag() "
+        "has been called (offer-once D-03)."
+    )
