@@ -251,12 +251,19 @@ docker run --rm --privileged \
     # network-retry knobs are passed in via docker -e flags on the run command
     # above -- see the rationale block there. Kept out of this single-quoted
     # bash -c body to minimize apostrophe-quoting hazards.
+    # PASS 1 (D-03 ordering fix, 2026-06-01): deploy the plugins to POPULATE the
+    # AppDir + conda env, but do NOT package yet (no --output). The musicstreamer
+    # pip install below MUST land in the conda env BEFORE appimagetool bakes the
+    # squashfs. The prior single-pass form ran `--output appimage` here and the
+    # pip install afterward, so the app was installed into the on-disk AppDir only
+    # AFTER the .AppImage was already sealed -- it never entered the image, and the
+    # D-05 production-import smoke guard caught the resulting broken bundle on all
+    # three distros. See Phase 85 Plan 04 Task 5 checkpoint findings.
     /tmp/linuxdeploy.AppImage --appimage-extract-and-run --appdir "$APPDIR" \
       --plugin conda \
       --plugin gstreamer \
       --desktop-file "$APPDIR/org.lightningjim.MusicStreamer.desktop" \
-      --icon-file "$APPDIR/org.lightningjim.MusicStreamer.svg" \
-      --output appimage
+      --icon-file "$APPDIR/org.lightningjim.MusicStreamer.svg"
 
     # D-03: install musicstreamer itself via pip --no-deps into the bundled conda env.
     # Conda-forge does not package musicstreamer; --no-deps avoids re-resolving the
@@ -279,6 +286,19 @@ docker run --rm --privileged \
     rm -rf "$PKGSRC" && mkdir -p "$PKGSRC"
     cp -r /src/pyproject.toml /src/musicstreamer "$PKGSRC"/
     python -m pip install --no-deps "$PKGSRC"
+
+    # PASS 2 (D-03 ordering fix, 2026-06-01): the conda env now contains
+    # musicstreamer, so package the completed AppDir. NO --plugin flags here:
+    # re-running --plugin conda would re-trigger the conda-plugin site-packages
+    # cleanup and could strip the freshly installed app. --output appimage
+    # invokes only the appimage output stage; --desktop-file/--icon-file are
+    # still required so appimagetool names the image and embeds the icon.
+    # (NB: no apostrophes in this comment -- it lives inside the single-quoted
+    # docker bash -c body; an apostrophe terminates the quote. See line ~224.)
+    /tmp/linuxdeploy.AppImage --appimage-extract-and-run --appdir "$APPDIR" \
+      --desktop-file "$APPDIR/org.lightningjim.MusicStreamer.desktop" \
+      --icon-file "$APPDIR/org.lightningjim.MusicStreamer.svg" \
+      --output appimage
 
     # Locate the produced AppImage robustly (Issue #5 fix):
     #   - linuxdeploy may use any of: MusicStreamer_Spike-*.AppImage, "MusicStreamer Spike-*.AppImage",
