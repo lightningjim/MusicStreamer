@@ -76,7 +76,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 **Requirements**: FIX-MPRIS-01, FIX-MPRIS-02, FIX-MPRIS-03
 **Success Criteria** (what must be TRUE):
 
-  1. `grep -rn "class FakePlayer(QObject)" tests/ | wc -l` returns exactly 1 and the only declaration site is `tests/_fake_player.py` (Pitfall 15 verified at source level before any test edits).
+  1. `grep -rnP '^\s*class\s+FakePlayer\s*\(\s*QObject\s*\)\s*:' tests/ | wc -l` returns exactly 1 and the only declaration site is `tests/_fake_player.py:37` (Pitfall 15 verified at source level; anchored to a real class declaration so the docstring literal in `tests/test_fake_player_no_inline.py:28` no longer false-positives — D-04).
   2. All 7 previously-deferred MPRIS2 cross-file tests pass via `uv run --with pytest pytest tests/test_media_keys_mpris2*.py`; no test-runtime regressions in the 1462-test baseline.
   3. Phase 77's `test_richtext_baseline_unchanged_by_phase_71` drift-guard remains green; no source-introspection regressions introduced by the repair.
 
