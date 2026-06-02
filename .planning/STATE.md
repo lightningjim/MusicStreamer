@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 91 complete — FIX-MPRIS-01/02/03 flipped to Complete
-last_updated: "2026-06-02T00:00:00Z"
+stopped_at: Phase 86 context gathered
+last_updated: "2026-06-02T18:41:59.153Z"
 last_activity: 2026-06-02 -- Phase 91 plan 01 complete (bookkeeping close-out)
 progress:
   total_phases: 14
@@ -147,9 +147,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-02T00:00:00Z
-Stopped at: Phase 91 complete — FIX-MPRIS-01/02/03 flipped to Complete; MPRIS2 baseline 1838 passed
-Resume file: None
+Last session: 2026-06-02T18:41:59.139Z
+Stopped at: Phase 86 context gathered
+Resume file: .planning/phases/86-linux-flatpak-build/86-CONTEXT.md
 
 ## Operator Next Steps
 
