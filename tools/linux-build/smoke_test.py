@@ -74,7 +74,11 @@ except Exception as ex:  # noqa: BLE001 — we want to capture any import failur
 # D-04 default URL families (override via --uri if needed for ad-hoc testing).
 _MP3_URL  = "http://ice1.somafm.com/groovesalad-128-mp3"
 _AAC_URL  = "http://ice1.somafm.com/groovesalad-128-aac"
-_AACP_URL = "http://ice1.somafm.com/groovesalad-64-aacp"  # SomaFM ships HE-AAC tier
+# SomaFM retired the `-64-aacp` suffix (now HTTP 404, verified 2026-06-01). Its
+# low-bitrate `-aac` streams ARE the HE-AAC/AAC+ tier: 32 kbps stereo AAC is only
+# viable as HE-AACv2 (SBR + PS), so this URL still exercises the SBR decode path
+# that the 128 kbps AAC-LC `_AAC_URL` does not.
+_AACP_URL = "http://ice1.somafm.com/groovesalad-32-aac"
 _PLS_URL  = "https://somafm.com/groovesalad130.pls"
 
 
@@ -127,9 +131,9 @@ def _resolve_via_production(url: str) -> tuple[bool, str, str]:
     production-code entry point for URL normalization at the Player boundary is
     `aa_normalize_stream_url()`. For --check-mp3/aac/aacp, this normalizes AA
     DI.fm https:// → http:// rewrites; for SomaFM URLs it is an identity pass.
-    For --check-pls, the .pls URL passes through unchanged (PLS resolution lives
-    in the GStreamer pipeline's souphttpsrc + playbin3 source element, not in
-    url_helpers). The D-05 guard is satisfied by the *import* itself — importing
+    --check-pls does NOT use this function — playbin3 cannot parse a .pls text
+    file, so that mode resolves through _resolve_pls_via_production() (the Phase
+    58 playlist parser) instead. The D-05 guard is satisfied by the *import* itself — importing
     url_helpers from the bundled env catches dependency-graph and import-path
     regressions regardless of which entry point we call.
     """
@@ -147,6 +151,42 @@ def _resolve_via_production(url: str) -> tuple[bool, str, str]:
     except Exception as ex:  # noqa: BLE001
         return False, "", f"resolve_failed:{ex!r}"
     return True, str(resolved), "ok"
+
+
+def _resolve_pls_via_production(url: str) -> tuple[bool, str, str]:
+    """Resolve a .pls playlist to its first inner stream URL via the production
+    Phase 58 parser (musicstreamer.playlist_parser.parse_playlist).
+
+    Returns (ok, resolved_url, reason), mirroring _resolve_via_production.
+
+    Why a dedicated path: aa_normalize_stream_url (used by the mp3/aac/aacp modes)
+    normalizes DI.fm scheme/host and is an identity pass otherwise — it does NOT
+    parse playlists. Feeding a .pls straight to playbin3 fails with "ParseBin
+    cannot parse plain text files". The production app expands .pls through the
+    Phase 58 parser, so the pls mode must exercise THAT entry point (D-05).
+
+    We fetch with stdlib urllib (no third-party HTTP dep is bundled) and call the
+    pure parser directly rather than aa_import._resolve_pls — the latter falls
+    back to [pls_url] on any error, which would silently mask a parse regression
+    behind the same playbin3 failure this mode exists to catch.
+    """
+    if not _MS_IMPORT_OK:
+        return False, "", f"import_failed:{_MS_IMPORT_ERR}"
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            body = resp.read().decode("utf-8", errors="replace")
+    except Exception as ex:  # noqa: BLE001
+        return False, "", f"fetch_failed:{ex!r}"
+    try:
+        from musicstreamer.playlist_parser import parse_playlist
+        entries = parse_playlist(body, content_type=content_type, url_hint=url)
+    except Exception as ex:  # noqa: BLE001
+        return False, "", f"resolve_failed:{ex!r}"
+    if not entries:
+        return False, "", "resolve_failed:no_streams_in_playlist"
+    return True, str(entries[0]["url"]), "ok"
 
 
 def _load_fallback_chain(path: str) -> list[str]:
@@ -485,8 +525,14 @@ def _check_codec_mode(mode: str, url: str, timeout_s: float) -> int:
         _emit("SPIKE_FAIL", step="resolve", mode=mode, reason="bad_host", detail=reason, url=url)
         return 2
 
-    # Step 2: route through production resolver (D-05).
-    ok, resolved_url, resolve_reason = _resolve_via_production(url)
+    # Step 2: route through the production resolver (D-05). PLS needs the Phase 58
+    # playlist parser to expand the playlist to a stream URL; the mp3/aac/aacp
+    # modes use the URL normalizer (identity pass for SomaFM, scheme/host rewrite
+    # for DI.fm). play_url() re-validates the resolved inner URL host below.
+    if mode == "pls":
+        ok, resolved_url, resolve_reason = _resolve_pls_via_production(url)
+    else:
+        ok, resolved_url, resolve_reason = _resolve_via_production(url)
     if not ok:
         _emit("SPIKE_FAIL", step="resolve", mode=mode, reason=resolve_reason, url=url)
         return 2

@@ -6,7 +6,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$(cd "${HERE}" && pwd)"
 # Phase 85 production layout — artifacts and smoke harness colocated under tools/linux-build/.
-APPIMG_GLOB="${BUILD_DIR}/artifacts/MusicStreamer-*-x86_64.AppImage"
+APPIMG_GLOB="${BUILD_DIR}/artifacts/MusicStreamer-*x86_64.AppImage"
 APPIMG="$(ls -t ${APPIMG_GLOB} 2>/dev/null | grep -v '\.sig$' | head -1)"
 SMOKE_PY="${BUILD_DIR}/smoke_test.py"
 [[ -n "$APPIMG" && -x "$APPIMG" ]] || { echo "MISSING_APPIMAGE ${APPIMG_GLOB} (run tools/linux-build/build.sh first)" >&2; exit 1; }
