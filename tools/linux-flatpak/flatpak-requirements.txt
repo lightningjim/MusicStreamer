@@ -14,12 +14,18 @@
 #
 # Additional runtime deps not in pyproject.toml but required:
 #   mutagen        → audio metadata reading
-#   pillow         → cover art thumbnail processing
 #   requests       → iTunes API / RadioBrowser API / AudioAddict API
+#
+# REMOVED 2026-06-03 (Phase 86, Plan 86-05 deviation):
+#   pillow — added speculatively in 86-01 ("cover art thumbnail processing"),
+#   but the app has ZERO `import PIL` / `from PIL` statements (cover art is Qt
+#   QPixmap/QImage), and pillow is not a transitive dep of any included package.
+#   It also broke the Flatpak build: pillow 12.x pulls an sdist whose build
+#   requires pybind11, unavailable under --no-build-isolation. Dropped entirely.
+#   If regenerating python3-modules.yaml, keep pillow OUT.
 yt-dlp
 streamlink
 platformdirs
 chardet
 mutagen
-pillow
 requests
