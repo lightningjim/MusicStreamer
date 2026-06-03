@@ -79,9 +79,20 @@ echo "BUILD_DIAG flatpak_builder=${FLATPAK_BUILDER}"
 METAINFO="${HERE}/metainfo/io.github.kcreasey.MusicStreamer.metainfo.xml"
 DESKTOP="${HERE}/desktop/io.github.kcreasey.MusicStreamer.desktop"
 
+# Local iteration (SKIP_SIGN=1) validates with --no-net: the metainfo URLs
+# (homepage, bugtracker, screenshot) reference the GitHub repo which may not be
+# published yet, so url-not-reachable / screenshot-image-not-found warnings would
+# otherwise fail pre-publication local builds. Signed/CI/release builds (SKIP_SIGN
+# unset) keep FULL networked validation — the hard gate that confirms those URLs
+# resolve before a release ships. Mirrors the --no-net rationale in
+# tests/test_packaging_spec.py::test_appstreamcli_validate_passes.
+APPSTREAM_NET_ARGS=()
+if [[ "${SKIP_SIGN:-0}" == "1" ]]; then
+  APPSTREAM_NET_ARGS+=(--no-net)
+fi
 if command -v appstreamcli &>/dev/null; then
-  echo "BUILD_DIAG running appstreamcli validate on ${METAINFO}"
-  appstreamcli validate "${METAINFO}" \
+  echo "BUILD_DIAG running appstreamcli validate on ${METAINFO} (net_args=${APPSTREAM_NET_ARGS[*]:-<full>})"
+  appstreamcli validate "${APPSTREAM_NET_ARGS[@]}" "${METAINFO}" \
     || { echo "BUILD_FAIL reason=validator_failed (appstreamcli validate exited non-zero — fix metainfo.xml before bundling)" >&2; exit 2; }
   echo "BUILD_DIAG appstreamcli validate OK"
 else
