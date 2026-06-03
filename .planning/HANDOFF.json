@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-06-03T00:26:41.036Z",
+  "phase": "86",
+  "phase_name": "linux-flatpak-build",
+  "phase_dir": ".planning/phases/86-linux-flatpak-build",
+  "plan": 5,
+  "task": 1,
+  "total_tasks": 6,
+  "status": "blocked",
+  "completed_tasks": [
+    {"id": 1, "name": "Wave 1 — manifest, import wizard, drift-guards", "status": "done"},
+    {"id": 2, "name": "Wave 2 — build driver, CI, signing (52 automated tests pass)", "status": "done"},
+    {"id": 3, "name": "Plan 86-05 Task 1 — build + install on rig", "status": "blocked", "progress": "build.sh invoked with SKIP_SIGN=1; BUILD_FAIL before any module built"}
+  ],
+  "remaining_tasks": [
+    {"id": 4, "name": "SC1 — install/launch + GNOME Software listing (D-11)", "status": "not_started"},
+    {"id": 5, "name": "SC2 — AAC audible via ffmpeg-full (PKG-LIN-FP-07)", "status": "not_started"},
+    {"id": 6, "name": "SC3 — GBS.FM login + persistence (D-12)", "status": "not_started"},
+    {"id": 7, "name": "SC4 — MPRIS2 media-key control (D-10)", "status": "not_started"},
+    {"id": 8, "name": "SC5 — first-launch import offer (D-02/D-03)", "status": "not_started"}
+  ],
+  "blockers": [
+    {
+      "description": "Flatpak build fails at rofiles-fuse setup: 'fusermount: file descriptor 4 is not a socket, can't send fuse fd' -> 'Failure spawning rofiles-fuse, exit_status: 256' -> BUILD_FAIL reason=builder_failed. Root cause: system flatpak-builder binary is ABSENT, so build.sh:51-54 falls back to 'flatpak run org.flatpak.Builder' (Flathub stable/v0-Flathub). The Flatpak'd builder's nested bubblewrap sandbox cannot pass the FUSE fd to the host fusermount. Known org.flatpak.Builder bug, NOT a manifest defect. Build died before checking out any module, so io.github.kcreasey.MusicStreamer.yaml was never exercised.",
+      "type": "technical",
+      "workaround": "PREFERRED: sudo apt install flatpak-builder (build.sh:51 already prefers the system binary -> bypasses the nested-sandbox FUSE bug, zero code change). ALT: patch build.sh:68-73 to add --disable-rofiles-fuse (no sudo, but loses read-only source protection and modifies the verified driver)."
+    }
+  ],
+  "human_actions_pending": [
+    {"action": "Run: sudo apt install flatpak-builder", "context": "System flatpak-builder absent; installing it lets build.sh use the host binary and skip the org.flatpak.Builder rofiles-fuse bug. Needs sudo (interactive).", "blocking": true},
+    {"action": "After install, in-sandbox UAT (SC1-SC5) requires a human on the Wayland rig: audible audio per AAC tier, interactive GBS.FM login, OS media keys, GNOME Software listing", "context": "Plan 86-05 is the human-gate runbook in 86-VERIFICATION.md; automation cannot cover these.", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Classify the build failure as BLOCKED (environment), not FAILED (defect)", "rationale": "flatpak-builder never reached a build module; the failure is in the host toolchain fallback path, not the manifest or build driver. Waves 1-2 (52 tests) remain valid.", "phase": "86"},
+    {"decision": "Recommend system flatpak-builder over --disable-rofiles-fuse", "rationale": "build.sh was already written to prefer the system binary; installing it is a zero-code-change fix vs. modifying the verified build driver.", "phase": "86"}
+  ],
+  "uncommitted_files": [],
+  "next_action": "Have Kyle run 'sudo apt install flatpak-builder', then re-run 'SKIP_SIGN=1 bash tools/linux-flatpak/build.sh' and confirm BUILD_OK + SIGN_SKIPPED before proceeding to SC1-SC5 UAT.",
+  "context_notes": "We diagnosed the BUILD_FAIL from the /clear scrollback. Confirmed: not in a container (init.scope, no .containerenv), /dev/fuse present world-RW, fusermount present, but system flatpak-builder absent and rofiles-fuse only exists inside the org.flatpak.Builder sandbox. The build driver behaved correctly (tried system binary, fell back as designed) — the fallback target has the bug. OPEN QUESTION raised but not yet decided: should build.sh warn loudly or hard-fail when it falls back to org.flatpak.Builder, so this rig-toolchain gap is caught up front next time instead of mid-build? That's a candidate follow-up fix to the driver, separate from the UAT."
+}
