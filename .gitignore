@@ -15,6 +15,11 @@ packaging/windows/build/
 tools/linux-build/artifacts/
 tools/linux-build/AppDir/
 tools/linux-build/_temp_home/
+# Linux Flatpak build outputs (tools/linux-flatpak/build.sh)
+tools/linux-flatpak/artifacts/
+tools/linux-flatpak/build-dir/
+flatpak-repo/
+.flatpak-builder/
 tools/linux-build/*.AppImage
 tools/linux-build/*.AppImage.zsync
 
