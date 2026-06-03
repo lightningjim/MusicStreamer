@@ -49,10 +49,15 @@ finish-args:
   - --socket=pulseaudio
   - --socket=wayland
   - --socket=fallback-x11
-  # MPRIS2: --own-name required because MusicStreamer registers org.mpris.MediaPlayer2.MusicStreamer
-  # (short name), not the default org.mpris.MediaPlayer2.io.github.kcreasey.MusicStreamer
-  # (see RESEARCH.md Pattern 4 + Pitfall 6; Phase 91 FIX-MPRIS closure uses this exact name).
-  - --own-name=org.mpris.MediaPlayer2.MusicStreamer
+  # MPRIS2: --own-name required because the app registers org.mpris.MediaPlayer2.musicstreamer
+  # (short name, LOWERCASE — matches `command: musicstreamer` and SERVICE_NAME in
+  # musicstreamer/media_keys/mpris2.py:56), NOT the default
+  # org.mpris.MediaPlayer2.io.github.kcreasey.MusicStreamer.
+  # D-Bus name ownership is CASE-SENSITIVE: the xdg-dbus-proxy allowlist must match the
+  # exact name the app calls registerService() with, or media keys silently disable inside
+  # the sandbox (caught in Plan 86-05 UAT — manifest/test/RESEARCH previously had capital 'M').
+  # (see RESEARCH.md Pattern 4 + Pitfall 6; Phase 91 FIX-MPRIS closure registers this name.)
+  - --own-name=org.mpris.MediaPlayer2.musicstreamer
   # D-01 (APPROVED ADDITION to FP-04): narrow read-only host mount for first-launch import wizard.
   # The app reads ~/.local/share/musicstreamer/musicstreamer.sqlite3 to detect pre-Flatpak data.
   # Inside the sandbox, XDG_DATA_HOME is remapped, so this literal host path is ONLY accessible
@@ -63,6 +68,12 @@ finish-args:
   # Verbatim spelling cited from github.com/flathub/io.qt.qtwebengine.BaseApp (FP-05/T-86-03).
   # The outer Flatpak sandbox still constrains the subprocess.
   - --env=QTWEBENGINE_DISABLE_SANDBOX=1
+  # QtWebEngineProcess lives at /app/bin/ (installed by io.qt.PySide.BaseApp), but the
+  # KDE-runtime Qt searches /usr/lib/libexec/ and /usr/bin/ only — so without this override
+  # the OAuth helper (oauth_helper.py / GBS.FM login) aborts with SIGABRT ("could not find
+  # Qt WebEngine Process", surfaced as SubprocessCrash exit=6). Pointing at the BaseApp's
+  # binary lets the helper spawn the render process. Caught in Plan 86-05 UAT (SC3/FP-05).
+  - --env=QTWEBENGINEPROCESS_PATH=/app/bin/QtWebEngineProcess
   # DEFENSIVE FALLBACK (Open Question 2 — leave commented out until UAT in Plan 05):
   # Uncomment if `gst-inspect-1.0 avdec_aac` fails inside the running sandbox.
   # The ffmpeg-full extension's add-ld-path should auto-configure GST_PLUGIN_PATH,
@@ -86,7 +97,32 @@ modules:
       # shutil.which("node") succeeds in musicstreamer/runtime_check.py and yt_dlp_opts.py.
       - install -D /usr/lib/sdk/node20/bin/node /app/bin/node
       # Install the app from the source directory using pip (no-deps; all deps in python3-modules).
-      - pip3 install --no-deps --prefix=/app .
+      # --no-build-isolation is REQUIRED: the flatpak-builder sandbox has no network, so pip must
+      # use the setuptools>=68 already present in org.kde.Sdk//6.8 rather than fetching the
+      # build backend from PyPI (which fails with "Temporary failure in name resolution").
+      # Matches the --no-build-isolation pattern used by every module in python3-modules.yaml.
+      - pip3 install --no-deps --no-build-isolation --prefix=/app .
+      # Desktop integration (PKG-LIN-FP-02 / D-11): install the .desktop, AppStream
+      # metainfo, and app icon into /app/share so flatpak-builder's appstream-compose
+      # generates the catalog and the app appears in GNOME Software with a launcher +
+      # icon. Without these, /app/share has no app metadata, export logs "No appstream
+      # data", and the app is only startable via `flatpak run` (caught in Plan 86-05
+      # UAT / SC1). The tools/linux-flatpak/ copies are the build.sh-validated sources.
+      - install -Dm644 tools/linux-flatpak/desktop/io.github.kcreasey.MusicStreamer.desktop
+        /app/share/applications/io.github.kcreasey.MusicStreamer.desktop
+      - install -Dm644 tools/linux-flatpak/metainfo/io.github.kcreasey.MusicStreamer.metainfo.xml
+        /app/share/metainfo/io.github.kcreasey.MusicStreamer.metainfo.xml
+      # App icons: hicolor sizes pre-rendered from the branded 1024px logo (legacy app-ID
+      # name in-repo). flatpak build-export REJECTS an icon whose pixel size != its hicolor
+      # directory (a 1024px file in 512x512/ fails "is not a valid icon"), so each size dir
+      # gets an exactly-matching PNG. Named under the Flatpak app ID so the .desktop's
+      # Icon=io.github.kcreasey.MusicStreamer resolves (Plan 86-05 / SC1).
+      - install -Dm644 tools/linux-flatpak/icons/io.github.kcreasey.MusicStreamer-128.png
+        /app/share/icons/hicolor/128x128/apps/io.github.kcreasey.MusicStreamer.png
+      - install -Dm644 tools/linux-flatpak/icons/io.github.kcreasey.MusicStreamer-256.png
+        /app/share/icons/hicolor/256x256/apps/io.github.kcreasey.MusicStreamer.png
+      - install -Dm644 tools/linux-flatpak/icons/io.github.kcreasey.MusicStreamer-512.png
+        /app/share/icons/hicolor/512x512/apps/io.github.kcreasey.MusicStreamer.png
     sources:
       - type: dir
         path: .

@@ -24,6 +24,7 @@ env; the step 4a drift-guard is unchanged.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -679,7 +680,7 @@ def test_flatpak_finish_args_allow_list(manifest_data: dict) -> None:
         "--socket=pulseaudio",
         "--socket=wayland",
         "--socket=fallback-x11",
-        "--own-name=org.mpris.MediaPlayer2.MusicStreamer",
+        "--own-name=org.mpris.MediaPlayer2.musicstreamer",
         "--filesystem=~/.local/share/musicstreamer:ro",
         "--env=QTWEBENGINE_DISABLE_SANDBOX=1",
     ]
@@ -719,7 +720,7 @@ def test_flatpak_finish_args_deny_list(manifest_data: dict) -> None:
     assert "--socket=session-bus" not in args, (
         "SECURITY: --socket=session-bus MUST NOT appear in finish-args. "
         "Broad session-bus access is forbidden (FP-04 deny-list / D-13 / T-86-02). "
-        "Use --own-name=org.mpris.MediaPlayer2.MusicStreamer for MPRIS2 instead (FP-08)."
+        "Use --own-name=org.mpris.MediaPlayer2.musicstreamer for MPRIS2 instead (FP-08)."
     )
 
 
@@ -740,20 +741,103 @@ def test_flatpak_qtwebengine_disable_sandbox(manifest_data: dict) -> None:
     )
 
 
+def test_flatpak_qtwebengineprocess_path(manifest_data: dict) -> None:
+    """FP-05: QTWEBENGINEPROCESS_PATH must point at the BaseApp's QtWebEngineProcess.
+
+    io.qt.PySide.BaseApp installs QtWebEngineProcess under /app/bin, but the
+    KDE-runtime Qt only searches /usr/lib/libexec and /usr/bin. Without this
+    override the OAuth helper (oauth_helper.py / GBS.FM login) aborts with SIGABRT
+    ("could not find Qt WebEngine Process" → SubprocessCrash exit=6) inside the
+    sandbox while every automated test stays green (Plan 86-05 UAT / SC3)."""
+    args = manifest_data.get("finish-args", [])
+    assert "--env=QTWEBENGINEPROCESS_PATH=/app/bin/QtWebEngineProcess" in args, (
+        "finish-args must include "
+        "--env=QTWEBENGINEPROCESS_PATH=/app/bin/QtWebEngineProcess (FP-05). "
+        "The BaseApp ships QtWebEngineProcess under /app/bin, not the /usr paths "
+        "the runtime Qt searches; without the override GBS.FM login crashes (SC3)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# FP-02 / D-11 (static): desktop integration install steps
+# ---------------------------------------------------------------------------
+
+
+def test_flatpak_installs_desktop_integration(manifest_data: dict) -> None:
+    """FP-02 / D-11: the musicstreamer module must INSTALL the .desktop, AppStream
+    metainfo, and app icon into /app/share so flatpak-builder's appstream-compose
+    generates the catalog and GNOME Software lists the app with a launcher + icon.
+
+    SEMANTIC check (not just presence): each referenced source file must exist on
+    disk. Without these install steps, /app/share has no app metadata, export logs
+    "No appstream data", and the app is only startable via `flatpak run` — invisible
+    to every automated test until in-sandbox UAT (Plan 86-05 / SC1)."""
+    modules = manifest_data.get("modules", [])
+    app_mod = next(
+        (m for m in modules if isinstance(m, dict) and m.get("name") == "musicstreamer"),
+        None,
+    )
+    assert app_mod is not None, "manifest must define a 'musicstreamer' module."
+    cmds = " ".join(app_mod.get("build-commands", []))
+
+    repo = Path(__file__).resolve().parent.parent
+    required = [
+        ("/app/share/applications/io.github.kcreasey.MusicStreamer.desktop",
+         repo / "tools/linux-flatpak/desktop/io.github.kcreasey.MusicStreamer.desktop"),
+        ("/app/share/metainfo/io.github.kcreasey.MusicStreamer.metainfo.xml",
+         repo / "tools/linux-flatpak/metainfo/io.github.kcreasey.MusicStreamer.metainfo.xml"),
+        ("/app/share/icons/hicolor/128x128/apps/io.github.kcreasey.MusicStreamer.png",
+         repo / "tools/linux-flatpak/icons/io.github.kcreasey.MusicStreamer-128.png"),
+        ("/app/share/icons/hicolor/256x256/apps/io.github.kcreasey.MusicStreamer.png",
+         repo / "tools/linux-flatpak/icons/io.github.kcreasey.MusicStreamer-256.png"),
+        ("/app/share/icons/hicolor/512x512/apps/io.github.kcreasey.MusicStreamer.png",
+         repo / "tools/linux-flatpak/icons/io.github.kcreasey.MusicStreamer-512.png"),
+    ]
+    for dest, src in required:
+        assert dest in cmds, (
+            f"musicstreamer module build-commands must install into {dest} "
+            "(FP-02/D-11 desktop integration — needed for GNOME Software listing)."
+        )
+        assert src.is_file(), (
+            f"Install source {src} referenced by the manifest does not exist on disk."
+        )
+
+
 # ---------------------------------------------------------------------------
 # FP-08 (static): MPRIS2 --own-name
 # ---------------------------------------------------------------------------
 
 
 def test_flatpak_mpris2_own_name(manifest_data: dict) -> None:
-    """FP-08 static half: --own-name=org.mpris.MediaPlayer2.MusicStreamer must
+    """FP-08 static half: --own-name=org.mpris.MediaPlayer2.musicstreamer must
     be in finish-args so MusicStreamer can register its MPRIS2 short name on
-    the session bus without broad --socket=session-bus."""
+    the session bus without broad --socket=session-bus.
+
+    SEMANTIC cross-check (not just presence): the --own-name value must match the
+    EXACT SERVICE_NAME the app calls registerService() with. D-Bus ownership is
+    case-sensitive, so a capital/lowercase drift between manifest and source silently
+    disables media keys INSIDE the sandbox while the build stays green
+    (feedback_drift_guard_presence_not_semantics — Plan 86-05 UAT).
+    """
     args = manifest_data.get("finish-args", [])
-    assert "--own-name=org.mpris.MediaPlayer2.MusicStreamer" in args, (
-        "finish-args must include --own-name=org.mpris.MediaPlayer2.MusicStreamer "
-        "(FP-08 static half / RESEARCH.md Pattern 4 + Pitfall 6). "
-        "This narrow permission lets MPRIS2 work without --socket=session-bus."
+
+    # Derive the authoritative name from source rather than hard-coding it here,
+    # so manifest and code cannot drift apart undetected.
+    mpris_src = (
+        Path(__file__).resolve().parent.parent
+        / "musicstreamer" / "media_keys" / "mpris2.py"
+    ).read_text(encoding="utf-8")
+    m = re.search(r'^SERVICE_NAME\s*=\s*["\'](org\.mpris\.MediaPlayer2\.[^"\']+)["\']',
+                  mpris_src, re.MULTILINE)
+    assert m, "Could not find SERVICE_NAME in musicstreamer/media_keys/mpris2.py"
+    service_name = m.group(1)
+
+    expected = f"--own-name={service_name}"
+    assert expected in args, (
+        f"finish-args must include {expected} (FP-08 static half / RESEARCH.md "
+        "Pattern 4 + Pitfall 6). This must MATCH SERVICE_NAME in mpris2.py exactly "
+        "(case-sensitive) so MPRIS2 can register inside the sandbox without "
+        "--socket=session-bus. A case mismatch silently disables media keys (Plan 86-05)."
     )
 
 
