@@ -135,6 +135,17 @@ Plans:
 - [ ] 86-05-PLAN.md — UAT evidence bundle: install/launch, AAC, GBS.FM login, MPRIS2 (FP-02/05/07/08)
 **Research flag**: YES — `/gsd:plan-phase --research-phase 86` recommended (QtWebEngine sandbox-in-sandbox, BaseApp version pinning, Flathub policy nuances).
 
+### Phase 86.1: SC5 failure followup from phase 86 (INSERTED)
+
+**Goal:** Make the Flatpak first-launch import path correct and safe: the offered, consent-based, offer-once import wizard is the SOLE path by which unsandboxed host data enters the sandbox. Fix two coupled SC5 defects — (1) the wizard is never wired into startup, and (2) `migration.run_migration()` silently copies host secrets into the sandbox without consent because the :ro mount makes src != dest.
+**Requirements**: PKG-LIN-FP-06
+**Depends on:** Phase 86
+**Plans:** 2 plans
+
+Plans:
+- [ ] 86.1-01-PLAN.md — Add is_sandboxed() helper + make run_migration() sandbox-aware (skip auto-copy, keep marker/dest dir); secrets never copied without consent
+- [ ] 86.1-02-PLAN.md — Wire FlatpakImportWizard into _run_gui (gated on is_sandboxed AND should_offer, deferred via singleShot after window.show()); gate-logic tests
+
 #### Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)
 
 **Goal**: One Win11 VM session delivers v2.2 installer parity: SMTC media controls bind correctly via Start Menu launch, old `.lnk` shortcuts get cleaned up on upgrade, full golden-path UAT signs off, and AAC streams retest clean.
