@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
+status: completed
 stopped_at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
-last_updated: "2026-06-02T20:00:32.342Z"
+last_updated: "2026-06-04T01:51:40.411Z"
 last_activity: 2026-06-02 -- Phase 86 execution started
 progress:
-  total_phases: 14
+  total_phases: 15
   completed_phases: 3
-  total_plans: 24
+  total_plans: 26
   completed_plans: 18
-  percent: 21
+  percent: 20
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 86 (linux-flatpak-build) — EXECUTING
-Plan: 1 of 5
-Status: Executing Phase 86
+Phase: 86.1 (sc5-failure-followup) — NOT PLANNED
+Plan: 0 of 0 (not planned yet)
+Status: Phase 86 UAT complete (SC1-4 pass, SC5 fail); 86.1 inserted for SC5 followup
 Last activity: 2026-06-02 -- Phase 86 execution started
 
 ## v2.2 Phase Roster
@@ -121,6 +121,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - 2026-05-25: v2.2 roadmap created. 14 phases mapping 62 requirements (61 unconditional + 1 conditional). Phase numbering continues from v2.1's Phase 84. Tier-ordered build: Tier 1 spike + FIX-MPRIS parallel; Tier 2 Linux packaging build; Tier 3 Windows bundle; Tier 4 channel-avatar; Tier 5 GBS polish; Tier 6 SomaFM; Tier 7 carry-overs. Research-flag YES for Phases 85a, 86, 87, 89.
 - 2026-05-25: Phase 94 added — Sidebar logo thumbnail optimization. Investigate sidebar scroll slowdown on large lists (DI.fm cited); hypothesis is that full-resolution station logos are being scaled per-paint. If confirmed, generate pre-scaled small thumbnails for sidebar while preserving full-res for Now Playing. Originally landed in directory as Phase 93 via `phase.add`; manually renumbered to 94 because Phase 93 was already taken by CONDITIONAL BUFFER-MONITOR (no directory existed yet, so SDK didn't detect the clash).
 - 2026-05-25: Phase 95 added — YT URL-change replay bug. After editing a YouTube stream whose URL has changed, first play after save fails with "stream exhausted"; replaying picks up the new URL successfully. Suggests stale resolved-URL cache or pipeline state surviving the station-edit save path. Diagnose and invalidate the cached state on update.
+- Phase 86.1 inserted after Phase 86: SC5 failure followup from phase 86 (URGENT)
 
 ### Pending Todos
 
