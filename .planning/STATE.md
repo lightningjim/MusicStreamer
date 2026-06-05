@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 86.1 Plan 02 complete — all tasks committed, SUMMARY written; SC5 wizard wiring done
-last_updated: "2026-06-05T23:05:35.921Z"
-last_activity: 2026-06-05 -- Phase 86.1 execution started
+stopped_at: Phase 88 Plan 01 complete — [InstallDelete] shortcut cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
+last_updated: "2026-06-05T23:11:00Z"
+last_activity: 2026-06-05 -- Phase 88 Plan 01 complete
 progress:
   total_phases: 15
   completed_phases: 4
   total_plans: 29
-  completed_plans: 20
+  completed_plans: 21
   percent: 27
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 86.1 — sc5-failure-followup-from-phase-86
+**Current focus:** Phase 88 — Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)
 
 ## Current Position
 
-Phase: 86.1 (sc5-failure-followup-from-phase-86) — EXECUTING
-Plan: 2 of 2
-Status: Executing Phase 86.1
-Last activity: 2026-06-05 -- Phase 86.1 execution started
+Phase: 88 (Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 88
+Last activity: 2026-06-05 -- Phase 88 execution started
 
 ## v2.2 Phase Roster
 
@@ -152,8 +152,8 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-05T02:29:26.549Z
-Stopped at: Phase 86.1 Plan 02 complete — all tasks committed, SUMMARY written; SC5 wizard wiring done
+Last session: 2026-06-05T23:11:00Z
+Stopped at: Phase 88 Plan 01 complete — [InstallDelete] shortcut cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
 Resume file: None
 
 ## Operator Next Steps

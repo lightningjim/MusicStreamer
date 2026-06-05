@@ -163,7 +163,7 @@ Plans:
 Plans:
 **Wave 1** *(parallel; disjoint files)*
 
-- [ ] 88-01-PLAN.md — Inno [InstallDelete] old-.lnk cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
+- [x] 88-01-PLAN.md — Inno [InstallDelete] old-.lnk cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
 - [ ] 88-02-PLAN.md — Static 3-way AUMID parity test + AAC plugin-guard regression assertions, Linux-CI runnable (WIN-02-B, WIN-05)
 
 **Wave 2** *(blocked on Waves 1; human at Win11 VM)*
@@ -343,7 +343,7 @@ Plans:
 | 91. FIX-MPRIS | 1/1 | Complete | 2026-06-02 |
 | 85. Linux Common + AppImage Build | 3/4 | In Progress|  |
 | 86. Linux Flatpak Build | 4/5 | In Progress|  |
-| 88. Windows Packaging Bundle | 0/? | Not started | - |
+| 88. Windows Packaging Bundle | 1/3 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
 | 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
