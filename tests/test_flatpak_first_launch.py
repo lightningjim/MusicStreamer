@@ -192,3 +192,25 @@ class TestWriteOfferedFlag:
 
         ffl.write_offered_flag()
         ffl.write_offered_flag()  # should not raise
+
+
+class TestIsSandboxed:
+    """is_sandboxed() returns True iff /.flatpak-info exists (monkeypatched via _FLATPAK_INFO)."""
+
+    def test_returns_true_when_flatpak_info_exists(self, tmp_path, monkeypatch):
+        """Returns True when _FLATPAK_INFO is monkeypatched to an existing file."""
+        import musicstreamer.flatpak_first_launch as ffl
+
+        info_file = tmp_path / "flatpak-info"
+        info_file.write_text("[Application]\nname=io.github.kcreasey.MusicStreamer\n")
+        monkeypatch.setattr(ffl, "_FLATPAK_INFO", str(info_file))
+
+        assert ffl.is_sandboxed() is True
+
+    def test_returns_false_when_flatpak_info_absent(self, tmp_path, monkeypatch):
+        """Returns False when _FLATPAK_INFO is monkeypatched to a non-existent path."""
+        import musicstreamer.flatpak_first_launch as ffl
+
+        monkeypatch.setattr(ffl, "_FLATPAK_INFO", str(tmp_path / "no-such-file"))
+
+        assert ffl.is_sandboxed() is False
