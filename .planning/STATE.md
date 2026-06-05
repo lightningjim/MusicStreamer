@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
-last_updated: "2026-06-05T02:24:51.128Z"
+stopped_at: Phase 86.1 Plan 02 complete — all tasks committed, SUMMARY written; SC5 wizard wiring done
+last_updated: "2026-06-05T02:29:26.563Z"
 last_activity: 2026-06-05 -- Phase 86.1 execution started
 progress:
   total_phases: 15
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 26
-  completed_plans: 19
-  percent: 20
+  completed_plans: 20
+  percent: 27
 ---
 
 # Project State
@@ -112,6 +112,9 @@ v2.2 roadmap-level decisions (2026-05-25):
 
 (Phase-level decisions accumulate as phases close; v2.1 phase decisions preserved below.)
 
+- [Phase ?]: Lazy imports for flatpak_first_launch, paths, FlatpakImportWizard, and QTimer inside _run_gui keep _run_smoke Qt-light (D-05/D-24)
+- [Phase ?]: QTimer.singleShot(0, _maybe_offer_import) defers wizard modal until event loop start so it renders over shown MainWindow
+
 ### Decisions (v2.1, preserved for context)
 
 (Truncated — full v2.1 decision log preserved at `.planning/milestones/v2.1-ROADMAP.md`.)
@@ -145,12 +148,13 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | verification | Phase 65 VER-02-J — Win11 VM bundled-exe end-to-end | In v2.2 — Phase 88 |
 | seed | SEED-009 — Linux AppImage install | In v2.2 — Phases 85a + 85 |
 | todo | 2026-05-10-pls-codec-bitrate-url-fallback | In v2.2 — Phase 92 |
+| Phase 86.1 P02 | 1 | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-05T02:24:51.111Z
-Stopped at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
-Resume file: .planning/phases/86-linux-flatpak-build/86-VERIFICATION.md
+Last session: 2026-06-05T02:29:26.549Z
+Stopped at: Phase 86.1 Plan 02 complete — all tasks committed, SUMMARY written; SC5 wizard wiring done
+Resume file: None
 
 ## Operator Next Steps
 
