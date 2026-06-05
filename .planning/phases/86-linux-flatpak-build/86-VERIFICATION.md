@@ -4,8 +4,8 @@ phase: 86-linux-flatpak-build
 plan: 86-05
 source: [86-05-PLAN.md]
 created: 2026-06-02
-updated: 2026-06-03
-result: SC1-SC4 PASS, SC5 FAIL (follow-up planned)
+updated: 2026-06-05
+result: SC1-SC4 PASS; SC5 RESOLVED via phase 86.1 (human UAT 3/3 PASS 2026-06-05, see 86.1-HUMAN-UAT.md)
 ---
 
 # Phase 86 — Flatpak In-Sandbox UAT Evidence Bundle
