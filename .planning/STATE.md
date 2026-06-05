@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 86.1 Plan 02 complete — all tasks committed, SUMMARY written; SC5 wizard wiring done
-last_updated: "2026-06-05T02:29:26.563Z"
+last_updated: "2026-06-05T23:05:35.921Z"
 last_activity: 2026-06-05 -- Phase 86.1 execution started
 progress:
   total_phases: 15
   completed_phases: 4
-  total_plans: 26
+  total_plans: 29
   completed_plans: 20
   percent: 27
 ---
