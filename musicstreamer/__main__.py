@@ -251,6 +251,31 @@ def _run_gui(argv: list[str]) -> int:
         lambda: single_instance.raise_and_focus(window)
     )
     window.show()
+
+    # Phase 86.1 Plan 02: offer the FlatpakImportWizard on first sandboxed launch
+    # with existing host data.  Gates on BOTH is_sandboxed() (Plan 01 helper —
+    # prevents firing on native Linux where host path == sandbox path) AND
+    # should_offer_import_wizard() (host-data-present + offer-once-flag-absent).
+    # Deferred via QTimer.singleShot(0, ...) so the modal renders OVER the shown
+    # main window, not before it.  All imports are lazy (consistent with the
+    # existing lazy-import style above) to keep _run_smoke Qt-light and ui_qt-free
+    # (D-05/D-24).
+    def _maybe_offer_import() -> None:
+        from musicstreamer import flatpak_first_launch  # lazy
+        from musicstreamer import paths  # lazy
+        from musicstreamer.ui_qt.flatpak_import_wizard import FlatpakImportWizard  # lazy
+
+        if flatpak_first_launch.is_sandboxed() and flatpak_first_launch.should_offer_import_wizard():
+            wizard = FlatpakImportWizard(
+                paths.db_path(),
+                toast_callback=window.show_toast,
+                parent=window,
+            )
+            wizard.exec()
+
+    from PySide6.QtCore import QTimer  # lazy
+    QTimer.singleShot(0, _maybe_offer_import)
+
     return app.exec()
 
 
