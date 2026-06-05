@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 88 Plan 01 complete — [InstallDelete] shortcut cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
-last_updated: "2026-06-05T23:11:00Z"
-last_activity: 2026-06-05 -- Phase 88 Plan 01 complete
+last_updated: "2026-06-05T23:16:02.035Z"
+last_activity: 2026-06-05 -- Phase 88 execution started
 progress:
   total_phases: 15
   completed_phases: 4
   total_plans: 29
-  completed_plans: 21
+  completed_plans: 22
   percent: 27
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 ## Current Position
 
 Phase: 88 (Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Executing Phase 88
 Last activity: 2026-06-05 -- Phase 88 execution started
 
@@ -149,10 +149,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | seed | SEED-009 — Linux AppImage install | In v2.2 — Phases 85a + 85 |
 | todo | 2026-05-10-pls-codec-bitrate-url-fallback | In v2.2 — Phase 92 |
 | Phase 86.1 P02 | 1 | 2 tasks | 2 files |
+| Phase 88 P02 | 104 | 2 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-06-05T23:11:00Z
+Last session: 2026-06-05T23:16:02.025Z
 Stopped at: Phase 88 Plan 01 complete — [InstallDelete] shortcut cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
 Resume file: None
 

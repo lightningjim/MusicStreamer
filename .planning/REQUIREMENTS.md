@@ -41,9 +41,9 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 
 - [ ] **WIN-02**: User's Start-Menu shortcut has AppUserModelID baked in via Inno Setup `[Icons]` directive, so SMTC media controls bind correctly (carry-over from v2.1)
 - [x] **WIN-02-A**: Inno Setup `[InstallDelete]` clause removes the previous version's `.lnk` before creating the new one (avoid taskbar-pinned AUMID staleness; document "unpin from taskbar before upgrading" in release notes)
-- [ ] **WIN-02-B**: `tests/test_aumid_string_parity.py` is extended to grep the installed `.lnk` AUMID and assert identity with `SetCurrentProcessExplicitAppUserModelID` literal
+- [x] **WIN-02-B**: `tests/test_aumid_string_parity.py` is extended to grep the installed `.lnk` AUMID and assert identity with `SetCurrentProcessExplicitAppUserModelID` literal
 - [ ] **VER-02-J**: Win11 VM packaging UAT — fresh install of v2.2 installer on a Win11 VM that had v2.1 previously installed, all golden-path features verified (launch, station play, ICY metadata, media keys, AAC stream playback, cover art)
-- [ ] **WIN-05**: AAC stream playback retest on Win11 — DI.fm + AudioAddict + SomaFM AAC tiers all play (Phase 69 acceptance re-confirmed on the v2.2 installer)
+- [x] **WIN-05**: AAC stream playback retest on Win11 — DI.fm + AudioAddict + SomaFM AAC tiers all play (Phase 69 acceptance re-confirmed on the v2.2 installer)
 
 ### GBS.FM — Themed-Day Detection (GBS-THEME)
 
@@ -176,9 +176,9 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | PKG-LIN-FP-11 | Phase 86 | Pending |
 | WIN-02 | Phase 88 | Pending |
 | WIN-02-A | Phase 88 | Complete |
-| WIN-02-B | Phase 88 | Pending |
+| WIN-02-B | Phase 88 | Complete |
 | VER-02-J | Phase 88 | Pending |
-| WIN-05 | Phase 88 | Pending |
+| WIN-05 | Phase 88 | Complete |
 | GBS-THEME-01 | Phase 87 | Pending |
 | GBS-THEME-02 | Phase 87 | Pending |
 | GBS-THEME-03 | Phase 87 | Pending |
