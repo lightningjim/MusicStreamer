@@ -60,6 +60,16 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; Source paths are relative to the .iss file location.
 Source: "..\..\dist\MusicStreamer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; WIN-02-A: Remove the previous version's Start-Menu .lnk shortcuts on upgrade.
+; [InstallDelete] runs AFTER Inno auto-uninstalls the prior version (via AppId) but
+; BEFORE [Icons] creates the new shortcuts. This deterministically clears any stale
+; .lnk so a taskbar-pinned shortcut cannot hold onto the old AUMID (Pitfall 6).
+; Scope is intentionally minimal: exactly the two .lnk paths — no wildcards, no
+; filesandordirs, no paths under {userappdata}/{localappdata}/{userpf} data dirs.
+[InstallDelete]
+Type: files; Name: "{userprograms}\MusicStreamer.lnk"
+Type: files; Name: "{userprograms}\Uninstall MusicStreamer.lnk"
+
 [Icons]
 ; D-04: Start Menu shortcut ONLY — and it's mandatory because it carries the AUMID.
 ; AppUserModelID must match exactly the string passed to SetCurrentProcessExplicitAppUserModelID
