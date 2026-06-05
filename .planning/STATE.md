@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: completed
+status: executing
 stopped_at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
-last_updated: "2026-06-04T01:51:40.411Z"
-last_activity: 2026-06-02 -- Phase 86 execution started
+last_updated: "2026-06-05T02:24:51.128Z"
+last_activity: 2026-06-05 -- Phase 86.1 execution started
 progress:
   total_phases: 15
   completed_phases: 3
   total_plans: 26
-  completed_plans: 18
+  completed_plans: 19
   percent: 20
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 86 — linux-flatpak-build
+**Current focus:** Phase 86.1 — sc5-failure-followup-from-phase-86
 
 ## Current Position
 
-Phase: 86.1 (sc5-failure-followup) — NOT PLANNED
-Plan: 0 of 0 (not planned yet)
-Status: Phase 86 UAT complete (SC1-4 pass, SC5 fail); 86.1 inserted for SC5 followup
-Last activity: 2026-06-02 -- Phase 86 execution started
+Phase: 86.1 (sc5-failure-followup-from-phase-86) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 86.1
+Last activity: 2026-06-05 -- Phase 86.1 execution started
 
 ## v2.2 Phase Roster
 
@@ -148,7 +148,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-02T20:00:32.333Z
+Last session: 2026-06-05T02:24:51.111Z
 Stopped at: Phase 86 Waves 1-2 complete; paused at Wave 3 human UAT (Plan 86-05)
 Resume file: .planning/phases/86-linux-flatpak-build/86-VERIFICATION.md
 

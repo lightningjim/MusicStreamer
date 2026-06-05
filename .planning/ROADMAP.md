@@ -143,7 +143,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 86.1-01-PLAN.md — Add is_sandboxed() helper + make run_migration() sandbox-aware (skip auto-copy, keep marker/dest dir); secrets never copied without consent
+- [x] 86.1-01-PLAN.md — Add is_sandboxed() helper + make run_migration() sandbox-aware (skip auto-copy, keep marker/dest dir); secrets never copied without consent
 - [ ] 86.1-02-PLAN.md — Wire FlatpakImportWizard into _run_gui (gated on is_sandboxed AND should_offer, deferred via singleShot after window.show()); gate-logic tests
 
 #### Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)

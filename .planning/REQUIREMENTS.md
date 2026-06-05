@@ -30,7 +30,7 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [ ] **PKG-LIN-FP-03**: Flatpak uses `org.kde.Platform//6.8` + `org.kde.Sdk//6.8` + `io.qt.PySide.BaseApp//6.8` + `org.freedesktop.Platform.ffmpeg-full//24.08` + `org.freedesktop.Sdk.Extension.node20`
 - [ ] **PKG-LIN-FP-04**: Flatpak finish-args expose: `--share=network`, `--socket=pulseaudio`, `--socket=wayland`, `--socket=fallback-x11`, `--own-name=org.mpris.MediaPlayer2.MusicStreamer` — explicitly NOT `--filesystem=home` and NOT `--socket=session-bus` (broadly); plus the single narrow `--filesystem=~/.local/share/musicstreamer:ro` path (D-01 approved addition for first-launch detection — NOT broad filesystem access)
 - [ ] **PKG-LIN-FP-05**: Flatpak's QtWebEngine GBS-FM login flow works inside the sandbox via `QTWEBENGINE_DISABLE_SANDBOX=1` env-var in `finish-args` (verbatim spelling per Flathub `io.qt.qtwebengine.BaseApp` manifest)
-- [ ] **PKG-LIN-FP-06**: Flatpak's first launch detects existing unsandboxed data at `~/.local/share/musicstreamer/` and offers an in-app import wizard using the existing Phase 25 settings-export ZIP flow (no broad filesystem permission)
+- [x] **PKG-LIN-FP-06**: Flatpak's first launch detects existing unsandboxed data at `~/.local/share/musicstreamer/` and offers an in-app import wizard using the existing Phase 25 settings-export ZIP flow (no broad filesystem permission)
 - [ ] **PKG-LIN-FP-07**: Flatpak ships AAC stream playback working (DI.fm, AudioAddict, SomaFM AAC tiers) via the `ffmpeg-full` extension — verified by audible playback during UAT
 - [ ] **PKG-LIN-FP-08**: Flatpak's MPRIS2 binding is verified from inside the sandbox AFTER FIX-MPRIS lands (FIX-MPRIS-01 blocks PKG-LIN-FP-08 acceptance)
 - [ ] **PKG-LIN-FP-09**: `flatpak-pip-generator` outputs a checked-in `python3-modules.yaml` capturing all `pyproject.toml` dependencies for offline Flathub builds
@@ -168,7 +168,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | PKG-LIN-FP-03 | Phase 86 | Pending |
 | PKG-LIN-FP-04 | Phase 86 | Pending |
 | PKG-LIN-FP-05 | Phase 86 | Pending |
-| PKG-LIN-FP-06 | Phase 86 | Pending |
+| PKG-LIN-FP-06 | Phase 86 | Complete |
 | PKG-LIN-FP-07 | Phase 86 | Pending |
 | PKG-LIN-FP-08 | Phase 86 | Pending (gated on Phase 91 FIX-MPRIS) |
 | PKG-LIN-FP-09 | Phase 86 | Pending |
