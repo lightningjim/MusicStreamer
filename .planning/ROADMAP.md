@@ -535,3 +535,12 @@ Phase directories: `.planning/milestones/v2.1-phases/`
 ## Backlog
 
 (Items deferred during v2.1, awaiting promotion via `/gsd:review-backlog` if/when scope opens.)
+
+### Phase 999.1: Friendlier settings-import error for text-mode-corrupted zips (BACKLOG)
+
+**Goal:** When a settings backup `.zip` fails to open (`zipfile.BadZipFile` in `settings_export.preview_import`, currently the generic "Not a valid ZIP archive"), detect the signature of a text-mode/CRLF-corrupted transfer (starts with `PK` zip magic but raises `BadZipFile`, with injected `0x0D 0x0A` runs) and surface an actionable message: "This backup looks corrupted by a text-mode file transfer. Re-copy it in binary mode and try again." Scope is DETECTION + GUIDANCE ONLY — no auto-repair (collapsing `0x0D0A`→`0x0A` would clobber legitimate binary byte pairs = data-loss footgun). Origin: Phase 88 Win11 VM UAT Gap G4 (Linux→Windows backup failed import; root cause was the VM share transferring in text mode, not a build defect). Export/import code is OS-agnostic stdlib `zipfile`; this is purely UX/error-clarity. Likely a small change in `musicstreamer/settings_export.py:256-258`. Non-blocking enhancement.
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with /gsd:review-backlog when ready)
