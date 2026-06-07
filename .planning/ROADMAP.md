@@ -159,7 +159,7 @@ Plans:
   4. Win11 VM full-UAT script (launch, station play, ICY metadata, media keys, AAC stream playback, cover art, MB-CAA fallback, GBS.FM, SomaFM preroll) signs off all golden-path checks.
   5. DI.fm + AudioAddict + SomaFM AAC tier streams play audibly on the v2.2 installer (Phase 69 WIN-05 acceptance re-confirmed; `tools/check_bundle_plugins.py` exit code 10 guard fires correctly on missing gst-libav rebuild).
 
-**Plans**: 3 plans across 2 waves
+**Plans**: 4 plans across 3 waves
 Plans:
 **Wave 1** *(parallel; disjoint files)*
 
@@ -169,6 +169,10 @@ Plans:
 **Wave 2** *(blocked on Waves 1; human at Win11 VM)*
 
 - [ ] 88-03-PLAN.md — Win11 VM UAT script: installed-.lnk AUMID readback + SMTC overlay + golden-path + audible AAC + exit-10 guard confirmation (WIN-02, VER-02-J, WIN-05)
+
+**Wave 3** *(gap closure — G1; disjoint files from Waves 1-2)*
+
+- [ ] 88-04-PLAN.md — Installer [InstallDelete] dist-info cleanup: scoped `{app}\_internal\musicstreamer-*.dist-info` wildcard fixes stale-version mislabel + VM-only UAT-17 row (WIN-02-A, VER-02-J)
 **Research flag**: NO — spike-style first-plan (WPR trace + `Get-StartApps` PowerShell verification) lives inside the phase but no `--research-phase` needed.
 
 #### Phase 89a: Channel-Avatar DB Migration + Storage Layout
