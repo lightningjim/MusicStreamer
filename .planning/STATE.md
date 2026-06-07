@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 88 Plan 01 complete — [InstallDelete] shortcut cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
-last_updated: "2026-06-05T23:16:02.035Z"
+stopped_at: Phase 89a context gathered
+last_updated: "2026-06-07T05:16:29.248Z"
 last_activity: 2026-06-05 -- Phase 88 execution started
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 4
-  total_plans: 29
+  total_plans: 30
   completed_plans: 22
-  percent: 27
+  percent: 25
 ---
 
 # Project State
@@ -125,6 +125,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - 2026-05-25: Phase 94 added — Sidebar logo thumbnail optimization. Investigate sidebar scroll slowdown on large lists (DI.fm cited); hypothesis is that full-resolution station logos are being scaled per-paint. If confirmed, generate pre-scaled small thumbnails for sidebar while preserving full-res for Now Playing. Originally landed in directory as Phase 93 via `phase.add`; manually renumbered to 94 because Phase 93 was already taken by CONDITIONAL BUFFER-MONITOR (no directory existed yet, so SDK didn't detect the clash).
 - 2026-05-25: Phase 95 added — YT URL-change replay bug. After editing a YouTube stream whose URL has changed, first play after save fails with "stream exhausted"; replaying picks up the new URL successfully. Suggests stale resolved-URL cache or pipeline state surviving the station-edit save path. Diagnose and invalidate the cached state on update.
 - Phase 86.1 inserted after Phase 86: SC5 failure followup from phase 86 (URGENT)
+- 2026-06-06: Phase 96 added — Manual refresh of Yellow Brick Cinema provider with what is actually live on their channel (@YellowBrickCinema). Add the ability to manually re-sync the YBC provider against the channel's currently-live streams.
 
 ### Pending Todos
 
@@ -153,9 +154,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-05T23:16:02.025Z
-Stopped at: Phase 88 Plan 01 complete — [InstallDelete] shortcut cleanup + RELEASE-NOTES.md taskbar-unpin footnote (WIN-02-A)
-Resume file: None
+Last session: 2026-06-07T05:16:29.235Z
+Stopped at: Phase 89a context gathered
+Resume file: .planning/phases/89A-channel-avatar-db-migration-storage-layout/89A-CONTEXT.md
 
 ## Operator Next Steps
 
