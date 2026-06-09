@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 88.1 executed (Linux-side complete; VM proof deferred to 88-03)
-last_updated: "2026-06-09T16:33:21Z"
-last_activity: 2026-06-09 -- Phase 88.1 executed (winrt collect_all bundling fix + diagnostics + guards); VERIFICATION human_needed, VM items → 88-03
+status: verifying
+stopped_at: Phase 88.2 context gathered
+last_updated: "2026-06-09T21:55:25.094Z"
+last_activity: "2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests"
 progress:
   total_phases: 18
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 32
   completed_plans: 26
-  percent: 30
+  percent: 33
 ---
 
 # Project State
@@ -166,9 +166,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-09T20:29:57.515Z
-Stopped at: Phase 88.1 executed (Linux-side complete; VM proof deferred to 88-03)
-Resume file: .planning/phases/88.1-fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled/88.1-VERIFICATION.md
+Last session: 2026-06-09T21:55:25.082Z
+Stopped at: Phase 88.2 context gathered
+Resume file: .planning/phases/88.2-fix-gbs-fm-in-app-login-dialog-fails-to-start-phase-88-uat-g/88.2-CONTEXT.md
 
 ## Operator Next Steps
 
