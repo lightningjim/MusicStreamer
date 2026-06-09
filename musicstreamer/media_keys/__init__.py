@@ -45,9 +45,17 @@ def create(player, repo) -> MediaKeysBackend:
     if sys.platform == "win32":
         try:
             from musicstreamer.media_keys.smtc import create_windows_backend
-            return create_windows_backend(player, repo)
+            backend = create_windows_backend(player, repo)
+            _log.info(
+                "Media keys: WindowsMediaKeysBackend selected (SMTC active)"
+            )
+            return backend
         except Exception as e:
-            _log.warning("Media keys disabled (Windows SMTC unavailable): %s", e)
+            _log.warning(
+                "Media keys: falling back to NoOp on win32 — %s: %s",
+                type(e).__name__,
+                e,
+            )
             return NoOpMediaKeysBackend()
 
     _log.warning("Media keys disabled: unsupported platform %r", sys.platform)
