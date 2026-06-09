@@ -126,6 +126,7 @@ The installer is per-user (`PrivilegesRequired=lowest`); no UAC prompt expected.
 | UAT-14 | SomaFM AAC tier plays audibly | WIN-05 | Select a SomaFM station, open stream picker, choose an **AAC/AACP** tier (e.g. the 128k AAC stream). Click Play. Confirm audible audio. | Audible AAC audio within 10 s | pass      | See Evidence § UAT-14                                                            |
 | UAT-15 | `check_bundle_plugins.py` exits 10 on a bundle missing `gstlibav.dll` | WIN-05 | In PowerShell, from the repo root with the conda-forge spike env active: `$bundleInternal = "dist\MusicStreamer\_internal"` then `$pluginsDir = "$bundleInternal\gst_plugins"`. **Rename** `gstlibav.dll` temporarily: `Rename-Item "$pluginsDir\gstlibav.dll" "$pluginsDir\gstlibav.dll.bak"`. Run: `python tools\check_bundle_plugins.py --bundle $bundleInternal`. Confirm exit code: `$LASTEXITCODE`. **Restore:** `Rename-Item "$pluginsDir\gstlibav.dll.bak" "$pluginsDir\gstlibav.dll"`. | Exit code is **10** and stderr contains `PHASE-69 FAIL` and `gstlibav.dll` | Blocked   | `$pluginsDir` was empty → path collapsed to `\gstlibav.dll`. See Evidence § UAT-15 for corrected one-shot |
 | UAT-16 | `check_bundle_plugins.py` exits 0 on the complete bundle | WIN-05 | After restoring `gstlibav.dll` in UAT-15, run: `python tools\check_bundle_plugins.py --bundle dist\MusicStreamer\_internal`. Confirm exit code. | Exit code is **0** and stdout contains `PHASE-69 OK` | pass      | See Evidence § UAT-16                                                            |
+| UAT-17 | After upgrade install, installed `_internal` holds exactly ONE `musicstreamer-*.dist-info` AND app reports the built version (G1 fix). | WIN-02-A, VER-02-J | Run AFTER installing the new v2.2.x build over the prior version in PowerShell: `(Get-ChildItem "$env:LOCALAPPDATA\Programs\MusicStreamer\_internal" -Filter "musicstreamer-*.dist-info").Count` — expect `1`. Then read the surviving dir name: `(Get-ChildItem "$env:LOCALAPPDATA\Programs\MusicStreamer\_internal" -Filter "musicstreamer-*.dist-info").Name` — expect `musicstreamer-<built X.Y.Z>.dist-info`. Optionally check app-reported version: `& "$env:LOCALAPPDATA\Programs\MusicStreamer\MusicStreamer.exe" --version 2>&1` (or read the dist-info dir name if `--version` is unreliable per Environment Snapshot). | `.Count` equals `1`; the surviving dist-info dir name is `musicstreamer-<built X.Y.Z>.dist-info` (the freshly-built version, NOT a stale lower version like 2.1.68); app-reported version matches. | | Re-test on Win11 VM that previously had multiple versions installed — see Gaps § G1 / Evidence § Diagnostic (was 3 dist-info dirs: 2.1.68, 2.1.84, 2.2.86). |
 
 ---
 
@@ -205,10 +206,10 @@ musicstreamer-2.2.86.dist-info
 ## Summary
 
 ```
-total: 16
+total: 17
 passed: 12      # UAT-1,2,4,5,6,8,9,11,12,13,14,16
 failed: 3       # UAT-3 (SMTC), UAT-7 (media keys), UAT-10 (GBS login)
-pending: 0
+pending: 1      # UAT-17 (upgrade dist-info cleanup — pending VM session)
 skipped: 0
 blocked: 1      # UAT-15 (re-run corrected one-shot — see Evidence § UAT-15)
 ```
@@ -264,7 +265,7 @@ Blocked by an unset `$pluginsDir` (Evidence § UAT-15). Re-run the corrected one
 
 ## Sign-Off
 
-- [ ] All 16 rows executed (Pass/Fail filled in, verbatim output pasted)
+- [ ] All 17 rows executed (Pass/Fail filled in, verbatim output pasted)
 - [X] UAT-2 output pasted verbatim and equals exactly `org.lightningjim.MusicStreamer`
 - [ ] UAT-3 SMTC overlay confirmed "MusicStreamer" (not "Unknown app")
 - [X] UAT-12 / UAT-13 / UAT-14 AAC streams confirmed audible (not silent)
