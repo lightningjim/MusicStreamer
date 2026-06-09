@@ -26,9 +26,9 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 
 ### Phases
 
-- [ ] **Phase 85a: Linux Packaging Spike** — De-risk linuxdeploy + conda + GStreamer plugin discovery before locking the AppImage recipe
+- [x] **Phase 85a: Linux Packaging Spike** — De-risk linuxdeploy + conda + GStreamer plugin discovery before locking the AppImage recipe
 - [x] **Phase 91: FIX-MPRIS (Phase 77 deferred MPRIS2 tests)** — Repair the 7 D-03-deferred MPRIS2 cross-file test failures so the test-clean baseline holds before Flatpak in-sandbox MPRIS verification
-- [ ] **Phase 85: Linux Common + AppImage Build** — Ship a portable `MusicStreamer-<version>-x86_64.AppImage` with conda's GStreamer/Qt/Node bundle, `.desktop` integration, MPRIS2, and zsync update metadata
+- [x] **Phase 85: Linux Common + AppImage Build** — Ship a portable `MusicStreamer-<version>-x86_64.AppImage` with conda's GStreamer/Qt/Node bundle, `.desktop` integration, MPRIS2, and zsync update metadata
 - [x] **Phase 86: Linux Flatpak Build** — Ship `io.github.kcreasey.MusicStreamer.flatpak` via `flatpak-builder` on KDE 6.8 + PySide BaseApp + ffmpeg-full, with minimal finish-args and in-sandbox MPRIS2 verified
 - [ ] **Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)** — One Win11 VM session: Inno Setup AUMID polish + `.lnk` cleanup, full v2.2-installer UAT against a previously-v2.1 VM, and AAC stream retest
 - [ ] **Phase 89a: Channel-Avatar DB Migration + Storage Layout** — Foundation column + filesystem layout for YT and Twitch avatars; idempotent additive migration in `repo.py:db_init()`
@@ -110,7 +110,7 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1+2)*
 
-- [ ] 85-04-PLAN.md — Cross-distro smoke harness + Linux drift-guard pytest + README + REQUIREMENTS bookkeeping (D-04/D-05/D-06/D-07/D-17 + close)
+- [x] 85-04-PLAN.md — Cross-distro smoke harness + Linux drift-guard pytest + README + REQUIREMENTS bookkeeping (D-04/D-05/D-06/D-07/D-17 + close)
 
 **Research flag**: NO — spike consumed in Phase 85a; standard pattern in Phase 85.
 
@@ -345,7 +345,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 85a. Linux Packaging Spike | 8/8 | Complete    | 2026-05-26 |
 | 91. FIX-MPRIS | 1/1 | Complete | 2026-06-02 |
-| 85. Linux Common + AppImage Build | 3/4 | In Progress|  |
+| 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 2/3 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
