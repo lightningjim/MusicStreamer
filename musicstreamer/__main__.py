@@ -24,7 +24,10 @@ def _run_check_mediakeys(argv: list[str]) -> int:
     headless build machines have no display; QApplication crashes without one).
     Does NOT import ui_qt (D-05/D-24 lazy-import contract).
 
-    Prints MEDIAKEYS_BACKEND=<classname> to stdout.
+    Prints MEDIAKEYS_BACKEND=<classname> to stderr (WR-01: the frozen bundle is
+    built console=False, so stdout is a no-op; stderr still reaches build.ps1's
+    `2>&1 | Out-Host`, keeping the diagnostic visible). The exit code (0/1) is the
+    actual contract the build.ps1 step-4c guard branches on.
     Exits 0 if WindowsMediaKeysBackend is constructed, 1 if NoOp or error.
     """
     from PySide6.QtCore import QCoreApplication
@@ -35,7 +38,7 @@ def _run_check_mediakeys(argv: list[str]) -> int:
 
     backend = media_keys.create(None, None)
     class_name = type(backend).__name__
-    print(f"MEDIAKEYS_BACKEND={class_name}", flush=True)
+    print(f"MEDIAKEYS_BACKEND={class_name}", file=sys.stderr, flush=True)
 
     if class_name == "WindowsMediaKeysBackend":
         return 0

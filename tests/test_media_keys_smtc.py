@@ -138,7 +138,7 @@ def mock_winrt_modules(monkeypatch):
 # -------------------------------------------------------------------------
 
 def test_pyproject_has_windows_optional_deps():
-    """D-05: [project.optional-dependencies].windows lists the four pywinrt packages."""
+    """D-05: [project.optional-dependencies].windows lists the pywinrt packages (incl. winrt-runtime, 88.1 CR-01)."""
     # Locate pyproject.toml at the repo root — use this file's path as anchor.
     repo_root = Path(__file__).resolve().parent.parent
     pyproject = repo_root / "pyproject.toml"
@@ -155,6 +155,10 @@ def test_pyproject_has_windows_optional_deps():
     # Phase 43.1 UAT validated the 3.2.x namespace layout, so codify it.
     windows_deps = set(optional["windows"])
     expected_pkg_prefixes = {
+        # winrt-runtime: core pywinrt bridge (winrt/_winrt.pyd). Phase 88.1 (CR-01)
+        # made the frozen bundle depend on it explicitly via collect_all("winrt-runtime"),
+        # so it must be a declared dep, not merely a transitive one.
+        "winrt-runtime",
         "winrt-Windows.Media.Playback",
         "winrt-Windows.Media",
         "winrt-Windows.Storage.Streams",
@@ -164,6 +168,51 @@ def test_pyproject_has_windows_optional_deps():
     for pkg in expected_pkg_prefixes:
         matches = [d for d in windows_deps if d == pkg or d.startswith(pkg + ">") or d.startswith(pkg + "=") or d.startswith(pkg + "<") or d.startswith(pkg + "~") or d.startswith(pkg + "!")]
         assert matches, f"[windows] group missing package: {pkg}"
+
+
+# -------------------------------------------------------------------------
+# Task 2b (88.1 WR-03): --check-mediakeys exit-code contract
+# The string equality `type(backend).__name__ == "WindowsMediaKeysBackend"` is the
+# hinge of the build.ps1 step-4c SMTC smoke guard. Exercise it directly so a
+# regression in the exit-code mapping cannot slip past the static drift-guard.
+# -------------------------------------------------------------------------
+
+def test_run_check_mediakeys_returns_1_for_non_windows_backend(monkeypatch, capsys):
+    """Exit 1 + stderr diagnostic when the factory yields a non-Windows backend."""
+    from PySide6 import QtCore
+    monkeypatch.setattr(QtCore, "QCoreApplication", lambda argv: object())
+
+    import musicstreamer.media_keys as mk
+
+    class NoOpMediaKeysBackend:  # name-matched stand-in
+        pass
+
+    monkeypatch.setattr(mk, "create", lambda player, repo: NoOpMediaKeysBackend())
+
+    from musicstreamer.__main__ import _run_check_mediakeys
+
+    rc = _run_check_mediakeys([])
+    assert rc == 1
+    assert "MEDIAKEYS_BACKEND=NoOpMediaKeysBackend" in capsys.readouterr().err
+
+
+def test_run_check_mediakeys_returns_0_for_windows_backend(monkeypatch, capsys):
+    """Exit 0 only when the factory constructs the real WindowsMediaKeysBackend."""
+    from PySide6 import QtCore
+    monkeypatch.setattr(QtCore, "QCoreApplication", lambda argv: object())
+
+    import musicstreamer.media_keys as mk
+
+    class WindowsMediaKeysBackend:  # name is the contract the guard checks
+        pass
+
+    monkeypatch.setattr(mk, "create", lambda player, repo: WindowsMediaKeysBackend())
+
+    from musicstreamer.__main__ import _run_check_mediakeys
+
+    rc = _run_check_mediakeys([])
+    assert rc == 0
+    assert "MEDIAKEYS_BACKEND=WindowsMediaKeysBackend" in capsys.readouterr().err
 
 
 # -------------------------------------------------------------------------

@@ -11,6 +11,10 @@ param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
     [string]$GstRoot = $(if ($env:CONDA_PREFIX) { "$env:CONDA_PREFIX\Library" } else { "C:\spike-gst\runtime" }),
     [switch]$SkipSmoke      = $false,
+    # 88.1 WR-02: bypass the step-4c SMTC smoke guard (exit 11), mirroring -SkipSmoke.
+    # The guard is active by default; this switch only exists for build iteration on a
+    # VM where the SMTC check is being debugged independently of the bundle contents.
+    [switch]$SkipSmtcGuard  = $false,
     [switch]$SkipPipInstall = $(if ($env:CONDA_PREFIX) { $true } else { $false })
 )
 
@@ -318,15 +322,19 @@ try {
     # Phase 65 WR-01: use Write-Host (NOT Write-Error) + exit 11.
     # $ErrorActionPreference = "Stop" escalates Write-Error to a terminating
     # error — the documented `exit 11` line never fires; script returns 1.
-    Write-Host "=== SMTC SMOKE GUARD: assert WindowsMediaKeysBackend in frozen bundle (Phase 88.1 / D-05 / WIN-02) ==="
-    Invoke-Native {
-        & "..\..\dist\MusicStreamer\MusicStreamer.exe" --check-mediakeys 2>&1 | Out-Host
+    if (-not $SkipSmtcGuard) {
+        Write-Host "=== SMTC SMOKE GUARD: assert WindowsMediaKeysBackend in frozen bundle (Phase 88.1 / D-05 / WIN-02) ==="
+        Invoke-Native {
+            & "..\..\dist\MusicStreamer\MusicStreamer.exe" --check-mediakeys 2>&1 | Out-Host
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "BUILD_FAIL reason=smtc_backend_not_loaded hint='MusicStreamer.exe --check-mediakeys returned non-zero; winrt import failed in frozen bundle; check build.log for ImportError from media_keys factory'" -ForegroundColor Red
+            exit 11
+        }
+        Write-Host "SMTC SMOKE GUARD OK"
+    } else {
+        Write-Host "SMTC SMOKE GUARD skipped (-SkipSmtcGuard)"
     }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "BUILD_FAIL reason=smtc_backend_not_loaded hint='MusicStreamer.exe --check-mediakeys returned non-zero; winrt import failed in frozen bundle; check build.log for ImportError from media_keys factory'" -ForegroundColor Red
-        exit 11
-    }
-    Write-Host "SMTC SMOKE GUARD OK"
 
     # --- 5. Smoke test --------------------------------------------------
     if (-not $SkipSmoke) {
