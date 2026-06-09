@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: verifying
 stopped_at: Phase 88.2 context gathered
-last_updated: "2026-06-09T21:55:25.094Z"
+last_updated: "2026-06-09T22:21:09.718Z"
 last_activity: "2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests"
 progress:
   total_phases: 18
   completed_phases: 6
-  total_plans: 32
+  total_plans: 34
   completed_plans: 26
   percent: 33
 ---
