@@ -19,6 +19,7 @@ Phase 999.3 (D-08/D-09/D-11/D-12): Replaces the generic "Try again"
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 from typing import Callable
@@ -40,6 +41,8 @@ from PySide6.QtWidgets import (
 from musicstreamer import constants, paths
 from musicstreamer.oauth_log import OAuthLogger
 from musicstreamer.subprocess_utils import _make_oauth_launch_args
+
+_log = logging.getLogger(__name__)
 
 # Phase 999.3 D-08: category → user-facing label.
 # Keep in sync with oauth_helper._emit_event categories (post-pivot contract:
@@ -381,6 +384,9 @@ class AccountsDialog(QDialog):
         """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
         self._oauth_proc = QProcess(self)
         self._oauth_proc.finished.connect(self._on_oauth_finished)
+        # Phase 88.2 D-02/D-03: wire errorOccurred so FailedToStart resets the
+        # WR-03 guard and logs; finished is NOT emitted on FailedToStart.
+        self._oauth_proc.errorOccurred.connect(self._on_oauth_login_error)
         # T-40-05 / Phase 88.2 D-01: _make_oauth_launch_args owns the
         # sys.executable contract (no PATH injection, never shell=True, mode
         # is a hardcoded literal). Frozen branch uses --oauth-helper dispatch;
@@ -403,6 +409,10 @@ class AccountsDialog(QDialog):
             return  # WR-03: already running — ignore re-click
         self._gbs_login_proc = QProcess(self)
         self._gbs_login_proc.finished.connect(self._on_gbs_login_finished)  # QA-05
+        # Phase 88.2 D-02/D-03: wire errorOccurred so FailedToStart resets the
+        # WR-03 guard and surfaces the cookie-import fallback; finished is NOT
+        # emitted on FailedToStart.
+        self._gbs_login_proc.errorOccurred.connect(self._on_gbs_login_error)
         # T-40-05 / Phase 88.2 D-01: _make_oauth_launch_args owns the
         # sys.executable contract (no PATH injection, never shell=True, mode
         # is a hardcoded literal). Frozen branch uses --oauth-helper dispatch;
@@ -613,6 +623,49 @@ class AccountsDialog(QDialog):
             output=netscape_text,
             last_event=last_event,
         )
+
+    def _on_gbs_login_error(self, error: QProcess.ProcessError) -> None:
+        """Phase 88.2 D-02/D-03: handle QProcess launch failure for GBS login.
+
+        Fires when the GBS oauth_helper subprocess fails to start (or for other
+        QProcess errors). finished is NOT emitted on FailedToStart, so this is
+        the sole handler for that case — without it, _gbs_login_proc would stay
+        non-None permanently and the WR-03 re-entrancy guard would block all
+        future login attempts for the session.
+
+        Gate on FailedToStart specifically (Pitfall 6): a Crashed error also
+        fires errorOccurred, but finished IS emitted for Crashed, so the
+        existing _on_gbs_login_finished failure path handles the UX — we must
+        not double-trigger the cookie-import fallback on Crash.
+        """
+        _log.warning(
+            "GBS login subprocess errorOccurred (QProcess.ProcessError=%s).",
+            error,
+        )
+        if error == QProcess.ProcessError.FailedToStart:
+            # WR-03: reset re-entrancy guard FIRST (before any dialog open)
+            # so re-entrant clicks see None immediately.
+            self._gbs_login_proc = None
+            self._update_status()
+            # D-02: auto-surface the GBS.FM File/Paste cookie-import fallback
+            # so the user is never left at a silent dead-end.
+            self._on_gbs_import_clicked()
+
+    def _on_oauth_login_error(self, error: QProcess.ProcessError) -> None:
+        """Phase 88.2 D-02/D-03: handle QProcess launch failure for Twitch login.
+
+        Fires when the Twitch oauth_helper subprocess fails to start (or other
+        QProcess errors). Twitch has no cookie-import fallback (D-02 GBS anchor
+        only); reset the guard, log, and restore button state.
+        """
+        _log.warning(
+            "Twitch login subprocess errorOccurred (QProcess.ProcessError=%s).",
+            error,
+        )
+        if error == QProcess.ProcessError.FailedToStart:
+            # WR-03: reset re-entrancy guard before status update.
+            self._oauth_proc = None
+            self._update_status()
 
     # ------------------------------------------------------------------
     # Failure dialog (Phase 999.3 D-08, D-09)
