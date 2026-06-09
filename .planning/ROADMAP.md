@@ -193,8 +193,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 88.1-01-PLAN.md — D-03 factory backend-selection logging + `--check-mediakeys` headless harness + SMTC factory-log test extensions
-- [ ] 88.1-02-PLAN.md — D-01/D-02 spec collect_all for 5 winrt distributions + D-05 build.ps1 SMTC smoke guard (exit 11) + D-04 Linux static drift-guard test
+- [x] 88.1-01-PLAN.md — D-03 factory backend-selection logging + `--check-mediakeys` headless harness + SMTC factory-log test extensions
+- [x] 88.1-02-PLAN.md — D-01/D-02 spec collect_all for 5 winrt distributions + D-05 build.ps1 SMTC smoke guard (exit 11) + D-04 Linux static drift-guard test
 
 #### Phase 89a: Channel-Avatar DB Migration + Storage Layout
 

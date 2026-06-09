@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: completed
+status: executing
 stopped_at: Phase 88.1 context gathered
-last_updated: "2026-06-09T21:00:36.255Z"
-last_activity: 2026-06-09 -- 88-04 closed G1 (installer dist-info [InstallDelete] + UAT-17); phase held open
+last_updated: "2026-06-09T21:02:15.600Z"
+last_activity: 2026-06-09 -- Phase 88.1 execution started
 progress:
   total_phases: 18
   completed_phases: 5
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 88 — windows-packaging-bundle-win-02-ver-02-j-win-05
+**Current focus:** Phase 88.1 — fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled
 
 ## Current Position
 
-Phase: 88 (windows-packaging-bundle-win-02-ver-02-j-win-05) — HELD OPEN (CI side done; VM side pending)
-Plan: 3 of 4 complete (88-01, 88-02, 88-04 done; 88-03 VM UAT held open)
-Status: Phase 88 CI-runnable work complete. 88-03 VM UAT executed (12 pass / 3 fail / 1 blocked) — deferred to ONE consolidated VM session AFTER G2/G3 fix phases land (decision: Option C, 2026-06-09).
-Last activity: 2026-06-09 -- 88-04 closed G1 (installer dist-info [InstallDelete] + UAT-17); phase held open
+Phase: 88.1 (fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 88.1
+Last activity: 2026-06-09 -- Phase 88.1 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
