@@ -175,6 +175,27 @@ Plans:
 - [x] 88-04-PLAN.md — Installer [InstallDelete] dist-info cleanup: scoped `{app}\_internal\musicstreamer-*.dist-info` wildcard fixes stale-version mislabel + VM-only UAT-17 row (WIN-02-A, VER-02-J)
 **Research flag**: NO — spike-style first-plan (WPR trace + `Get-StartApps` PowerShell verification) lives inside the phase but no `--research-phase` needed.
 
+### Phase 88.2: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 88
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 88.2 to break down)
+
+### Phase 88.1: Fix SMTC media overlay absent and dead media keys on bundled Windows build (Phase 88 UAT G2) (INSERTED)
+
+**Goal:** The bundled (PyInstaller-frozen) Windows build's SMTC media session registers correctly — the winrt compiled .pyd extensions are bundled via collect_all, backend selection is logged (no more silent NoOp degradation), and build-time + CI guards prevent regression. (Linux/CI side; frozen-exe smoke + UAT-3/UAT-7 re-test deferred to the consolidated 88-03 VM session per D-06/D-07.)
+**Requirements**: WIN-02, VER-02-J
+**Depends on:** Phase 88
+**Plans:** 2 plans
+
+Plans:
+- [ ] 88.1-01-PLAN.md — D-03 factory backend-selection logging + `--check-mediakeys` headless harness + SMTC factory-log test extensions
+- [ ] 88.1-02-PLAN.md — D-01/D-02 spec collect_all for 5 winrt distributions + D-05 build.ps1 SMTC smoke guard (exit 11) + D-04 Linux static drift-guard test
+
 #### Phase 89a: Channel-Avatar DB Migration + Storage Layout
 
 **Goal**: Foundation for both YT and Twitch avatar work — additive SQLite column + filesystem layout in place, idempotent and rollback-safe, with zero behavior change.
