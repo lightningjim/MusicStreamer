@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 88.1 context gathered
-last_updated: "2026-06-09T21:02:15.600Z"
-last_activity: 2026-06-09 -- Phase 88.1 execution started
+stopped_at: Phase 88.1 executed (Linux-side complete; VM proof deferred to 88-03)
+last_updated: "2026-06-09T16:33:21Z"
+last_activity: 2026-06-09 -- Phase 88.1 executed (winrt collect_all bundling fix + diagnostics + guards); VERIFICATION human_needed, VM items → 88-03
 progress:
   total_phases: 18
   completed_phases: 5
   total_plans: 32
-  completed_plans: 24
-  percent: 28
+  completed_plans: 26
+  percent: 30
 ---
 
 # Project State
@@ -25,20 +25,20 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 88.1 (fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 88.1
-Last activity: 2026-06-09 -- Phase 88.1 execution started
+Phase: 88.1 (fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled) — LINUX-SIDE COMPLETE (VM proof deferred to 88-03)
+Plan: 2 of 2 complete (88.1-01, 88.1-02)
+Status: Phase 88.1 code complete + Linux-verified (6/6 must-haves, 90 tests green, code review clean). VERIFICATION status: human_needed — 3 VM items rolled into consolidated 88-03 session (Option C).
+Last activity: 2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
 - G1 (stale dist-info → version mislabel): FIXED via 88-04 ([InstallDelete] scoped wildcard). Pending VM re-verify via UAT-17.
-- G2 (SMTC overlay absent → media keys dead, fails WIN-02/VER-02-J): NEEDS FIX PHASE. Investigate SystemMediaTransportControls registration on the bundled Win build.
+- G2 (SMTC overlay absent → media keys dead, fails WIN-02/VER-02-J): FIX LANDED via Phase 88.1 (Linux-side, 2026-06-09). Root cause confirmed: pywinrt 3.x ships per-namespace compiled `.pyd` modules at the `winrt/` root that `hiddenimports` alone never bundled → frozen `import winrt.*` failed → factory silently degraded to NoOp. Fix: `collect_all` for all 5 winrt distributions in MusicStreamer.spec + factory backend-selection logging + `--check-mediakeys` harness + build.ps1 step-4c smoke guard (exit 11). Pending VM re-verify in 88-03 (88.1-HUMAN-UAT.md: build smoke guard + UAT-3 + UAT-7).
 - G3 (GBS.FM login won't start, fails VER-02-J): NEEDS FIX PHASE. Investigate in-app login dialog launch path.
 - G4 (zip "not a valid zip"): RESOLVED — text-mode transfer corruption, not a defect. Backlog item 999.1 (friendlier import error).
 - G5 (UAT-15 exit-10 guard blocked on $pluginsDir typo): VM re-run only — corrected one-shot in 88-HUMAN-UAT Evidence § UAT-15.
 
-Consolidated VM session (close 88-03) must cover: UAT-17 (G1 re-verify), UAT-15 re-run (G5), and re-test of G2 + G3 after their fix phases land. 88-03 closes with a clean pass only then.
+Consolidated VM session (close 88-03) must cover: UAT-17 (G1 re-verify), UAT-15 re-run (G5), re-test of G2 (88.1 fix — rebuild via build.ps1; step-4c smoke guard fast-fails if winrt bundling is still wrong, then UAT-3/UAT-7) + G3 (after 88.2 lands). 88-03 closes with a clean pass only then.
 
 ## v2.2 Phase Roster
 
@@ -167,13 +167,13 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 ## Session Continuity
 
 Last session: 2026-06-09T20:29:57.515Z
-Stopped at: Phase 88.1 context gathered
-Resume file: .planning/phases/88.1-fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled/88.1-CONTEXT.md
+Stopped at: Phase 88.1 executed (Linux-side complete; VM proof deferred to 88-03)
+Resume file: .planning/phases/88.1-fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled/88.1-VERIFICATION.md
 
 ## Operator Next Steps
 
 Phase 88 is held open (Option C). Before 88-03 can close with a clean VM pass:
 
-1. Create the G2 fix phase (SMTC overlay / media keys absent on bundled Win build) — e.g. `/gsd:insert-phase 88.1` then `/gsd:plan-phase 88.1`. WIN-02 / VER-02-J blocker.
-2. Create the G3 fix phase (GBS.FM login won't start) — e.g. `/gsd:insert-phase 88.2` then `/gsd:plan-phase 88.2`. VER-02-J blocker.
-3. After both fixes land, do ONE consolidated Win11 VM session re-running 88-HUMAN-UAT.md rows: UAT-17 (G1), UAT-15 (G5), UAT-3/UAT-7 (G2), UAT-10 (G3). Set 88-HUMAN-UAT frontmatter status: resolved when all pass, then close 88-03 and verify Phase 88.
+1. ✅ DONE — G2 fix phase (88.1): SMTC winrt bundling fix landed Linux-side (collect_all 5 dists + diagnostics + `--check-mediakeys` + build.ps1 exit-11 guard). 90 tests green, code review clean. VM re-verify rolls into 88-03 (see 88.1-HUMAN-UAT.md).
+2. Create the G3 fix phase (GBS.FM login won't start) — e.g. `/gsd:insert-phase 88.2` then `/gsd:plan-phase 88.2`. VER-02-J blocker. (Phase 88.2 already inserted in roadmap.)
+3. After 88.2 lands, do ONE consolidated Win11 VM session re-running 88-HUMAN-UAT.md rows: UAT-17 (G1), UAT-15 (G5), UAT-3/UAT-7 (G2 — rebuild via build.ps1; step-4c smoke guard fast-fails if winrt still missing), UAT-10 (G3). Set 88-HUMAN-UAT frontmatter status: resolved when all pass, then close 88-03 and verify Phase 88.
