@@ -74,16 +74,24 @@ def test_run_oauth_helper_self_test_returns_0():
 
 def test_run_oauth_helper_strips_oauth_helper_flag(monkeypatch):
     """D-04 Test 4: _run_oauth_helper strips '--oauth-helper' before forwarding
-    to oauth_helper.main(), preserving '--mode' and 'gbs' in sys.argv."""
+    to oauth_helper.main(), preserving '--mode' and 'gbs' in sys.argv.
+
+    _run_oauth_helper does a lazy ``from musicstreamer.oauth_helper import main``.
+    Inject a fake musicstreamer.oauth_helper module into sys.modules so
+    the lazy import resolves to our stub without triggering oauth_helper's
+    module-level QtWebEngineWidgets guard (which calls sys.exit on Linux CI).
+    """
+    import types
+
     captured = {}
 
     def _fake_oauth_main():
         captured["argv"] = list(sys.argv)
-        # oauth_helper.main() normally calls sys.exit; raise SystemExit to halt.
         raise SystemExit(0)
 
-    import musicstreamer.oauth_helper as oh
-    monkeypatch.setattr(oh, "main", _fake_oauth_main)
+    fake_module = types.ModuleType("musicstreamer.oauth_helper")
+    fake_module.main = _fake_oauth_main  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "musicstreamer.oauth_helper", fake_module)
 
     from musicstreamer.__main__ import _run_oauth_helper
 
