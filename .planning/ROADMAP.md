@@ -184,7 +184,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 88.2-01-PLAN.md — D-01 shared frozen-safe launcher (`_make_oauth_launch_args` + `__main__.py --oauth-helper` dispatch + 3 call-site rewires) + D-04 Linux frozen-dispatch test
+- [x] 88.2-01-PLAN.md — D-01 shared frozen-safe launcher (`_make_oauth_launch_args` + `__main__.py --oauth-helper` dispatch + 3 call-site rewires) + D-04 Linux frozen-dispatch test
 **Wave 2** *(depends on 88.2-01)*
 - [ ] 88.2-02-PLAN.md — D-02/D-03 errorOccurred handlers (WR-03 reset + log + cookie-import fallback) + D-05 build.ps1 oauth-helper smoke guard (exit 12) + source-text drift-guard
 
