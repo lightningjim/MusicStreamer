@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: completed
 stopped_at: Phase 88.1 context gathered
-last_updated: "2026-06-09T20:29:57.524Z"
+last_updated: "2026-06-09T21:00:36.255Z"
 last_activity: 2026-06-09 -- 88-04 closed G1 (installer dist-info [InstallDelete] + UAT-17); phase held open
 progress:
   total_phases: 18
   completed_phases: 5
-  total_plans: 30
+  total_plans: 32
   completed_plans: 24
   percent: 28
 ---
