@@ -5,6 +5,7 @@
 #             4=PKG-03 guard fail, 5=version parse fail, 6=iscc fail, 7=spec entry guard fail,
 #             8=pre-bundle clean fail, 9=post-bundle dist-info assertion fail,
 #             10=post-bundle plugin-presence guard fail (Phase 69)
+#             11=smtc backend not loaded in frozen bundle (Phase 88.1 / WIN-02)
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -305,6 +306,27 @@ try {
         exit 10
     }
     Write-Host "POST-BUNDLE PLUGIN GUARD OK"
+
+    # --- 4c. SMTC smoke guard (Phase 88.1 / D-05 / WIN-02) -----------------
+    # Assert that WindowsMediaKeysBackend (not NoOpMediaKeysBackend) constructs
+    # in the frozen exe. A winrt bundling failure degrades silently to NoOp
+    # (D-03 logging makes this diagnosable), so this build-time check makes
+    # the failure LOUD at build time. Only runs on Windows — skip this guard
+    # on Linux (the exe is not runnable on Linux; this block is always reached
+    # on the Windows build VM in the 88-03 session).
+    #
+    # Phase 65 WR-01: use Write-Host (NOT Write-Error) + exit 11.
+    # $ErrorActionPreference = "Stop" escalates Write-Error to a terminating
+    # error — the documented `exit 11` line never fires; script returns 1.
+    Write-Host "=== SMTC SMOKE GUARD: assert WindowsMediaKeysBackend in frozen bundle (Phase 88.1 / D-05 / WIN-02) ==="
+    Invoke-Native {
+        & "..\..\dist\MusicStreamer\MusicStreamer.exe" --check-mediakeys 2>&1 | Out-Host
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "BUILD_FAIL reason=smtc_backend_not_loaded hint='MusicStreamer.exe --check-mediakeys returned non-zero; winrt import failed in frozen bundle; check build.log for ImportError from media_keys factory'" -ForegroundColor Red
+        exit 11
+    }
+    Write-Host "SMTC SMOKE GUARD OK"
 
     # --- 5. Smoke test --------------------------------------------------
     if (-not $SkipSmoke) {

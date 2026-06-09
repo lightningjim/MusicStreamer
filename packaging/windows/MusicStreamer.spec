@@ -32,6 +32,19 @@ _cn_datas, _cn_binaries, _cn_hiddenimports = collect_all("charset_normalizer")
 _sl_datas, _sl_binaries, _sl_hiddenimports = collect_all("streamlink")
 _yt_datas, _yt_binaries, _yt_hiddenimports = collect_all("yt_dlp")
 
+# Phase 88.1 D-01: pywinrt 3.2.x ships compiled .pyd extensions at the
+# winrt/ namespace root that PyInstaller's modulegraph cannot discover via
+# hiddenimports alone. collect_all captures binaries (the .pyd files) via
+# collect_dynamic_libs(). Must collect each distribution separately because
+# winrt/ is a PEP 420 namespace package with no single owning __init__.py.
+# winrt-runtime ships winrt/_winrt.cpXX-win_amd64.pyd (the core bridge).
+# Each namespace distribution ships its own winrt/_winrt_<ns>.cpXX.pyd.
+_wr_datas,  _wr_binaries,  _wr_hiddenimports  = collect_all("winrt-runtime")
+_wmp_datas, _wmp_binaries, _wmp_hiddenimports = collect_all("winrt-Windows.Media.Playback")
+_wm_datas,  _wm_binaries,  _wm_hiddenimports  = collect_all("winrt-Windows.Media")
+_wss_datas, _wss_binaries, _wss_hiddenimports = collect_all("winrt-Windows.Storage.Streams")
+_wf_datas,  _wf_binaries,  _wf_hiddenimports  = collect_all("winrt-Windows.Foundation")
+
 # Phase 65 D-08 (VER-02): ship musicstreamer's dist-info so
 # importlib.metadata.version("musicstreamer") resolves inside the bundle.
 # No try/except fallback — bundle build must fail loudly with
@@ -104,11 +117,13 @@ block_cipher = None
 a = Analysis(
     ["../../musicstreamer/__main__.py"],
     pathex=[str(Path(".").resolve())],
-    binaries=extra_binaries + _cn_binaries + _sl_binaries + _yt_binaries,
+    binaries=extra_binaries + _cn_binaries + _sl_binaries + _yt_binaries
+             + _wr_binaries + _wmp_binaries + _wm_binaries + _wss_binaries + _wf_binaries,
     datas=[
         ("../../musicstreamer/ui_qt/icons", "musicstreamer/ui_qt/icons"),  # SVG source
         ("icons/MusicStreamer.ico", "icons"),                              # installed icon
-    ] + _cn_datas + _sl_datas + _yt_datas + _ms_datas,
+    ] + _cn_datas + _sl_datas + _yt_datas + _ms_datas
+      + _wr_datas + _wmp_datas + _wm_datas + _wss_datas + _wf_datas,
     hiddenimports=[
         "gi",
         "gi.repository.Gst",
@@ -118,16 +133,15 @@ a = Analysis(
         # PySide6 extras that hooks-contrib sometimes misses:
         "PySide6.QtNetwork",      # QLocalServer/QLocalSocket (single-instance)
         "PySide6.QtSvg",          # SVG icon rendering
-        # Windows media keys (43.1 already declared optional-dependencies.windows):
-        "winrt.windows.media",
-        "winrt.windows.media.playback",
-        "winrt.windows.storage.streams",
-        "winrt.windows.foundation",
+        # Windows media keys: collect_all above subsumes the old hiddenimport-only
+        # entries — do NOT add "winrt.windows.*" strings here (Phase 88.1 D-01).
         # Phase 44 UAT fix: requests prefers chardet over charset_normalizer,
         # and chardet is pure-Python (no mypyc shared-module landmines).
         # Required by streamlink/compat.py and yt_dlp HTTP fetches.
         "chardet",
-    ] + _cn_hiddenimports + _sl_hiddenimports + _yt_hiddenimports,
+    ] + _cn_hiddenimports + _sl_hiddenimports + _yt_hiddenimports
+      + _wr_hiddenimports + _wmp_hiddenimports + _wm_hiddenimports
+      + _wss_hiddenimports + _wf_hiddenimports,
     hookspath=[],
     hooksconfig={
         "gstreamer": {
