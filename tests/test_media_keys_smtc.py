@@ -608,3 +608,56 @@ def test_end_to_end_factory_fallback_on_win32_without_winrt(monkeypatch, caplog)
     assert "windows" in combined or "winrt" in combined or "smtc" in combined, (
         f"warning should hint at Windows/winrt/SMTC: {combined!r}"
     )
+
+
+def test_factory_fallback_log_includes_exception_type(monkeypatch, caplog):
+    """D-03: factory WARNING on win32 fallback must include the exception class
+    name and message, not just a generic string — so the frozen bundle's
+    ImportError is diagnosable from the log without a stack trace."""
+    import logging
+    caplog.set_level(logging.WARNING, logger="musicstreamer.media_keys")
+
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    for mod in list(sys.modules):
+        if mod.startswith("musicstreamer.media_keys"):
+            del sys.modules[mod]
+
+    from musicstreamer.media_keys import create, NoOpMediaKeysBackend
+    backend = create(None, None)
+
+    assert isinstance(backend, NoOpMediaKeysBackend)
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings
+    combined = " ".join(r.getMessage() for r in warnings)
+    # D-03 requires type(e).__name__ in the message (ImportError or ModuleNotFoundError)
+    assert "ImportError" in combined or "ModuleNotFoundError" in combined, (
+        f"D-03: WARNING must include exception class name; got: {combined!r}"
+    )
+
+
+def test_factory_success_logs_backend_selected(mock_winrt_modules, monkeypatch, caplog):
+    """D-03: factory must log INFO 'WindowsMediaKeysBackend selected' when SMTC
+    loads successfully — confirms the success path is diagnosable."""
+    import logging
+    caplog.set_level(logging.INFO, logger="musicstreamer.media_keys")
+
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    for mod in list(sys.modules):
+        if mod.startswith("musicstreamer.media_keys"):
+            del sys.modules[mod]
+
+    # Re-inject stubs AFTER clearing so the re-import sees them
+    stubs = mock_winrt_modules  # fixture already set these via monkeypatch
+    for name, module in stubs.items():
+        monkeypatch.setitem(sys.modules, name, module)
+
+    from musicstreamer.media_keys import create
+    backend = create(None, None)
+
+    infos = [r for r in caplog.records if r.levelname == "INFO"]
+    combined = " ".join(r.getMessage() for r in infos)
+    assert "WindowsMediaKeysBackend" in combined, (
+        f"D-03: factory must log INFO with 'WindowsMediaKeysBackend selected'; got: {combined!r}"
+    )
