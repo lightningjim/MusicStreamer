@@ -1851,3 +1851,173 @@ class TestAccountsDialogProviderAwareFailureDialog:
 
         assert twitch_launch_calls == [1]
         assert gbs_launch_calls == []
+
+
+class TestAccountsDialogErrorOccurred:
+    """Phase 88.2 D-02/D-03: errorOccurred handlers for GBS + Twitch QProcess.
+
+    ENV NOTE: This class requires PySide6 Qt and is NOT collectable under the
+    broken Qt-under-pytest setup on this local dev box (ModuleNotFoundError:
+    No module named 'PySide6.QtCore' at collection time). The tests are written
+    correctly per the plan spec and are verified in CI. Do NOT delete or skip
+    them — they are the CI gate for D-02/D-03.
+
+    Mirror sources:
+      tests/test_accounts_dialog.py:158-178 (TestAccountsDialogConnect Twitch launch shape)
+      tests/test_accounts_dialog.py:1121-1152 (GBS action launches subprocess)
+      tests/test_accounts_dialog.py:1274-1315 (_on_gbs_import_clicked kwargs shape)
+    """
+
+    # Test A: GBS FailedToStart resets the WR-03 guard FIRST and invokes the
+    # cookie-import fallback. Use monkeypatch to patch _on_gbs_import_clicked
+    # so no real modal opens.
+    def test_gbs_failed_to_start_resets_guard_and_opens_fallback(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Phase 88.2 D-02/D-03: FailedToStart resets _gbs_login_proc to None
+        BEFORE opening cookie-import fallback, so re-entrant clicks see None.
+        """
+        from PySide6.QtCore import QProcess
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        fallback_calls: list[int] = []
+
+        def fake_import_clicked(self_inner):
+            fallback_calls.append(1)
+
+        monkeypatch.setattr(AccountsDialog, "_on_gbs_import_clicked", fake_import_clicked)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        # Simulate a running GBS process so the guard is non-None.
+        stub_proc = MagicMock(spec=QProcess)
+        dlg._gbs_login_proc = stub_proc
+
+        # Fire the errorOccurred handler directly with FailedToStart.
+        dlg._on_gbs_login_error(QProcess.ProcessError.FailedToStart)
+
+        # WR-03 guard must be cleared.
+        assert dlg._gbs_login_proc is None, (
+            "_gbs_login_proc must be None after FailedToStart "
+            "(WR-03 re-entrancy guard reset — Phase 88.2 D-02)"
+        )
+        # D-02 fallback must have been invoked.
+        assert fallback_calls == [1], (
+            "_on_gbs_import_clicked (cookie-import fallback) must be called "
+            "on FailedToStart (Phase 88.2 D-02)"
+        )
+
+    # Test B: GBS FailedToStart emits a WARNING-level log line.
+    def test_gbs_failed_to_start_logs_warning(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo, caplog
+    ):
+        """Phase 88.2 D-03: GBS FailedToStart emits a WARNING via module _log."""
+        import logging
+        from PySide6.QtCore import QProcess
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        # Suppress _on_gbs_import_clicked so no real modal opens.
+        monkeypatch.setattr(AccountsDialog, "_on_gbs_import_clicked", lambda self: None)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        stub_proc = MagicMock(spec=QProcess)
+        dlg._gbs_login_proc = stub_proc
+
+        with caplog.at_level(logging.WARNING, logger="musicstreamer.ui_qt.accounts_dialog"):
+            dlg._on_gbs_login_error(QProcess.ProcessError.FailedToStart)
+
+        assert any(
+            r.levelno == logging.WARNING
+            for r in caplog.records
+            if r.name == "musicstreamer.ui_qt.accounts_dialog"
+        ), (
+            "Expected a WARNING log from musicstreamer.ui_qt.accounts_dialog "
+            "on GBS FailedToStart (Phase 88.2 D-03)"
+        )
+
+    # Test C: GBS Crashed does NOT trigger the cookie-import fallback (Pitfall 6).
+    def test_gbs_crashed_does_not_open_fallback(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Phase 88.2 Pitfall 6: Crashed error must NOT trigger cookie-import fallback.
+        finished IS emitted on Crashed — the existing _on_gbs_login_finished
+        handles the UX. Opening the fallback here would double-trigger the dialog.
+        """
+        from PySide6.QtCore import QProcess
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        fallback_calls: list[int] = []
+
+        def fake_import_clicked(self_inner):
+            fallback_calls.append(1)
+
+        monkeypatch.setattr(AccountsDialog, "_on_gbs_import_clicked", fake_import_clicked)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        stub_proc = MagicMock(spec=QProcess)
+        dlg._gbs_login_proc = stub_proc
+
+        # Fire with Crashed — the FailedToStart gate must block the fallback.
+        dlg._on_gbs_login_error(QProcess.ProcessError.Crashed)
+
+        assert fallback_calls == [], (
+            "_on_gbs_import_clicked must NOT be called for Crashed errors "
+            "(only FailedToStart triggers D-02 fallback — Phase 88.2 Pitfall 6)"
+        )
+
+    # Test D: Twitch FailedToStart resets _oauth_proc, updates status, no fallback.
+    def test_twitch_failed_to_start_resets_guard_no_fallback(
+        self, tmp_data_dir, qtbot, monkeypatch, fake_repo
+    ):
+        """Phase 88.2 D-02: Twitch FailedToStart resets _oauth_proc to None and
+        calls _update_status; does NOT open any CookieImportDialog fallback.
+        Twitch has no cookie-import fallback (D-02 GBS anchor only).
+        """
+        from PySide6.QtCore import QProcess
+        from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
+
+        # If _on_gbs_import_clicked is called, this list will be non-empty.
+        import_calls: list[int] = []
+        monkeypatch.setattr(
+            AccountsDialog, "_on_gbs_import_clicked",
+            lambda self_inner: import_calls.append(1),
+        )
+
+        update_calls: list[int] = []
+        original_update = AccountsDialog._update_status
+
+        def counting_update(self_inner):
+            update_calls.append(1)
+            original_update(self_inner)
+
+        monkeypatch.setattr(AccountsDialog, "_update_status", counting_update)
+
+        dlg = AccountsDialog(fake_repo)
+        qtbot.addWidget(dlg)
+
+        stub_proc = MagicMock(spec=QProcess)
+        dlg._oauth_proc = stub_proc
+
+        # Fire the Twitch errorOccurred handler directly.
+        dlg._on_oauth_login_error(QProcess.ProcessError.FailedToStart)
+
+        # WR-03 guard must be cleared.
+        assert dlg._oauth_proc is None, (
+            "_oauth_proc must be None after FailedToStart "
+            "(WR-03 re-entrancy guard reset — Phase 88.2 D-02)"
+        )
+        # _update_status must have fired (restores button state).
+        assert len(update_calls) >= 1, (
+            "_update_status must be called after Twitch FailedToStart "
+            "(Phase 88.2 D-02)"
+        )
+        # No cookie-import fallback for Twitch.
+        assert import_calls == [], (
+            "_on_gbs_import_clicked must NOT be called for Twitch FailedToStart "
+            "— Twitch has no cookie-import fallback (Phase 88.2 D-02)"
+        )
