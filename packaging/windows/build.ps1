@@ -6,6 +6,7 @@
 #             8=pre-bundle clean fail, 9=post-bundle dist-info assertion fail,
 #             10=post-bundle plugin-presence guard fail (Phase 69)
 #             11=smtc backend not loaded in frozen bundle (Phase 88.1 / WIN-02)
+#             12=oauth helper entrypoint unreachable in frozen bundle (Phase 88.2 / D-05)
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -15,6 +16,10 @@ param(
     # The guard is active by default; this switch only exists for build iteration on a
     # VM where the SMTC check is being debugged independently of the bundle contents.
     [switch]$SkipSmtcGuard  = $false,
+    # 88.2 D-05 / WR-02: bypass the step-4d oauth-helper guard (exit 12), mirroring -SkipSmtcGuard.
+    # The guard is active by default; this switch exists for build iteration on a
+    # VM where the oauth-helper dispatch is being debugged independently of the bundle.
+    [switch]$SkipOauthGuard = $false,
     [switch]$SkipPipInstall = $(if ($env:CONDA_PREFIX) { $true } else { $false })
 )
 
@@ -334,6 +339,29 @@ try {
         Write-Host "SMTC SMOKE GUARD OK"
     } else {
         Write-Host "SMTC SMOKE GUARD skipped (-SkipSmtcGuard)"
+    }
+
+    # --- 4d. OAUTH HELPER GUARD -----------------------------------------
+    # Phase 88.2 D-05: assert the frozen exe can dispatch --oauth-helper so
+    # GBS.FM / Twitch / Google in-app login is reachable at runtime. Mirrors
+    # the step-4c SMTC guard pattern. Exit 12 = oauth helper entrypoint
+    # unreachable in frozen bundle (see exit-codes header above).
+    #
+    # Phase 65 WR-01: use Write-Host (NOT Write-Error) + exit 12.
+    # $ErrorActionPreference = "Stop" escalates Write-Error to a terminating
+    # error — the documented `exit 12` line never fires; script returns 1.
+    if (-not $SkipOauthGuard) {
+        Write-Host "=== OAUTH HELPER GUARD: assert frozen exe can dispatch --oauth-helper (Phase 88.2 / D-05) ==="
+        Invoke-Native {
+            & "..\..\dist\MusicStreamer\MusicStreamer.exe" --oauth-helper --self-test 2>&1 | Out-Host
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "BUILD_FAIL reason=oauth_helper_entrypoint_unreachable hint='MusicStreamer.exe --oauth-helper --self-test returned non-zero; __main__.py dispatch did not reach _run_oauth_helper'" -ForegroundColor Red
+            exit 12
+        }
+        Write-Host "OAUTH HELPER GUARD OK"
+    } else {
+        Write-Host "OAUTH HELPER GUARD skipped (-SkipOauthGuard)"
     }
 
     # --- 5. Smoke test --------------------------------------------------
