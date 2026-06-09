@@ -64,11 +64,35 @@ Source: "..\..\dist\MusicStreamer\*"; DestDir: "{app}"; Flags: ignoreversion rec
 ; [InstallDelete] runs AFTER Inno auto-uninstalls the prior version (via AppId) but
 ; BEFORE [Icons] creates the new shortcuts. This deterministically clears any stale
 ; .lnk so a taskbar-pinned shortcut cannot hold onto the old AUMID (Pitfall 6).
-; Scope is intentionally minimal: exactly the two .lnk paths — no wildcards, no
-; filesandordirs, no paths under {userappdata}/{localappdata}/{userpf} data dirs.
+;
+; SCOPED EXCEPTION — filesandordirs permitted under {app}\_internal\ only:
+;   {app} = {userpf}\MusicStreamer (the install directory). This path is FULLY
+;   INSTALL-MANAGED and is replaced on every build; it contains NO user data.
+;   The scoped wildcard below removes stale version-named musicstreamer-*.dist-info
+;   directories that accumulate across upgrades. The prohibition on filesandordirs
+;   and on touching {userappdata}/{localappdata} user-data paths REMAINS in force
+;   for everything else — those paths protect the SQLite DB, cookies, tokens,
+;   accent CSS, EQ profiles, and logo cache that live under
+;   platformdirs.user_data_dir and MUST survive upgrade/uninstall (D-03).
+;
+; WHY this is needed — Gap G1 (UAT 88-04):
+;   Without this row, prior-version musicstreamer-*.dist-info directories pile up
+;   in the installed _internal across upgrades (observed: 2.1.68, 2.1.84, 2.2.86
+;   all present after a v2.2 install). importlib.metadata.version("musicstreamer")
+;   resolves to the LOWEST version present, causing the app and everything keyed
+;   off it (app.setApplicationVersion, User-Agent strings in cover_art_mb.py and
+;   soma_import.py) to mislabel the version. This is the INSTALL-side analog of
+;   build.ps1's pre-bundle clean (~line 158-169) and post-bundle singleton
+;   assertion (exit 9, ~line 245-254).
+;
+; TIMING — why safe-and-sufficient:
+;   [InstallDelete] runs at the START of installation, BEFORE [Files] copies the
+;   new bundle. Deleting old version-named dirs here leaves exactly ONE freshly-
+;   copied musicstreamer-<X.Y.Z>.dist-info after [Files] completes.
 [InstallDelete]
 Type: files; Name: "{userprograms}\MusicStreamer.lnk"
 Type: files; Name: "{userprograms}\Uninstall MusicStreamer.lnk"
+Type: filesandordirs; Name: "{app}\_internal\musicstreamer-*.dist-info"
 
 [Icons]
 ; D-04: Start Menu shortcut ONLY — and it's mandatory because it carries the AUMID.
