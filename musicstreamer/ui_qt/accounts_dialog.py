@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 
 from musicstreamer import constants, paths
 from musicstreamer.oauth_log import OAuthLogger
+from musicstreamer.subprocess_utils import _make_oauth_launch_args
 
 # Phase 999.3 D-08: category → user-facing label.
 # Keep in sync with oauth_helper._emit_event categories (post-pivot contract:
@@ -380,11 +381,12 @@ class AccountsDialog(QDialog):
         """Phase 999.3 D-09: extracted helper so Retry can reuse the launch path."""
         self._oauth_proc = QProcess(self)
         self._oauth_proc.finished.connect(self._on_oauth_finished)
-        # T-40-05: use sys.executable — no PATH injection; never shell=True
-        self._oauth_proc.start(
-            sys.executable,
-            ["-m", "musicstreamer.oauth_helper", "--mode", "twitch"],
-        )
+        # T-40-05 / Phase 88.2 D-01: _make_oauth_launch_args owns the
+        # sys.executable contract (no PATH injection, never shell=True, mode
+        # is a hardcoded literal). Frozen branch uses --oauth-helper dispatch;
+        # non-frozen uses the standard -m module form.
+        program, args = _make_oauth_launch_args("twitch")
+        self._oauth_proc.start(program, args)
         self._update_status()
 
     def _launch_gbs_login_subprocess(self) -> None:
@@ -401,11 +403,12 @@ class AccountsDialog(QDialog):
             return  # WR-03: already running — ignore re-click
         self._gbs_login_proc = QProcess(self)
         self._gbs_login_proc.finished.connect(self._on_gbs_login_finished)  # QA-05
-        # T-40-05: use sys.executable — no PATH injection; never shell=True
-        self._gbs_login_proc.start(
-            sys.executable,
-            ["-m", "musicstreamer.oauth_helper", "--mode", "gbs"],
-        )
+        # T-40-05 / Phase 88.2 D-01: _make_oauth_launch_args owns the
+        # sys.executable contract (no PATH injection, never shell=True, mode
+        # is a hardcoded literal). Frozen branch uses --oauth-helper dispatch;
+        # non-frozen uses the standard -m module form.
+        program, args = _make_oauth_launch_args("gbs")
+        self._gbs_login_proc.start(program, args)
         self._update_status()
 
     def _on_gbs_import_clicked(self) -> None:
