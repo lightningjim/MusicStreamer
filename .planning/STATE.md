@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 89a context gathered
-last_updated: "2026-06-09T15:55:30.167Z"
-last_activity: 2026-06-09 -- Phase 88: 88-04 G1 installer fix complete; 88-03 VM UAT held open for consolidated VM session (Option C — fix G2/G3 first)
+status: completed
+stopped_at: Phase 88.1 context gathered
+last_updated: "2026-06-09T20:29:57.524Z"
+last_activity: 2026-06-09 -- 88-04 closed G1 (installer dist-info [InstallDelete] + UAT-17); phase held open
 progress:
-  total_phases: 16
+  total_phases: 18
   completed_phases: 5
   total_plans: 30
   completed_plans: 24
-  percent: 32
+  percent: 28
 ---
 
 # Project State
@@ -136,6 +136,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - 2026-05-25: Phase 95 added — YT URL-change replay bug. After editing a YouTube stream whose URL has changed, first play after save fails with "stream exhausted"; replaying picks up the new URL successfully. Suggests stale resolved-URL cache or pipeline state surviving the station-edit save path. Diagnose and invalidate the cached state on update.
 - Phase 86.1 inserted after Phase 86: SC5 failure followup from phase 86 (URGENT)
 - 2026-06-06: Phase 96 added — Manual refresh of Yellow Brick Cinema provider with what is actually live on their channel (@YellowBrickCinema). Add the ability to manually re-sync the YBC provider against the channel's currently-live streams.
+- Phase 88.1 inserted after Phase 88: Fix SMTC media overlay absent + dead media keys on bundled Windows build (Phase 88 UAT G2) (URGENT)
+- Phase 88.2 inserted after Phase 88: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (URGENT)
 
 ### Pending Todos
 
@@ -164,9 +166,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-07T05:16:29.235Z
-Stopped at: Phase 89a context gathered
-Resume file: .planning/phases/89A-channel-avatar-db-migration-storage-layout/89A-CONTEXT.md
+Last session: 2026-06-09T20:29:57.515Z
+Stopped at: Phase 88.1 context gathered
+Resume file: .planning/phases/88.1-fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled/88.1-CONTEXT.md
 
 ## Operator Next Steps
 
