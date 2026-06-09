@@ -17,6 +17,31 @@ from musicstreamer import constants
 DEFAULT_SMOKE_URL = "https://ice1.somafm.com/groovesalad-128-mp3"
 
 
+def _run_check_mediakeys(argv: list[str]) -> int:
+    """Phase 88.1 D-05: headless SMTC backend identity check.
+
+    Constructs the media_keys factory under QCoreApplication (not QApplication —
+    headless build machines have no display; QApplication crashes without one).
+    Does NOT import ui_qt (D-05/D-24 lazy-import contract).
+
+    Prints MEDIAKEYS_BACKEND=<classname> to stdout.
+    Exits 0 if WindowsMediaKeysBackend is constructed, 1 if NoOp or error.
+    """
+    from PySide6.QtCore import QCoreApplication
+
+    from musicstreamer import media_keys
+
+    app = QCoreApplication(argv)  # noqa: F841 — required for Qt init
+
+    backend = media_keys.create(None, None)
+    class_name = type(backend).__name__
+    print(f"MEDIAKEYS_BACKEND={class_name}", flush=True)
+
+    if class_name == "WindowsMediaKeysBackend":
+        return 0
+    return 1
+
+
 def _run_smoke(argv: list[str], url: str) -> int:
     """Phase 35 headless smoke harness — QCoreApplication + Player only.
 
@@ -307,10 +332,22 @@ def main(argv: list[str] | None = None) -> int:
         const=DEFAULT_SMOKE_URL,
         help="Run headless Phase 35 backend harness with the given (or default) stream URL",
     )
+    parser.add_argument(
+        "--check-mediakeys",
+        action="store_true",
+        default=False,
+        help=(
+            "Phase 88.1 D-05: headless SMTC backend identity check. "
+            "Prints MEDIAKEYS_BACKEND=<classname>; exits 0 if WindowsMediaKeysBackend, "
+            "1 if NoOp. Used by build.ps1 SMTC smoke guard."
+        ),
+    )
     # parse_known_args: let Qt consume its own flags (-platform, -style, etc.)
     args, qt_argv = parser.parse_known_args(argv[1:])
     remaining = [argv[0], *qt_argv]
 
+    if args.check_mediakeys:
+        return _run_check_mediakeys(remaining)
     if args.smoke is not None:
         return _run_smoke(remaining, args.smoke)
     return _run_gui(remaining)
