@@ -172,7 +172,7 @@ Plans:
 
 **Wave 3** *(gap closure — G1; disjoint files from Waves 1-2)*
 
-- [ ] 88-04-PLAN.md — Installer [InstallDelete] dist-info cleanup: scoped `{app}\_internal\musicstreamer-*.dist-info` wildcard fixes stale-version mislabel + VM-only UAT-17 row (WIN-02-A, VER-02-J)
+- [x] 88-04-PLAN.md — Installer [InstallDelete] dist-info cleanup: scoped `{app}\_internal\musicstreamer-*.dist-info` wildcard fixes stale-version mislabel + VM-only UAT-17 row (WIN-02-A, VER-02-J)
 **Research flag**: NO — spike-style first-plan (WPR trace + `Get-StartApps` PowerShell verification) lives inside the phase but no `--research-phase` needed.
 
 #### Phase 89a: Channel-Avatar DB Migration + Storage Layout
@@ -347,7 +347,7 @@ Plans:
 | 91. FIX-MPRIS | 1/1 | Complete | 2026-06-02 |
 | 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
-| 88. Windows Packaging Bundle | 2/3 | In Progress|  |
+| 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
 | 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |

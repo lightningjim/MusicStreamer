@@ -4,14 +4,14 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 89a context gathered
-last_updated: "2026-06-07T05:16:29.248Z"
-last_activity: 2026-06-09 -- Phase 86 closed out (86-05 SUMMARY written from completed UAT evidence)
+last_updated: "2026-06-09T15:55:30.167Z"
+last_activity: 2026-06-09 -- Phase 88: 88-04 G1 installer fix complete; 88-03 VM UAT held open for consolidated VM session (Option C — fix G2/G3 first)
 progress:
   total_phases: 16
   completed_phases: 5
   total_plans: 30
-  completed_plans: 23
-  percent: 31
+  completed_plans: 24
+  percent: 32
 ---
 
 # Project State
@@ -21,14 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 88 — Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)
+**Current focus:** Phase 88 — windows-packaging-bundle-win-02-ver-02-j-win-05
 
 ## Current Position
 
-Phase: 88 (Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)) — EXECUTING
-Plan: 3 of 3
-Status: Executing Phase 88
-Last activity: 2026-06-05 -- Phase 88 execution started
+Phase: 88 (windows-packaging-bundle-win-02-ver-02-j-win-05) — HELD OPEN (CI side done; VM side pending)
+Plan: 3 of 4 complete (88-01, 88-02, 88-04 done; 88-03 VM UAT held open)
+Status: Phase 88 CI-runnable work complete. 88-03 VM UAT executed (12 pass / 3 fail / 1 blocked) — deferred to ONE consolidated VM session AFTER G2/G3 fix phases land (decision: Option C, 2026-06-09).
+Last activity: 2026-06-09 -- 88-04 closed G1 (installer dist-info [InstallDelete] + UAT-17); phase held open
+
+## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
+
+- G1 (stale dist-info → version mislabel): FIXED via 88-04 ([InstallDelete] scoped wildcard). Pending VM re-verify via UAT-17.
+- G2 (SMTC overlay absent → media keys dead, fails WIN-02/VER-02-J): NEEDS FIX PHASE. Investigate SystemMediaTransportControls registration on the bundled Win build.
+- G3 (GBS.FM login won't start, fails VER-02-J): NEEDS FIX PHASE. Investigate in-app login dialog launch path.
+- G4 (zip "not a valid zip"): RESOLVED — text-mode transfer corruption, not a defect. Backlog item 999.1 (friendlier import error).
+- G5 (UAT-15 exit-10 guard blocked on $pluginsDir typo): VM re-run only — corrected one-shot in 88-HUMAN-UAT Evidence § UAT-15.
+
+Consolidated VM session (close 88-03) must cover: UAT-17 (G1 re-verify), UAT-15 re-run (G5), and re-test of G2 + G3 after their fix phases land. 88-03 closes with a clean pass only then.
 
 ## v2.2 Phase Roster
 
@@ -160,5 +170,8 @@ Resume file: .planning/phases/89A-channel-avatar-db-migration-storage-layout/89A
 
 ## Operator Next Steps
 
-- Begin Phase 85a with `/gsd:plan-phase 85a --research-phase` (spike — de-risk linuxdeploy + conda + GStreamer plugin discovery)
-- Phase 91 (FIX-MPRIS) can run in parallel — `/gsd:plan-phase 91` (no research-phase flag needed)
+Phase 88 is held open (Option C). Before 88-03 can close with a clean VM pass:
+
+1. Create the G2 fix phase (SMTC overlay / media keys absent on bundled Win build) — e.g. `/gsd:insert-phase 88.1` then `/gsd:plan-phase 88.1`. WIN-02 / VER-02-J blocker.
+2. Create the G3 fix phase (GBS.FM login won't start) — e.g. `/gsd:insert-phase 88.2` then `/gsd:plan-phase 88.2`. VER-02-J blocker.
+3. After both fixes land, do ONE consolidated Win11 VM session re-running 88-HUMAN-UAT.md rows: UAT-17 (G1), UAT-15 (G5), UAT-3/UAT-7 (G2), UAT-10 (G3). Set 88-HUMAN-UAT frontmatter status: resolved when all pass, then close 88-03 and verify Phase 88.
