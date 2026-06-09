@@ -666,6 +666,15 @@ class AccountsDialog(QDialog):
             # WR-03: reset re-entrancy guard before status update.
             self._oauth_proc = None
             self._update_status()
+            # Phase 88.2 WR-02: Twitch has no cookie-import fallback, but the
+            # user must still get a visible signal — otherwise the button just
+            # silently flips back to "Not connected" (the silent dead-end this
+            # phase exists to eliminate).
+            QMessageBox.warning(
+                self,
+                "Twitch Login",
+                "Could not start the Twitch login window. Please try again.",
+            )
 
     # ------------------------------------------------------------------
     # Failure dialog (Phase 999.3 D-08, D-09)

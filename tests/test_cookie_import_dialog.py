@@ -242,6 +242,60 @@ def test_google_login_launches_qprocess(qtbot, monkeypatch):
     assert "google" in start_args[0][1]
 
 
+def test_google_login_wires_error_occurred(qtbot):
+    """Phase 88.2 CR-01: _on_google_login connects errorOccurred (finished is
+    NOT emitted on FailedToStart)."""
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+
+    mock_process = MagicMock()
+    with patch("musicstreamer.ui_qt.cookie_import_dialog.QProcess", return_value=mock_process):
+        dlg = CookieImportDialog(toast_callback=lambda msg: None)
+        qtbot.addWidget(dlg)
+        dlg._on_google_login()
+
+    mock_process.errorOccurred.connect.assert_called_once_with(dlg._on_google_process_error)
+
+
+def test_google_failed_to_start_resets_guard_and_warns(qtbot):
+    """Phase 88.2 CR-01: FailedToStart resets the re-entrancy guard, restores
+    the button, and surfaces a visible warning (no silent dead-end)."""
+    from PySide6.QtCore import QProcess
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+
+    dlg = CookieImportDialog(toast_callback=lambda msg: None)
+    qtbot.addWidget(dlg)
+    # Simulate an in-flight launch.
+    dlg._google_process = MagicMock()
+    dlg._google_btn.setEnabled(False)
+    dlg._google_status_label.setVisible(True)
+
+    with patch("musicstreamer.ui_qt.cookie_import_dialog.QMessageBox.warning") as mock_warn:
+        dlg._on_google_process_error(QProcess.ProcessError.FailedToStart)
+
+    assert dlg._google_process is None            # WR-03 guard reset
+    assert dlg._google_btn.isEnabled()            # button restored
+    assert not dlg._google_status_label.isVisible()
+    mock_warn.assert_called_once()                # visible signal (D-02/D-03)
+
+
+def test_google_crashed_does_not_double_trigger(qtbot):
+    """Phase 88.2 CR-01: a Crashed error (finished IS emitted) must NOT reset
+    the guard or warn here — _on_google_process_finished owns that UX."""
+    from PySide6.QtCore import QProcess
+    from musicstreamer.ui_qt.cookie_import_dialog import CookieImportDialog
+
+    dlg = CookieImportDialog(toast_callback=lambda msg: None)
+    qtbot.addWidget(dlg)
+    sentinel = MagicMock()
+    dlg._google_process = sentinel
+
+    with patch("musicstreamer.ui_qt.cookie_import_dialog.QMessageBox.warning") as mock_warn:
+        dlg._on_google_process_error(QProcess.ProcessError.Crashed)
+
+    assert dlg._google_process is sentinel        # guard untouched on Crashed
+    mock_warn.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Phase 60 / GBS-01b: parameterization regression + new coverage
 # ---------------------------------------------------------------------------

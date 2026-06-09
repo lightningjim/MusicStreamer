@@ -27,8 +27,8 @@ Security:
 """
 from __future__ import annotations
 
+import logging
 import os
-import sys
 from typing import Callable
 
 from PySide6.QtCore import Qt, QProcess
@@ -48,6 +48,8 @@ from PySide6.QtWidgets import (
 
 from musicstreamer import paths
 from musicstreamer.ui_qt._theme import ERROR_COLOR_HEX
+
+_log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +300,12 @@ class CookieImportDialog(QDialog):
         process = QProcess(self)
         self._google_process = process
         process.finished.connect(self._on_google_process_finished)
+        # Phase 88.2 CR-01 (D-02/D-03): finished is NOT emitted on
+        # FailedToStart, so without an errorOccurred handler a frozen-build
+        # dispatch regression would leave the button disabled, the status
+        # stuck at "Logging in...", and _google_process leaked — the exact
+        # silent dead-end this phase exists to eliminate.
+        process.errorOccurred.connect(self._on_google_process_error)
         # T-40-09 / Phase 88.2 D-01: lazy import per Phase 60 deferred-import
         # convention. _make_oauth_launch_args owns the sys.executable contract
         # (no PATH injection, never shell=True). Frozen branch uses
@@ -328,6 +336,38 @@ class CookieImportDialog(QDialog):
             return
 
         self._write_cookies(text)
+
+    def _on_google_process_error(self, error: QProcess.ProcessError) -> None:
+        """Phase 88.2 CR-01 (D-02/D-03): handle login subprocess launch failure.
+
+        Fires when the oauth_helper subprocess fails to start. ``finished`` is
+        NOT emitted on FailedToStart, so this is the sole handler for that case
+        — without it ``_google_process`` would stay non-None and the button
+        would remain disabled for the rest of the session.
+
+        Gate on FailedToStart specifically: a Crashed error also fires
+        errorOccurred, but ``finished`` IS emitted for Crashed, so
+        ``_on_google_process_finished`` already handles that UX — we must not
+        double-trigger here.
+        """
+        _log.warning(
+            "%s login subprocess errorOccurred (QProcess.ProcessError=%s).",
+            self._target_label,
+            error,
+        )
+        if error == QProcess.ProcessError.FailedToStart:
+            # Reset guard FIRST so a re-click sees None immediately.
+            self._google_process = None
+            self._google_btn.setEnabled(True)
+            self._google_status_label.setVisible(False)
+            # D-02: never dead-end — point the user at the File/Paste tabs of
+            # this same dialog (the manual cookie-import fallback).
+            QMessageBox.warning(
+                self,
+                f"{self._target_label} Login",
+                "Could not start the login window. Use the File or Paste tab "
+                "to import your cookies manually instead.",
+            )
 
     # ------------------------------------------------------------------
     # Shared helpers
