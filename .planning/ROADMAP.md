@@ -177,13 +177,16 @@ Plans:
 
 ### Phase 88.2: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** The in-app GBS.FM login (and identically Twitch + Google/YouTube) starts on the PyInstaller-frozen Windows build. Root cause fixed: the shared `sys.executable -m musicstreamer.oauth_helper` QProcess launch is silently ignored by the frozen exe; a `--oauth-helper` argv-dispatch in `__main__.py` + a frozen-safe `_make_oauth_launch_args` helper re-exec the login helper correctly. A FailedToStart never dead-ends (errorOccurred → log + cookie-import fallback), and a Linux static test + `build.ps1` exit-12 smoke guard lock the fix. (Linux/CI side; frozen-exe `--self-test` smoke + UAT-10 GBS.FM login re-test deferred to the consolidated 88-03 VM session per D-06/D-07.)
+**Requirements**: VER-02-J
 **Depends on:** Phase 88
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 88.2 to break down)
+**Wave 1**
+- [ ] 88.2-01-PLAN.md — D-01 shared frozen-safe launcher (`_make_oauth_launch_args` + `__main__.py --oauth-helper` dispatch + 3 call-site rewires) + D-04 Linux frozen-dispatch test
+**Wave 2** *(depends on 88.2-01)*
+- [ ] 88.2-02-PLAN.md — D-02/D-03 errorOccurred handlers (WR-03 reset + log + cookie-import fallback) + D-05 build.ps1 oauth-helper smoke guard (exit 12) + source-text drift-guard
 
 ### Phase 88.1: Fix SMTC media overlay absent and dead media keys on bundled Windows build (Phase 88 UAT G2) (INSERTED)
 
