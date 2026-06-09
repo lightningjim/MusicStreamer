@@ -298,10 +298,13 @@ class CookieImportDialog(QDialog):
         process = QProcess(self)
         self._google_process = process
         process.finished.connect(self._on_google_process_finished)
-        process.start(
-            sys.executable,
-            ["-m", "musicstreamer.oauth_helper", "--mode", self._oauth_mode or "google"],
-        )
+        # T-40-09 / Phase 88.2 D-01: lazy import per Phase 60 deferred-import
+        # convention. _make_oauth_launch_args owns the sys.executable contract
+        # (no PATH injection, never shell=True). Frozen branch uses
+        # --oauth-helper dispatch; non-frozen uses the standard -m module form.
+        from musicstreamer.subprocess_utils import _make_oauth_launch_args  # lazy
+        program, args = _make_oauth_launch_args(self._oauth_mode or "google")
+        process.start(program, args)
 
     def _on_google_process_finished(self, exit_code: int, exit_status: object) -> None:
         proc = self._google_process   # capture before clearing

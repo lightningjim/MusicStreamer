@@ -45,6 +45,34 @@ def _run_check_mediakeys(argv: list[str]) -> int:
     return 1
 
 
+def _run_oauth_helper(argv: list[str]) -> int:
+    """Phase 88.2 D-05: frozen-exe re-exec entry for the login helper.
+
+    Dispatched from main() when ``--oauth-helper`` is present in argv,
+    BEFORE ``_run_gui`` so no QApplication is constructed here.
+
+    Two modes:
+    - ``--self-test``: exits 0 immediately (headless smoke guard for
+      build.ps1 step 4d, exit code 12). No QApplication, no window.
+    - Normal: strips ``--oauth-helper`` from argv (oauth_helper.main()
+      uses argparse.parse_args, not parse_known_args — Pitfall 1),
+      sets sys.argv, then calls oauth_helper.main() which builds its
+      own QApplication and calls sys.exit internally.
+
+    T-88.2-03: ``--oauth-helper`` is stripped before forwarding so
+    oauth_helper's argparse cannot error with "unrecognized arguments".
+    """
+    if "--self-test" in argv:
+        return 0
+    # Strip --oauth-helper before forwarding to oauth_helper.main().
+    # oauth_helper.main() calls argparse.parse_args() (not parse_known_args),
+    # so any unknown flag causes it to error-exit 2.
+    sys.argv = [a for a in argv if a != "--oauth-helper"]
+    from musicstreamer.oauth_helper import main as _oauth_main  # lazy
+    _oauth_main()
+    return 0  # oauth_helper.main() calls sys.exit internally; unreachable
+
+
 def _run_smoke(argv: list[str], url: str) -> int:
     """Phase 35 headless smoke harness — QCoreApplication + Player only.
 
@@ -345,10 +373,22 @@ def main(argv: list[str] | None = None) -> int:
             "1 if NoOp. Used by build.ps1 SMTC smoke guard."
         ),
     )
+    parser.add_argument(
+        "--oauth-helper",
+        action="store_true",
+        default=False,
+        help=(
+            "Phase 88.2 D-05: frozen-exe re-exec entry for login helper. "
+            "Routes argv to oauth_helper.main() before GUI builds. "
+            "Pass --self-test for a headless smoke guard (exits 0, no window)."
+        ),
+    )
     # parse_known_args: let Qt consume its own flags (-platform, -style, etc.)
     args, qt_argv = parser.parse_known_args(argv[1:])
     remaining = [argv[0], *qt_argv]
 
+    if args.oauth_helper:
+        return _run_oauth_helper(remaining)
     if args.check_mediakeys:
         return _run_check_mediakeys(remaining)
     if args.smoke is not None:
