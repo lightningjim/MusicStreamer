@@ -175,6 +175,16 @@ Plans:
 - [x] 88-04-PLAN.md — Installer [InstallDelete] dist-info cleanup: scoped `{app}\_internal\musicstreamer-*.dist-info` wildcard fixes stale-version mislabel + VM-only UAT-17 row (WIN-02-A, VER-02-J)
 **Research flag**: NO — spike-style first-plan (WPR trace + `Get-StartApps` PowerShell verification) lives inside the phase but no `--research-phase` needed.
 
+### Phase 88.3: Bundle QtWebEngine in frozen Windows build so OAuth logins run — Phase 88 UAT G6 (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 88
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 88.3 to break down)
+
 ### Phase 88.2: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (INSERTED)
 
 **Goal:** The in-app GBS.FM login (and identically Twitch + Google/YouTube) starts on the PyInstaller-frozen Windows build. Root cause fixed: the shared `sys.executable -m musicstreamer.oauth_helper` QProcess launch is silently ignored by the frozen exe; a `--oauth-helper` argv-dispatch in `__main__.py` + a frozen-safe `_make_oauth_launch_args` helper re-exec the login helper correctly. A FailedToStart never dead-ends (errorOccurred → log + cookie-import fallback), and a Linux static test + `build.ps1` exit-12 smoke guard lock the fix. (Linux/CI side; frozen-exe `--self-test` smoke + UAT-10 GBS.FM login re-test deferred to the consolidated 88-03 VM session per D-06/D-07.)

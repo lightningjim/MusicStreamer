@@ -4,14 +4,14 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: verifying
 stopped_at: Phase 88.2 context gathered
-last_updated: "2026-06-09T22:21:09.718Z"
+last_updated: "2026-06-10T22:36:41.712Z"
 last_activity: "2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests"
 progress:
-  total_phases: 18
-  completed_phases: 6
+  total_phases: 19
+  completed_phases: 7
   total_plans: 34
-  completed_plans: 26
-  percent: 33
+  completed_plans: 28
+  percent: 37
 ---
 
 # Project State
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 Phase: 88.1 (fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled) — LINUX-SIDE COMPLETE (VM proof deferred to 88-03)
 Plan: 2 of 2 complete (88.1-01, 88.1-02)
-Status: Phase 88.1 code complete + Linux-verified (6/6 must-haves, 90 tests green, code review clean). VERIFICATION status: human_needed — 3 VM items rolled into consolidated 88-03 session (Option C).
+Status: verifying
 Last activity: 2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
@@ -138,6 +138,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - 2026-06-06: Phase 96 added — Manual refresh of Yellow Brick Cinema provider with what is actually live on their channel (@YellowBrickCinema). Add the ability to manually re-sync the YBC provider against the channel's currently-live streams.
 - Phase 88.1 inserted after Phase 88: Fix SMTC media overlay absent + dead media keys on bundled Windows build (Phase 88 UAT G2) (URGENT)
 - Phase 88.2 inserted after Phase 88: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (URGENT)
+- Phase 88.3 inserted after Phase 88: Bundle QtWebEngine in frozen Windows build — OAuth helper crashes exit 2 (oauth_helper.py module-level QtWebEngineWidgets import) because QtWebEngine is not in the musicstreamer-build env nor bundled in MusicStreamer.spec. New gap exposed after 88.2 fixed the launcher. Phase 88 UAT G6/G3-bis (UAT-10 GBS + Twitch + Google all crash). Fix: provision PySide6-Addons/qt6-webengine + explicit WebEngine collect in spec + deepen step-4d guard. (URGENT)
 
 ### Pending Todos
 
