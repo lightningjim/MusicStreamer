@@ -37,6 +37,33 @@ search path, MSVC-vs-MinGW gotchas).
    `gi`/`gstreamer` hooks; older versions miss the `girepository-1.0`
    discovery on Windows.
 
+   **Phase 88.3 note — PySide6-Addons (QtWebEngine) required:**
+   conda-forge's `pyside6` package excludes `QtWebEngineWidgets` — it is
+   shipped separately in the `PySide6-Addons` pip wheel. Without it the
+   in-app OAuth login dialogs (GBS.FM / Twitch / Google) crash exit=2 in
+   the frozen bundle. After activating the conda env, install it **pinned
+   to the exact conda-forge pyside6 version**:
+   ```powershell
+   pip install "PySide6-Addons==$(python -c 'from PySide6 import __version__; print(__version__)')"
+   ```
+   **Do NOT use an unpinned `pip install PySide6-Addons`** and do NOT use
+   `conda install qt6-webengine` (that does not install the Python binding).
+   The exact version pin is mandatory because of the ICU ABI hazard
+   (Phase 43.1 Pitfall #1, also rediscovered in Phase 69): pip's PySide6
+   wheels are built against a different ICU ABI than conda-forge's
+   GStreamer pulls in, and a version mismatch causes `Qt6Core.dll` to crash
+   at load time with an ICU symbol error (`UCNV_TO_U_CALLBACK_SUBSTITUTE`).
+   Pinning `PySide6-Addons` to the conda-forge pyside6 version ensures both
+   packages use the same ICU build.
+
+   Also install the `[windows]` extra (Phase 88.1) in the same step:
+   ```powershell
+   pip install -e "..\..\[windows]"
+   ```
+   `build.ps1` step-0 pre-flight runs `python -c "from PySide6.QtWebEngineWidgets
+   import QWebEngineView"` and exits 1 (`BUILD_FAIL reason=pyside6_webengine_missing`)
+   if the wheel is absent, so a missing install is caught before PyInstaller runs.
+
 2. **Inno Setup 6.3+** — download the installer from
    <https://jrsoftware.org/isdl.php> and run it. The build script looks
    for `iscc.exe` at the default path

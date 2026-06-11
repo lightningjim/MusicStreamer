@@ -45,6 +45,37 @@ def _run_check_mediakeys(argv: list[str]) -> int:
     return 1
 
 
+def _run_check_webengine(argv: list[str]) -> int:
+    """Phase 88.3 G6: headless WebEngine bundle import-only guard.
+
+    Attempts to import QWebEngineView from the frozen bundle. No QApplication
+    is constructed — WebEngine import does not require a display, and the
+    guard must be usable on headless build machines.
+
+    Prints WEBENGINE_GUARD OK to stderr and returns 0 on success.
+    Prints WEBENGINE_GUARD FAIL ... to stderr and returns 13 on ImportError.
+
+    build.ps1 step-4e runs `MusicStreamer.exe --check-webengine` and exits 13
+    when this guard returns non-zero, failing the build loudly rather than
+    letting the oauth_helper subprocess crash exit=2 at UAT runtime.
+
+    The return code 13 matches the exit-codes header in build.ps1:
+    13=webengine not bundled in frozen bundle (Phase 88.3 / G6).
+    """
+    try:
+        from PySide6.QtWebEngineWidgets import QWebEngineView  # noqa: F401
+        print("WEBENGINE_GUARD OK", file=sys.stderr, flush=True)
+        return 0
+    except ImportError as exc:
+        print(
+            f"WEBENGINE_GUARD FAIL: PySide6.QtWebEngineWidgets not importable "
+            f"in frozen bundle: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 13
+
+
 def _run_oauth_helper(argv: list[str]) -> int:
     """Phase 88.2 D-05: frozen-exe re-exec entry for the login helper.
 
@@ -374,6 +405,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--check-webengine",
+        action="store_true",
+        default=False,
+        help=(
+            "Phase 88.3 G6: headless WebEngine bundle import-only guard. "
+            "Imports PySide6.QtWebEngineWidgets; exits 0 on success, 13 on "
+            "ImportError. Used by build.ps1 step-4e WEBENGINE GUARD."
+        ),
+    )
+    parser.add_argument(
         "--oauth-helper",
         action="store_true",
         default=False,
@@ -391,6 +432,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_oauth_helper(remaining)
     if args.check_mediakeys:
         return _run_check_mediakeys(remaining)
+    if args.check_webengine:
+        return _run_check_webengine(remaining)
     if args.smoke is not None:
         return _run_smoke(remaining, args.smoke)
     return _run_gui(remaining)
