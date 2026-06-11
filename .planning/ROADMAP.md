@@ -183,7 +183,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 88.3-01-PLAN.md — Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition (Linux-side, autonomous)
+- [x] 88.3-01-PLAN.md — Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition (Linux-side, autonomous)
 - [ ] 88.3-02-PLAN.md — VM: pinned PySide6-Addons provisioning + full build.ps1 run + QtWebEngineProcess.exe assertion + GBS.FM/Twitch/Google login UAT smokes (autonomous: false)
 
 ### Phase 88.2: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (INSERTED)

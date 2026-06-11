@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: verifying
+status: executing
 stopped_at: Phase 88.2 context gathered
-last_updated: "2026-06-11T00:27:35.113Z"
-last_activity: "2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests"
+last_updated: "2026-06-11T00:35:35.921Z"
+last_activity: 2026-06-11 -- Phase 88.3 execution started
 progress:
   total_phases: 19
   completed_phases: 7
   total_plans: 36
-  completed_plans: 28
+  completed_plans: 29
   percent: 37
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 88.1 — fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled
+**Current focus:** Phase 88.3 — bundle-qtwebengine-in-frozen-windows-build-so-oauth-logins-r
 
 ## Current Position
 
-Phase: 88.1 (fix-smtc-media-overlay-absent-and-dead-media-keys-on-bundled) — LINUX-SIDE COMPLETE (VM proof deferred to 88-03)
-Plan: 2 of 2 complete (88.1-01, 88.1-02)
-Status: verifying
-Last activity: 2026-06-09 -- Phase 88.1 executed: winrt collect_all bundling fix + factory diagnostics + --check-mediakeys + build.ps1 exit-11 guard + drift tests
+Phase: 88.3 (bundle-qtwebengine-in-frozen-windows-build-so-oauth-logins-r) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 88.3
+Last activity: 2026-06-11 -- Phase 88.3 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -164,10 +164,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | todo | 2026-05-10-pls-codec-bitrate-url-fallback | In v2.2 — Phase 92 |
 | Phase 86.1 P02 | 1 | 2 tasks | 2 files |
 | Phase 88 P02 | 104 | 2 tasks | 1 files |
+| Phase 88.3 P01 | 5m | 2 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-06-09T21:55:25.082Z
+Last session: 2026-06-11T00:35:35.911Z
 Stopped at: Phase 88.2 context gathered
 Resume file: .planning/phases/88.2-fix-gbs-fm-in-app-login-dialog-fails-to-start-phase-88-uat-g/88.2-CONTEXT.md
 
