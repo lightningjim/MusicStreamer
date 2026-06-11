@@ -177,13 +177,14 @@ Plans:
 
 ### Phase 88.3: Bundle QtWebEngine in frozen Windows build so OAuth logins run — Phase 88 UAT G6 (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** GBS.FM, Twitch, and Google/YouTube in-app OAuth logins open the QtWebEngine login window from the PyInstaller-frozen Windows build instead of crashing the helper subprocess exit=2. Root cause: QtWebEngine is neither installed in the musicstreamer-build conda env (conda-forge pyside6 excludes QtWebEngineWidgets) nor collected by MusicStreamer.spec (oauth_helper.py's try/except import hides it from PyInstaller's modulegraph). Fix: add PySide6.QtWebEngineWidgets/QtWebEngineCore hiddenimports to the spec, a `--check-webengine` frozen-exe guard (__main__.py) + build.ps1 step-4e (exit 13), pinned `PySide6-Addons==<pyside6 version>` build-env provisioning (ICU-ABI-safe), and README docs. Linux-side source-text changes land first; VM env provisioning + build + UAT-10 GBS/Twitch/Google login smokes close it.
+**Requirements**: G6-T1, G6-T2, G6-T3, G6-T4, G6-T5 (automated source-text drift guards); G6-T6, G6-T7, G6-T8 (manual VM UAT)
 **Depends on:** Phase 88
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 88.3 to break down)
+- [ ] 88.3-01-PLAN.md — Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition (Linux-side, autonomous)
+- [ ] 88.3-02-PLAN.md — VM: pinned PySide6-Addons provisioning + full build.ps1 run + QtWebEngineProcess.exe assertion + GBS.FM/Twitch/Google login UAT smokes (autonomous: false)
 
 ### Phase 88.2: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (INSERTED)
 
