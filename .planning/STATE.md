@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
+status: Phase 88.3 BLOCKED at G6 UAT — QtWebEngine unbundlable in conda bundle; spiking isolated-helper-bundle (B1)
 stopped_at: Phase 88.2 context gathered
-last_updated: "2026-06-11T00:35:35.921Z"
+last_updated: "2026-06-11T01:57:28.917Z"
 last_activity: 2026-06-11 -- Phase 88.3 execution started
 progress:
   total_phases: 19
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 Phase: 88.3 (bundle-qtwebengine-in-frozen-windows-build-so-oauth-logins-r) — EXECUTING
 Plan: 2 of 2
-Status: Executing Phase 88.3
+Status: Phase 88.3 BLOCKED at G6 UAT — QtWebEngine unbundlable in conda bundle; spiking isolated-helper-bundle (B1)
 Last activity: 2026-06-11 -- Phase 88.3 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
