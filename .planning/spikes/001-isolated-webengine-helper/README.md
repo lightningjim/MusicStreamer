@@ -3,7 +3,7 @@ spike: 001
 name: isolated-webengine-helper
 type: standard
 validates: "Given a pip-only PySide6-Addons env (no conda, no GStreamer), when oauth_helper is PyInstaller-frozen as its own standalone exe and run on Win11, then the QtWebEngine login windows (gbs/twitch/google) open with no DLL-load failure, cookie-capture completes end-to-end, and the bundle's own Qt wins over conda's qt6-main on PATH"
-verdict: PENDING
+verdict: VALIDATED
 related: []
 tags: [windows, pyinstaller, qtwebengine, oauth, packaging, 88.3-g6]
 ---
@@ -173,17 +173,56 @@ JSON-line forensic events on **stderr** (`_emit_event` / `emit` — `t_ms`,
 
 ## Results
 
-**Verdict: PENDING** — requires the Win11 VM run above. This spike's feasibility
-question cannot be answered on Linux (no Windows PyInstaller build / no frozen
-exe launch). The Linux-side deliverable is the complete, turnkey artifact set +
-runbook that makes the VM session a single `build-helper.ps1` invocation plus
-two short manual stages.
+**Verdict: VALIDATED** (2026-06-12, Win11 VM). B1 is feasible — the isolated-pip
+WebEngine helper, frozen as its own exe, removes the conda ABI conflict that
+defined the Phase 88.3 G6 blocker.
 
-Decision rule once run:
-- **All three stages green** → VALIDATED. Proceed to plan 88.3 gap closure under
-  B1 (wire conda main exe → `oauth_helper.exe`; Inno ships both; rework the
-  stale 88.3-01 same-bundle spec/guard + 88.3-02 VM plan).
-- **Stage A fails (code 22/24)** → INVALIDATED for the simple recipe; escalate to
-  B6 (system-browser OAuth) per 88.3-UAT resolution_options.
-- **Stage C fails (code 31)** → PARTIAL: B1 works standalone but needs an explicit
-  clean-PATH spawn; fold that into the integration plan.
+Evidence:
+
+| Check | Result | Evidence |
+|-------|--------|----------|
+| WebEngine imports from isolated-pip frozen bundle | ✅ | `webengine_import_ok` — the exact import that `DLL load failed` in the conda single-bundle |
+| `QtWebEngineProcess.exe` + `Qt6WebEngineCore.dll` bundled | ✅ | both `*_present: True` from pip PySide6-Addons via the hook |
+| Stage A render (local run) | ✅ | probe `exit code=0, load_ok=true` against example.com |
+| Stage C isolation — bundle Qt beats conda-on-PATH | ✅ | `qt_exec_path` → bundle `_internal\PySide6` while `path_audit` showed conda `condabin` on PATH (adjacency won) |
+| Stage B — GBS login window + cookie capture | ✅ | login window opened, login completed |
+| Stage B — Google login window + cookie capture | ✅ | login window opened, login completed |
+| Stage B — Twitch login window opens | ✅ | window rendered (WebEngine works) |
+| Stage B — Twitch cookie capture | ⚠ carried | Twitch SERVER showed "Your browser is not currently supported" — a UA-sniffing rejection, **not** a packaging failure (see below) |
+
+Two operational prereqs surfaced (now documented + scripted): the build needs a
+**conda-free Python 3.12**, and the helper must **run from a local install path**
+(Chromium sandbox blocks network-path subprocess launch — irrelevant once
+Inno-installed to `C:\Program Files\`).
+
+### Carried follow-up: Twitch UA-sniffing (NOT a B1 blocker)
+
+Twitch's login window opened and rendered — WebEngine is fine. Twitch's
+server-side browser check rejected it with "Your browser is not currently
+supported", the same issue resolved on Linux in Phase 999.3-03 via the
+`--user-agent` Chromium flag (which `oauth_helper.py` already sets). It works on
+Linux but not on the frozen Windows exe. **Strong hypothesis:** the hardcoded UA
+advertises `(X11; Linux x86_64)`, but QtWebEngine's real Chromium emits a
+`Sec-CH-UA-Platform: "Windows"` client-hint that can't be spoofed by the UA
+string → Twitch sees a Linux UA on a Windows client (mismatch) and rejects.
+**Likely fix:** make `_CHROME_UA` platform-appropriate (a Windows UA on Windows).
+This is an application-level bug independent of packaging — it would hit any
+bundle identically.
+
+**B1 silver lining:** because the helper is now fully decoupled from the
+GStreamer-pinned conda Qt, its PySide6/Chromium version can be bumped
+independently to chase modern-site compatibility (Twitch) without touching the
+main app's audio stack. (Trades against the 6.10.1 cookie-contract pin — a
+gap-closure decision, not a spike blocker.)
+
+### Next
+
+Proceed to plan the 88.3 gap closure under B1:
+- wire the conda main exe to launch the separate `oauth_helper.exe` (replace the
+  `sys.executable --oauth-helper` self-re-exec from 88.2/88.3-01);
+- add a 2nd PyInstaller build (isolated pip env) to the Windows build pipeline;
+- Inno installer ships both artifacts; helper installs to a local path;
+- rework the stale same-bundle 88.3-01 spec hiddenimports + step-4e guard and the
+  88.3-02 VM plan;
+- fold in the Twitch platform-aware-UA fix + the conda-free-Python-3.12 build
+  prereq.

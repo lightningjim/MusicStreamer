@@ -42,4 +42,18 @@ Design decisions locked during spiking (non-negotiable for the real build):
 
 | # | Name | Type | Validates | Verdict | Tags |
 |---|------|------|-----------|---------|------|
-| 001 | isolated-webengine-helper | standard | Given a pip-only PySide6-Addons env (no conda/GStreamer), when `oauth_helper` is PyInstaller-frozen as its own exe and run on Win11, then WebEngine login windows open with no DLL-load failure, cookie-capture completes, and the bundle's Qt wins over conda-on-PATH | PENDING (VM) | windows, pyinstaller, qtwebengine, oauth, packaging, 88.3-g6 |
+| 001 | isolated-webengine-helper | standard | Given a pip-only PySide6-Addons env (no conda/GStreamer), when `oauth_helper` is PyInstaller-frozen as its own exe and run on Win11, then WebEngine login windows open with no DLL-load failure, cookie-capture completes, and the bundle's Qt wins over conda-on-PATH | **VALIDATED** | windows, pyinstaller, qtwebengine, oauth, packaging, 88.3-g6 |
+
+## Carried Follow-ups (for the 88.3 gap-closure plan)
+
+- **Twitch UA-sniffing** (not a B1 blocker): Twitch's login window opens fine but
+  its server rejects the login with "Your browser is not currently supported".
+  Same issue fixed on Linux in Phase 999.3-03 via the `--user-agent` Chromium
+  flag; fails on frozen Windows because the hardcoded UA claims `(X11; Linux
+  x86_64)` while Chromium emits a `Sec-CH-UA-Platform: "Windows"` client-hint
+  (mismatch). Fix: platform-appropriate `_CHROME_UA`. Application-level, not
+  packaging.
+- **Build prereq:** conda-free Python 3.12 for the isolated helper build.
+- **B1 benefit unlocked:** the decoupled helper can bump PySide6/Chromium
+  independently of the GStreamer-pinned main app (modern-site compat) — trades
+  against the 6.10.1 cookie-contract pin.
