@@ -177,14 +177,17 @@ Plans:
 
 ### Phase 88.3: Bundle QtWebEngine in frozen Windows build so OAuth logins run — Phase 88 UAT G6 (INSERTED)
 
-**Goal:** GBS.FM, Twitch, and Google/YouTube in-app OAuth logins open the QtWebEngine login window from the PyInstaller-frozen Windows build instead of crashing the helper subprocess exit=2. Root cause: QtWebEngine is neither installed in the musicstreamer-build conda env (conda-forge pyside6 excludes QtWebEngineWidgets) nor collected by MusicStreamer.spec (oauth_helper.py's try/except import hides it from PyInstaller's modulegraph). Fix: add PySide6.QtWebEngineWidgets/QtWebEngineCore hiddenimports to the spec, a `--check-webengine` frozen-exe guard (__main__.py) + build.ps1 step-4e (exit 13), pinned `PySide6-Addons==<pyside6 version>` build-env provisioning (ICU-ABI-safe), and README docs. Linux-side source-text changes land first; VM env provisioning + build + UAT-10 GBS/Twitch/Google login smokes close it.
+**Goal:** GBS.FM, Twitch, and Google/YouTube in-app OAuth logins open the QtWebEngine login window from the frozen Windows build instead of crashing the helper subprocess exit=2. **Approach: B1 isolated-helper-bundle** (spike-validated, [[spike-001]] VALIDATED 2026-06-12). The original same-bundle approach (88.3-01, executed) was INVALIDATED at G6 UAT: conda-forge ships zero PySide6 WebEngine bindings at any version, and pip PySide6-Addons WebEngine is ABI-incompatible with conda qt6-main/GStreamer in one process (conda Qt6Core on PATH shadows pip's → DLL load failure); all-pip breaks GStreamer audio (ICU). B1 freezes `oauth_helper.py` as its OWN PyInstaller exe from an isolated pip-PySide6-Essentials+Addons==6.10.1 env (no conda, no GStreamer); the conda main exe launches that separate `oauth_helper.exe`. Spike proved: WebEngine imports cleanly when frozen, QtWebEngineProcess.exe bundles via the hook, GBS+Google logins complete, and the bundle's Qt beats qt6-main's Library\bin on PATH by adjacency (safe to spawn from the conda exe, no PATH mitigation). Replan reverts the stale 88.3-01 same-bundle changes (spec hiddenimports, __main__ --check-webengine on the conda exe, build.ps1 step-4e, webengine spec tests), adds the 2nd isolated-pip build, ships both artifacts via Inno, fixes the Twitch platform-aware UA, and closes with a Win11 VM UAT.
 **Requirements**: G6-T1, G6-T2, G6-T3, G6-T4, G6-T5 (automated source-text drift guards); G6-T6, G6-T7, G6-T8 (manual VM UAT)
 **Depends on:** Phase 88
-**Plans:** 2 plans
+**Plans:** 5 plans (88.3-01 HISTORICAL same-bundle, retained + reverted; 88.3-02..05 are the B1 replan)
 
 Plans:
-- [x] 88.3-01-PLAN.md — Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition (Linux-side, autonomous)
-- [ ] 88.3-02-PLAN.md — VM: pinned PySide6-Addons provisioning + full build.ps1 run + QtWebEngineProcess.exe assertion + GBS.FM/Twitch/Google login UAT smokes (autonomous: false)
+- [x] 88.3-01-PLAN.md — (HISTORICAL — same-bundle attempt, INVALIDATED at G6 UAT; its changes are reverted by the B1 replan) Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition
+- [ ] 88.3-02-PLAN.md — [wave 1] Revert the same-bundle changes: strip WebEngine hiddenimports from the conda spec, remove --check-webengine from __main__.py, drop build.ps1 step-0 preflight + step-4e, re-point the 5 drift-guards at B1 invariants (G6-T1..T5)
+- [ ] 88.3-03-PLAN.md — [wave 1] Rewire the frozen launch path to spawn the SEPARATE oauth_helper.exe (replacing 88.2's self-re-exec) + platform-aware _CHROME_UA so Twitch accepts the Windows login
+- [ ] 88.3-04-PLAN.md — [wave 2] Add the 2nd isolated-pip PyInstaller build (oauth-helper-requirements.txt + oauth_helper_standalone.spec), build.ps1 helper-build step + WebEngine assertion (exit 14), Inno ships both artifacts to {app}\oauth_helper\, README conda-free-Python-3.12 prereq
+- [ ] 88.3-05-PLAN.md — [wave 3, manual VM UAT] Build both artifacts on the Win11 VM, install via Inno, verify GBS.FM + Twitch + Google/YouTube logins open from the installed two-artifact build (G6-T6/T7/T8)
 
 ### Phase 88.2: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (INSERTED)
 
