@@ -77,8 +77,8 @@ if (-not (Test-Path $Venv)) {
         Write-Host "  1) Install one:  winget install -e --id Python.Python.3.12   (open a new shell, then re-run)" -ForegroundColor Yellow
         Write-Host "  2) Use a CLEAN conda-forge env as the provider (no Qt/GStreamer in it):" -ForegroundColor Yellow
         Write-Host "       conda create -y -n helper-iso -c conda-forge python=3.12 pip" -ForegroundColor Yellow
-        Write-Host "       .\build-helper.ps1 -PythonExe `"$env:USERPROFILE\miniforge3\envs\helper-iso\python.exe`"" -ForegroundColor Yellow
-        Write-Host "       (or C:\ProgramData\miniforge3\envs\helper-iso\python.exe for an all-users install)" -ForegroundColor Yellow
+        Write-Host "       conda env list      # find helper-iso's path (often %USERPROFILE%\.conda\envs\ when base is all-users)" -ForegroundColor Yellow
+        Write-Host "       .\build-helper.ps1 -PythonExe `"<that path>\helper-iso\python.exe`"" -ForegroundColor Yellow
         Fail 20 "venv creation failed - no usable Python 3.12 (see options above)"
     }
 }
