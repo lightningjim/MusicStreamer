@@ -269,6 +269,25 @@ Plans:
 **Research flag**: YES — `/gsd:plan-phase --research-phase 87` recommended (QtWebEngine cookie persistence cross-process, marquee delimiter ambiguity, themed-day hash baseline harvest).
 **UI hint**: yes
 
+### Phase 87.1: GBS.FM Session-Expiry Re-login Prompt (INSERTED)
+
+**Goal:** When a GBS.FM session cookie has expired, the app surfaces a clear, actionable "GBS session expired — please log in again" prompt that launches the existing in-app GBS login (`oauth_helper --mode gbs`) and refreshes on success, instead of silently failing. **Observed symptom:** the active playlist would not load with no indication why; the user had to manually log out and back in to recover.
+
+**Root cause / existing state:** Detection ALREADY exists — `gbs_api.py` raises `GbsAuthExpiredError` (`gbs_api.py:86`) on a `302 → /accounts/login/` redirect ("session cookie no longer authorizes"). The gap is HANDLING/UX: that exception is not surfaced to the user as a re-login prompt, so callers experience a silent load failure. This phase is NOT about detecting expiry (done) — it catches `GbsAuthExpiredError` at the GBS call sites and routes to a re-login affordance.
+
+**Scope:**
+- Catch `GbsAuthExpiredError` at the existing GBS call sites — primarily the active-playlist loader (`fetch_active_playlist`), plus vote/search/submit — and present a non-dismissive "session expired, re-login" prompt that launches the existing GBS login flow, then retries/refreshes on success.
+- Provide a SHARED expiry→re-login handler that the Phase 87 `GbsMarqueeWorker` poller and the Phase 87b zero-token add can reuse (both call `gbs_api` with the same cookies and can hit the same `GbsAuthExpiredError`) — avoid each call site re-implementing error handling.
+- No silent dead-ends: if the user cancels re-login, show a clear inline state, not an empty/failed load.
+
+**Depends on:** Phase 87 (reuse by the marquee poller; the shared handler should be available to 87's `GbsMarqueeWorker`). GBS auth infra (`gbs_api`, `oauth_helper --mode gbs`, `paths.gbs_cookies_path`) already exists, so the playlist-load symptom fix can land independently. GBS cluster (Tier 5), pairs with 87/87b.
+**Requirements**: GBS-AUTH-EXP-01 (surface expiry as re-login prompt at playlist load), GBS-AUTH-EXP-02 (shared handler reused by marquee + zero-token), GBS-AUTH-EXP-03 (no silent dead-end on cancel) — finalize during discuss/plan.
+**Note:** Planned milestone feature (not a hotfix); the `(INSERTED)` marker is the tool default. Origin: user-reported symptom 2026-06-12.
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 87.1 to break down)
+
 #### Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap
 
 **Goal**: ICY-disabled YouTube stations (e.g., Lofi Girl) show the channel avatar (circular crop) in the cover slot instead of duplicating the station thumbnail; cover-resolver precedence keeps Phase 73 MB-CAA above the new avatar fallback.

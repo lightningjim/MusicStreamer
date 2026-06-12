@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: Phase 88.3 REPLANNED under B1 (spike 001 VALIDATED) — 4 plans (88.3-02..05) ready for execution; plan-checker PASSED
-stopped_at: Phase 88.3 B1 replan complete
-last_updated: "2026-06-12T00:00:00.000Z"
-last_activity: 2026-06-12 -- Phase 88.3 replanned under B1 (spike validated, 4 plans, checker passed)
+status: "Phase 88.3 REPLANNED under B1 (spike 001 VALIDATED 2026-06-12) — plan-checker PASSED, ready for /gsd:execute-phase 88.3"
+stopped_at: Phase 88.2 context gathered
+last_updated: "2026-06-12T23:41:58.753Z"
+last_activity: 2026-06-12 -- Phase 88.3 replanned under B1 (4 plans, checker passed)
 progress:
-  total_phases: 19
+  total_phases: 20
   completed_phases: 7
-  total_plans: 36
+  total_plans: 39
   completed_plans: 29
-  percent: 37
+  percent: 35
 ---
 
 # Project State
@@ -139,6 +139,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 88.1 inserted after Phase 88: Fix SMTC media overlay absent + dead media keys on bundled Windows build (Phase 88 UAT G2) (URGENT)
 - Phase 88.2 inserted after Phase 88: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (URGENT)
 - Phase 88.3 inserted after Phase 88: Bundle QtWebEngine in frozen Windows build — OAuth helper crashes exit 2 (oauth_helper.py module-level QtWebEngineWidgets import) because QtWebEngine is not in the musicstreamer-build env nor bundled in MusicStreamer.spec. New gap exposed after 88.2 fixed the launcher. Phase 88 UAT G6/G3-bis (UAT-10 GBS + Twitch + Google all crash). Fix: provision PySide6-Addons/qt6-webengine + explicit WebEngine collect in spec + deepen step-4d guard. (URGENT)
+- Phase 87.1 inserted after Phase 87: GBS.FM session-expiry re-login prompt — surface GbsAuthExpiredError as a re-login affordance instead of silent playlist-load failure (user-reported symptom 2026-06-12; planned feature, GBS cluster, reusable by 87 marquee + 87b)
 
 ### Pending Todos
 
