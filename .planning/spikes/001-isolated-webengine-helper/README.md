@@ -154,9 +154,10 @@ JSON-line forensic events on **stderr** (`_emit_event` / `emit` — `t_ms`,
     gone.**
   - `qtwebengineprocess_present: True`, `qt6webenginecore_present: True` — the
     hook bundled the subprocess + core DLL correctly from pip PySide6-Addons.
-  - `qt_exec_path` resolved into the bundle's `_internal\PySide6\.` **while
-    `path_audit` showed conda `condabin` on PATH** → **adjacency already beat
-    conda** (Stage C's question, answered incidentally).
+  - `qt_exec_path` resolved into the bundle's `_internal\PySide6\.` while
+    `path_audit` showed conda `condabin` on PATH — **suggestive** of adjacency
+    winning, but NOT decisive: `condabin` holds no `Qt6Core.dll`. The real
+    Stage C (qt6-main's `Library\bin` on PATH) still needs an explicit run.
   - **The only failure was the test LOCATION:** `Can not launch
     QtWebEngineProcess from network path if sandbox is enabled: Z:\...`.
     Chromium's WebEngine sandbox refuses to spawn its subprocess from a network
@@ -184,7 +185,7 @@ Evidence:
 | WebEngine imports from isolated-pip frozen bundle | ✅ | `webengine_import_ok` — the exact import that `DLL load failed` in the conda single-bundle |
 | `QtWebEngineProcess.exe` + `Qt6WebEngineCore.dll` bundled | ✅ | both `*_present: True` from pip PySide6-Addons via the hook |
 | Stage A render (local run) | ✅ | probe `exit code=0, load_ok=true` against example.com |
-| Stage C isolation — bundle Qt beats conda-on-PATH | ✅ | `qt_exec_path` → bundle `_internal\PySide6` while `path_audit` showed conda `condabin` on PATH (adjacency won) |
+| Stage C isolation — bundle Qt beats conda-on-PATH | ⏳ pending explicit run | Stage A only had conda `condabin` (no `Qt6Core.dll`) on PATH — suggestive but NOT the real threat. The decisive run puts `musicstreamer-build\Library\bin` (qt6-main's conflicting `Qt6Core.dll`) on PATH via `check-isolation.ps1 -CondaBin`. Still to run. |
 | Stage B — GBS login window + cookie capture | ✅ | login window opened, login completed |
 | Stage B — Google login window + cookie capture | ✅ | login window opened, login completed |
 | Stage B — Twitch login window opens | ✅ | window rendered (WebEngine works) |
