@@ -30,10 +30,17 @@ if (-not (Test-Path $CondaBin)) {
     exit 30
 }
 
-$smokeExe = Join-Path $ScriptDir "dist\webengine_smoke\webengine_smoke.exe"
+# Use the LOCAL run copy build-helper.ps1 staged (Chromium sandbox won't launch
+# QtWebEngineProcess from the Z:\ network share). Fall back to dist\ if needed.
+$smokeExe = Join-Path $env:LOCALAPPDATA "spike001-run\webengine_smoke\webengine_smoke.exe"
+if (-not (Test-Path $smokeExe)) { $smokeExe = Join-Path $ScriptDir "dist\webengine_smoke\webengine_smoke.exe" }
 if (-not (Test-Path $smokeExe)) {
     Write-Host "Smoke exe not built - run build-helper.ps1 first" -ForegroundColor Red
     exit 31
+}
+if ($smokeExe -match "^[Zz]:") {
+    Write-Host "WARNING: running the smoke from a network path - WebEngine sandbox will block it." -ForegroundColor Yellow
+    Write-Host "         Re-run build-helper.ps1 so it stages a local copy to %LOCALAPPDATA%\spike001-run." -ForegroundColor Yellow
 }
 
 # Confirm the contamination is real: conda's Qt6Core must be the one PATH resolves.

@@ -30,6 +30,13 @@ Design decisions locked during spiking (non-negotiable for the real build):
 - B1 ships **two** PyInstaller artifacts (conda main bundle + pip helper
   bundle); the Inno installer carries both. (Integration is out of spike scope —
   it becomes the 88.3 gap-closure plan.)
+- The isolated helper build needs a **conda-free Python 3.12** (python.org, or a
+  clean conda-forge `python+pip` env used only as the venv provider) — surfaced
+  on the VM, which had only miniforge (spike 001, VM run 1).
+- The helper exe must be launched from a **local install path**; Chromium's
+  WebEngine sandbox refuses to spawn `QtWebEngineProcess.exe` from a network/UNC
+  path. Always true once Inno-installed to `C:\Program Files\...`; never run from
+  a VM share (spike 001, VM run 2).
 
 ## Spikes
 

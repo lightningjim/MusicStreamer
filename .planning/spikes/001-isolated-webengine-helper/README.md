@@ -81,10 +81,14 @@ and runs the headless `--probe` smoke (exit 0). A non-zero exit prints
 (22 = the G6 missing-WebEngine signature).
 
 ### Stage B — real helper login windows (manual judgement)
+> Run from the LOCAL staged copy `build-helper.ps1` created (NOT the `Z:\` dist —
+> the WebEngine sandbox blocks network-path launch). Default location:
+> `%LOCALAPPDATA%\spike001-run\oauth_helper\oauth_helper.exe`.
 ```powershell
-.\dist\oauth_helper\oauth_helper.exe --mode gbs
-.\dist\oauth_helper\oauth_helper.exe --mode twitch
-.\dist\oauth_helper\oauth_helper.exe --mode google
+$h = "$env:LOCALAPPDATA\spike001-run\oauth_helper\oauth_helper.exe"
+& $h --mode gbs
+& $h --mode twitch
+& $h --mode google
 ```
 Expected for each: a QtWebEngine login window opens (no `exit=2`, no
 `DLL load failed`); completing login prints the cookie/token to stdout and a
@@ -141,7 +145,31 @@ JSON-line forensic events on **stderr** (`_emit_event` / `emit` — `t_ms`,
   correctly fired on an active `(base)` — a full `conda deactivate` is required
   before building. **→ B1 requirement: document a conda-free Python 3.12 build
   prereq in the eventual packaging README.**
-- _(VM operator: append findings/surprises per stage here as you run them.)_
+- **2026-06-12 (VM run 2) — the decisive evidence.** Built green from a clean
+  conda-forge `helper-iso` env (python+pip only) via `-PythonExe`. Stage A probe
+  exit 3, but the JSON trail shows **B1 is sound**:
+  - `webengine_import_ok` — `PySide6.QtWebEngineWidgets` imported **from the
+    frozen isolated-pip bundle**. This is the exact import that died with
+    `DLL load failed` in the conda single-bundle (88.3-01). **The ABI conflict is
+    gone.**
+  - `qtwebengineprocess_present: True`, `qt6webenginecore_present: True` — the
+    hook bundled the subprocess + core DLL correctly from pip PySide6-Addons.
+  - `qt_exec_path` resolved into the bundle's `_internal\PySide6\.` **while
+    `path_audit` showed conda `condabin` on PATH** → **adjacency already beat
+    conda** (Stage C's question, answered incidentally).
+  - **The only failure was the test LOCATION:** `Can not launch
+    QtWebEngineProcess from network path if sandbox is enabled: Z:\...`.
+    Chromium's WebEngine sandbox refuses to spawn its subprocess from a network
+    path; `Z:\` is the VM's mapped share. **Not an architecture problem** —
+    production installs to a local path (`C:\Program Files\...`) where this never
+    occurs. Fix: `build-helper.ps1` now stages `dist\` to
+    `%LOCALAPPDATA%\spike001-run` and runs all RUN stages from there; build can
+    still happen on `Z:\`.
+  - **→ B1 requirement:** the helper exe must be launched from a **local install
+    path** (always true once Inno-installed); never run/test it from a UNC/network
+    share. Document in the packaging README.
+- _(VM operator: re-run `build-helper.ps1` (now stages local) → Stage A should be
+  green; then Stage B `oauth_helper.exe --mode gbs|twitch|google` and Stage C.)_
 
 ## Results
 

@@ -121,9 +121,21 @@ function Assert-WebEngine($bundleDir) {
 Assert-WebEngine "dist\webengine_smoke"
 Assert-WebEngine "dist\oauth_helper"
 
-# --- 4. Stage A probe (deterministic, no human needed) ------------------------
-Write-Host "Running Stage A smoke --probe ..." -ForegroundColor Cyan
-$smokeExe = "dist\webengine_smoke\webengine_smoke.exe"
+# --- 4. Stage to LOCAL disk before running ------------------------------------
+# Chromium's WebEngine sandbox REFUSES to launch QtWebEngineProcess.exe from a
+# network/UNC path (e.g. a VM share on Z:\). The bundle is fine; the RUN must be
+# on a local drive - which is exactly where production installs to anyway
+# (C:\Program Files\...). So stage dist\ to %LOCALAPPDATA% and run from there.
+$RunRoot = Join-Path $env:LOCALAPPDATA "spike001-run"
+Write-Host "Staging bundles to local disk (network-path sandbox limitation): $RunRoot" -ForegroundColor Cyan
+Invoke-Native { robocopy "dist" $RunRoot /E /NFL /NDL /NJH /NJS /NP *>&1 | Out-Null }
+if ($LASTEXITCODE -ge 8) { Fail 24 "robocopy to $RunRoot failed (exit $LASTEXITCODE)" }
+$LASTEXITCODE = 0   # robocopy uses 0-7 for success; reset so later checks are clean
+$smokeExe = Join-Path $RunRoot "webengine_smoke\webengine_smoke.exe"
+$helperExe = Join-Path $RunRoot "oauth_helper\oauth_helper.exe"
+
+# --- 5. Stage A probe (deterministic, no human needed) ------------------------
+Write-Host "Running Stage A smoke --probe (from local copy) ..." -ForegroundColor Cyan
 Invoke-Native { & $smokeExe --probe --url "https://example.com" --timeout 25 *>&1 | Tee-Object "probe.log" }
 $probeCode = $LASTEXITCODE
 Write-Host "  Stage A probe exit code: $probeCode" -ForegroundColor Cyan
@@ -131,13 +143,12 @@ if ($probeCode -ne 0) { Fail 24 "Stage A probe did not exit 0 (see probe.log for
 
 Write-Host ""
 Write-Host "=== SPIKE 001 BUILD + STAGE A: ALL GREEN ===" -ForegroundColor Green
-Write-Host "Bundles:" -ForegroundColor Green
-Write-Host "  dist\webengine_smoke\webengine_smoke.exe" -ForegroundColor Green
-Write-Host "  dist\oauth_helper\oauth_helper.exe" -ForegroundColor Green
+Write-Host "Local run bundles (use THESE for Stage B/C - never the Z:\ copy):" -ForegroundColor Green
+Write-Host "  $smokeExe" -ForegroundColor Green
+Write-Host "  $helperExe" -ForegroundColor Green
 Write-Host ""
-Write-Host "Next - run the MANUAL stages from VM-RUNBOOK (see README How to Run):" -ForegroundColor Yellow
-Write-Host "  Stage B: .\dist\oauth_helper\oauth_helper.exe --mode gbs   (and twitch, google)" -ForegroundColor Yellow
-Write-Host "  Stage C (isolation): activate conda, put Library\bin on PATH, re-run the probe:" -ForegroundColor Yellow
-Write-Host "           .\dist\webengine_smoke\webengine_smoke.exe --probe --url https://example.com" -ForegroundColor Yellow
-Write-Host "           It MUST still exit 0 with conda Qt on PATH." -ForegroundColor Yellow
+Write-Host "Next - run the MANUAL stages (see README How to Run):" -ForegroundColor Yellow
+Write-Host "  Stage B: & `"$helperExe`" --mode gbs   (and twitch, google)" -ForegroundColor Yellow
+Write-Host "  Stage C: .\check-isolation.ps1 -CondaBin `"<musicstreamer-build>\Library\bin`"" -ForegroundColor Yellow
+Write-Host "           (it runs the LOCAL smoke copy with conda Qt on PATH; must still exit 0)" -ForegroundColor Yellow
 exit 0
