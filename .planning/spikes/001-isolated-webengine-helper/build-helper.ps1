@@ -20,6 +20,17 @@
 #   22 QtWebEngineProcess.exe missing from a bundle (the G6 failure signature)
 #   23 Qt6WebEngineCore.dll missing from a bundle
 #   24 Stage A probe exe did not exit 0
+#
+# Python source for the isolated venv (in priority order):
+#   -PythonExe "C:\path\to\python.exe"   explicit override (e.g. a clean
+#                                         conda-forge env's python.exe), OR
+#   py -3.12                              the Windows launcher (python.org Python)
+# The venv is isolated regardless of which python creates it; what matters is
+# that NO conda Qt (qt6-main / conda pyside6) is in the resulting env.
+
+param(
+    [string]$PythonExe = ""
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -51,9 +62,25 @@ if ($env:CONDA_PREFIX) {
 # --- 1. Isolated venv ---------------------------------------------------------
 $Venv = Join-Path $ScriptDir ".venv-helper"
 if (-not (Test-Path $Venv)) {
-    Write-Host "Creating isolated venv (py -3.12) ..." -ForegroundColor Cyan
-    Invoke-Native { py -3.12 -m venv $Venv }
-    if (-not (Test-Path $Venv)) { Fail 20 "venv creation failed (is Python 3.12 installed? 'py -3.12 --version')" }
+    if ($PythonExe -ne "") {
+        if (-not (Test-Path $PythonExe)) { Fail 20 "-PythonExe not found: $PythonExe" }
+        Write-Host "Creating isolated venv from -PythonExe: $PythonExe ..." -ForegroundColor Cyan
+        $pyVer = & $PythonExe -c "import sys;print('%d.%d'%sys.version_info[:2])"
+        Write-Host "  (provider python is $pyVer)" -ForegroundColor Cyan
+        Invoke-Native { & $PythonExe -m venv $Venv }
+    } else {
+        Write-Host "Creating isolated venv (py -3.12) ..." -ForegroundColor Cyan
+        Invoke-Native { py -3.12 -m venv $Venv }
+    }
+    if (-not (Test-Path $Venv)) {
+        Write-Host "No conda-free Python 3.12 found. Two fixes:" -ForegroundColor Yellow
+        Write-Host "  1) Install one:  winget install -e --id Python.Python.3.12   (open a new shell, then re-run)" -ForegroundColor Yellow
+        Write-Host "  2) Use a CLEAN conda-forge env as the provider (no Qt/GStreamer in it):" -ForegroundColor Yellow
+        Write-Host "       conda create -y -n helper-iso -c conda-forge python=3.12 pip" -ForegroundColor Yellow
+        Write-Host "       .\build-helper.ps1 -PythonExe `"$env:USERPROFILE\miniforge3\envs\helper-iso\python.exe`"" -ForegroundColor Yellow
+        Write-Host "       (or C:\ProgramData\miniforge3\envs\helper-iso\python.exe for an all-users install)" -ForegroundColor Yellow
+        Fail 20 "venv creation failed - no usable Python 3.12 (see options above)"
+    }
 }
 $VenvPy = Join-Path $Venv "Scripts\python.exe"
 

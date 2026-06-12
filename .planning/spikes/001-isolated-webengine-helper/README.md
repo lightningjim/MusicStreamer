@@ -131,6 +131,16 @@ JSON-line forensic events on **stderr** (`_emit_event` / `emit` — `t_ms`,
   (+ spec), Stage-B `oauth_helper_standalone.spec` pointing at the real helper,
   `build-helper.ps1` (venv + pip + build + WebEngine assertions + probe),
   `check-isolation.ps1` (Stage C). Verdict PENDING — awaiting VM run.
+- **2026-06-12 (VM run 1)** — Build prereq surfaced: the VM has **only miniforge**
+  Python; `py -3.12` reports "No suitable Python runtime found". B1's isolated
+  helper build therefore needs a **conda-free Python 3.12** on the build machine.
+  `build-helper.ps1` updated to accept `-PythonExe` so a CLEAN conda-forge env
+  (`conda create -n helper-iso -c conda-forge python=3.12 pip`, no Qt/GStreamer)
+  can act as the provider, or install python.org 3.12 via
+  `winget install -e --id Python.Python.3.12`. The conda guard (exit 20) also
+  correctly fired on an active `(base)` — a full `conda deactivate` is required
+  before building. **→ B1 requirement: document a conda-free Python 3.12 build
+  prereq in the eventual packaging README.**
 - _(VM operator: append findings/surprises per stage here as you run them.)_
 
 ## Results
