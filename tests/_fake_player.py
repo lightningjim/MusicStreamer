@@ -61,7 +61,7 @@ class FakePlayer(QObject):
     failover                   = Signal(object)
     offline                    = Signal(str)
     twitch_resolved            = Signal(str)
-    youtube_resolved           = Signal(str)
+    youtube_resolved           = Signal(str, bool)  # BUG-YT-LIVE-BUFFER D-02: (resolved_url, is_live)
     youtube_resolution_failed  = Signal(str)
     playback_error             = Signal(str)
     cookies_cleared            = Signal(str)

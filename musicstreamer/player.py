@@ -199,6 +199,27 @@ class _BufferUnderrunTracker:
             return None
         return self._close_with_now(outcome, self._clock())
 
+    def disarm_for_seek(self) -> None:
+        """Disarm the tracker before a pipeline FLUSH seek (e.g. DVR seek).
+
+        A FLUSH seek sends BUFFERING=0% immediately after the seek event,
+        which would be interpreted as an underrun cycle opening if the tracker
+        is already armed from the preceding fill.  Disarming forces the tracker
+        to wait for the next BUFFERING=100% (post-seek fill complete) before
+        watching for real underruns.
+
+        Any open cycle is silently discarded — it is a false positive caused by
+        the flush, not a real CDN hiccup.
+
+        Threading: MUST be called from the main thread only (the same thread as
+        _apply_live_dvr_seek / _on_playbin_state_changed).  Reads/writes
+        _armed and _open which are also read by the bus-loop thread in
+        observe().  The CPython GIL makes these bool writes atomic (Pattern 2 —
+        same justification as _preroll_in_flight cross-thread reads).
+        """
+        self._open = False
+        self._armed = False
+
     def note_error_in_cycle(self) -> None:
         """D-02 / Discretion: flip cause_hint to 'network' if a cycle is open.
 
@@ -243,7 +264,7 @@ class Player(QObject):
     failover                   = Signal(object)  # StationStream | None
     offline                    = Signal(str)     # Twitch channel name
     twitch_resolved            = Signal(str)     # internal: resolved Twitch HLS URL -- queued back to main thread
-    youtube_resolved           = Signal(str)     # internal: resolved YouTube HLS URL -- queued back to main thread
+    youtube_resolved           = Signal(str, bool)  # internal: (resolved_url, is_live) -- queued back to main thread
     youtube_resolution_failed  = Signal(str)     # internal: yt-dlp error message -- queued back to main thread
     playback_error             = Signal(str)     # GStreamer error text
     cookies_cleared            = Signal(str)     # Phase 999.7: advisory toast — cookies.txt auto-cleared due to yt-dlp corruption
@@ -318,6 +339,17 @@ class Player(QObject):
     # When _growth_step == len(_GROWTH_SCHEDULE), the cap is held (no further growth).
     _GROWTH_SCHEDULE = (60, 120)
 
+    # BUG-YT-LIVE-BUFFER / D-02: seconds to seek behind the live edge on YouTube
+    # live HLS streams.  RFC 8216 positions hlsdemux2 only 3 * targetduration (6 s
+    # for YouTube's 2 s segments) behind the live edge.  At that position the
+    # effective download buffer is ~0-6 s — any CDN hiccup ≥ 1 segment-publish
+    # period (2 s) starves it completely.  After the pipeline prerolls we issue a
+    # one-shot SEEK_TYPE_END seek of -_LIVE_DVR_SEEK_OFFSET_S so GStreamer
+    # repositions to (live_edge - hold_back - offset) ≈ live_edge - 36 s, backed by
+    # the YouTube DVR window (7200 s of content always available).  This gives a
+    # genuine ~30 s cushion of already-published segments against CDN hiccups.
+    _LIVE_DVR_SEEK_OFFSET_S: int = 30
+
     # Phase 70 / DS-01: streaming/bus thread → main: persist sample_rate_hz / bit_depth
     # for the playing stream. Emitted with QueuedConnection on the receiver side
     # (MainWindow wires the slot in Plan 70-05 — qt-glib-bus-threading.md Rule 2).
@@ -363,6 +395,35 @@ class Player(QObject):
         if self._eq is not None:
             self._eq.set_property("num-bands", 10)  # placeholder; rebuilt per-profile
             self._pipeline.set_property("audio-filter", self._eq)
+
+        # BUG-YT-LIVE-BUFFER / D-01: configure hlsdemux2 when it is added to the
+        # pipeline so its internal segment-download buffer matches the user's
+        # buffer-duration target.
+        #
+        # Background: In GStreamer >= 1.22, playbin3 selects hlsdemux2
+        # (adaptivedemux2 family, rank 257) over the legacy hlsdemux (rank 256)
+        # for HLS URLs.  hlsdemux2 manages its OWN internal download queue via
+        # three properties (max-buffering-time, high-watermark-time,
+        # low-watermark-time) that default to 30 s / 30 s / 0 s regardless of
+        # playbin3.buffer-duration.  The existing Phase 84 stage-and-apply path
+        # writes buffer-duration to playbin3, which propagates to
+        # urisourcebin → queue2 — but queue2 is DOWNSTREAM of hlsdemux2 and
+        # holds decoded audio, not compressed HLS segments.  hlsdemux2's own
+        # download buffer remains at 30 s, so "raise buffer to 120 s" has no
+        # effect on the live-stream underruns observed at ~63 min.
+        #
+        # Fix: listen for deep-element-added on the pipeline and configure
+        # hlsdemux2's max-buffering-time / high-watermark-time to match
+        # self._current_buffer_duration_s whenever the element is created.
+        # The handler reads _current_buffer_duration_s (Python int, CPython-
+        # atomic per the same justification as _preroll_in_flight cross-thread
+        # reads) and writes two GObject properties — no Qt API, safe from any
+        # GStreamer-internal thread.  The adaptive growth value staged by Phase
+        # 84 _maybe_grow_buffer_duration IS picked up here automatically because
+        # _apply_pending_buffer_duration_to_pipeline() (which updates
+        # _current_buffer_duration_s) runs BEFORE _set_uri → set_state(PLAYING)
+        # which triggers element creation and therefore this callback.
+        self._pipeline.connect("deep-element-added", self._on_deep_element_added)
 
         # D-07 bus wiring -- sync emission MUST be enabled before add_signal_watch.
         # Order is grep-verified by the PORT-02 acceptance gate.
@@ -545,6 +606,13 @@ class Player(QObject):
         # writes (the common case post-CR-02 where reset stages baseline on
         # every station change). Seeded with the value written at __init__.
         self._last_applied_buffer_duration_s: int = BUFFER_DURATION_S
+
+        # BUG-YT-LIVE-BUFFER / D-02: one-shot flag requesting a DVR seek after the
+        # YouTube live pipeline first reaches PLAYING state.  Set by
+        # _on_youtube_resolved when is_live=True; cleared by _apply_live_dvr_seek()
+        # in the _on_playbin_state_changed main-thread slot.  Only True during the
+        # brief window between _on_youtube_resolved and the first PLAYING transition.
+        self._pending_live_dvr_seek: bool = False
 
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
@@ -1119,6 +1187,11 @@ class Player(QObject):
         self._pipeline.set_property("volume", self._volume)
         # Pattern 1b: synchronous one-shot caps read on the main thread.
         self._arm_caps_watch_for_current_stream()
+        # BUG-YT-LIVE-BUFFER / D-02: one-shot DVR seek for YouTube live streams.
+        # Pipeline is now in PLAYING state (preroll complete; seek range valid).
+        if self._pending_live_dvr_seek:
+            self._pending_live_dvr_seek = False
+            self._apply_live_dvr_seek()
 
     # ------------------------------------------------------------------ #
     # Timer helpers -- main-thread only
@@ -1611,6 +1684,119 @@ class Player(QObject):
         self._try_next_stream_requested.emit()
 
     # ------------------------------------------------------------------ #
+    # BUG-YT-LIVE-BUFFER: hlsdemux2 internal buffer configuration + DVR seek
+    # ------------------------------------------------------------------ #
+
+    def _apply_live_dvr_seek(self) -> None:
+        """BUG-YT-LIVE-BUFFER / D-02 — one-shot DVR-window seek for YouTube
+        live HLS streams.
+
+        Called from _on_playbin_state_changed (main thread) once per YouTube
+        live stream startup, immediately after the pipeline first reaches
+        PLAYING state (i.e. after hlsdemux2 has parsed the manifest and
+        preroll is complete — the seek range is valid at this point).
+
+        Root cause (D-02): RFC 8216 §6.3.3 requires hlsdemux2 to start
+        playback no closer than 3 * targetduration from the live edge.  For
+        YouTube's 2 s segments: hold_back = 6 s.  In steady-state live-edge
+        tracking the effective download buffer is only ~0-6 s — any CDN
+        hiccup ≥ one segment-publish period (2 s) drains it to 0.
+
+        Fix: issue a GStreamer SEEK_TYPE_END seek of -_LIVE_DVR_SEEK_OFFSET_S
+        nanoseconds.  GStreamer's adaptivedemux2 translates SEEK_TYPE_END with
+        a negative offset to (range_stop + offset) where range_stop is the
+        hold_back position (live_edge - hold_back).  The result for YouTube:
+
+            seek_pos = (live_edge - 6 s) - 30 s = live_edge - 36 s
+
+        YouTube's DVR window exposes 7200 s of content — the seek lands well
+        within bounds.  hlsdemux2 immediately downloads the 30 s of already-
+        published segments at the new position, filling the download buffer to
+        ~30 s.  Any CDN hiccup up to ~30 s is absorbed without a BUFFERING=0%
+        event.  After consuming those 30 s, the player resumes live-edge
+        tracking (hlsdemux2 "catches up" via faster-than-realtime download).
+
+        Threading: MUST run on the main thread (called only from the queued
+        _on_playbin_state_changed slot).  pipeline.seek() is safe from the
+        main thread.
+
+        Tradeoff: audio content is ~36 s older than the true live edge.  For
+        a lofi radio station this latency is imperceptible.
+        """
+        offset_ns = self._LIVE_DVR_SEEK_OFFSET_S * Gst.SECOND
+        # BUG-YT-LIVE-BUFFER / D-02: disarm the underrun tracker BEFORE seeking.
+        # The FLUSH seek sends BUFFERING=0% on the bus immediately; if the
+        # tracker is already armed (from the initial BUFFERING=100%), it would
+        # open a false underrun cycle.  Disarming forces the tracker to wait for
+        # the next BUFFERING=100% (post-seek re-fill) before watching for real
+        # underruns.  Also reset _last_buffer_percent so de-dup doesn't swallow
+        # the post-seek 0% message.
+        self._tracker.disarm_for_seek()
+        self._last_buffer_percent = -1
+        ok = self._pipeline.seek(
+            1.0,                           # rate
+            Gst.Format.TIME,
+            Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
+            Gst.SeekType.END,              # start relative to live range_stop
+            -offset_ns,                    # negative → before the live edge
+            Gst.SeekType.NONE,             # no explicit stop
+            0,
+        )
+        if ok:
+            _log.info(
+                "live HLS DVR seek applied: %.0f s behind hold-back position",
+                self._LIVE_DVR_SEEK_OFFSET_S,
+            )
+        else:
+            _log.warning(
+                "live HLS DVR seek failed (seek range may not be ready yet)"
+            )
+
+    def _on_deep_element_added(self, pipeline, sub_bin, element) -> None:
+        """GObject signal handler — fires on the thread that adds each child
+        element to the playbin3 hierarchy.
+
+        BUG-YT-LIVE-BUFFER / D-01: detects hlsdemux2 (and any future
+        adaptivedemux2-family element whose factory name contains "hlsdemux")
+        and sets max-buffering-time + high-watermark-time to match the
+        current buffer-duration target.
+
+        Threading invariant: this callback fires from GStreamer-internal
+        threads (typically the thread that calls set_state, which is the Qt
+        main thread for our _set_uri callers, but may be a GStreamer streaming
+        thread for dynamically-added uridecodebin3 children). The handler
+        MUST NOT touch Qt APIs. It only writes two GObject properties on the
+        newly-added GStreamer element — safe from any thread (GLib GObject
+        property writes are thread-safe for simple scalar types). Reading
+        self._current_buffer_duration_s is a CPython-atomic int read per the
+        same justification as _preroll_in_flight cross-thread reads (Pattern
+        2 in qt-glib-bus-threading.md).
+        """
+        factory = element.get_factory()
+        if factory is None:
+            return
+        name = factory.get_name()
+        # Cover "hlsdemux2" and any future adaptivedemux2-family HLS element
+        # whose factory name contains "hlsdemux".  Deliberately not matching
+        # the legacy "hlsdemux" (rank 256 < hlsdemux2 rank 257) — it does not
+        # expose these properties and should not be active when hlsdemux2 is
+        # available.
+        if "hlsdemux2" not in name:
+            return
+        target_ns = self._current_buffer_duration_s * Gst.SECOND
+        try:
+            element.set_property("max-buffering-time", target_ns)
+            element.set_property("high-watermark-time", target_ns)
+            _log.debug(
+                "hlsdemux2 buffer configured: max-buffering-time=%.0fs "
+                "high-watermark-time=%.0fs",
+                self._current_buffer_duration_s,
+                self._current_buffer_duration_s,
+            )
+        except Exception as exc:  # noqa: BLE001 — GObject property write; defensive
+            _log.warning("hlsdemux2 buffer config failed: %s", exc)
+
+    # ------------------------------------------------------------------ #
     # YouTube -- yt_dlp library API with EJS JS challenge solver (Plan 35-06)
     # ------------------------------------------------------------------ #
 
@@ -1710,13 +1896,21 @@ class Player(QObject):
             if not resolved:
                 self.youtube_resolution_failed.emit("No video formats returned")
                 return
-            self.youtube_resolved.emit(resolved)
+            is_live = bool((info or {}).get("is_live", False))
+            self.youtube_resolved.emit(resolved, is_live)
         except Exception as e:  # noqa: BLE001 — daemon worker must surface ALL failures
             self.youtube_resolution_failed.emit(f"youtube resolve crashed: {e!r}")
 
-    def _on_youtube_resolved(self, resolved_url: str) -> None:
+    def _on_youtube_resolved(self, resolved_url: str, is_live: bool) -> None:
         """Main-thread handler: hand the resolved HLS URL to playbin3 and arm
-        the failover timer like any other direct stream."""
+        the failover timer like any other direct stream.
+
+        BUG-YT-LIVE-BUFFER / D-02: sets _pending_live_dvr_seek for live streams
+        so _on_playbin_state_changed will issue a one-shot DVR-window seek after
+        the pipeline first prerolls.  This positions playback ~30 s behind the
+        live edge (see _apply_live_dvr_seek / _LIVE_DVR_SEEK_OFFSET_S).
+        """
+        self._pending_live_dvr_seek = is_live
         self._set_uri(resolved_url)
         self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
