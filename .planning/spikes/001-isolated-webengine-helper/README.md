@@ -169,8 +169,13 @@ JSON-line forensic events on **stderr** (`_emit_event` / `emit` — `t_ms`,
   - **→ B1 requirement:** the helper exe must be launched from a **local install
     path** (always true once Inno-installed); never run/test it from a UNC/network
     share. Document in the packaging README.
-- _(VM operator: re-run `build-helper.ps1` (now stages local) → Stage A should be
-  green; then Stage B `oauth_helper.exe --mode gbs|twitch|google` and Stage C.)_
+- **2026-06-12 (VM run 3) — all stages closed.** After local-staging, Stage A
+  probe exit 0 (`load_ok=true`). Stage B: GBS + Google login windows opened and
+  logged in from the isolated frozen exe; Twitch's window opened but its server
+  rejected the UA ("browser not supported") — carried as an app-level follow-up.
+  Stage C: `check-isolation.ps1 -CondaBin <musicstreamer-build>\Library\bin`
+  exit 0 — bundle Qt beat the real conflicting `Qt6Core.dll` on PATH. **B1
+  fully validated; spawn-from-conda-exe is safe with no PATH mitigation.**
 
 ## Results
 
@@ -185,7 +190,7 @@ Evidence:
 | WebEngine imports from isolated-pip frozen bundle | ✅ | `webengine_import_ok` — the exact import that `DLL load failed` in the conda single-bundle |
 | `QtWebEngineProcess.exe` + `Qt6WebEngineCore.dll` bundled | ✅ | both `*_present: True` from pip PySide6-Addons via the hook |
 | Stage A render (local run) | ✅ | probe `exit code=0, load_ok=true` against example.com |
-| Stage C isolation — bundle Qt beats conda-on-PATH | ⏳ pending explicit run | Stage A only had conda `condabin` (no `Qt6Core.dll`) on PATH — suggestive but NOT the real threat. The decisive run puts `musicstreamer-build\Library\bin` (qt6-main's conflicting `Qt6Core.dll`) on PATH via `check-isolation.ps1 -CondaBin`. Still to run. |
+| Stage C isolation — bundle Qt beats conda-on-PATH | ✅ | `check-isolation.ps1` exit 0 with qt6-main's `musicstreamer-build\Library\bin` (the conflicting `Qt6Core.dll`) first on PATH — the bundle loaded its own Qt by adjacency. Helper is safe to spawn from the conda main exe **with no clean-PATH mitigation**. |
 | Stage B — GBS login window + cookie capture | ✅ | login window opened, login completed |
 | Stage B — Google login window + cookie capture | ✅ | login window opened, login completed |
 | Stage B — Twitch login window opens | ✅ | window rendered (WebEngine works) |
