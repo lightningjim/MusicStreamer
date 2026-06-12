@@ -38,10 +38,25 @@ import time
 # "Your browser is not currently supported." The profile-level setHttpUserAgent
 # is applied too late for Twitch's initial detection; we need the browser
 # process itself to advertise Chrome from the start.
-_CHROME_UA = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/140.0.0.0 Safari/537.36"
-)
+#
+# Phase 88.3-03 (Twitch Windows fix — spike 001 carried follow-up):
+# The hardcoded Linux UA token "(X11; Linux x86_64)" works on Linux but fails
+# on the frozen Windows exe. Twitch's server-side Sec-CH-UA-Platform client-hint
+# cannot be spoofed by the UA string (it is set by the real Chromium binary), but
+# a Linux OS token in the UA while Chromium emits Sec-CH-UA-Platform: "Windows"
+# is a mismatch Twitch detects and rejects. Fix: advertise the Windows NT token
+# when running on win32. Linux + macOS keep the existing UA (GBS + Google already
+# work there). `sys` is already imported above.
+if sys.platform == "win32":
+    _CHROME_UA = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    )
+else:
+    _CHROME_UA = (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/140.0.0.0 Safari/537.36"
+    )
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
     os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
     + f' --user-agent="{_CHROME_UA}"'
