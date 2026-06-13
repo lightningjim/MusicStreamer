@@ -30,7 +30,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 91: FIX-MPRIS (Phase 77 deferred MPRIS2 tests)** — Repair the 7 D-03-deferred MPRIS2 cross-file test failures so the test-clean baseline holds before Flatpak in-sandbox MPRIS verification
 - [x] **Phase 85: Linux Common + AppImage Build** — Ship a portable `MusicStreamer-<version>-x86_64.AppImage` with conda's GStreamer/Qt/Node bundle, `.desktop` integration, MPRIS2, and zsync update metadata
 - [x] **Phase 86: Linux Flatpak Build** — Ship `io.github.kcreasey.MusicStreamer.flatpak` via `flatpak-builder` on KDE 6.8 + PySide BaseApp + ffmpeg-full, with minimal finish-args and in-sandbox MPRIS2 verified
-- [ ] **Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)** — One Win11 VM session: Inno Setup AUMID polish + `.lnk` cleanup, full v2.2-installer UAT against a previously-v2.1 VM, and AAC stream retest
+- [x] **Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)** — One Win11 VM session: Inno Setup AUMID polish + `.lnk` cleanup, full v2.2-installer UAT against a previously-v2.1 VM, and AAC stream retest
 - [ ] **Phase 89a: Channel-Avatar DB Migration + Storage Layout** — Foundation column + filesystem layout for YT and Twitch avatars; idempotent additive migration in `repo.py:db_init()`
 - [ ] **Phase 87: GBS.FM Marquee + Themed-Day Detection** — Banner widget + themed-logo session swap; establishes the QtWebEngine cookie-persistence-cross-process pattern reused by Phase 89
 - [ ] **Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap** — ICY-disabled YT stations show the channel avatar (circular) in the cover slot; cover-resolver precedence keeps MB-CAA above avatar
@@ -224,7 +224,16 @@ Plans:
   2. Migration is idempotent — running `db_init()` twice does not raise; rollback test confirms reverting + re-applying produces identical schema.
   3. `~/.local/share/musicstreamer/assets/channel-avatars/` directory exists with appropriate permissions and layout matching the existing `assets/` station-logo precedent.
 
-**Plans**: TBD
+**Plans**: 2 plans across 2 waves
+Plans:
+**Wave 1**
+
+- [ ] 89A-01-PLAN.md — paths.channel_avatars_dir() accessor + eager ensure_dirs() makedirs + accessor/purity/creation tests (ART-AVATAR-02)
+
+**Wave 2** *(depends on 89A-01)*
+
+- [ ] 89A-02-PLAN.md — repo.py:db_init() additive channel_avatar_path TEXT ALTER after the stations_new rebuild + idempotency + schema-convergence tests (ART-AVATAR-01)
+
 **Research flag**: NO — direct mirror of existing `station_art_path` / `album_fallback_path` migration pattern in `repo.py`.
 
 #### Phase 87: GBS.FM Marquee + Themed-Day Detection
@@ -405,7 +414,7 @@ Plans:
 | 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
-| 89a. Channel-Avatar DB Migration | 0/? | Not started | - |
+| 89a. Channel-Avatar DB Migration | 0/2 | Not started | - |
 | 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
