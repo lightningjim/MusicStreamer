@@ -51,26 +51,31 @@ def _run_oauth_helper(argv: list[str]) -> int:
     Dispatched from main() when ``--oauth-helper`` is present in argv,
     BEFORE ``_run_gui`` so no QApplication is constructed here.
 
-    Two modes:
+    Modes:
     - ``--self-test``: exits 0 immediately (headless smoke guard for
       build.ps1 step 4d, exit code 12). No QApplication, no window.
-    - Normal: strips ``--oauth-helper`` from argv (oauth_helper.main()
-      uses argparse.parse_args, not parse_known_args — Pitfall 1),
-      sets sys.argv, then calls oauth_helper.main() which builds its
-      own QApplication and calls sys.exit internally.
-
-    T-88.2-03: ``--oauth-helper`` is stripped before forwarding so
-    oauth_helper's argparse cannot error with "unrecognized arguments".
+    - Any other ``--oauth-helper`` invocation in the conda bundle is a
+      bug. Under B1 the conda ``MusicStreamer.exe`` ships NO WebEngine and
+      launches the separate ``oauth_helper.exe`` out-of-process via QProcess
+      (``_make_oauth_launch_args``). It must NEVER import/run the WebEngine
+      helper in-process — doing so triggers oauth_helper's module-level
+      QtWebEngineWidgets import, which is absent in the conda bundle and
+      bare ``sys.exit(2)``s from the wrong process with no diagnostic
+      (Phase 88.3 WR-02). So this arm now emits a clear error and returns 2.
     """
     if "--self-test" in argv:
         return 0
-    # Strip --oauth-helper before forwarding to oauth_helper.main().
-    # oauth_helper.main() calls argparse.parse_args() (not parse_known_args),
-    # so any unknown flag causes it to error-exit 2.
-    sys.argv = [a for a in argv if a != "--oauth-helper"]
-    from musicstreamer.oauth_helper import main as _oauth_main  # lazy
-    _oauth_main()
-    return 0  # oauth_helper.main() calls sys.exit internally; unreachable
+    # B1: the conda exe must NEVER run the WebEngine helper in-process. It
+    # launches the separate oauth_helper.exe via QProcess. Any other
+    # --oauth-helper invocation reaching here is a bug (Phase 88.3 WR-02).
+    print(
+        "ERROR: --oauth-helper in-process dispatch is not supported in the "
+        "conda bundle (B1: use the separate oauth_helper.exe launched via "
+        "QProcess by _make_oauth_launch_args).",
+        file=sys.stderr,
+        flush=True,
+    )
+    return 2
 
 
 def _run_smoke(argv: list[str], url: str) -> int:

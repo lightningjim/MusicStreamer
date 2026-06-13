@@ -86,34 +86,30 @@ def test_run_oauth_helper_self_test_returns_0():
     assert rc == 0
 
 
-def test_run_oauth_helper_strips_oauth_helper_flag(monkeypatch):
-    """D-04 Test 4: _run_oauth_helper strips '--oauth-helper' before forwarding
-    to oauth_helper.main(), preserving '--mode' and 'gbs' in sys.argv.
+def test_run_oauth_helper_rejects_in_process_dispatch(monkeypatch, capsys):
+    """D-04 Test 4 (updated for Phase 88.3 WR-02): under B1 the conda
+    MusicStreamer.exe must NEVER run the WebEngine helper in-process — it
+    launches the separate oauth_helper.exe via QProcess. So any non-self-test
+    ``--oauth-helper`` invocation reaching _run_oauth_helper is a bug: it
+    returns 2 and emits a clear diagnostic, WITHOUT importing oauth_helper
+    (whose module-level QtWebEngineWidgets guard would bare-exit 2 with no
+    message in the conda bundle).
 
-    _run_oauth_helper does a lazy ``from musicstreamer.oauth_helper import main``.
-    Inject a fake musicstreamer.oauth_helper module into sys.modules so
-    the lazy import resolves to our stub without triggering oauth_helper's
-    module-level QtWebEngineWidgets guard (which calls sys.exit on Linux CI).
+    This replaces the pre-WR-02 contract that stripped '--oauth-helper' and
+    forwarded to oauth_helper.main() in-process. That arm was reachable
+    dead-trap code; WR-02 turned it into a loud, diagnosable rejection.
+    WR-06 (sys.argv leak) is resolved by removing the sys.argv mutation
+    entirely.
     """
-    import types
-
-    captured = {}
-
-    def _fake_oauth_main():
-        captured["argv"] = list(sys.argv)
-        raise SystemExit(0)
-
-    fake_module = types.ModuleType("musicstreamer.oauth_helper")
-    fake_module.main = _fake_oauth_main  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "musicstreamer.oauth_helper", fake_module)
+    # Snapshot+auto-restore sys.argv to guard against any cross-test leak,
+    # even though the new branch no longer mutates it (Phase 88.3 WR-06).
+    monkeypatch.setattr(sys, "argv", list(sys.argv))
 
     from musicstreamer.__main__ import _run_oauth_helper
 
-    try:
-        _run_oauth_helper(["prog", "--oauth-helper", "--mode", "gbs"])
-    except SystemExit:
-        pass
+    rc = _run_oauth_helper(["prog", "--oauth-helper", "--mode", "gbs"])
 
-    assert "--oauth-helper" not in captured["argv"]
-    assert "--mode" in captured["argv"]
-    assert "gbs" in captured["argv"]
+    assert rc == 2
+    captured = capsys.readouterr()
+    assert "not supported in the conda bundle" in captured.err
+    assert "oauth_helper.exe" in captured.err
