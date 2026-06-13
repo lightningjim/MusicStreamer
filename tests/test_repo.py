@@ -1162,3 +1162,33 @@ def test_ensure_dirs_creates_channel_avatars_dir(tmp_path, monkeypatch):
     assert os.path.isdir(os.path.join(str(tmp_path), "assets", "channel-avatars")), (
         "ensure_dirs() must create assets/channel-avatars/"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 89A Plan 02: channel_avatar_path DB migration (D-04, D-05, D-06, D-07)
+# ---------------------------------------------------------------------------
+
+def test_channel_avatar_path_migration_idempotent(repo):
+    """ART-AVATAR-01 D-07: db_init twice must not raise; column has expected schema.
+
+    Mirrors test_cover_art_source_migration_idempotent (test_repo.py L228-252)
+    and test_preferred_stream_id_migration_idempotent (test_repo.py L875-897).
+    PRAGMA table_info cols: (cid, name, type, notnull, dflt_value, pk).
+    channel_avatar_path must be TEXT, nullable (notnull=0), no DEFAULT (None).
+    """
+    # Second and third db_init calls must not raise.
+    db_init(repo.con)
+    db_init(repo.con)
+
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "channel_avatar_path" in by_name, (
+        f"channel_avatar_path column missing; got {sorted(by_name)}"
+    )
+    col = by_name["channel_avatar_path"]
+    # type is index 2; notnull is index 3; dflt_value is index 4
+    assert col[2] == "TEXT", f"column type must be TEXT; got {col[2]!r}"
+    assert col[3] == 0, "channel_avatar_path must be nullable (notnull=0)"
+    assert col[4] is None, (
+        f"channel_avatar_path must have no DEFAULT; got {col[4]!r}"
+    )
