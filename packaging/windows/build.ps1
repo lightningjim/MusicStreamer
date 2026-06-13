@@ -7,7 +7,6 @@
 #             10=post-bundle plugin-presence guard fail (Phase 69)
 #             11=smtc backend not loaded in frozen bundle (Phase 88.1 / WIN-02)
 #             12=oauth helper entrypoint unreachable in frozen bundle (Phase 88.2 / D-05)
-#             13=webengine not bundled in frozen bundle (Phase 88.3 / G6)
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -21,10 +20,6 @@ param(
     # The guard is active by default; this switch exists for build iteration on a
     # VM where the oauth-helper dispatch is being debugged independently of the bundle.
     [switch]$SkipOauthGuard = $false,
-    # 88.3 G6 / WR-02: bypass the step-4e WEBENGINE GUARD (exit 13), mirroring -SkipOauthGuard.
-    # The guard is active by default; this switch only exists for build iteration on a
-    # VM where the WebEngine check is being debugged independently of the bundle contents.
-    [switch]$SkipWebEngineGuard = $false,
     [switch]$SkipPipInstall = $(if ($env:CONDA_PREFIX) { $true } else { $false })
 )
 
@@ -91,20 +86,6 @@ if (-not ((Test-Path $tlsDll) -or (Test-Path $legacyTlsDll))) {
 }
 if (-not (Test-Path "$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe")) {
     Write-Host "BUILD_FAIL reason=gst_plugin_scanner_missing path='$GstRoot\libexec\gstreamer-1.0\gst-plugin-scanner.exe'" -ForegroundColor Red
-    exit 1
-}
-
-# Phase 88.3 G6: PySide6-Addons (QtWebEngineWidgets) preflight.
-# conda-forge pyside6 does NOT include QtWebEngineWidgets — it ships in the
-# separate PySide6-Addons pip wheel. Without it, MusicStreamer.spec
-# hiddenimports for PySide6.QtWebEngineWidgets silently produce an empty
-# collection (no binaries collected) and build.ps1 step-4e exits 13 below.
-# Fix: `pip install "PySide6-Addons==$(python -c 'from PySide6 import __version__; print(__version__)')"`.
-# See packaging/windows/README.md §Build prerequisites for the full recipe
-# and the ICU ABI hazard that mandates the exact version pin.
-Invoke-Native { python -c "from PySide6.QtWebEngineWidgets import QWebEngineView; print('pyside6_webengine OK')" 2>&1 | Out-Host }
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "BUILD_FAIL reason=pyside6_webengine_missing hint='conda-forge pyside6 does not include QtWebEngineWidgets; run: pip install PySide6-Addons==<pinned-pyside6-version> (see README Build prerequisites and ICU ABI hazard note for exact version pin)'" -ForegroundColor Red
     exit 1
 }
 
@@ -381,29 +362,6 @@ try {
         Write-Host "OAUTH HELPER GUARD OK"
     } else {
         Write-Host "OAUTH HELPER GUARD skipped (-SkipOauthGuard)"
-    }
-
-    # --- 4e. WEBENGINE GUARD --------------------------------------------
-    # Phase 88.3 G6: assert the frozen exe can import PySide6.QtWebEngineWidgets
-    # so GBS.FM / Twitch / Google in-app OAuth login (oauth_helper.py subprocess)
-    # is reachable at runtime. Mirrors the step-4c/4d guard pattern.
-    # Exit 13 = webengine not bundled in frozen bundle (see exit-codes header).
-    #
-    # Phase 65 WR-01: use Write-Host (NOT Write-Error) + exit 13.
-    # $ErrorActionPreference = "Stop" escalates Write-Error to a terminating
-    # error — the documented `exit 13` line never fires; script returns 1.
-    if (-not $SkipWebEngineGuard) {
-        Write-Host "=== WEBENGINE GUARD: assert PySide6.QtWebEngineWidgets importable in frozen bundle (Phase 88.3 / G6) ==="
-        Invoke-Native {
-            & "..\..\dist\MusicStreamer\MusicStreamer.exe" --check-webengine 2>&1 | Out-Host
-        }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "BUILD_FAIL reason=webengine_not_bundled hint='MusicStreamer.exe --check-webengine returned non-zero; PySide6.QtWebEngineWidgets import failed in frozen bundle; ensure PySide6-Addons is installed pinned to the conda-forge pyside6 version (see README ICU ABI hazard note) before running pyinstaller'" -ForegroundColor Red
-            exit 13
-        }
-        Write-Host "WEBENGINE GUARD OK"
-    } else {
-        Write-Host "WEBENGINE GUARD skipped (-SkipWebEngineGuard)"
     }
 
     # --- 5. Smoke test --------------------------------------------------

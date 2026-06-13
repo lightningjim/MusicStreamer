@@ -133,17 +133,9 @@ a = Analysis(
         # PySide6 extras that hooks-contrib sometimes misses:
         "PySide6.QtNetwork",      # QLocalServer/QLocalSocket (single-instance)
         "PySide6.QtSvg",          # SVG icon rendering
-        # Phase 88.3 G6: oauth_helper.py wraps its QtWebEngineWidgets import in
-        # try/except (lines 62-71), so PyInstaller modulegraph never discovers it.
-        # hiddenimports-only approach (RESEARCH OQ1 locked): the hiddenimport for
-        # QtWebEngineCore triggers hook-PySide6.QtWebEngineCore, which calls
-        # get_qt_webengine_binaries_and_data_files() to collect
-        # QtWebEngineProcess.exe / *.pak / locales / qt.conf — no collect_all needed.
-        # Post-build VM assertion: _internal/PySide6/QtWebEngineProcess.exe must
-        # exist in the bundle (RESEARCH Pitfall 5); build.ps1 step-4e --check-webengine
-        # guard validates this at build time (exit 13 if missing).
-        "PySide6.QtWebEngineWidgets",  # Phase 88.3 G6: oauth login (gbs/twitch/google)
-        "PySide6.QtWebEngineCore",     # Phase 88.3 G6: ships QtWebEngineProcess.exe + .pak
+        # Phase 88.3 B1: WebEngine ships in the SEPARATE oauth_helper.exe
+        # (oauth_helper_standalone.spec), never in this conda bundle
+        # (conda-forge has no PySide6 WebEngine bindings; see spike 001).
         # Windows media keys: collect_all above subsumes the old hiddenimport-only
         # entries — do NOT add "winrt.windows.*" strings here (Phase 88.1 D-01).
         # Phase 44 UAT fix: requests prefers chardet over charset_normalizer,
