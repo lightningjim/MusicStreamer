@@ -65,7 +65,7 @@ Source: "..\..\dist\MusicStreamer\*"; DestDir: "{app}"; Flags: ignoreversion rec
 ; logins (GBS.FM / Twitch / Google). It MUST install LOCAL -- Chromium's sandbox
 ; refuses to launch QtWebEngineProcess.exe from a network/UNC path (spike VM run 2).
 ; {app}\oauth_helper\oauth_helper.exe is the exact path that 88.3-03's launcher
-; resolves via _oauth_helper_exe() in musicstreamer/oauth_launcher.py.
+; resolves via _make_oauth_launch_args() in musicstreamer/subprocess_utils.py.
 Source: "..\..\dist\oauth_helper\*"; DestDir: "{app}\oauth_helper"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; WIN-02-A: Remove the previous version's Start-Menu .lnk shortcuts on upgrade.
