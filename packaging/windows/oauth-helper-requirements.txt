@@ -1,0 +1,33 @@
+# Production isolated OAuth-helper build environment (Phase 88.3-04, B1 architecture).
+# Promoted from spike 001 (.planning/spikes/001-isolated-webengine-helper/requirements.txt).
+#
+# This env is DELIBERATELY pip-only and Qt-isolated: NO conda, NO GStreamer,
+# NO qt6-main, NO winrt. It exists solely to freeze a standalone
+# oauth_helper.exe whose QtWebEngine is ABI-self-consistent (pip PySide6 built
+# against pip's own Qt6Core) -- the exact thing the conda single-bundle could
+# not provide (Phase 88.3 G6: conda qt6-main shadowed pip WebEngine's Qt6Core
+# on PATH -> DLL load failure). See spike 001 README "Why This Is the Whole Ballgame".
+#
+# Pin matches the conda main app's pyside6 6.10.1 (spike alignment decision
+# 2026-06-11) so the QNetworkCookie / cookie-Netscape contract that
+# tests/test_oauth_helper_*.py assert stays byte-identical across the two
+# independently-frozen artifacts.
+#
+# Create the isolated helper build venv on the Win11 VM using a conda-free
+# Python 3.12 (NOT the musicstreamer-build conda env). build.ps1 automates
+# this via the -HelperPythonExe parameter. Manual steps for reference:
+#   Option A (python.org Python 3.12):
+#     py -3.12 -m venv .venv-oauth-helper
+#     .\.venv-oauth-helper\Scripts\Activate.ps1
+#     pip install -r oauth-helper-requirements.txt
+#   Option B (clean conda-forge env as venv provider):
+#     conda create -y -n helper-iso -c conda-forge python=3.12 pip
+#     conda env list   # find helper-iso path
+#     <helper-iso path>\python.exe -m venv .venv-oauth-helper
+#     .\.venv-oauth-helper\Scripts\Activate.ps1
+#     pip install -r oauth-helper-requirements.txt
+
+PySide6-Essentials==6.10.1
+PySide6-Addons==6.10.1
+pyinstaller==6.19.0
+pyinstaller-hooks-contrib==2026.2
