@@ -1162,3 +1162,103 @@ def test_ensure_dirs_creates_channel_avatars_dir(tmp_path, monkeypatch):
     assert os.path.isdir(os.path.join(str(tmp_path), "assets", "channel-avatars")), (
         "ensure_dirs() must create assets/channel-avatars/"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 89A Plan 02: channel_avatar_path DB migration (D-04, D-05, D-06, D-07)
+# ---------------------------------------------------------------------------
+
+def test_channel_avatar_path_migration_idempotent(repo):
+    """ART-AVATAR-01 D-07: db_init twice must not raise; column has expected schema.
+
+    Mirrors test_cover_art_source_migration_idempotent (test_repo.py L228-252)
+    and test_preferred_stream_id_migration_idempotent (test_repo.py L875-897).
+    PRAGMA table_info cols: (cid, name, type, notnull, dflt_value, pk).
+    channel_avatar_path must be TEXT, nullable (notnull=0), no DEFAULT (None).
+    """
+    # Second and third db_init calls must not raise.
+    db_init(repo.con)
+    db_init(repo.con)
+
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "channel_avatar_path" in by_name, (
+        f"channel_avatar_path column missing; got {sorted(by_name)}"
+    )
+    col = by_name["channel_avatar_path"]
+    # type is index 2; notnull is index 3; dflt_value is index 4
+    assert col[2] == "TEXT", f"column type must be TEXT; got {col[2]!r}"
+    assert col[3] == 0, "channel_avatar_path must be nullable (notnull=0)"
+    assert col[4] is None, (
+        f"channel_avatar_path must have no DEFAULT; got {col[4]!r}"
+    )
+
+
+def test_channel_avatar_path_schema_convergence():
+    """ART-AVATAR-01 D-07: fresh DB and upgraded pre-89a DB converge to same schema.
+
+    Builds a pre-89a stations schema (channel_avatar_path absent), runs db_init(),
+    and asserts PRAGMA table_info(stations) matches a fresh db_init() DB.
+    Mirrors test_bitrate_kbps_migration_adds_column shape (test_repo.py L642-678).
+    """
+    # --- fresh DB (the target shape) ---
+    fresh_con = _make_bare_con()
+    db_init(fresh_con)
+    fresh_cols = {
+        row[1]: (row[2], row[3], row[4])  # (type, notnull, dflt_value)
+        for row in fresh_con.execute("PRAGMA table_info('stations')").fetchall()
+    }
+    assert "channel_avatar_path" in fresh_cols, "fresh DB must have channel_avatar_path"
+
+    # --- pre-89a DB: stations table WITHOUT channel_avatar_path ---
+    legacy_con = _make_bare_con()
+    legacy_con.executescript("""
+        CREATE TABLE providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE stations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            provider_id INTEGER,
+            tags TEXT DEFAULT '',
+            station_art_path TEXT,
+            album_fallback_path TEXT,
+            icy_disabled INTEGER NOT NULL DEFAULT 0,
+            last_played_at TEXT,
+            is_favorite INTEGER NOT NULL DEFAULT 0,
+            cover_art_source TEXT NOT NULL DEFAULT 'auto',
+            preferred_stream_id INTEGER,
+            prerolls_fetched_at INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(provider_id) REFERENCES providers(id) ON DELETE SET NULL
+        );
+        INSERT INTO stations(name) VALUES ('ExistingFM');
+    """)
+    legacy_con.commit()
+    # Confirm the column is absent before migration
+    pre_cols = {
+        row[1] for row in legacy_con.execute("PRAGMA table_info('stations')").fetchall()
+    }
+    assert "channel_avatar_path" not in pre_cols, "pre-89a fixture must NOT have the column"
+
+    # Apply migration
+    db_init(legacy_con)
+
+    # Post-migration schema must match fresh DB for channel_avatar_path
+    migrated_cols = {
+        row[1]: (row[2], row[3], row[4])
+        for row in legacy_con.execute("PRAGMA table_info('stations')").fetchall()
+    }
+    assert "channel_avatar_path" in migrated_cols, "column absent after migration"
+    assert migrated_cols["channel_avatar_path"] == fresh_cols["channel_avatar_path"], (
+        f"migrated schema differs from fresh: "
+        f"migrated={migrated_cols['channel_avatar_path']!r}, "
+        f"fresh={fresh_cols['channel_avatar_path']!r}"
+    )
+
+    # Existing row must still exist with NULL channel_avatar_path (data preserved)
+    row = legacy_con.execute("SELECT name, channel_avatar_path FROM stations").fetchone()
+    assert row[0] == "ExistingFM"
+    assert row[1] is None, "existing row must have NULL channel_avatar_path"
