@@ -437,6 +437,11 @@ class _GoogleWindow(QMainWindow):
         for c in self._cookies:
             lines.append(_cookie_to_netscape(c))
         print("\n".join(lines), end="")
+        # Phase 88.3 IN-04: emit a structured Success event for diagnostic parity
+        # with the Twitch/GBS happy paths so _parse_oauth_stderr sees a final
+        # category-bearing event. detail is empty string — NEVER a cookie value
+        # (T-76-02 mitigation).
+        _emit_event("Success", detail="")
         QApplication.quit()
 
     def closeEvent(self, event):  # noqa: N802
