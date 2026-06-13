@@ -20,6 +20,7 @@ Mirrors test_packaging_webengine_spec.py's fixture + _strip_comments idiom.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -372,4 +373,32 @@ def test_readme_documents_conda_free_python(readme_source: str) -> None:
         "env as the WebEngine precondition. That instruction caused the G6 DLL-load "
         "failure. B1 replaces it with a SEPARATE isolated helper build. "
         "Phase 88.3-04 Task 2."
+    )
+
+
+def test_readme_helper_pyside6_version_matches_requirements_pin(
+    readme_source: str, reqs_source: str
+) -> None:
+    """Phase 88.3 IN-03: the README must not document a helper PySide6 version
+    that drifts from the requirements pin. WR-03 (a stale 6.10.1 in the README
+    file-map row) slipped through precisely because no test coupled the two.
+
+    Extract the pinned PySide6 version from oauth-helper-requirements.txt and
+    assert that NO other PySide6 version string appears anywhere in the README.
+    Pre-release/build-suffix pins are normalized to MAJOR.MINOR.PATCH.
+    """
+    pin_match = re.search(r"PySide6[\w-]*==(\d+\.\d+\.\d+)", reqs_source)
+    assert pin_match, (
+        "could not find a pinned PySide6 version (PySide6*==X.Y.Z) in "
+        "oauth-helper-requirements.txt"
+    )
+    pinned = pin_match.group(1)
+
+    readme_versions = set(re.findall(r"PySide6[\w-]*\s+(\d+\.\d+\.\d+)", readme_source))
+    stale = readme_versions - {pinned}
+    assert not stale, (
+        f"README.md mentions PySide6 version(s) {sorted(stale)} that differ from "
+        f"the requirements pin {pinned} (oauth-helper-requirements.txt). Keep the "
+        f"README file-map row in sync with the pin to avoid the WR-03 staleness. "
+        f"Phase 88.3 IN-03."
     )
