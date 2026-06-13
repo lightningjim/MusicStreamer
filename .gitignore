@@ -11,6 +11,11 @@ build/
 dist/installer/
 packaging/windows/artifacts/
 packaging/windows/build/
+# Phase 88.3 B1 isolated oauth-helper build (recreated every build.ps1 run)
+packaging/windows/.venv-oauth-helper/
+packaging/windows/build-helper/
+# build.ps1 full-console transcript (Tee-Object target from README rebuild steps)
+full-build.log
 # Linux AppImage build residue (tools/linux-build/build.sh)
 tools/linux-build/artifacts/
 tools/linux-build/AppDir/

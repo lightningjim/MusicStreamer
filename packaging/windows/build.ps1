@@ -416,20 +416,50 @@ try {
 
     $HelperVenvPy = Join-Path $HelperVenv "Scripts\python.exe"
 
+    # --- B1 build-time PATH isolation (Phase 88.3 G6 root-cause fix) ----------
+    # CRITICAL: step 0 prepends conda's Library\bin to $env:PATH so the MAIN
+    # conda bundle's bundler can introspect GStreamer DLLs. But the isolated
+    # helper is pip-only PySide6 and must NOT see conda Qt. PyInstaller resolves
+    # each collected DLL's transitive imports (Qt6Core.dll, Qt6Gui.dll, ...) via
+    # the BUILD-TIME PATH -- so with conda's Library\bin on PATH it bakes conda's
+    # Qt6Core.dll into the helper bundle next to pip's WebEngine .pyd -> ABI
+    # mismatch -> "the specified procedure could not be found" at runtime, in
+    # EVERY environment (the Phase 88.3 G6 signature; reproduced at 88.3-05 UAT).
+    # The spike (001) avoided this by building with conda fully deactivated.
+    # Reproduce that clean-PATH condition: strip conda/miniforge/$GstRoot from
+    # PATH for the helper pip-install + PyInstaller, then restore for the Inno
+    # step. The helper python/pip/PyInstaller are all invoked via the explicit
+    # $HelperVenvPy path, so none of them depend on PATH -- only DLL dependency
+    # resolution does, which is exactly what we are steering back to the pip venv.
+    $SavedPath = $env:PATH
+    $env:PATH = ($env:PATH -split ';' | Where-Object {
+        $_ -and
+        $_ -notmatch '(?i)conda|miniforge|miniconda' -and
+        $_ -notmatch '(?i)\\Library\\bin' -and
+        $_ -notlike "$GstRoot*"
+    }) -join ';'
+    Write-Host "HELPER BUILD: PATH sanitized (conda/GStreamer stripped for ABI-clean helper) -> $env:PATH" -ForegroundColor DarkGray
+
     Write-Host "pip install -r oauth-helper-requirements.txt into isolated helper venv ..." -ForegroundColor Cyan
     Invoke-Native { & $HelperVenvPy -m pip install --upgrade pip *>&1 | Tee-Object -FilePath "artifacts\helper-pip.log" }
     Invoke-Native { & $HelperVenvPy -m pip install -r oauth-helper-requirements.txt *>&1 | Tee-Object -Append -FilePath "artifacts\helper-pip.log" }
     if ($LASTEXITCODE -ne 0) {
+        $env:PATH = $SavedPath
         Write-Host "BUILD_FAIL reason=helper_pip_install_failed hint='pip install -r oauth-helper-requirements.txt failed in isolated venv; check artifacts\helper-pip.log'" -ForegroundColor Red
         exit 14
     }
 
-    Write-Host "pyinstaller oauth_helper_standalone.spec (isolated helper venv) ..." -ForegroundColor Cyan
-    Invoke-Native { & $HelperVenvPy -m PyInstaller oauth_helper_standalone.spec --noconfirm --distpath ..\..\dist --workpath build-helper *>&1 | Tee-Object -FilePath "artifacts\helper-build.log" }
+    Write-Host "pyinstaller oauth_helper_standalone.spec (isolated helper venv, clean PATH) ..." -ForegroundColor Cyan
+    # --clean discards any cached analysis from a prior conda-contaminated build,
+    # so the sanitized-PATH dependency resolution is authoritative (no stale
+    # conda Qt6Core lingering in the build-helper workpath).
+    Invoke-Native { & $HelperVenvPy -m PyInstaller oauth_helper_standalone.spec --clean --noconfirm --distpath ..\..\dist --workpath build-helper *>&1 | Tee-Object -FilePath "artifacts\helper-build.log" }
     if ($LASTEXITCODE -ne 0) {
+        $env:PATH = $SavedPath
         Write-Host "BUILD_FAIL reason=helper_pyinstaller_failed exitcode=$LASTEXITCODE hint='check artifacts\helper-build.log'" -ForegroundColor Red
         exit 14
     }
+    $env:PATH = $SavedPath   # restore conda/GStreamer PATH for the Inno step
 
     if (-not (Test-Path "..\..\dist\oauth_helper\oauth_helper.exe")) {
         Write-Host "BUILD_FAIL reason=helper_exe_not_found hint='pyinstaller produced no dist\oauth_helper\oauth_helper.exe; check artifacts\helper-build.log'" -ForegroundColor Red
@@ -451,6 +481,30 @@ try {
         Write-Host "BUILD_FAIL reason=helper_webengine_missing file=Qt6WebEngineCore.dll hint='WebEngine DLL not bundled -- check PySide6-Addons is in the isolated venv; see artifacts\helper-build.log'" -ForegroundColor Red
         exit 14
     }
+
+    # --- ABI-coherence guard (Phase 88.3 G6 root-cause regression catch) -------
+    # The presence checks above only prove the WebEngine DLLs EXIST -- not that
+    # they are the pip venv's own (ABI-self-consistent) Qt. The G6 failure was a
+    # WRONG-version Qt6Core.dll baked in from conda's Library\bin on the build
+    # PATH, which passes every presence check but fails at runtime with "the
+    # specified procedure could not be found". Assert the bundled Qt6Core.dll is
+    # byte-identical to the isolated venv's pip Qt6Core.dll -- if a future change
+    # re-contaminates the build PATH, this fails here instead of at a VM UAT.
+    $bundledQt6Core = Join-Path $helperBundle "_internal\PySide6\Qt6Core.dll"
+    if (-not (Test-Path $bundledQt6Core)) { $bundledQt6Core = Join-Path $helperBundle "PySide6\Qt6Core.dll" }
+    $venvQt6Core = Join-Path $HelperVenv "Lib\site-packages\PySide6\Qt6Core.dll"
+    if ((Test-Path $bundledQt6Core) -and (Test-Path $venvQt6Core)) {
+        $bundledHash = (Get-FileHash -Algorithm SHA256 $bundledQt6Core).Hash
+        $venvHash    = (Get-FileHash -Algorithm SHA256 $venvQt6Core).Hash
+        if ($bundledHash -ne $venvHash) {
+            Write-Host "BUILD_FAIL reason=helper_qt6core_abi_mismatch bundled='$bundledQt6Core' venv='$venvQt6Core' hint='bundled Qt6Core.dll is NOT the isolated pip venv Qt -- conda/foreign Qt leaked onto the build PATH (Phase 88.3 G6). The helper PyInstaller step must run with conda stripped from PATH; see the B1 build-time PATH isolation block above.'" -ForegroundColor Red
+            exit 14
+        }
+        Write-Host "HELPER ABI GUARD OK -- bundled Qt6Core.dll matches isolated pip venv (SHA256 $($venvHash.Substring(0,12))...)"
+    } else {
+        Write-Host "HELPER ABI GUARD skipped -- could not locate both Qt6Core.dll copies (bundled='$bundledQt6Core' venv='$venvQt6Core'); presence checks above still passed" -ForegroundColor Yellow
+    }
+
     Write-Host "HELPER BUILD OK -- QtWebEngineProcess.exe + Qt6WebEngineCore.dll present in dist\oauth_helper"
 
     # --- 5. Smoke test --------------------------------------------------
