@@ -131,7 +131,7 @@ Logs are tee'd to `packaging\windows\artifacts\build.log` and
 ## Install behavior
 
 The installer is **per-user**: it requests no admin elevation, installs
-to `%LOCALAPPDATA%\MusicStreamer`, and adds a single Start Menu shortcut.
+to `%LOCALAPPDATA%\Programs\MusicStreamer`, and adds a single Start Menu shortcut.
 No Desktop shortcut, no Pin-to-Taskbar (per D-04 / D-23). User data
 (SQLite database, cookies, tokens, accent CSS, EQ profiles, logo cache)
 lives in `%APPDATA%\musicstreamer` and is **preserved across uninstall
