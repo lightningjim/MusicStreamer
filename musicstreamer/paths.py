@@ -98,3 +98,13 @@ def eq_profiles_dir() -> str:
     ``os.makedirs(paths.eq_profiles_dir(), exist_ok=True)`` before writing.
     """
     return os.path.join(_root(), "eq-profiles")
+
+
+def channel_avatars_dir() -> str:
+    """Phase 89A D-02: flat directory for per-station channel avatar PNGs.
+
+    Pure — does NOT create the directory. Callers use
+    ``os.makedirs(paths.channel_avatars_dir(), exist_ok=True)`` before writing.
+    Respects ``_root_override`` via ``_root()`` for test isolation.
+    """
+    return os.path.join(_root(), "assets", "channel-avatars")
