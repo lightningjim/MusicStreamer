@@ -228,7 +228,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 89A-01-PLAN.md — paths.channel_avatars_dir() accessor + eager ensure_dirs() makedirs + accessor/purity/creation tests (ART-AVATAR-02)
+- [x] 89A-01-PLAN.md — paths.channel_avatars_dir() accessor + eager ensure_dirs() makedirs + accessor/purity/creation tests (ART-AVATAR-02)
 
 **Wave 2** *(depends on 89A-01)*
 
@@ -414,7 +414,7 @@ Plans:
 | 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
-| 89a. Channel-Avatar DB Migration | 0/2 | Not started | - |
+| 89a. Channel-Avatar DB Migration | 1/2 | In Progress|  |
 | 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
