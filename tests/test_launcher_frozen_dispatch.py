@@ -36,12 +36,11 @@ def test_frozen_branch_uses_exe_argv_dispatch(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", "/fake/MusicStreamer.exe")
 
-    # Force reimport so monkeypatched sys is seen at module scope.
-    import importlib
-    import musicstreamer.subprocess_utils as su
-    importlib.reload(su)
+    # _make_oauth_launch_args reads sys.frozen / sys.executable on each call,
+    # not at import time, so no module reload is needed (Phase 88.3 IN-01).
+    from musicstreamer.subprocess_utils import _make_oauth_launch_args
 
-    prog, args = su._make_oauth_launch_args("gbs")
+    prog, args = _make_oauth_launch_args("gbs")
 
     expected_helper = str(
         Path("/fake/MusicStreamer.exe").parent / "oauth_helper" / "oauth_helper.exe"
@@ -58,11 +57,10 @@ def test_non_frozen_branch_uses_module_form(monkeypatch):
     if hasattr(sys, "frozen"):
         monkeypatch.delattr(sys, "frozen")
 
-    import importlib
-    import musicstreamer.subprocess_utils as su
-    importlib.reload(su)
+    # Reads sys.frozen / sys.executable per call, not at import (IN-01).
+    from musicstreamer.subprocess_utils import _make_oauth_launch_args
 
-    prog, args = su._make_oauth_launch_args("twitch")
+    prog, args = _make_oauth_launch_args("twitch")
 
     assert prog == sys.executable
     assert "-m" in args
