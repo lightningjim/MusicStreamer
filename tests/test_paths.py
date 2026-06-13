@@ -100,3 +100,16 @@ def test_eq_profiles_dir_does_not_create_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     result = paths.eq_profiles_dir()
     assert os.path.exists(result) is False
+
+
+def test_channel_avatars_dir_honors_root_override(monkeypatch, tmp_path):
+    """Phase 89A D-02: channel-avatars dir resolves under the override root."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    assert paths.channel_avatars_dir() == os.path.join(str(tmp_path), "assets", "channel-avatars")
+
+
+def test_channel_avatars_dir_does_not_create_directory(monkeypatch, tmp_path):
+    """Purity contract: helper returns a string; it does NOT mkdir."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    result = paths.channel_avatars_dir()
+    assert os.path.exists(result) is False

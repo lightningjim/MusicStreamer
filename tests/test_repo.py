@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import pytest
 from musicstreamer.models import Station, Provider, StationStream
@@ -1150,3 +1151,14 @@ def test_delete_station_cascades_station_prerolls(repo):
         "SELECT * FROM station_prerolls WHERE station_id=?", (sid,)
     ).fetchall()
     assert len(rows) == 0
+
+
+def test_ensure_dirs_creates_channel_avatars_dir(tmp_path, monkeypatch):
+    """ART-AVATAR-02 D-01: ensure_dirs() creates channel-avatars/ under _root_override."""
+    import musicstreamer.paths as paths_mod
+    import musicstreamer.assets as assets_mod
+    monkeypatch.setattr(paths_mod, "_root_override", str(tmp_path))
+    assets_mod.ensure_dirs()
+    assert os.path.isdir(os.path.join(str(tmp_path), "assets", "channel-avatars")), (
+        "ensure_dirs() must create assets/channel-avatars/"
+    )

@@ -7,6 +7,7 @@ from musicstreamer import paths
 def ensure_dirs():
     os.makedirs(paths.data_dir(), exist_ok=True)
     os.makedirs(paths.assets_dir(), exist_ok=True)
+    os.makedirs(paths.channel_avatars_dir(), exist_ok=True)
 
 
 def copy_asset_for_station(station_id: int, source_path: str, kind: str) -> str:
