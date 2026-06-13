@@ -60,6 +60,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; Source paths are relative to the .iss file location.
 Source: "..\..\dist\MusicStreamer\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; Phase 88.3-04 B1: install the isolated oauth_helper bundle to a LOCAL path
+; under {app}\oauth_helper\. The helper carries QtWebEngine for in-app OAuth
+; logins (GBS.FM / Twitch / Google). It MUST install LOCAL -- Chromium's sandbox
+; refuses to launch QtWebEngineProcess.exe from a network/UNC path (spike VM run 2).
+; {app}\oauth_helper\oauth_helper.exe is the exact path that 88.3-03's launcher
+; resolves via _oauth_helper_exe() in musicstreamer/oauth_launcher.py.
+Source: "..\..\dist\oauth_helper\*"; DestDir: "{app}\oauth_helper"; Flags: ignoreversion recursesubdirs createallsubdirs
+
 ; WIN-02-A: Remove the previous version's Start-Menu .lnk shortcuts on upgrade.
 ; [InstallDelete] runs AFTER Inno auto-uninstalls the prior version (via AppId) but
 ; BEFORE [Icons] creates the new shortcuts. This deterministically clears any stale

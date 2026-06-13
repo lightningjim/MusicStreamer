@@ -7,6 +7,7 @@
 #             10=post-bundle plugin-presence guard fail (Phase 69)
 #             11=smtc backend not loaded in frozen bundle (Phase 88.1 / WIN-02)
 #             12=oauth helper entrypoint unreachable in frozen bundle (Phase 88.2 / D-05)
+#             14=oauth_helper.exe WebEngine missing from isolated helper bundle (Phase 88.3 / B1 / G6)
 
 param(
     # Default: if inside a conda env, use its Library tree; else fall back to the MSVC installer path.
@@ -20,7 +21,15 @@ param(
     # The guard is active by default; this switch exists for build iteration on a
     # VM where the oauth-helper dispatch is being debugged independently of the bundle.
     [switch]$SkipOauthGuard = $false,
-    [switch]$SkipPipInstall = $(if ($env:CONDA_PREFIX) { $true } else { $false })
+    [switch]$SkipPipInstall = $(if ($env:CONDA_PREFIX) { $true } else { $false }),
+    # 88.3-04 B1: path to a conda-free Python 3.12 exe used to create the isolated
+    # oauth_helper venv. The helper build MUST NOT run under the conda env (B1 isolation).
+    # Options:
+    #   ""                              -- use `py -3.12` (python.org Windows launcher)
+    #   "C:\path\to\python.exe"         -- python.org Python 3.12 direct path
+    #   "<conda>\envs\helper-iso\python.exe" -- clean conda-forge env (no Qt/GStreamer)
+    # See packaging/windows/README.md B1 section for setup instructions.
+    [string]$HelperPythonExe = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,7 +51,7 @@ Set-StrictMode -Version Latest
 # INFO/DEBUG to stderr. Invoke-Native wraps a native call with Continue semantics
 # and propagates $LASTEXITCODE so explicit checks still fire on real failures.
 #
-# It ALSO stringifies any ErrorRecord output that the inner block emits — even with
+# It ALSO stringifies any ErrorRecord output that the inner block emits  --  even with
 # `*>&1` redirection, PS 5.1 keeps stderr as ErrorRecord objects, which the host
 # formats as red "command : message / At ... char:NN" blocks when they reach the
 # console. Forcing them to plain strings inside the pipeline gives clean white
@@ -121,7 +130,7 @@ try {
 
     # --- 3a. PKG-03 compliance guard (D-22) -----------------------------
     # SINGLE SOURCE OF TRUTH: tools/check_subprocess_guard.py (Plan 01).
-    # This step invokes the Python tool — NOT a duplicated PowerShell Select-String regex
+    # This step invokes the Python tool  --  NOT a duplicated PowerShell Select-String regex
     # (per checker issue 6, eliminates drift between regex implementations).
     Write-Host "=== PKG-03 GUARD: subprocess.* usage scan (python tools/check_subprocess_guard.py) ==="
     Invoke-Native { python ..\..\tools\check_subprocess_guard.py 2>&1 | Out-Host }
@@ -249,7 +258,7 @@ try {
     # ("not_singleton"), enumerate broadly first (so we can dump
     # discovered siblings into the failure log for diagnostics) but then
     # restrict to entries matching `musicstreamer-<X.Y.Z>.dist-info`
-    # exactly — the only shape PyInstaller produces for OUR package.
+    # exactly  --  the only shape PyInstaller produces for OUR package.
     $msDistInfosBroad = @(Get-ChildItem -Path $bundleInternal -Filter "musicstreamer-*.dist-info" -Directory -ErrorAction SilentlyContinue)
     $msDistInfos = @($msDistInfosBroad | Where-Object { $_.Name -match '^musicstreamer-\d+\.\d+\.\d+\.dist-info$' })
     if ($msDistInfos.Count -ne 1) {
@@ -320,13 +329,13 @@ try {
     # Assert that WindowsMediaKeysBackend (not NoOpMediaKeysBackend) constructs
     # in the frozen exe. A winrt bundling failure degrades silently to NoOp
     # (D-03 logging makes this diagnosable), so this build-time check makes
-    # the failure LOUD at build time. Only runs on Windows — skip this guard
+    # the failure LOUD at build time. Only runs on Windows  --  skip this guard
     # on Linux (the exe is not runnable on Linux; this block is always reached
     # on the Windows build VM in the 88-03 session).
     #
     # Phase 65 WR-01: use Write-Host (NOT Write-Error) + exit 11.
     # $ErrorActionPreference = "Stop" escalates Write-Error to a terminating
-    # error — the documented `exit 11` line never fires; script returns 1.
+    # error  --  the documented `exit 11` line never fires; script returns 1.
     if (-not $SkipSmtcGuard) {
         Write-Host "=== SMTC SMOKE GUARD: assert WindowsMediaKeysBackend in frozen bundle (Phase 88.1 / D-05 / WIN-02) ==="
         Invoke-Native {
@@ -349,7 +358,7 @@ try {
     #
     # Phase 65 WR-01: use Write-Host (NOT Write-Error) + exit 12.
     # $ErrorActionPreference = "Stop" escalates Write-Error to a terminating
-    # error — the documented `exit 12` line never fires; script returns 1.
+    # error  --  the documented `exit 12` line never fires; script returns 1.
     if (-not $SkipOauthGuard) {
         Write-Host "=== OAUTH HELPER GUARD: assert frozen exe can dispatch --oauth-helper (Phase 88.2 / D-05) ==="
         Invoke-Native {
@@ -363,6 +372,86 @@ try {
     } else {
         Write-Host "OAUTH HELPER GUARD skipped (-SkipOauthGuard)"
     }
+
+    # --- 4e. HELPER BUILD (Phase 88.3-04 / B1 / G6) -------------------------
+    # Build the SECOND PyInstaller artifact: oauth_helper.exe from an ISOLATED
+    # pip venv (no conda Qt, no GStreamer). The helper carries QtWebEngine for
+    # all in-app OAuth logins (GBS.FM / Twitch / Google). The conda main bundle
+    # has NO WebEngine (B1 invariant; conda-forge ships no PySide6 WebEngine
+    # bindings). See packaging/windows/README.md B1 section + spike 001.
+    #
+    # ISOLATION IS LOAD-BEARING: the helper venv uses a conda-free Python 3.12
+    # so pip installs an ABI-self-consistent Qt (pip Qt6Core + pip Qt6WebEngineCore
+    # from the same build). Mixing conda Qt with pip WebEngine caused the G6
+    # DLL-load failure (Phase 88.3 root cause). Use -HelperPythonExe to specify
+    # the venv provider.
+    #
+    # Phase 65 WR-01: Write-Host (NOT Write-Error) + exit 14.
+    Write-Host "=== HELPER BUILD: isolated pip venv + oauth_helper_standalone.spec (Phase 88.3-04 / B1) ==="
+
+    $HelperVenv = Join-Path $here ".venv-oauth-helper"
+
+    if ($HelperPythonExe -ne "") {
+        if (-not (Test-Path $HelperPythonExe)) {
+            Write-Host "BUILD_FAIL reason=helper_python_not_found path='$HelperPythonExe' hint='check -HelperPythonExe path'" -ForegroundColor Red
+            exit 14
+        }
+        if (-not (Test-Path $HelperVenv)) {
+            Write-Host "Creating isolated helper venv from -HelperPythonExe: $HelperPythonExe ..." -ForegroundColor Cyan
+            $helperPyVer = & $HelperPythonExe -c "import sys;print('%d.%d'%sys.version_info[:2])"
+            Write-Host "  (helper provider python is $helperPyVer)" -ForegroundColor Cyan
+            Invoke-Native { & $HelperPythonExe -m venv $HelperVenv *>&1 | Out-Host }
+        }
+    } else {
+        if (-not (Test-Path $HelperVenv)) {
+            Write-Host "Creating isolated helper venv (py -3.12) ..." -ForegroundColor Cyan
+            Invoke-Native { py -3.12 -m venv $HelperVenv *>&1 | Out-Host }
+        }
+    }
+
+    if (-not (Test-Path $HelperVenv)) {
+        Write-Host "BUILD_FAIL reason=helper_venv_creation_failed hint='No conda-free Python 3.12 found. Options: (1) winget install -e --id Python.Python.3.12 then re-run; (2) conda create -y -n helper-iso -c conda-forge python=3.12 pip then pass -HelperPythonExe to this script'" -ForegroundColor Red
+        exit 14
+    }
+
+    $HelperVenvPy = Join-Path $HelperVenv "Scripts\python.exe"
+
+    Write-Host "pip install -r oauth-helper-requirements.txt into isolated helper venv ..." -ForegroundColor Cyan
+    Invoke-Native { & $HelperVenvPy -m pip install --upgrade pip *>&1 | Tee-Object -FilePath "artifacts\helper-pip.log" }
+    Invoke-Native { & $HelperVenvPy -m pip install -r oauth-helper-requirements.txt *>&1 | Tee-Object -Append -FilePath "artifacts\helper-pip.log" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "BUILD_FAIL reason=helper_pip_install_failed hint='pip install -r oauth-helper-requirements.txt failed in isolated venv; check artifacts\helper-pip.log'" -ForegroundColor Red
+        exit 14
+    }
+
+    Write-Host "pyinstaller oauth_helper_standalone.spec (isolated helper venv) ..." -ForegroundColor Cyan
+    Invoke-Native { & $HelperVenvPy -m PyInstaller oauth_helper_standalone.spec --noconfirm --distpath ..\..\dist --workpath build-helper *>&1 | Tee-Object -FilePath "artifacts\helper-build.log" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "BUILD_FAIL reason=helper_pyinstaller_failed exitcode=$LASTEXITCODE hint='check artifacts\helper-build.log'" -ForegroundColor Red
+        exit 14
+    }
+
+    if (-not (Test-Path "..\..\dist\oauth_helper\oauth_helper.exe")) {
+        Write-Host "BUILD_FAIL reason=helper_exe_not_found hint='pyinstaller produced no dist\oauth_helper\oauth_helper.exe; check artifacts\helper-build.log'" -ForegroundColor Red
+        exit 14
+    }
+
+    # Assert WebEngine binaries present in the helper bundle (T-88.3-04-01).
+    # PyInstaller 6.x onedir nests under _internal; fall back to flat layout.
+    $helperBundle = "..\..\dist\oauth_helper"
+    $helperProc = Join-Path $helperBundle "_internal\PySide6\QtWebEngineProcess.exe"
+    $helperCore = Join-Path $helperBundle "_internal\PySide6\Qt6WebEngineCore.dll"
+    if (-not (Test-Path $helperProc)) { $helperProc = Join-Path $helperBundle "PySide6\QtWebEngineProcess.exe" }
+    if (-not (Test-Path $helperCore)) { $helperCore = Join-Path $helperBundle "PySide6\Qt6WebEngineCore.dll" }
+    if (-not (Test-Path $helperProc)) {
+        Write-Host "BUILD_FAIL reason=helper_webengine_missing file=QtWebEngineProcess.exe hint='WebEngine hook did not fire -- check PySide6-Addons is in the isolated venv (not conda PySide6); see artifacts\helper-build.log'" -ForegroundColor Red
+        exit 14
+    }
+    if (-not (Test-Path $helperCore)) {
+        Write-Host "BUILD_FAIL reason=helper_webengine_missing file=Qt6WebEngineCore.dll hint='WebEngine DLL not bundled -- check PySide6-Addons is in the isolated venv; see artifacts\helper-build.log'" -ForegroundColor Red
+        exit 14
+    }
+    Write-Host "HELPER BUILD OK -- QtWebEngineProcess.exe + Qt6WebEngineCore.dll present in dist\oauth_helper"
 
     # --- 5. Smoke test --------------------------------------------------
     if (-not $SkipSmoke) {
@@ -380,7 +469,7 @@ try {
     # of truth shared with the post-bundle dist-info assertion).
     # /DAppVersion is the Inno Setup macro consumer (D-06).
 
-    # Locate iscc.exe — default install path; allow override via env var.
+    # Locate iscc.exe  --  default install path; allow override via env var.
     $isccPath = if ($env:INNO_SETUP_PATH) {
         $env:INNO_SETUP_PATH
     } else {

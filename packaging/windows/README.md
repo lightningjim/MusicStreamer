@@ -37,34 +37,54 @@ search path, MSVC-vs-MinGW gotchas).
    `gi`/`gstreamer` hooks; older versions miss the `girepository-1.0`
    discovery on Windows.
 
-   **Phase 88.3 note — PySide6-Addons (QtWebEngine) required:**
-   conda-forge's `pyside6` package excludes `QtWebEngineWidgets` — it is
-   shipped separately in the `PySide6-Addons` pip wheel. Without it the
-   in-app OAuth login dialogs (GBS.FM / Twitch / Google) crash exit=2 in
-   the frozen bundle. After activating the conda env, install it **pinned
-   to the exact conda-forge pyside6 version**:
-   ```powershell
-   pip install "PySide6-Addons==$(python -c 'from PySide6 import __version__; print(__version__)')"
-   ```
-   **Do NOT use an unpinned `pip install PySide6-Addons`** and do NOT use
-   `conda install qt6-webengine` (that does not install the Python binding).
-   The exact version pin is mandatory because of the ICU ABI hazard
-   (Phase 43.1 Pitfall #1, also rediscovered in Phase 69): pip's PySide6
-   wheels are built against a different ICU ABI than conda-forge's
-   GStreamer pulls in, and a version mismatch causes `Qt6Core.dll` to crash
-   at load time with an ICU symbol error (`UCNV_TO_U_CALLBACK_SUBSTITUTE`).
-   Pinning `PySide6-Addons` to the conda-forge pyside6 version ensures both
-   packages use the same ICU build.
-
    Also install the `[windows]` extra (Phase 88.1) in the same step:
    ```powershell
    pip install -e "..\..\[windows]"
    ```
-   `build.ps1` step-0 pre-flight runs `python -c "from PySide6.QtWebEngineWidgets
-   import QWebEngineView"` and exits 1 (`BUILD_FAIL reason=pyside6_webengine_missing`)
-   if the wheel is absent, so a missing install is caught before PyInstaller runs.
 
-2. **Inno Setup 6.3+** — download the installer from
+   **Phase 88.3 B1 architecture — OAuth helper is a SEPARATE artifact:**
+   conda-forge's `pyside6` package has no WebEngine bindings. Under B1
+   (Phase 88.3 spike 001 VALIDATED), the in-app OAuth logins (GBS.FM /
+   Twitch / Google) are handled by a **separate** `oauth_helper.exe` built
+   from an **isolated pip env** (`oauth-helper-requirements.txt`).
+
+   IMPORTANT: Do NOT attempt to add WebEngine to the `musicstreamer-build`
+   env. The B1 architecture specifically avoids this because mixing conda
+   Qt with pip-sourced WebEngine causes a DLL-load failure (G6 root cause:
+   conda `qt6-main` shadowed pip `Qt6WebEngineCore.dll` on PATH). The
+   isolation of WebEngine into a separate artifact is the entire fix.
+   See `.planning/spikes/001-isolated-webengine-helper/README.md` for the
+   full diagnostic history.
+
+2. **OAuth helper prereq — conda-free Python 3.12** (Phase 88.3-04 / B1):
+   The `build.ps1` HELPER BUILD step creates an isolated venv for the
+   `oauth_helper.exe` artifact. It needs a **conda-free Python 3.12** as
+   the venv provider. Two options:
+
+   **Option A — python.org Python 3.12 (recommended):**
+   ```powershell
+   winget install -e --id Python.Python.3.12
+   # Open a new shell, then build.ps1 will use `py -3.12` automatically.
+   ```
+
+   **Option B — clean conda-forge env as venv provider:**
+   ```powershell
+   conda create -y -n helper-iso -c conda-forge python=3.12 pip
+   conda env list  # find helper-iso path (e.g. %USERPROFILE%\.conda\envs\helper-iso)
+   # Pass the path to build.ps1:
+   .\build.ps1 -HelperPythonExe "%USERPROFILE%\.conda\envs\helper-iso\python.exe"
+   ```
+   The `helper-iso` env must have NO Qt, NO GStreamer packages installed.
+   It is used only as a Python 3.12 + pip provider for creating the isolated
+   helper venv; the isolation is maintained by `venv` itself.
+
+   The built `oauth_helper.exe` installs to `{app}\oauth_helper\` inside
+   the Windows installer (local path required — Chromium's sandbox blocks
+   launch from a network/UNC path). `build.ps1` step 4e asserts that
+   `QtWebEngineProcess.exe` and `Qt6WebEngineCore.dll` are present in the
+   helper bundle before proceeding to Inno Setup (exit 14 if missing).
+
+3. **Inno Setup 6.3+** — download the installer from
    <https://jrsoftware.org/isdl.php> and run it. The build script looks
    for `iscc.exe` at the default path
    `C:\Program Files (x86)\Inno Setup 6\iscc.exe`. If you installed
@@ -74,7 +94,7 @@ search path, MSVC-vs-MinGW gotchas).
    $env:INNO_SETUP_PATH = "D:\Apps\InnoSetup\iscc.exe"
    ```
 
-3. **Windows 10/11 x64.** No admin rights required at build time or at
+4. **Windows 10/11 x64.** No admin rights required at build time or at
    install time (the installer is per-user; see "Install behavior" below).
 
 ## Build command
