@@ -310,6 +310,19 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent
 
+    # Phase 89A D-04/D-05 — channel avatar path; nullable TEXT no DEFAULT.
+    # NULL means no avatar stored; existing rows backfill automatically.
+    # MUST land AFTER the legacy URL-column rebuild block (Pitfall 2): the
+    # rebuild's CREATE TABLE stations_new / INSERT SELECT does not carry
+    # dynamically-added columns, so placing the ALTER here ensures the column
+    # lands on the rebuilt (or fresh) table. Idempotent via the same
+    # try/except sqlite3.OperationalError idiom as the Phase 73/82/83 blocks above.
+    try:
+        con.execute("ALTER TABLE stations ADD COLUMN channel_avatar_path TEXT")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
 
 def sweep_orphans(con: sqlite3.Connection) -> None:
     """Delete orphan FK-child rows and INFO-log per-table counts when N>0.
