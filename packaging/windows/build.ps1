@@ -493,17 +493,22 @@ try {
     $bundledQt6Core = Join-Path $helperBundle "_internal\PySide6\Qt6Core.dll"
     if (-not (Test-Path $bundledQt6Core)) { $bundledQt6Core = Join-Path $helperBundle "PySide6\Qt6Core.dll" }
     $venvQt6Core = Join-Path $HelperVenv "Lib\site-packages\PySide6\Qt6Core.dll"
-    if ((Test-Path $bundledQt6Core) -and (Test-Path $venvQt6Core)) {
-        $bundledHash = (Get-FileHash -Algorithm SHA256 $bundledQt6Core).Hash
-        $venvHash    = (Get-FileHash -Algorithm SHA256 $venvQt6Core).Hash
-        if ($bundledHash -ne $venvHash) {
-            Write-Host "BUILD_FAIL reason=helper_qt6core_abi_mismatch bundled='$bundledQt6Core' venv='$venvQt6Core' hint='bundled Qt6Core.dll is NOT the isolated pip venv Qt -- conda/foreign Qt leaked onto the build PATH (Phase 88.3 G6). The helper PyInstaller step must run with conda stripped from PATH; see the B1 build-time PATH isolation block above.'" -ForegroundColor Red
-            exit 14
-        }
-        Write-Host "HELPER ABI GUARD OK -- bundled Qt6Core.dll matches isolated pip venv (SHA256 $($venvHash.Substring(0,12))...)"
-    } else {
-        Write-Host "HELPER ABI GUARD skipped -- could not locate both Qt6Core.dll copies (bundled='$bundledQt6Core' venv='$venvQt6Core'); presence checks above still passed" -ForegroundColor Yellow
+    # An unresolvable path is a HARD FAILURE, not a skip: the G6 regression this
+    # guard exists to catch (a wrong-ABI Qt6Core.dll) could coincide with a
+    # PyInstaller layout change that makes a copy unlocatable, so a silent skip
+    # would ship the very broken bundle the guard is meant to block. If we cannot
+    # prove ABI coherence, fail the build (Phase 88.3 WR-01).
+    if (-not ((Test-Path $bundledQt6Core) -and (Test-Path $venvQt6Core))) {
+        Write-Host "BUILD_FAIL reason=helper_qt6core_abi_guard_indeterminate bundled='$bundledQt6Core' venv='$venvQt6Core' hint='could not locate both Qt6Core.dll copies; the _internal\PySide6 layout or venv site-packages path may have changed -- cannot prove ABI coherence, refusing to ship an unverifiable bundle.'" -ForegroundColor Red
+        exit 14
     }
+    $bundledHash = (Get-FileHash -Algorithm SHA256 $bundledQt6Core).Hash
+    $venvHash    = (Get-FileHash -Algorithm SHA256 $venvQt6Core).Hash
+    if ($bundledHash -ne $venvHash) {
+        Write-Host "BUILD_FAIL reason=helper_qt6core_abi_mismatch bundled='$bundledQt6Core' venv='$venvQt6Core' hint='bundled Qt6Core.dll is NOT the isolated pip venv Qt -- conda/foreign Qt leaked onto the build PATH (Phase 88.3 G6). The helper PyInstaller step must run with conda stripped from PATH; see the B1 build-time PATH isolation block above.'" -ForegroundColor Red
+        exit 14
+    }
+    Write-Host "HELPER ABI GUARD OK -- bundled Qt6Core.dll matches isolated pip venv (SHA256 $($venvHash.Substring(0,12))...)"
 
     Write-Host "HELPER BUILD OK -- QtWebEngineProcess.exe + Qt6WebEngineCore.dll present in dist\oauth_helper"
 
