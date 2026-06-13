@@ -195,11 +195,13 @@ for the full diagnostic procedure if the SMTC overlay still shows
 
 ## File map
 
-| File                       | Role                                                 |
-| -------------------------- | ---------------------------------------------------- |
-| `MusicStreamer.spec`       | PyInstaller bundle definition (onedir, Qt+GStreamer) |
-| `runtime_hook.py`          | Sets `GIO_EXTRA_MODULES`, `GI_TYPELIB_PATH`, `GST_PLUGIN_SCANNER` |
-| `build.ps1`                | Top-level driver: pre-flight → guards → PyInstaller → Inno Setup → diag |
-| `MusicStreamer.iss`        | Inno Setup installer script (per-user, AUMID shortcut) |
-| `EULA.txt`                 | Short notice + third-party attributions              |
+| File                              | Role                                                        |
+| --------------------------------- | ----------------------------------------------------------- |
+| `MusicStreamer.spec`              | PyInstaller bundle definition (onedir, Qt+GStreamer, NO WebEngine) |
+| `oauth_helper_standalone.spec`   | B1: standalone oauth_helper.exe spec (isolated pip, WebEngine) |
+| `oauth-helper-requirements.txt`  | B1: isolated pip env pins (PySide6 6.10.1 + pyinstaller)   |
+| `runtime_hook.py`                | Sets `GIO_EXTRA_MODULES`, `GI_TYPELIB_PATH`, `GST_PLUGIN_SCANNER` |
+| `build.ps1`                      | Top-level driver: pre-flight -> guards -> PyInstaller (main + helper) -> Inno Setup -> diag |
+| `MusicStreamer.iss`              | Inno Setup installer script (per-user, ships both artifacts) |
+| `EULA.txt`                       | Short notice + third-party attributions                     |
 | `icons/MusicStreamer.ico`  | Multi-resolution Windows icon (16/32/48/64/128/256)  |
