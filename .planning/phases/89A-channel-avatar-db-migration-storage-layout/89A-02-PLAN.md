@@ -16,6 +16,7 @@ must_haves:
     - "After db_init(), PRAGMA table_info(stations) shows channel_avatar_path TEXT, nullable, no DEFAULT"
     - "Running db_init() two or three times on the same connection never raises (idempotent)"
     - "A pre-89a stations schema upgraded via db_init() converges to the same channel_avatar_path schema as a fresh DB, and existing rows keep NULL with data preserved"
+    - "Implements locked decisions D-04 (idempotent try/except OperationalError ALTER idiom), D-05 (ALTER lands AFTER the stations_new rebuild block — Pitfall 2 ordering), D-06 (migration + directory ONLY — channel_avatar_path is NOT threaded through models.py Station, row mappers, or save_station() this phase), and D-07 (idempotency + schema-convergence test scope)"
   artifacts:
     - path: "musicstreamer/repo.py"
       provides: "additive ALTER TABLE channel_avatar_path migration in db_init()"

@@ -17,6 +17,7 @@ must_haves:
     - "paths.channel_avatars_dir() returns <root>/assets/channel-avatars and honors _root_override"
     - "Calling paths.channel_avatars_dir() does NOT create the directory (pure accessor)"
     - "assets.ensure_dirs() creates the assets/channel-avatars/ directory at startup"
+    - "Implements locked decisions D-01 (eager makedirs in ensure_dirs), D-02 (pure channel_avatars_dir() accessor honoring _root_override), and D-03 (flat assets/channel-avatars/<station-id>.png layout — single directory, not per-station subdirs)"
   artifacts:
     - path: "musicstreamer/paths.py"
       provides: "channel_avatars_dir() pure path accessor"
