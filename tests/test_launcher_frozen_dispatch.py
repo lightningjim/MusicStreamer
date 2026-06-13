@@ -1,8 +1,11 @@
-"""Phase 88.2 / D-04: frozen/non-frozen oauth-helper launch dispatch tests.
+"""Phase 88.2 / D-04 (Test 1 updated in Phase 88.3-03 for B1): frozen/non-frozen
+oauth-helper launch dispatch tests.
 
 Linux-runnable; no Windows build required; no QProcess execution.
 Tests verify that ``_make_oauth_launch_args`` selects the correct
-(program, args) tuple depending on whether ``sys.frozen`` is set.
+(program, args) tuple depending on whether ``sys.frozen`` is set. Under the
+B1 architecture the frozen branch targets the separate ``oauth_helper.exe``
+sibling rather than re-exec'ing ``MusicStreamer.exe``.
 
 Tests 3 and 4 verify the ``--oauth-helper`` argv dispatch in
 ``musicstreamer.__main__._run_oauth_helper``:
@@ -19,8 +22,17 @@ import sys
 
 
 def test_frozen_branch_uses_exe_argv_dispatch(monkeypatch):
-    """D-04 Test 1: when sys.frozen is True, _make_oauth_launch_args returns
-    (sys.executable, ['--oauth-helper', '--mode', m]) — no '-m' in args."""
+    """D-04 Test 1 (updated for Phase 88.3-03 / B1): when sys.frozen is True,
+    _make_oauth_launch_args launches the SEPARATE sibling oauth_helper.exe —
+    ({app}/oauth_helper/oauth_helper.exe, ['--mode', m]).
+
+    The pre-B1 same-bundle contract re-exec'd MusicStreamer.exe with
+    '--oauth-helper'; that forced QtWebEngine into the conda bundle (the
+    Phase 88.3 G6 DLL-load failure). B1 moved WebEngine into a distinct exe,
+    so the frozen branch targets that binary, not sys.executable. The full
+    B1 launch-target contract is covered by tests/test_oauth_launch_path.py."""
+    from pathlib import Path
+
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", "/fake/MusicStreamer.exe")
 
@@ -31,10 +43,12 @@ def test_frozen_branch_uses_exe_argv_dispatch(monkeypatch):
 
     prog, args = su._make_oauth_launch_args("gbs")
 
-    assert prog == "/fake/MusicStreamer.exe"
-    assert "--oauth-helper" in args
-    assert "--mode" in args
-    assert "gbs" in args
+    expected_helper = str(
+        Path("/fake/MusicStreamer.exe").parent / "oauth_helper" / "oauth_helper.exe"
+    )
+    assert prog == expected_helper
+    assert args == ["--mode", "gbs"]
+    assert "--oauth-helper" not in args
     assert "-m" not in args
 
 
