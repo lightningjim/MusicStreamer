@@ -8,10 +8,20 @@
 # not provide (Phase 88.3 G6: conda qt6-main shadowed pip WebEngine's Qt6Core
 # on PATH -> DLL load failure). See spike 001 README "Why This Is the Whole Ballgame".
 #
-# Pin matches the conda main app's pyside6 6.10.1 (spike alignment decision
-# 2026-06-11) so the QNetworkCookie / cookie-Netscape contract that
-# tests/test_oauth_helper_*.py assert stays byte-identical across the two
-# independently-frozen artifacts.
+# Pinned to 6.11.0 (was 6.10.1) -- Phase 88.3-05 UAT finding (2026-06-13):
+# Twitch's Kasada anti-bot ("Browser not supported - integrity error" at
+# passport.twitch.tv) REJECTS the Qt 6.10 helper because its embedded Chromium
+# (134) is too far behind the spoofed Chrome/140 UA -- navigator.userAgentData /
+# Sec-CH-UA reveal "Chromium";v="134", an integrity mismatch Kasada flags. The
+# Linux dev build (PySide6 6.11.0, newer Chromium) passes Kasada with the
+# identical helper code, so the fix is to match that version on Windows.
+#
+# Cookie contract is preserved across the bump: oauth_helper.py serializes via
+# its own hand-rolled _cookie_to_netscape() (stable QNetworkCookie accessors,
+# NOT Qt's version-specific toRawForm), and tests/test_oauth_helper_*.py already
+# run green against 6.11.0 on Linux. The helper and the conda main app exchange
+# only stdout text + exit codes (no shared Qt/ABI), so the helper may run a
+# different PySide6 than the 6.10.1 conda main bundle without contract drift.
 #
 # Create the isolated helper build venv on the Win11 VM using a conda-free
 # Python 3.12 (NOT the musicstreamer-build conda env). build.ps1 automates
@@ -27,7 +37,7 @@
 #     .\.venv-oauth-helper\Scripts\Activate.ps1
 #     pip install -r oauth-helper-requirements.txt
 
-PySide6-Essentials==6.10.1
-PySide6-Addons==6.10.1
+PySide6-Essentials==6.11.0
+PySide6-Addons==6.11.0
 pyinstaller==6.19.0
 pyinstaller-hooks-contrib==2026.2

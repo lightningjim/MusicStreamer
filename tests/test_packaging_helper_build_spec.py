@@ -107,27 +107,34 @@ def _strip_comments(source: str) -> str:
 # ---------------------------------------------------------------------------
 
 def test_helper_requirements_pinned(reqs_source: str) -> None:
-    """Phase 88.3-04 Task 1: oauth-helper-requirements.txt must contain
-    all four exact pins: PySide6-Essentials==6.10.1, PySide6-Addons==6.10.1,
-    pyinstaller==6.19.0, pyinstaller-hooks-contrib==2026.2.
+    """Phase 88.3-04 Task 1 (pins bumped 88.3-05): oauth-helper-requirements.txt
+    must contain all four exact pins: PySide6-Essentials==6.11.0,
+    PySide6-Addons==6.11.0, pyinstaller==6.19.0, pyinstaller-hooks-contrib==2026.2.
 
     These pins are the B1 supply-chain gate: they ensure the isolated helper
-    venv gets an ABI-self-consistent pip Qt 6.10.1 (matching the conda main
-    app's pyside6 6.10.1 QNetworkCookie contract) and a validated PyInstaller
-    toolchain. Unpinned installs risk ICU ABI mismatch or WebEngine ABI
-    mismatch that would defeat the entire B1 isolation. Phase 88.3-04 T-03.
+    venv gets an ABI-self-consistent pip Qt and a validated PyInstaller toolchain.
+    Unpinned installs risk ICU/WebEngine ABI mismatch that would defeat the B1
+    isolation.
+
+    PySide6 was bumped 6.10.1 -> 6.11.0 at the 88.3-05 VM UAT: Twitch's Kasada
+    anti-bot rejected the Qt 6.10 helper ("Browser not supported - integrity
+    error") because its embedded Chromium 134 mismatches the spoofed Chrome/140
+    UA. The Linux build (6.11.0, newer Chromium) passes Kasada, so the helper
+    matches it. Cookie contract is unaffected (hand-rolled _cookie_to_netscape;
+    no shared Qt/ABI with the conda main app — they exchange only stdout text).
     """
     stripped = _strip_comments(reqs_source)
 
-    assert "PySide6-Essentials==6.10.1" in stripped, (
-        "oauth-helper-requirements.txt must contain 'PySide6-Essentials==6.10.1' "
-        "(exact pin; B1 supply-chain gate; must match conda app's pyside6 6.10.1). "
-        "Phase 88.3-04 Task 1."
+    assert "PySide6-Essentials==6.11.0" in stripped, (
+        "oauth-helper-requirements.txt must contain 'PySide6-Essentials==6.11.0' "
+        "(exact pin; B1 supply-chain gate; bumped from 6.10.1 at 88.3-05 so the "
+        "helper's Chromium clears Twitch Kasada). Phase 88.3-04 Task 1 / 88.3-05."
     )
-    assert "PySide6-Addons==6.10.1" in stripped, (
-        "oauth-helper-requirements.txt must contain 'PySide6-Addons==6.10.1' "
-        "(exact pin; this is the WebEngine carrier in the B1 isolated build). "
-        "Phase 88.3-04 Task 1."
+    assert "PySide6-Addons==6.11.0" in stripped, (
+        "oauth-helper-requirements.txt must contain 'PySide6-Addons==6.11.0' "
+        "(exact pin; this is the WebEngine carrier in the B1 isolated build; "
+        "bumped from 6.10.1 at 88.3-05 for the Kasada-compatible Chromium). "
+        "Phase 88.3-04 Task 1 / 88.3-05."
     )
     assert "pyinstaller==6.19.0" in stripped, (
         "oauth-helper-requirements.txt must contain 'pyinstaller==6.19.0' "
