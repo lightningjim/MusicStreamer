@@ -232,7 +232,7 @@ Plans:
 
 **Wave 2** *(depends on 89A-01)*
 
-- [ ] 89A-02-PLAN.md — repo.py:db_init() additive channel_avatar_path TEXT ALTER after the stations_new rebuild + idempotency + schema-convergence tests (ART-AVATAR-01)
+- [x] 89A-02-PLAN.md — repo.py:db_init() additive channel_avatar_path TEXT ALTER after the stations_new rebuild + idempotency + schema-convergence tests (ART-AVATAR-01)
 
 **Research flag**: NO — direct mirror of existing `station_art_path` / `album_fallback_path` migration pattern in `repo.py`.
 
@@ -414,7 +414,7 @@ Plans:
 | 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
-| 89a. Channel-Avatar DB Migration | 1/2 | In Progress|  |
+| 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
