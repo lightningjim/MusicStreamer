@@ -184,8 +184,8 @@ Plans:
 
 Plans:
 - [x] 88.3-01-PLAN.md — (HISTORICAL — same-bundle attempt, INVALIDATED at G6 UAT; its changes are reverted by the B1 replan) Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition
-- [ ] 88.3-02-PLAN.md — [wave 1] Revert the same-bundle changes: strip WebEngine hiddenimports from the conda spec, remove --check-webengine from __main__.py, drop build.ps1 step-0 preflight + step-4e, re-point the 5 drift-guards at B1 invariants (G6-T1..T5)
-- [ ] 88.3-03-PLAN.md — [wave 1] Rewire the frozen launch path to spawn the SEPARATE oauth_helper.exe (replacing 88.2's self-re-exec) + platform-aware _CHROME_UA so Twitch accepts the Windows login
+- [x] 88.3-02-PLAN.md — [wave 1] Revert the same-bundle changes: strip WebEngine hiddenimports from the conda spec, remove --check-webengine from __main__.py, drop build.ps1 step-0 preflight + step-4e, re-point the 5 drift-guards at B1 invariants (G6-T1..T5)
+- [x] 88.3-03-PLAN.md — [wave 1] Rewire the frozen launch path to spawn the SEPARATE oauth_helper.exe (replacing 88.2's self-re-exec) + platform-aware _CHROME_UA so Twitch accepts the Windows login
 - [ ] 88.3-04-PLAN.md — [wave 2] Add the 2nd isolated-pip PyInstaller build (oauth-helper-requirements.txt + oauth_helper_standalone.spec), build.ps1 helper-build step + WebEngine assertion (exit 14), Inno ships both artifacts to {app}\oauth_helper\, README conda-free-Python-3.12 prereq
 - [ ] 88.3-05-PLAN.md — [wave 3, manual VM UAT] Build both artifacts on the Win11 VM, install via Inno, verify GBS.FM + Twitch + Google/YouTube logins open from the installed two-artifact build (G6-T6/T7/T8)
 
