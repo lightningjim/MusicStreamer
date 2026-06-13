@@ -1,21 +1,44 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-09T17:11:02.720Z",
-  "source": "auto-postool",
-  "partial": true,
-  "phase": null,
-  "phase_name": null,
-  "phase_dir": null,
-  "plan": null,
-  "task": null,
-  "total_tasks": null,
-  "status": "auto-checkpoint",
-  "completed_tasks": [],
-  "remaining_tasks": [],
-  "blockers": [],
-  "human_actions_pending": [],
-  "decisions": [],
-  "uncommitted_files": [],
-  "next_action": null,
-  "context_notes": ""
+  "timestamp": "2026-06-13T01:37:59.148Z",
+  "phase": "88.3",
+  "phase_name": "bundle-qtwebengine-in-frozen-windows-build-so-oauth-logins-r",
+  "phase_dir": ".planning/phases/88.3-bundle-qtwebengine-in-frozen-windows-build-so-oauth-logins-r",
+  "plan": 5,
+  "task": 3,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "Wave 1 — 88.3-02 revert conda WebEngine + B1 drift-guards", "status": "done", "commit": "39154a97"},
+    {"id": 2, "name": "Wave 1 — 88.3-03 B1 launch target + Twitch platform UA", "status": "done", "commit": "688083a3"},
+    {"id": 3, "name": "Post-merge fix — stale test_launcher_frozen_dispatch.py to B1 contract", "status": "done", "commit": "6fcc9156"},
+    {"id": 4, "name": "Wave 2 — 88.3-04 isolated-pip oauth_helper.exe build + two-artifact installer", "status": "done", "commit": "13938369"},
+    {"id": 5, "name": "88.3-05 pre-build gate — verify 4 helper PyPI packages legit on pypi.org", "status": "done", "progress": "all 4 confirmed (PySide6-Essentials/Addons 6.10.1, pyinstaller 6.19.0, pyinstaller-hooks-contrib 2026.2)"},
+    {"id": 6, "name": "Fix conda env contamination blocking the main-bundle build", "status": "done", "progress": "pip PySide6 uninstalled from musicstreamer-build + conda force-reinstall; ENV QtCore OK; main bundle builds green; memory saved"},
+    {"id": 7, "name": "88.3-05 Task 1 — build both artifacts on Win11 VM", "status": "done", "progress": "two-artifact build green; oauth_helper.exe + QtWebEngineProcess.exe present; installer produced"}
+  ],
+  "remaining_tasks": [
+    {"id": 8, "name": "88.3-05 final gate — diagnose helper WebEngine DLL-load (exit=2) then run GBS/Twitch/Google login UAT", "status": "in_progress"},
+    {"id": 9, "name": "Record UAT-10 results in 88.3-UAT.md mapping G6-T6/T7/T8", "status": "not_started"},
+    {"id": 10, "name": "Resume /gsd:execute-phase 88.3 -> phase verification + completion (update_roadmap)", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "Installed oauth_helper.exe exits 2: 'DLL load failed while importing QtWebEngineWidgets: The specified procedure could not be found.' Helper bundle is COMPLETE (QtWebEngineWidgets.pyd + QtWebEngineCore.pyd + Qt6WebEngineCore.dll + Qt6WebEngineWidgets.dll + Qt6WebEngineQuick.dll + QtWebEngineProcess.exe all present). Strong hypothesis: conda Library\\bin Qt6Core.dll on PATH shadows the helper's bundled pip Qt (the exit=2 reproductions were run FROM the (musicstreamer-build) conda shell).", "type": "technical", "workaround": "Decisive test pending: run helper with sanitized PATH (System32 only) or from a clean non-conda shell. Also grep global PATH for conda — if conda is on the GLOBAL PATH, even the Start-Menu app inherits it and the helper needs PATH-hardening at startup (real 88.3-04 fix)."}
+  ],
+  "human_actions_pending": [
+    {"action": "Run sanitized-PATH test of oauth_helper.exe on the VM", "context": "Confirm/refute conda-Qt PATH shadowing: `$saved=$env:PATH; $env:PATH='C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem'; & \"$env:LOCALAPPDATA\\Programs\\MusicStreamer\\oauth_helper\\oauth_helper.exe\" --mode gbs; $env:PATH=$saved`", "blocking": true},
+    {"action": "Check whether conda is on the GLOBAL PATH", "context": "In a fresh PowerShell (no conda activate): `$env:PATH -split ';' | Select-String 'conda|miniforge|miniconda|Library\\\\bin'`. Empty => Start-Menu app launches clean. Non-empty => helper needs PATH-hardening.", "blocking": true},
+    {"action": "Run the three in-app logins from the INSTALLED build (GBS.FM, Twitch, Google/YouTube) and record pass/issue in 88.3-UAT.md", "context": "G6-T6/T7/T8 close-out: WebEngine window opens, no exit=2, no DLL-load failure; Twitch accepted (UA fix); GBS cookie-fallback does NOT auto-trigger.", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "B1 isolated-helper architecture is correct and validated", "rationale": "Mixing pip WebEngine into the conda env breaks QtCore (ICU ABI clash) — proven this session by the contamination failure; WebEngine must live in the separate oauth_helper.exe", "phase": "88.3"},
+    {"decision": "conda musicstreamer-build env must stay pip-PySide6-free", "rationale": "Leftover pip PySide6-Essentials/Addons from the pre-B1 attempt caused 'specified procedure could not be found' on QtCore import; fix = pip uninstall + conda force-reinstall. Saved to project memory build-env-must-stay-pip-pyside6-free", "phase": "88.3"},
+    {"decision": "Local pytest must use .venv/bin/python and be scoped to phase-relevant tests", "rationale": "System python3 lacks PySide6 (55 false collection errors); the full Qt GUI suite times out >540s. Run packaging-spec + oauth tests with .venv/bin/python", "phase": "88.3"}
+  ],
+  "uncommitted_files": [
+    "packaging/windows/.venv-oauth-helper/ (untracked VM build artifact — should be gitignored, do not commit)",
+    "packaging/windows/build-helper/ (untracked VM build artifact — should be gitignored, do not commit)"
+  ],
+  "next_action": "On the VM, run the sanitized-PATH test of oauth_helper.exe (blocker #1). If it opens the GBS window -> confirmed PATH shadowing: check global PATH for conda; if clean, launch the installed app from the Start Menu (not the conda shell) and run the 3 logins. If sanitized-PATH still fails, or conda is on global PATH, the helper needs startup PATH-hardening in oauth_helper_standalone.spec / oauth_helper.py (88.3-04 gap-closure fix) then rebuild. Then record results in 88.3-UAT.md and resume /gsd:execute-phase 88.3 for verification + completion.",
+  "context_notes": "Phase 88.3 Waves 1-2 are COMPLETE and merged on main (do NOT re-execute plans 01-04). Only 88.3-05 (the human-gated Win11 VM UAT) remains. The current failure is NOT a code regression — it is an environment/bundle DLL-resolution problem surfaced by the UAT (which is exactly its job). Two PATH-shadowing failures already diagnosed this session: (1) conda env pip-PySide6 contamination broke the MAIN bundle's QtCore — FIXED via env cleanup; (2) the HELPER bundle now exits 2 on QtWebEngineWidgets import, same 'procedure could not be found' family, hypothesized as conda Qt on PATH shadowing the helper's pip Qt because the exe was run from the conda shell. The spike's 'Stage C PASS — no PATH mitigation needed' was validated in a CLEAN env, consistent with this being a launched-from-conda-shell artifact rather than a true bundle defect. Resume by getting the sanitized-PATH test result first."
 }
