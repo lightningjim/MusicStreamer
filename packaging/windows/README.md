@@ -199,7 +199,7 @@ for the full diagnostic procedure if the SMTC overlay still shows
 | --------------------------------- | ----------------------------------------------------------- |
 | `MusicStreamer.spec`              | PyInstaller bundle definition (onedir, Qt+GStreamer, NO WebEngine) |
 | `oauth_helper_standalone.spec`   | B1: standalone oauth_helper.exe spec (isolated pip, WebEngine) |
-| `oauth-helper-requirements.txt`  | B1: isolated pip env pins (PySide6 6.10.1 + pyinstaller)   |
+| `oauth-helper-requirements.txt`  | B1: isolated pip env pins (PySide6 6.11.0 + pyinstaller)   |
 | `runtime_hook.py`                | Sets `GIO_EXTRA_MODULES`, `GI_TYPELIB_PATH`, `GST_PLUGIN_SCANNER` |
 | `build.ps1`                      | Top-level driver: pre-flight -> guards -> PyInstaller (main + helper) -> Inno Setup -> diag |
 | `MusicStreamer.iss`              | Inno Setup installer script (per-user, ships both artifacts) |
