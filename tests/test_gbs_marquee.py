@@ -7,7 +7,9 @@ infrastructure (QApplication + QTest.qWait for QueuedConnection delivery).
 """
 from __future__ import annotations
 
+import hashlib
 import pathlib
+import re
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +114,90 @@ def test_fixture_count_ten_or_more():
     assert len(data_files) >= 10, (
         f"Expected >= 10 fixture files, got {len(data_files)}: "
         + ", ".join(f.name for f in sorted(data_files))
+    )
+
+
+# ---------------------------------------------------------------------------
+# T-87-01-04: fixture MANIFEST SHA-256 parity (re-hash every committed file)
+# ---------------------------------------------------------------------------
+
+# Mitigation for threat T-87-01-04 (Plan 87-01 STRIDE register, Repudiation):
+# "MANIFEST entries claim a SHA-256 that doesn't match the file." The register's
+# mitigation plan promises a fixture-loader test that re-hashes every committed
+# file and asserts MANIFEST parity. This is that guard — it covers BOTH the
+# marquee-text MANIFEST and the themed-logo MANIFEST so a fixture cannot silently
+# drift away from its recorded hash (or be swapped) without failing CI.
+
+_FIXTURES_DIR = pathlib.Path(__file__).resolve().parent / "fixtures"
+
+# (manifest_path, files_dir) pairs whose tables declare a `sha256` cell per row.
+_MANIFEST_SOURCES = (
+    (_FIXTURES_DIR / "gbs_marquee" / "MANIFEST.md", _FIXTURES_DIR / "gbs_marquee"),
+    (_FIXTURES_DIR / "gbs_themed_logos" / "MANIFEST.md", _FIXTURES_DIR / "gbs_themed_logos"),
+)
+
+# Total number of (filename, sha256) rows we expect to verify across both
+# manifests: gbs_marquee = 2 real-captured + 8 synthetic = 10; gbs_themed_logos = 1.
+# A floor guards against a parser regression silently extracting zero rows and
+# passing vacuously.
+_EXPECTED_MIN_HASHED_ENTRIES = 11
+
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_FILENAME_RE = re.compile(r"^[\w.\-]+\.(?:txt|json|html|png)$")
+
+
+def _parse_manifest_hash_entries(manifest_path: pathlib.Path) -> list[tuple[str, str]]:
+    """Extract (filename, sha256) for every Markdown table row that carries a hash.
+
+    Generic over the differing table schemas in the manifests: for each table row
+    we locate the cell that is a bare 64-hex SHA-256 and the cell that is a bare
+    fixture filename. Rows without a SHA-256 cell (e.g. the Plan 87-07 pride entry,
+    schema/separator rows) are skipped. A row that HAS a hash but no parseable
+    filename fails loudly rather than being silently dropped.
+    """
+    entries: list[tuple[str, str]] = []
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [c.strip().strip("`").strip() for c in stripped.strip("|").split("|")]
+        sha = next((c.lower() for c in cells if _SHA256_RE.match(c.lower())), None)
+        if sha is None:
+            continue
+        fname = next((c for c in cells if _FILENAME_RE.match(c)), None)
+        assert fname is not None, (
+            f"{manifest_path.name}: row declares SHA-256 {sha!r} but no parseable "
+            f"fixture filename was found in row: {stripped!r}"
+        )
+        entries.append((fname, sha))
+    return entries
+
+
+def test_fixture_manifest_sha256_parity():
+    """Every MANIFEST-declared SHA-256 must match the re-hashed committed file.
+
+    Closes T-87-01-04: re-hashes each fixture referenced in both MANIFEST.md files
+    and asserts the recorded hash matches `hashlib.sha256(file_bytes).hexdigest()`.
+    """
+    verified = 0
+    for manifest_path, files_dir in _MANIFEST_SOURCES:
+        assert manifest_path.is_file(), f"Missing manifest: {manifest_path}"
+        for fname, expected_sha in _parse_manifest_hash_entries(manifest_path):
+            fpath = files_dir / fname
+            assert fpath.is_file(), (
+                f"{manifest_path.name} references {fname!r} but the file is missing "
+                f"at {fpath}"
+            )
+            actual_sha = hashlib.sha256(fpath.read_bytes()).hexdigest()
+            assert actual_sha == expected_sha, (
+                f"SHA-256 mismatch for {fname}: MANIFEST claims {expected_sha}, "
+                f"file re-hashes to {actual_sha}"
+            )
+            verified += 1
+
+    assert verified >= _EXPECTED_MIN_HASHED_ENTRIES, (
+        f"Expected to verify >= {_EXPECTED_MIN_HASHED_ENTRIES} hashed fixtures, "
+        f"only verified {verified} — MANIFEST parser may have regressed."
     )
 
 
