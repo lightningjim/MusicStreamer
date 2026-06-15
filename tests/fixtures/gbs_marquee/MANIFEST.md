@@ -41,6 +41,12 @@ Recommended `parse_marquee()` algorithm (Plan 87-02 will refine):
 
 The trailing `*` on `da troops*` correlates with `[*LATEST FAD]` marker in a later segment — GBS.FM operator convention for "newest thing." Phase 87 ignores this; the trigger text matched by the themed-day keyword set is still the substring `da troops`.
 
+## Plan 87-07 Fixture (user-reported live URL — gap closure)
+
+| filename | capture_date | theme | leftmenulogo_url | source | capture_method | provenance | notes |
+|----------|--------------|-------|------------------|--------|----------------|------------|-------|
+| `2026-06-15_pride_homepage.html` | 2026-06-15 | Pride | https://img.gbs.fm/NIgE8/yucEqesu87.png/raw | user-reported live URL (87-HUMAN-UAT Test 2) | synthetic | synthetic | Pride Month 2026 homepage fixture. The `#leftmenulogo` rule uses the `img.gbs.fm/.../raw` CDN form (not imgur). Includes other `background-image` rules (`#leftmenu`, `#bottomcont`, `#bg1`, `#commentsbox`) to exercise the resolver's rule-selection specificity. Built for Plan 87-07 regression test: `extract_leftmenulogo_url` must return the img.gbs.fm URL, NOT any earlier url() in the style block. |
+
 ## Synthetic Samples (Pitfall #8 — parser robustness)
 
 Plan 87-02 added 8 synthetic samples to satisfy GBS-MARQ-07's ≥ 10 fixture count

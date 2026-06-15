@@ -437,22 +437,32 @@ def test_once_per_session_gate(monkeypatch):
     """_fetch_logo_bytes is called exactly ONCE across multiple ticks (D-09 / D-17).
 
     Creates a fresh GbsMarqueeWorker, monkeypatches _fetch_marquee to return a
-    keyword-bearing noticearea HTML, monkeypatches _fetch_logo_bytes to count
-    calls and return canned bytes.  Drives two ticks via set_cadence + qWait.
-    Assert logo-fetch counter == 1 (not 2): the once-per-session gate held.
+    keyword-bearing noticearea HTML (with a #leftmenulogo rule so Plan 87-07's
+    URL resolver can find the dynamic logo URL), monkeypatches _fetch_logo_bytes
+    to count calls and return canned bytes.  Drives two ticks via set_cadence +
+    qWait.  Assert logo-fetch counter == 1 (not 2): the once-per-session gate held.
+
+    Plan 87-07 update: fixture HTML now includes the #leftmenulogo CSS rule so
+    that extract_leftmenulogo_url succeeds and _fetch_logo_bytes is invoked.
+    _fake_fetch_logo_bytes accepts the url argument added in Plan 87-07.
     """
     _get_qapp()
     import musicstreamer.gbs_marquee as _mod
     from PySide6.QtTest import QTest
     from musicstreamer.gbs_marquee import GbsMarqueeWorker
 
-    # Return keyword-bearing marquee HTML so the keyword check succeeds on tick 1.
-    FIXTURE_HTML = '<p id="noticearea"><b>GBS-FM</b>: da troops | come join us!</p>'
+    # Return keyword-bearing marquee HTML that also contains a #leftmenulogo rule
+    # so extract_leftmenulogo_url succeeds in _on_first_gbs_bind (Plan 87-07).
+    FIXTURE_HTML = (
+        '<p id="noticearea"><b>GBS-FM</b>: da troops | come join us!'
+        '<style>#leftmenulogo {background-image:url(\'https://i.imgur.com/l27hhaY.png\');}'
+        '</style></p>'
+    )
     monkeypatch.setattr(_mod, "_fetch_marquee", lambda: FIXTURE_HTML)
 
     logo_call_count = [0]
 
-    def _fake_fetch_logo_bytes():
+    def _fake_fetch_logo_bytes(url):  # Plan 87-07: url param added
         logo_call_count[0] += 1
         return _get_themed_logo_bytes()
 
@@ -556,3 +566,110 @@ def test_themed_logo_targets_logo_slot_only_behavior():
         assert cover_after is not None and not cover_after.isNull(), (
             "cover_label must remain unchanged after set_themed_logo_override"
         )
+
+
+# ---------------------------------------------------------------------------
+# Plan 87-07 Task 1 (TDD RED): extract_leftmenulogo_url + Pride fixture regression
+# ---------------------------------------------------------------------------
+
+_FIXTURE_DIR = pathlib.Path(__file__).resolve().parent / "fixtures" / "gbs_marquee"
+_MEMORIAL_DAY_HTML = _FIXTURE_DIR / "2026-05-25_homepage.html"
+_PRIDE_HTML = _FIXTURE_DIR / "2026-06-15_pride_homepage.html"
+
+
+def test_extract_leftmenulogo_url_imgur_form():
+    """extract_leftmenulogo_url returns the imgur URL from Memorial Day fixture.
+
+    The Memorial Day homepage fixture (2026-05-25) has:
+        #leftmenulogo {background-image:url('https://i.imgur.com/l27hhaY.png');}
+    The function must return 'https://i.imgur.com/l27hhaY.png'.
+    """
+    from musicstreamer.gbs_marquee import extract_leftmenulogo_url
+
+    html = _MEMORIAL_DAY_HTML.read_text(encoding="utf-8")
+    assert extract_leftmenulogo_url(html) == "https://i.imgur.com/l27hhaY.png"
+
+
+def test_extract_leftmenulogo_url_imggbsfm_raw_form():
+    """extract_leftmenulogo_url returns the img.gbs.fm/.../raw URL from Pride fixture.
+
+    The Pride homepage fixture (2026-06-15) has:
+        #leftmenulogo {background-image:url('https://img.gbs.fm/NIgE8/yucEqesu87.png/raw');}
+    The function must return the full URL including the trailing '/raw' suffix.
+    """
+    from musicstreamer.gbs_marquee import extract_leftmenulogo_url
+
+    html = _PRIDE_HTML.read_text(encoding="utf-8")
+    assert extract_leftmenulogo_url(html) == "https://img.gbs.fm/NIgE8/yucEqesu87.png/raw"
+
+
+def test_extract_leftmenulogo_url_absent_returns_none():
+    """extract_leftmenulogo_url returns None when the #leftmenulogo rule is absent."""
+    from musicstreamer.gbs_marquee import extract_leftmenulogo_url
+
+    html = "<html><body><p>no logo here</p></body></html>"
+    assert extract_leftmenulogo_url(html) is None
+
+
+def test_extract_leftmenulogo_url_selects_correct_rule():
+    """Resolver skips an earlier #leftmenu url() and returns the #leftmenulogo url().
+
+    Regression against over-matching: the style block has both selectors;
+    only '#leftmenulogo' should be returned.
+    """
+    from musicstreamer.gbs_marquee import extract_leftmenulogo_url
+
+    html = (
+        "<style>"
+        "#leftmenu {background:#3C3B6E; background-image:url('http://other/a.png');}"
+        "#leftmenulogo {background-image:url('http://right/b.png');}"
+        "</style>"
+    )
+    assert extract_leftmenulogo_url(html) == "http://right/b.png"
+
+
+def test_extract_leftmenulogo_url_quote_and_whitespace_tolerant():
+    """Resolver handles double quotes and extra spaces inside the rule braces."""
+    from musicstreamer.gbs_marquee import extract_leftmenulogo_url
+
+    html = (
+        '<style>'
+        '#leftmenulogo { background-image: url("http://x/y.png") ; }'
+        '</style>'
+    )
+    assert extract_leftmenulogo_url(html) == "http://x/y.png"
+
+
+def test_pride_logo_drifts_from_baseline():
+    """UAT Test 2 regression: Pride fixture resolves the dynamic logo URL and drifts.
+
+    This test encodes the gap diagnosed in 87-HUMAN-UAT Test 2:
+    - Before the fix: the correlator hashed the STATIC logo_3.png URL, which never
+      changes — so no drift was ever detected and the themed logo never applied.
+    - After the fix: the correlator hashes the DYNAMIC #leftmenulogo URL resolved
+      from the homepage HTML. The Pride URL (img.gbs.fm/.../raw) has a hash that
+      is NOT in GBS_LOGO_BASELINE_HASHES, so D-12 treats it as drift → is_themed=True.
+
+    The test asserts two things (without making network calls):
+    1. extract_leftmenulogo_url(pride_html) returns the dynamic Pride URL — proving
+       we read the dynamic logo and NOT logo_3.png.
+    2. compute_logo_theme(<bytes not in baseline>, "Happy Pride!") returns is_themed=True
+       — proving the drift detection fires for an unseen hash.
+    """
+    from musicstreamer.gbs_marquee import extract_leftmenulogo_url, compute_logo_theme
+
+    html = _PRIDE_HTML.read_text(encoding="utf-8")
+
+    # Part 1: resolver returns the dynamic Pride URL.
+    url = extract_leftmenulogo_url(html)
+    assert url == "https://img.gbs.fm/NIgE8/yucEqesu87.png/raw", (
+        f"expected Pride logo URL, got {url!r}"
+    )
+
+    # Part 2: bytes whose hash is NOT in the baseline drift per D-12 → is_themed=True.
+    # Simulate the Pride logo bytes as distinct from any baseline entry.
+    pride_logo_bytes = b"pride-logo-bytes-distinct-from-any-baseline-entry"
+    result = compute_logo_theme(pride_logo_bytes, "Happy Pride!")
+    assert result.is_themed is True, (
+        "UAT Test 2: a hash not in GBS_LOGO_BASELINE_HASHES must drift (is_themed=True)"
+    )
