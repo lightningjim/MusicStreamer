@@ -269,7 +269,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 87-05-PLAN.md — AnnouncementBanner widget + dismissal-hash set + outer-VBox panel wrap (GBS-MARQ-03/04/05)
+- [x] 87-05-PLAN.md — AnnouncementBanner widget + dismissal-hash set + outer-VBox panel wrap (GBS-MARQ-03/04/05)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
@@ -415,7 +415,7 @@ Plans:
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
-| 87. GBS Marquee + Themed-Day | 4/6 | In Progress|  |
+| 87. GBS Marquee + Themed-Day | 5/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
