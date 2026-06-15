@@ -47,22 +47,22 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 
 ### GBS.FM — Themed-Day Detection (GBS-THEME)
 
-- [ ] **GBS-THEME-01**: When a GBS.FM station is bound at session start, the app fetches `https://gbs.fm/images/logo_3.png` and SHA-256 hashes it against a known-baseline list of non-themed-day responses
-- [ ] **GBS-THEME-02**: If the SHA-256 differs from the baseline AND the GBS marquee text matches one of a small keyword set (e.g., "da troops", "ho ho", "spooky"), the themed logo is applied for the session
-- [ ] **GBS-THEME-03**: Themed logo replaces the canonical GBS.FM station logo in the now-playing logo slot ONLY (NEVER the cover slot; NEVER the station-list row)
-- [ ] **GBS-THEME-04**: Themed-logo application is session-scoped — does not persist to the SQLite station record; resets to canonical logo on next app launch
-- [ ] **GBS-THEME-05**: No libnotify toast, banner, or other notification fires when a themed day is detected — the themed logo IS the notification
-- [ ] **GBS-THEME-06**: The baseline logo SHA-256 list is captured by a research-phase spike harvest of 3+ known themed-day responses and 5+ non-themed-day responses; the resulting hash table is committed as test fixture data
+- [x] **GBS-THEME-01**: When a GBS.FM station is bound at session start, the app fetches `https://gbs.fm/images/logo_3.png` and SHA-256 hashes it against a known-baseline list of non-themed-day responses
+- [x] **GBS-THEME-02**: If the SHA-256 differs from the baseline AND the GBS marquee text matches one of a small keyword set (e.g., "da troops", "ho ho", "spooky"), the themed logo is applied for the session
+- [x] **GBS-THEME-03**: Themed logo replaces the canonical GBS.FM station logo in the now-playing logo slot ONLY (NEVER the cover slot; NEVER the station-list row)
+- [x] **GBS-THEME-04**: Themed-logo application is session-scoped — does not persist to the SQLite station record; resets to canonical logo on next app launch
+- [x] **GBS-THEME-05**: No libnotify toast, banner, or other notification fires when a themed day is detected — the themed logo IS the notification
+- [x] **GBS-THEME-06**: The baseline logo SHA-256 list is captured by a research-phase spike harvest of 3+ known themed-day responses and 5+ non-themed-day responses; the resulting hash table is committed as test fixture data
 
 ### GBS.FM — Announcement Banner (GBS-MARQ)
 
-- [ ] **GBS-MARQ-01**: When a GBS.FM station is playing, the app polls the GBS marquee endpoint every 60 seconds; when GBS is bound but not playing, it polls every 5 minutes
-- [ ] **GBS-MARQ-02**: The marquee response is split on the `|` (pipe) delimiter; the **first segment** is treated as the changeable announcement; subsequent segments are considered perpetual and ignored
-- [ ] **GBS-MARQ-03**: A new top-of-NowPlayingPanel banner widget displays the first-segment announcement; banner is hidden by default and visible only when bound station is GBS.FM AND announcement is non-empty AND announcement-hash differs from last-seen
-- [ ] **GBS-MARQ-04**: Banner displays the announcement with the `|` pipe boundaries preserved as wrap hints; long announcements wrap across multiple lines at pipe boundaries when present
-- [ ] **GBS-MARQ-05**: User can dismiss the banner with an inline × button; dismissal stores the announcement-hash so the same banner doesn't re-appear until the marquee text changes
-- [ ] **GBS-MARQ-06**: The marquee fetcher reuses Phase 76 GBS authenticated session via `paths.gbs_cookies_path()` (cookies-jar file) and `musicstreamer.gbs_api.load_auth_context()` (loader). The marquee module imports these — does NOT construct a `QWebEngineProfile`, does NOT write a parallel cookies file, and does NOT instantiate `oauth_helper`. A source-grep drift-guard test (`test_marquee_module_reuses_phase76_auth_only`) confirms.
-- [ ] **GBS-MARQ-07**: The marquee parser is locked against a fixture of 10+ real GBS marquee samples committed under `tests/fixtures/gbs_marquee/` (per `feedback_mirror_decisions_cite_source.md` — quote samples, don't paraphrase the rule)
+- [x] **GBS-MARQ-01**: When a GBS.FM station is playing, the app polls the GBS marquee endpoint every 60 seconds; when GBS is bound but not playing, it polls every 5 minutes
+- [x] **GBS-MARQ-02**: The marquee response is split on the `|` (pipe) delimiter; the **first segment** is treated as the changeable announcement; subsequent segments are considered perpetual and ignored
+- [x] **GBS-MARQ-03**: A new top-of-NowPlayingPanel banner widget displays the first-segment announcement; banner is hidden by default and visible only when bound station is GBS.FM AND announcement is non-empty AND announcement-hash differs from last-seen
+- [x] **GBS-MARQ-04**: Banner displays the announcement with the `|` pipe boundaries preserved as wrap hints; long announcements wrap across multiple lines at pipe boundaries when present
+- [x] **GBS-MARQ-05**: User can dismiss the banner with an inline × button; dismissal stores the announcement-hash so the same banner doesn't re-appear until the marquee text changes
+- [x] **GBS-MARQ-06**: The marquee fetcher reuses Phase 76 GBS authenticated session via `paths.gbs_cookies_path()` (cookies-jar file) and `musicstreamer.gbs_api.load_auth_context()` (loader). The marquee module imports these — does NOT construct a `QWebEngineProfile`, does NOT write a parallel cookies file, and does NOT instantiate `oauth_helper`. A source-grep drift-guard test (`test_marquee_module_reuses_phase76_auth_only`) confirms.
+- [x] **GBS-MARQ-07**: The marquee parser is locked against a fixture of 10+ real GBS marquee samples committed under `tests/fixtures/gbs_marquee/` (per `feedback_mirror_decisions_cite_source.md` — quote samples, don't paraphrase the rule)
 
 ### GBS.FM — Zero-Token Single-Song Add (GBS-TOKEN)
 
@@ -179,19 +179,19 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | WIN-02-B | Phase 88 | Complete |
 | VER-02-J | Phase 88 | Pending |
 | WIN-05 | Phase 88 | Complete |
-| GBS-THEME-01 | Phase 87 | Pending |
-| GBS-THEME-02 | Phase 87 | Pending |
-| GBS-THEME-03 | Phase 87 | Pending |
-| GBS-THEME-04 | Phase 87 | Pending |
-| GBS-THEME-05 | Phase 87 | Pending |
-| GBS-THEME-06 | Phase 87 | Pending |
-| GBS-MARQ-01 | Phase 87 | Pending |
-| GBS-MARQ-02 | Phase 87 | Pending |
-| GBS-MARQ-03 | Phase 87 | Pending |
-| GBS-MARQ-04 | Phase 87 | Pending |
-| GBS-MARQ-05 | Phase 87 | Pending |
-| GBS-MARQ-06 | Phase 87 | Pending |
-| GBS-MARQ-07 | Phase 87 | Pending |
+| GBS-THEME-01 | Phase 87 | Complete |
+| GBS-THEME-02 | Phase 87 | Complete |
+| GBS-THEME-03 | Phase 87 | Complete |
+| GBS-THEME-04 | Phase 87 | Complete |
+| GBS-THEME-05 | Phase 87 | Complete |
+| GBS-THEME-06 | Phase 87 | Complete |
+| GBS-MARQ-01 | Phase 87 | Complete |
+| GBS-MARQ-02 | Phase 87 | Complete |
+| GBS-MARQ-03 | Phase 87 | Complete |
+| GBS-MARQ-04 | Phase 87 | Complete |
+| GBS-MARQ-05 | Phase 87 | Complete |
+| GBS-MARQ-06 | Phase 87 | Complete |
+| GBS-MARQ-07 | Phase 87 | Complete |
 | GBS-TOKEN-01 | Phase 87b | Pending |
 | GBS-TOKEN-02 | Phase 87b | Pending |
 | GBS-TOKEN-03 | Phase 87b | Pending |

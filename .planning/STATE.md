@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 88.2 context gathered
-last_updated: "2026-06-15T13:12:58.218Z"
+status: ready_to_plan
+stopped_at: Phase 87 complete (7/7) — ready to discuss Phase 87.1
+last_updated: 2026-06-15T23:09:37.335Z
 last_activity: 2026-06-15 -- Phase 87 execution started
 progress:
   total_phases: 20
   completed_phases: 9
   total_plans: 41
-  completed_plans: 35
+  completed_plans: 41
   percent: 45
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87 — gbs-fm-marquee-themed-day-detection
+**Current focus:** Phase 87.1 — gbs fm session expiry re login prompt surface gbsauthexpired
 
 ## Current Position
 
-Phase: 87 (gbs-fm-marquee-themed-day-detection) — EXECUTING
-Plan: 1 of 6
-Status: Executing Phase 87
-Last activity: 2026-06-15 -- Phase 87 execution started
+Phase: 87.1
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-15
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 213+ (v1.0–v2.1 combined)
+- Total plans completed: 220+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
