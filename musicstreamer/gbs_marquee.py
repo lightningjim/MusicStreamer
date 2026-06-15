@@ -38,6 +38,7 @@ import hashlib
 import logging
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import NamedTuple
 
@@ -397,6 +398,18 @@ def _fetch_logo_bytes(url: str) -> bytes | None:
         Raw PNG bytes or None on any failure.
     """
     try:
+        # WR-02 (87-REVIEW-gap): the URL is parsed from page HTML, so restrict it
+        # to http/https before handing it to urllib — otherwise a crafted
+        # `url('file:///etc/passwd')` in the homepage CSS would be read by
+        # urlopen. Bounded (requires control of the HTTPS-fetched gbs.fm HTML),
+        # but this scheme guard closes the local-file / non-web fetch surface.
+        if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
+            _log.warning(
+                "gbs.themed_day.logo_fetch_failed url=%s error=%s",
+                url,
+                "UnsupportedScheme",
+            )
+            return None
         req = urllib.request.Request(
             url, headers={"User-Agent": gbs_api._USER_AGENT}
         )
@@ -452,7 +465,7 @@ class GbsMarqueeWorker(QThread):
         Internal cross-thread bridge — DO NOT emit from user code.
     """
 
-    themed_logo_ready = Signal(object)   # QPixmap or None — Plan 87-04 emits
+    themed_logo_ready = Signal(object)   # raw PNG bytes — CR-01: NO QPixmap off the GUI thread; main-thread slot decodes
     marquee_ready = Signal(str, str)     # (first_segment, full_text)
     cadence_changed_internal = Signal(int)  # ms — cross-thread cadence bridge
 
@@ -577,21 +590,24 @@ class GbsMarqueeWorker(QThread):
             # _on_first_gbs_bind — reuses the bytes already fetched for the
             # marquee, so no second homepage round-trip is needed.
             self._last_homepage_html = html or ""
-            marquee_ok = False
             if html is not None:
                 plain = extract_noticearea_text(html)
                 if plain:
                     first, full = parse_marquee(plain)
                     self._last_full_marquee_text = full
                     self.marquee_ready.emit(first, full)
-                    marquee_ok = True
-            # D-17: themed-day fires AFTER marquee fetch + parse so the keyword
-            # search has populated _last_full_marquee_text.  Subsequent ticks
-            # skip via _themed_day_detected_this_session (D-09 once-per-session).
-            # WR-02: only fire after a successful marquee parse so the keyword
-            # correlation has actual text to scan (not an empty string from a
-            # first-tick fetch failure).
-            if marquee_ok and not self._themed_day_detected_this_session:
+            # D-17: themed-day fires AFTER the marquee fetch so _last_homepage_html
+            # (the CSS the logo URL lives in) and _last_full_marquee_text (keyword
+            # text, may be empty) are populated. Subsequent ticks skip via
+            # _themed_day_detected_this_session (D-09 once-per-session).
+            # Gate on FETCH success (html is not None), NOT marquee-text-parse
+            # success: the themed logo URL is in the homepage CSS (#leftmenulogo),
+            # independent of the noticearea marquee text. Gating on marquee_ok
+            # would skip the D-12 hash-drift fallback on a themed day whose
+            # marquee is empty. Requiring html is not None still avoids the
+            # original defect (correlating after a failed fetch that left
+            # _last_homepage_html / _last_full_marquee_text empty).
+            if html is not None and not self._themed_day_detected_this_session:
                 self._on_first_gbs_bind()
         except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-03-06)
             _log.warning(

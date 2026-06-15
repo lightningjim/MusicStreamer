@@ -805,3 +805,73 @@ def test_anonymous_marquee_fetch_sends_user_agent(monkeypatch):
     assert ua == _gbs_api._USER_AGENT, (
         f"Expected User-Agent={_gbs_api._USER_AGENT!r}, got {ua!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 87-REVIEW-gap follow-up: WR-01 (themed logo on empty-marquee themed day)
+#                          WR-02 (off-host URL scheme guard)
+# ---------------------------------------------------------------------------
+
+def test_themed_day_fires_when_marquee_empty(monkeypatch):
+    """WR-01 regression: themed-day one-shot fires on a successful homepage fetch
+    even when the marquee (noticearea) is empty.
+
+    The themed logo URL lives in the homepage CSS (#leftmenulogo), independent of
+    the noticearea marquee text. The one-shot gate must key on FETCH success
+    (html is not None), not on marquee-text-parse success — otherwise a themed day
+    whose marquee happens to be empty would silently skip the D-12 hash-drift
+    fallback and never apply the logo. This drives a tick with HTML that has the
+    #leftmenulogo rule but NO <p id="noticearea"> and asserts the logo fetch fired.
+    """
+    _get_qapp()
+    import musicstreamer.gbs_marquee as _mod
+    from PySide6.QtTest import QTest
+    from musicstreamer.gbs_marquee import GbsMarqueeWorker
+
+    # Homepage with a #leftmenulogo CSS rule but NO noticearea marquee element.
+    FIXTURE_HTML = (
+        "<html><head><style>"
+        "#leftmenulogo {background-image:url('https://i.imgur.com/l27hhaY.png');}"
+        "</style></head><body>no marquee here</body></html>"
+    )
+    monkeypatch.setattr(_mod, "_fetch_marquee", lambda: FIXTURE_HTML)
+
+    logo_call_count = [0]
+
+    def _fake_fetch_logo_bytes(url):
+        logo_call_count[0] += 1
+        return _get_themed_logo_bytes()
+
+    monkeypatch.setattr(_mod, "_fetch_logo_bytes", _fake_fetch_logo_bytes)
+
+    worker = GbsMarqueeWorker()
+    try:
+        worker.start()
+        worker.set_cadence(60_000)
+        QTest.qWait(400)
+        assert logo_call_count[0] == 1, (
+            "WR-01: themed-day detection must run on a successful homepage fetch "
+            "even when the marquee text is empty (logo URL is in the CSS), "
+            f"got {logo_call_count[0]} logo fetches"
+        )
+    finally:
+        worker.stop_and_wait(2000)
+
+
+def test_fetch_logo_bytes_rejects_non_http_scheme(monkeypatch):
+    """WR-02 regression: _fetch_logo_bytes refuses non-http(s) URLs (file://, etc.).
+
+    The logo URL is parsed from page HTML, so a crafted url('file:///etc/passwd')
+    must NOT reach urllib.request.urlopen. The scheme guard returns None and never
+    opens the URL.
+    """
+    import urllib.request as _urlreq
+    from musicstreamer.gbs_marquee import _fetch_logo_bytes
+
+    def _boom_urlopen(*a, **k):  # must never be called for a file:// URL
+        raise AssertionError("urlopen must not be called for a non-http(s) scheme")
+
+    monkeypatch.setattr(_urlreq, "urlopen", _boom_urlopen)
+
+    assert _fetch_logo_bytes("file:///etc/passwd") is None
+    assert _fetch_logo_bytes("ftp://example.com/logo.png") is None
