@@ -1,10 +1,11 @@
 ---
 phase: 87
 slug: gbs-fm-marquee-themed-day-detection
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: verified
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-05-25
+audited: 2026-06-15
 ---
 
 # Phase 87 — Validation Strategy
@@ -20,9 +21,9 @@ created: 2026-05-25
 |----------|-------|
 | **Framework** | pytest (existing — `tests/test_*.py` naming) |
 | **Config file** | `pyproject.toml` (existing test settings) |
-| **Quick run command** | `uv run --with pytest pytest tests/test_gbs_marquee.py tests/test_gbs_marquee_drift_guard.py tests/test_announcement_banner.py -x` |
-| **Full suite command** | `uv run --with pytest pytest` |
-| **Estimated runtime** | quick <5s; full suite ~90s (1780+ tests baseline) |
+| **Quick run command** | `.venv/bin/python -m pytest tests/test_gbs_marquee.py tests/test_gbs_marquee_drift_guard.py tests/test_announcement_banner.py -q` |
+| **Full suite command** | `.venv/bin/python -m pytest` |
+| **Estimated runtime** | quick ~4s (48 tests); full suite ~90s+ (scope it — system `python3` lacks PySide6.QtWidgets) |
 
 ---
 
@@ -39,12 +40,13 @@ created: 2026-05-25
 
 | Task ID | Plan | Wave | Requirement | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------------|-----------|-------------------|-------------|--------|
-| 87-01-* | 01 (harvest) | 1 | GBS-THEME-06 init / GBS-MARQ-07 init | Fixtures + MANIFEST.md schema; live data captured under 0o600 dev-fixture parents | manual + fixture-count | `ls tests/fixtures/gbs_themed_logos/ tests/fixtures/gbs_marquee/` | ❌ W0 | ⬜ pending |
-| 87-02-* | 02 (parser-lock) | 2 | GBS-MARQ-02 | `Qt.TextFormat.PlainText` invariant on parsed text | unit | `pytest tests/test_gbs_marquee.py::test_parse_marquee_pipe_split -x` | ❌ W0 | ⬜ pending |
-| 87-03-* | 03 (worker) | 3 | GBS-MARQ-01 | Worker thread bounded; no eval, no subprocess | unit (QTest) | `pytest tests/test_gbs_marquee.py::test_cadence_state_machine -x` | ❌ W0 | ⬜ pending |
-| 87-04-* | 04 (themed-day) | 4 | GBS-THEME-01, GBS-THEME-02, GBS-THEME-03, GBS-THEME-04, GBS-THEME-05 | Logo targets `logo_label` only; no SQLite write; no toast | unit + source-grep | `pytest tests/test_gbs_marquee.py tests/test_gbs_marquee_drift_guard.py -x -k 'themed or logo'` | ❌ W0 | ⬜ pending |
-| 87-05-* | 05 (banner) | 5 | GBS-MARQ-03, GBS-MARQ-04, GBS-MARQ-05 | `Qt.TextFormat.PlainText` on banner QLabel; bound-method signal connections (QA-05) | integration (QTest) | `pytest tests/test_announcement_banner.py -x` | ❌ W0 | ⬜ pending |
-| 87-06-* | 06 (drift-guards + edits) | 6 | GBS-MARQ-06 + GBS-THEME-06 follow-up | Source-grep drift-guards; REQUIREMENTS/ROADMAP edited; todo created | source-grep + manual | `pytest tests/test_gbs_marquee_drift_guard.py -x` + manual edit confirmation | ❌ W0 | ⬜ pending |
+| 87-01-* | 01 (harvest) | 1 | GBS-THEME-06 init / GBS-MARQ-07 init | Fixtures + MANIFEST.md schema; live data captured under 0o600 dev-fixture parents | manual + fixture-count | `pytest tests/test_gbs_marquee.py -k 'fixture or manifest or baseline_table' -q` | ✅ | ✅ green |
+| 87-02-* | 02 (parser-lock) | 2 | GBS-MARQ-02 | `Qt.TextFormat.PlainText` invariant on parsed text | unit | `pytest tests/test_gbs_marquee.py -k parse_marquee -q` | ✅ | ✅ green |
+| 87-03-* | 03 (worker) | 3 | GBS-MARQ-01 | Worker thread bounded; no eval, no subprocess | unit (QTest) | `pytest tests/test_gbs_marquee.py::test_cadence_state_machine tests/test_gbs_marquee_drift_guard.py::test_worker_run_calls_exec_loop -q` | ✅ | ✅ green |
+| 87-04-* | 04 (themed-day) | 4 | GBS-THEME-01, GBS-THEME-02, GBS-THEME-03, GBS-THEME-04, GBS-THEME-05 | Logo targets `logo_label` only; no SQLite write; no toast | unit + source-grep | `pytest tests/test_gbs_marquee.py tests/test_gbs_marquee_drift_guard.py -k 'themed or logo' -q` | ✅ | ✅ green |
+| 87-05-* | 05 (banner) | 5 | GBS-MARQ-03, GBS-MARQ-04, GBS-MARQ-05 | `Qt.TextFormat.PlainText` on banner QLabel; bound-method signal connections (QA-05) | integration (QTest) | `pytest tests/test_announcement_banner.py -q` | ✅ | ✅ green |
+| 87-06-* | 06 (drift-guards + edits) | 6 | GBS-MARQ-06 + GBS-THEME-06 follow-up | Source-grep drift-guards; REQUIREMENTS/ROADMAP edited; todo created | source-grep + manual | `pytest tests/test_gbs_marquee_drift_guard.py -q` + manual edit confirmation | ✅ | ✅ green |
+| 87-07-* | 07 (off-host logo gap-closure) | 7 | GBS-THEME-01/02 (off-host fetch path) | `#leftmenulogo` resolver; worker emits bytes; main-thread decode; scheme guard | unit | `pytest tests/test_gbs_marquee.py -k 'leftmenulogo or raw_bytes or override_accepts_bytes or pride or scheme' -q` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -66,17 +68,17 @@ created: 2026-05-25
 | GBS-MARQ-04 | Pipe boundaries → `\n` wrap hints | Banner given `"first \| second"` → QLabel `text()` contains `\n` | unit (QTest) | `pytest tests/test_announcement_banner.py::test_pipe_to_newline_wrap -x` |
 | GBS-MARQ-05 | × dismiss stores hash; same banner doesn't reappear | Dismissal-set assertion identical to GBS-MARQ-03 oracle | integration (QTest) | `pytest tests/test_announcement_banner.py::test_dismiss_stores_hash -x` |
 | GBS-MARQ-06 | Phase 76 cookies-jar reuse; no QWebEngineProfile / no parallel cookies file | Source-grep: `gbs_marquee.py` imports `gbs_api` + `paths`; bans `QWebEngineProfile`, `GBS_WEB_PROFILE_NAME`, `oauth_helper`, parallel `open(<cookies-path>, "w")` | source-grep | `pytest tests/test_gbs_marquee_drift_guard.py::test_marquee_module_reuses_phase76_auth_only -x` |
-| GBS-MARQ-07 | ≥10 marquee fixtures committed | `len(glob("tests/fixtures/gbs_marquee/*.txt") + glob("tests/fixtures/gbs_marquee/*.json")) >= 10` | fixture-count | `pytest tests/test_gbs_marquee.py::test_fixture_count_ten_or_more -x` |
+| GBS-MARQ-07 | ≥10 marquee fixtures committed + MANIFEST hash parity | `len(glob("tests/fixtures/gbs_marquee/*.txt") + glob("tests/fixtures/gbs_marquee/*.json")) >= 10`; every MANIFEST-declared SHA-256 re-hashes to its committed file (T-87-01-04, added 2026-06-15) | fixture-count + hash-parity | `pytest tests/test_gbs_marquee.py -k 'fixture_count or manifest_sha256_parity' -q` |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_gbs_marquee.py` — covers GBS-THEME-01/02/06 + GBS-MARQ-01/02/07 (unit + fixture-count)
-- [ ] `tests/test_gbs_marquee_drift_guard.py` — covers GBS-THEME-03/04/05 + GBS-MARQ-06 (source-grep)
-- [ ] `tests/test_announcement_banner.py` — covers GBS-MARQ-03/04/05 (integration + widget)
-- [ ] `tests/fixtures/gbs_themed_logos/MANIFEST.md` — fixture metadata schema (Plan 87-01 establishes)
-- [ ] `tests/fixtures/gbs_marquee/MANIFEST.md` — fixture metadata schema (Plan 87-01 establishes)
+- [x] `tests/test_gbs_marquee.py` — covers GBS-THEME-01/02/06 + GBS-MARQ-01/02/07 (unit + fixture-count + hash-parity); 37 tests green
+- [x] `tests/test_gbs_marquee_drift_guard.py` — covers GBS-THEME-03/04/05 + GBS-MARQ-06 (source-grep); 5 tests green
+- [x] `tests/test_announcement_banner.py` — covers GBS-MARQ-03/04/05 (integration + widget); 6 tests green
+- [x] `tests/fixtures/gbs_themed_logos/MANIFEST.md` — fixture metadata schema (Plan 87-01)
+- [x] `tests/fixtures/gbs_marquee/MANIFEST.md` — fixture metadata schema (Plan 87-01)
 
 ---
 
@@ -84,7 +86,7 @@ created: 2026-05-25
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Live-fixture harvest TODAY captures "da troops" themed PNG + raw marquee | GBS-THEME-06 init / GBS-MARQ-07 init | Requires real network call to gbs.fm with dev fixture cookies; time-sensitive | Plan 87-01 instructions: GET `https://gbs.fm/images/logo_3.png` with cookies → SHA-256 → write to `tests/fixtures/gbs_themed_logos/2026-05-25_memorial-day_da-troops.png` + MANIFEST entry; GET candidate marquee URL(s) → write raw bytes to `tests/fixtures/gbs_marquee/2026-05-25_*.txt` + MANIFEST entry |
+| Live-fixture harvest captures "da troops" themed PNG + raw marquee | GBS-THEME-06 init / GBS-MARQ-07 init | Requires real network call to gbs.fm with dev fixture cookies; time-sensitive | ✅ DONE (2026-05-25 harvest). Fixtures committed; now machine-verified by `test_fixture_manifest_sha256_parity` + `test_baseline_table_has_harvest_entries`. Re-harvest only needed to grow the baseline (see `todos/2026-05-25-gbs-theme-hash-baseline-grow.md`). |
 | Themed logo appears in now-playing logo slot only (not cover, not list, not toast) at Wayland DPR=1.0 | GBS-THEME-03 / GBS-THEME-05 | Visual verification at deployment-target DPR | Bind GBS station while "da troops" hash is in baseline; observe NowPlayingPanel logo slot displays themed logo; confirm cover slot unchanged; confirm no toast |
 | Banner wrap behavior visually correct | GBS-MARQ-04 | Visual verification | Multi-pipe marquee like `"announcement \| perpetual1 \| perpetual2"` renders banner with line break at the pipe boundary; long announcement wraps across multiple lines |
 
@@ -92,11 +94,29 @@ created: 2026-05-25
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (3 new test files + 2 fixture MANIFESTs)
-- [ ] No watch-mode flags (`-x` short-circuits but no `--watch`)
-- [ ] Feedback latency < 5s for quick run
-- [ ] `nyquist_compliant: true` set in frontmatter after planner finalizes task assignments
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (3 test files + 2 fixture MANIFESTs) — all present and green
+- [x] No watch-mode flags
+- [x] Feedback latency < 5s for quick run (~4s measured)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** verified 2026-06-15
+
+---
+
+## Validation Audit 2026-06-15
+
+State A audit (post-execution). Cross-referenced all 13 requirements against the implemented test inventory and ran the Phase 87 suite green.
+
+| Metric | Count |
+|--------|-------|
+| Requirements audited | 13 (6 GBS-THEME + 7 GBS-MARQ) |
+| COVERED (automated, green) | 13 |
+| PARTIAL | 0 |
+| MISSING | 0 |
+| Gaps found | 0 |
+| Resolved | 0 (none needed) |
+| Escalated to manual-only | 0 new (3 pre-existing visual/network proxies retained) |
+
+**Result:** NYQUIST-COMPLIANT. No auditor spawn required (no gaps). 48 automated tests green across 3 core files + RichText baseline cross-check. Plan 87-07 gap-closure added off-host-fetch coverage (`test_extract_leftmenulogo_url_*`, `test_pride_logo_drifts_from_baseline`, `test_worker_emits_raw_bytes_not_qpixmap`, `test_set_themed_logo_override_accepts_bytes`, `test_fetch_logo_bytes_rejects_non_http_scheme`). New `test_fixture_manifest_sha256_parity` (from /gsd:secure-phase, T-87-01-04) hardens GBS-MARQ-07 with MANIFEST hash parity.
