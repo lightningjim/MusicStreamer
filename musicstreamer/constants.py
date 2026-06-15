@@ -74,6 +74,15 @@ QUALITY_SETTING_KEY = "preferred_quality"
 # endpoint accepts.
 TWITCH_LOGIN_URL = "https://www.twitch.tv/login"
 
+# GBS.FM themed-day keyword set (Phase 87 / Plan 87-04 / D-12).
+# Case-insensitive substring match against the full marquee text (lowercased).
+# All keywords must be lowercase — compute_logo_theme lowercases the marquee
+# before searching.  Extend this frozenset as future themed days are observed.
+GBS_THEMED_DAY_KEYWORDS: frozenset[str] = frozenset({
+    "da troops", "ho ho", "spooky", "halloween", "christmas",
+    "thanksgiving", "fourth", "easter", "valentine",
+})
+
 # Accent color (Phase 19 / ACCENT-01)
 ACCENT_COLOR_DEFAULT = "#3584e4"
 ACCENT_PRESETS = [

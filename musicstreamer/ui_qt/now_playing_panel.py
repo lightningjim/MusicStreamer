@@ -340,6 +340,15 @@ class NowPlayingPanel(QWidget):
         self._aa_poll_timer: Optional[QTimer] = None
         self._aa_live_worker: Optional[QThread] = None
 
+        # Phase 87 / Plan 87-04: GBS.FM themed-day logo override.
+        #   _themed_logo_override: QPixmap set once per session (D-05 — in-memory,
+        #     never persisted to disk or SQLite). Re-applied on GBS station rebind
+        #     without re-fetching (D-09). None until first themed-day detection fires.
+        #   _gbs_marquee_worker: reference owned by MainWindow; set via
+        #     attach_gbs_marquee_worker (Plan 87-04). None until MainWindow injects it.
+        self._themed_logo_override: Optional[QPixmap] = None
+        self._gbs_marquee_worker = None  # GbsMarqueeWorker | None (typed at runtime)
+
         self.setMinimumWidth(560)
 
         # ------------------------------------------------------------------
@@ -887,6 +896,17 @@ class NowPlayingPanel(QWidget):
         # is the ONLY call site (test_refresh_gbs_visibility_runs_once_per_bind_station
         # locks this).
         self._refresh_gbs_visibility()
+        # Phase 87 / Plan 87-04 / Pitfall #2: cadence wired via bind_station,
+        # NOT via Player signals (Player.state_changed / Player.station_bound
+        # are phantom signals that Player does not expose per CONTEXT D-16).
+        if self._gbs_marquee_worker is not None:
+            if station.provider_name == "GBS.FM":
+                # Re-apply cached themed-logo override if available (D-09).
+                if self._themed_logo_override is not None:
+                    self.set_themed_logo_override(self._themed_logo_override)
+                self._refresh_gbs_marquee_cadence()
+            else:
+                self._gbs_marquee_worker.set_cadence(0)  # idle — not a GBS station
 
     # ----------------------------------------------------------------------
     # Player signal slots (wired by MainWindow in 37-04)
@@ -994,6 +1014,14 @@ class NowPlayingPanel(QWidget):
             self.play_pause_btn.setToolTip("Play")
         self.edit_btn.setEnabled(self._station is not None)
         self._update_star_enabled()
+        # Phase 87 / Plan 87-04 / Pitfall #2: cadence wired via on_playing_state_changed,
+        # NOT via Player signals.
+        if (
+            self._gbs_marquee_worker is not None
+            and self._station is not None
+            and self._station.provider_name == "GBS.FM"
+        ):
+            self._refresh_gbs_marquee_cadence()
 
     def set_buffer_percent(self, percent: int) -> None:
         """Update the buffer indicator bar + {N}% label atomically (D-11). Phase 47.1."""
@@ -1055,6 +1083,70 @@ class NowPlayingPanel(QWidget):
         single source of truth for menu/panel state).
         """
         self._similar_container.setVisible(bool(visible))
+
+    # ----------------------------------------------------------------------
+    # Phase 87 / Plan 87-04 — GBS.FM themed-day logo override surface
+    # ----------------------------------------------------------------------
+
+    def set_themed_logo_override(self, pixmap: QPixmap | None) -> None:
+        """Apply a themed-logo QPixmap to ``logo_label`` for this session.
+
+        Called via ``themed_logo_ready`` signal from ``GbsMarqueeWorker`` (cross-
+        thread; connected with ``Qt.QueuedConnection`` so this slot runs on the
+        main thread).
+
+        D-05: the pixmap is cached in-memory only — NO disk write, NO SQLite row.
+        D-09: the override persists in ``self._themed_logo_override`` for the
+        remainder of the app session; rebinding a GBS station reuses the cached
+        pixmap without re-fetching.
+        GBS-THEME-03: only ``self.logo_label`` is touched — ``cover_label`` and
+        station-list row are NEVER modified here (drift-guard in Plan 87-06 greps
+        for cover_label / set_station_art / set_cover in gbs_marquee.py).
+        """
+        if pixmap is None or pixmap.isNull():
+            return
+        self._themed_logo_override = pixmap
+        n = self._current_art_tier or 180
+        scaled = pixmap.scaled(
+            QSize(n, n),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self.logo_label.setPixmap(scaled)
+
+    def attach_gbs_marquee_worker(self, worker) -> None:
+        """Inject the GbsMarqueeWorker reference from MainWindow.
+
+        Connects ``worker.themed_logo_ready`` → ``self.set_themed_logo_override``
+        with ``Qt.QueuedConnection`` (cross-thread payload delivery — CONVENTIONS
+        QA-05 bound-method connection).  Stores the reference so cadence state
+        transitions can call ``worker.set_cadence()``.
+
+        Called by MainWindow during construction, before ``worker.start()``.
+        """
+        from PySide6.QtCore import Qt as _Qt
+        self._gbs_marquee_worker = worker
+        worker.themed_logo_ready.connect(
+            self.set_themed_logo_override, _Qt.QueuedConnection
+        )
+
+    def _refresh_gbs_marquee_cadence(self) -> None:
+        """Drive GbsMarqueeWorker cadence from current is_playing state.
+
+        Called from ``bind_station`` and ``on_playing_state_changed`` whenever
+        the active station is GBS.FM (Pitfall #2 wiring — cadence is driven
+        via NowPlayingPanel surface, NOT via Player signals).
+
+        Cadence rules (D-16):
+          - is_playing=True  → 60 000 ms (fast cadence for themed-day detection)
+          - is_playing=False → 300 000 ms (slow cadence while paused)
+        """
+        if self._gbs_marquee_worker is None:
+            return
+        if self._is_playing:
+            self._gbs_marquee_worker.set_cadence(60_000)
+        else:
+            self._gbs_marquee_worker.set_cadence(300_000)
 
     # ----------------------------------------------------------------------
     # Internal slots
@@ -1955,6 +2047,18 @@ class NowPlayingPanel(QWidget):
         # Phase 72.3 / LAYOUT-03 / D-03: central tier size.
         n = self._current_art_tier or 180
         self.logo_label.setPixmap(_load_scaled_pixmap(path, QSize(n, n)))
+        # Phase 87 / Plan 87-04 / D-09: re-apply themed-logo override for GBS
+        # stations after the canonical logo has been set.  This ensures that
+        # tier-change replay (via _apply_art_tier → _show_station_logo) and
+        # GBS station rebinds keep the themed logo visible without re-fetching.
+        # GBS-THEME-03: only logo_label is touched here — cover_label is never
+        # modified on the themed-day path.
+        if (
+            self._themed_logo_override is not None
+            and self._station is not None
+            and self._station.provider_name == "GBS.FM"
+        ):
+            self.set_themed_logo_override(self._themed_logo_override)
 
     def _show_station_logo_in_cover_slot(self) -> None:
         path = self._station.station_art_path if self._station else None
