@@ -34,18 +34,120 @@ Worker (Plan 87-03):
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import urllib.error
 import urllib.request
+from typing import NamedTuple
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
+from PySide6.QtGui import QPixmap
 
 from musicstreamer import gbs_api, paths  # noqa: F401  # drift-guard (Plan 87-06)
+from musicstreamer.constants import GBS_THEMED_DAY_KEYWORDS
 
 # Module-level named logger — wired to buffer-events.log via
 # buffer_log.install_gbs_marquee_handler() (Plan 87-05 wires the call site).
 _log = logging.getLogger("musicstreamer.gbs_marquee")
+
+# ---------- Themed-day baseline hash table (Plan 87-04 / D-04 / GBS-THEME-06) -----
+
+# Baseline hash table — entries accrete as future themed days fire.
+# See todos/2026-05-25-gbs-theme-hash-baseline-grow.md (created by Plan 87-06).
+#
+# Format: { "<sha256-64-hex>": "<theme-label>" }
+# Special label "canonical" suppresses drift detection (no themed-logo override).
+# All other labels indicate a themed day: the override applies.
+#
+# Seeds from Plan 87-01 MANIFEST.md + SUMMARY.md (live harvest 2026-05-25).
+# No canonical entry was captured during the Memorial Day window; the canonical
+# baseline will accrete when the operator restores the non-themed logo_3.png.
+# Until then, any hash that is NOT in this table is treated as drift.
+GBS_LOGO_BASELINE_HASHES: dict[str, str] = {
+    # Plan 87-01 harvest — 2026-05-25 Memorial Day window (cookie-authenticated fetch)
+    "bd2b83fbe2b4bfe9baf8237a8919494e10cc7cf42ad3c42b1fcd605942881be3": "da troops (Memorial Day 2026-05-25)",
+}
+
+
+# ---------- ThemeResult (Plan 87-04) ------------------------------------------
+
+
+class ThemeResult(NamedTuple):
+    """Result of a themed-day correlation check (compute_logo_theme).
+
+    Fields:
+        is_themed (bool): True if the logo shows drift from canonical (themed).
+            Also True on D-12 fallback (unknown hash treated as drift).
+        logo_hash (str): SHA-256 hex digest of the fetched logo bytes.
+        theme_label (str | None): The label from GBS_LOGO_BASELINE_HASHES if
+            the hash was found there, or None if it was an unknown hash.
+            Always "canonical" if is_themed=False.
+        fallback_unknown_theme (bool): True when drift was detected but no
+            keyword match occurred.  Per D-12, the logo override STILL
+            applies; this flag is set so the caller can emit the structured
+            INFO log line recording the new hash for future baseline extension.
+    """
+
+    is_themed: bool
+    logo_hash: str
+    theme_label: str | None
+    fallback_unknown_theme: bool
+
+
+# ---------- Themed-day correlator (Plan 87-04 / D-12) -------------------------
+
+
+def compute_logo_theme(logo_bytes: bytes, full_marquee_text: str) -> ThemeResult:
+    """Correlate logo bytes with the baseline hash table and keyword set.
+
+    Detection rule (D-12 verbatim):
+        ``is_drift = (hash NOT IN GBS_LOGO_BASELINE_HASHES) OR
+                     (GBS_LOGO_BASELINE_HASHES[hash] != "canonical")``
+
+    If ``is_drift``, the themed logo applies regardless of keyword presence
+    (D-12 fallback): a never-before-seen hash is treated as a new themed day.
+    The ``fallback_unknown_theme`` flag is set True when drift is detected but
+    NO keyword matches, so the caller can log ``gbs.themed_day.unknown_theme_observed``
+    (T-87-04-02 — hash only, no marquee body).
+
+    Args:
+        logo_bytes: Raw PNG bytes fetched from ``gbs_api.GBS_STATION_METADATA["logo_url"]``.
+        full_marquee_text: The full text returned by ``_on_tick``'s marquee fetch
+            (``self._last_full_marquee_text``).  May be empty string if the
+            first marquee fetch has not yet completed.
+
+    Returns:
+        ThemeResult named-tuple; see class docstring for field semantics.
+    """
+    logo_hash = hashlib.sha256(logo_bytes).hexdigest()
+    label_in_table = GBS_LOGO_BASELINE_HASHES.get(logo_hash)
+
+    # Drift = hash absent from table OR present with a non-canonical label.
+    is_drift = (label_in_table is None) or (label_in_table != "canonical")
+
+    if not is_drift:
+        # Canonical logo — no themed-day override.
+        return ThemeResult(
+            is_themed=False,
+            logo_hash=logo_hash,
+            theme_label="canonical",
+            fallback_unknown_theme=False,
+        )
+
+    # Drift detected — themed logo applies.
+    # Check for keyword match (case-insensitive substring search).
+    lowered = full_marquee_text.lower()
+    has_keyword = any(kw in lowered for kw in GBS_THEMED_DAY_KEYWORDS)
+    fallback = not has_keyword  # D-12 fallback fires when keyword is absent
+
+    return ThemeResult(
+        is_themed=True,
+        logo_hash=logo_hash,
+        theme_label=label_in_table,  # None if hash not in table (unknown drift)
+        fallback_unknown_theme=fallback,
+    )
+
 
 # ---------- URL constant (locked from Plan 87-01 harvest dissection) ----------
 
