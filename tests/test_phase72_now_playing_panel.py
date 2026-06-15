@@ -119,12 +119,19 @@ def test_compact_mode_toggle_button_present_at_far_right(qtbot):
             return
         for i in range(layout.count()):
             item = layout.itemAt(i)
-            if item.widget() is panel.volume_slider:
+            w = item.widget()
+            if w is panel.volume_slider:
                 found_layout = layout
                 return
             sub = item.layout()
             if sub is not None:
                 _walk_layouts(sub)
+            # Descend into nested child widgets' layouts too. The panel wraps its
+            # content in an outer container widget (e.g. the announcement-banner
+            # VBox wrap), so the controls row is reachable only through that
+            # widget's own layout, not as a directly-nested layout item.
+            elif w is not None and w.layout() is not None:
+                _walk_layouts(w.layout())
 
     _walk_layouts(panel.layout())
     assert found_layout is not None, "Could not locate layout containing volume_slider"
