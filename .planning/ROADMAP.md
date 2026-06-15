@@ -273,7 +273,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 87-06-PLAN.md — Source-grep drift-guards + GBS-THEME-06 follow-up todo (GBS-MARQ-06 enforce, GBS-THEME-06 accrete)
+- [x] 87-06-PLAN.md — Source-grep drift-guards + GBS-THEME-06 follow-up todo (GBS-MARQ-06 enforce, GBS-THEME-06 accrete)
 
 **Research flag**: YES — `/gsd:plan-phase --research-phase 87` recommended (QtWebEngine cookie persistence cross-process, marquee delimiter ambiguity, themed-day hash baseline harvest).
 **UI hint**: yes
@@ -415,7 +415,7 @@ Plans:
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
-| 87. GBS Marquee + Themed-Day | 5/6 | In Progress|  |
+| 87. GBS Marquee + Themed-Day | 6/6 | Complete   | 2026-06-15 |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
