@@ -41,16 +41,21 @@ Recommended `parse_marquee()` algorithm (Plan 87-02 will refine):
 
 The trailing `*` on `da troops*` correlates with `[*LATEST FAD]` marker in a later segment — GBS.FM operator convention for "newest thing." Phase 87 ignores this; the trigger text matched by the themed-day keyword set is still the substring `da troops`.
 
-## Pending synthetic entries (Plan 87-02)
+## Synthetic Samples (Pitfall #8 — parser robustness)
 
-Plan 87-02 will add `synthetic-001.txt` through `synthetic-007.txt` per its files_modified list, covering:
+Plan 87-02 added 8 synthetic samples to satisfy GBS-MARQ-07's ≥ 10 fixture count
+(2 real-captured + 8 synthetic = 10 total data files).  Each synthetic file contains
+a single line of marquee plain text exercising a specific parser-robustness scenario.
+Synthetic files are distinguished from real-captured entries by filename prefix
+(`synthetic-`) and `provenance = synthetic` in this table.
 
-- Empty marquee
-- Single-segment (no pipe)
-- Multi-segment (3+ pipes)
-- Pipe-padded variant (`a | b | c` vs `a|b|c`)
-- Unicode content
-- Whitespace-only segment
-- Trailing-pipe edge case
-
-After Plan 87-02 commits: total fixtures = 2 real-captured + 7 synthetic = 9. **GBS-MARQ-07 literal "10+" is satisfied by counting `2026-05-25_homepage.html` + `2026-05-25_ajax_cold.json` + 7 synthetic = 9 entries.** This is the Pitfall #8 relaxation contract (CONTEXT D-04 spirit applied to the marquee corpus rather than the logo baseline). If the literal "10+" is enforced strictly at verification time, Plan 87-02 commits an 8th synthetic.
+| filename | capture_date | sha256 | capture_method | provenance | notes |
+|----------|--------------|--------|----------------|------------|-------|
+| `synthetic-001.txt` | 2026-06-15 | `47210d49290f3164be3e62ab16c57afb74866b1f78da15b40e4022ac6a6576aa` | synthetic | synthetic | Single segment, no pipes ("Welcome to GBS.FM") |
+| `synthetic-002.txt` | 2026-06-15 | `72f48a2faf625b1d9de1386416424c767d1354485aa3c8cdccfab92f8b52f74e` | synthetic | synthetic | Bare-pipe delimiter, two segments ("Announcement\|Tagline") |
+| `synthetic-003.txt` | 2026-06-15 | `5fe9d1196678a7573d0c176aa6b53a9ab86cc18978980dc2fdc9841342acfb85` | synthetic | synthetic | Space-padded delimiter, three segments ("Special event \| Tip jar \| Schedule") |
+| `synthetic-004.txt` | 2026-06-15 | `663e451570c7567b79e8a7ece208cb47d81d305d55075dd93a3884a7ad868012` | synthetic | synthetic | Announcement with internal punctuation + pipe-padded perpetuals (Memorial Day specimen) |
+| `synthetic-005.txt` | 2026-06-15 | `eae1591a5e9c8635e0e664868b56d24930c1ed5367a1713959d6ac2bca9062f1` | synthetic | synthetic | Unicode in announcement (🎄 emoji) |
+| `synthetic-006.txt` | 2026-06-15 | `18bd79db964fb71af81bf764ec5f19747ee7c6274c103013f715720682b096c5` | synthetic | synthetic | Leading empty segment ("\|leading-empty-stripped\|Real announcement") |
+| `synthetic-007.txt` | 2026-06-15 | `7c68d2306e3d9616c80b354d42af3d5f736d2376ebd1220da1ca2d6bed7fc8d4` | synthetic | synthetic | Leading + trailing whitespace, mixed delimiter spacing (long multi-pipe line) |
+| `synthetic-008.txt` | 2026-06-15 | `ae23747a2fd8843bd201e6f474b3d6f7fe220123baeaa8371999dbe564c29635` | synthetic | synthetic | 4-segment line with unicode emoji (🍀), verifies multi-pipe + unicode together |
