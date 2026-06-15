@@ -1126,26 +1126,49 @@ class NowPlayingPanel(QWidget):
     # Phase 87 / Plan 87-04 — GBS.FM themed-day logo override surface
     # ----------------------------------------------------------------------
 
-    def set_themed_logo_override(self, pixmap: QPixmap | None) -> None:
-        """Apply a themed-logo QPixmap to ``logo_label`` for this session.
+    def set_themed_logo_override(self, payload) -> None:
+        """Apply a themed logo to ``logo_label`` for this session.
 
-        Called via ``themed_logo_ready`` signal from ``GbsMarqueeWorker`` (cross-
-        thread; connected with ``Qt.QueuedConnection`` so this slot runs on the
-        main thread).
+        Plan 87-07 (CR-01 fix): the worker now emits raw PNG ``bytes`` (not a
+        ``QPixmap``) via ``themed_logo_ready``.  This slot decodes bytes →
+        ``QPixmap`` on the main/GUI thread where Qt's paint backend is safe.
+        Internal re-apply callers (``bind_station`` ~937, ``_show_station_logo``
+        ~2172) still pass the cached ``QPixmap`` directly — both payload types
+        are accepted.
 
-        D-05: the pixmap is cached in-memory only — NO disk write, NO SQLite row.
-        D-09: the override persists in ``self._themed_logo_override`` for the
-        remainder of the app session; rebinding a GBS station reuses the cached
-        pixmap without re-fetching.
+        Payload handling:
+          - ``None``: return immediately (defensive; WR-04 note — clearing the
+            override is out of scope for this plan; None is a no-op).
+          - ``bytes | bytearray``: decode via ``QPixmap().loadFromData()`` on
+            the main thread (CR-01 cleared — no QPixmap off the GUI thread).
+            Decode failure (bad PNG) → return (keep canonical logo, T-87-04-01).
+          - ``QPixmap``: use directly (internal D-09 re-apply path).
+
+        D-05: cached in-memory only — NO disk write, NO SQLite row.
+        D-09: ``self._themed_logo_override`` (always a QPixmap) persists for the
+        session; rebinding GBS reuses it without re-fetching.
         GBS-THEME-03: only ``self.logo_label`` is touched — ``cover_label`` and
-        station-list row are NEVER modified here (drift-guard in Plan 87-06 greps
-        for cover_label / set_station_art / set_cover in gbs_marquee.py).
+        station-list row are NEVER modified here.
         """
-        if pixmap is None or pixmap.isNull():
+        if payload is None:
             return
-        self._themed_logo_override = pixmap
+        if isinstance(payload, (bytes, bytearray)):
+            # Decode on the main thread (CR-01 — QPixmap must not be constructed
+            # on the worker QThread where Qt's paint backend may not be initialised).
+            pix = QPixmap()
+            ok = pix.loadFromData(bytes(payload), "PNG")
+            if not ok or pix.isNull():
+                # Decode failure → keep canonical logo (T-87-04-01).
+                return
+        else:
+            # Assume QPixmap (internal D-09 re-apply path from bind_station /
+            # _show_station_logo).
+            pix = payload
+            if pix.isNull():
+                return
+        self._themed_logo_override = pix
         n = self._current_art_tier or 180
-        scaled = pixmap.scaled(
+        scaled = pix.scaled(
             QSize(n, n),
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
