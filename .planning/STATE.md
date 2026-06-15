@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: ready_to_plan
-stopped_at: Phase 87 complete (7/7) — ready to discuss Phase 87.1
-last_updated: 2026-06-15T23:09:37.335Z
-last_activity: 2026-06-15 -- Phase 87 execution started
+status: planning
+stopped_at: Phase 94 context gathered
+last_updated: "2026-06-15T23:36:51.815Z"
+last_activity: 2026-06-15
 progress:
   total_phases: 20
-  completed_phases: 9
-  total_plans: 41
+  completed_phases: 10
+  total_plans: 42
   completed_plans: 41
-  percent: 45
+  percent: 50
 ---
 
 # Project State
@@ -169,9 +169,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-11T00:35:35.911Z
-Stopped at: Phase 88.2 context gathered
-Resume file: .planning/phases/88.2-fix-gbs-fm-in-app-login-dialog-fails-to-start-phase-88-uat-g/88.2-CONTEXT.md
+Last session: 2026-06-15T23:36:51.805Z
+Stopped at: Phase 94 context gathered
+Resume file: .planning/phases/94-optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for/94-CONTEXT.md
 
 ## Operator Next Steps
 
