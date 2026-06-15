@@ -265,7 +265,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 87-04-PLAN.md — Themed-day correlator + logo slot override + MainWindow worker construction (GBS-THEME-01..05)
+- [x] 87-04-PLAN.md — Themed-day correlator + logo slot override + MainWindow worker construction (GBS-THEME-01..05)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -415,7 +415,7 @@ Plans:
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
-| 87. GBS Marquee + Themed-Day | 3/6 | In Progress|  |
+| 87. GBS Marquee + Themed-Day | 4/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
