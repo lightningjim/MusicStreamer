@@ -277,7 +277,7 @@ Plans:
 
 **Wave 7** *(gap closure — UAT Test 2 fix)*
 
-- [ ] 87-07-PLAN.md — Resolve dynamic #leftmenulogo logo URL (imgur + img.gbs.fm/.../raw) from reused homepage bytes; re-baseline + CR-01 main-thread QPixmap (GBS-THEME-01..05)
+- [x] 87-07-PLAN.md — Resolve dynamic #leftmenulogo logo URL (imgur + img.gbs.fm/.../raw) from reused homepage bytes; re-baseline + CR-01 main-thread QPixmap (GBS-THEME-01..05)
 
 **Research flag**: YES — `/gsd:plan-phase --research-phase 87` recommended (QtWebEngine cookie persistence cross-process, marquee delimiter ambiguity, themed-day hash baseline harvest).
 **UI hint**: yes
@@ -419,7 +419,7 @@ Plans:
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
-| 87. GBS Marquee + Themed-Day | 6/6 | Complete   | 2026-06-15 |
+| 87. GBS Marquee + Themed-Day | 7/7 | Complete   | 2026-06-15 |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
