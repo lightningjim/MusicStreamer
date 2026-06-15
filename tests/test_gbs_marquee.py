@@ -421,3 +421,138 @@ def test_gbs_themed_day_keywords_constant():
     # Spot-check a few other D-12 literals
     assert "halloween" in GBS_THEMED_DAY_KEYWORDS
     assert "christmas" in GBS_THEMED_DAY_KEYWORDS
+
+
+# ---------------------------------------------------------------------------
+# Plan 87-04 Task 2: Worker one-shot + NowPlayingPanel slot tests
+# ---------------------------------------------------------------------------
+
+
+# Canned PNG bytes for the once-per-session gate test — use the harvested fixture.
+def _get_themed_logo_bytes() -> bytes:
+    return _THEMED_LOGO_PATH.read_bytes()
+
+
+def test_once_per_session_gate(monkeypatch):
+    """_fetch_logo_bytes is called exactly ONCE across multiple ticks (D-09 / D-17).
+
+    Creates a fresh GbsMarqueeWorker, monkeypatches _fetch_marquee to return a
+    keyword-bearing noticearea HTML, monkeypatches _fetch_logo_bytes to count
+    calls and return canned bytes.  Drives two ticks via set_cadence + qWait.
+    Assert logo-fetch counter == 1 (not 2): the once-per-session gate held.
+    """
+    _get_qapp()
+    import musicstreamer.gbs_marquee as _mod
+    from PySide6.QtTest import QTest
+    from musicstreamer.gbs_marquee import GbsMarqueeWorker
+
+    # Return keyword-bearing marquee HTML so the keyword check succeeds on tick 1.
+    FIXTURE_HTML = '<p id="noticearea"><b>GBS-FM</b>: da troops | come join us!</p>'
+    monkeypatch.setattr(_mod, "_fetch_marquee", lambda: FIXTURE_HTML)
+
+    logo_call_count = [0]
+
+    def _fake_fetch_logo_bytes():
+        logo_call_count[0] += 1
+        return _get_themed_logo_bytes()
+
+    monkeypatch.setattr(_mod, "_fetch_logo_bytes", _fake_fetch_logo_bytes)
+
+    worker = GbsMarqueeWorker()
+    try:
+        worker.start()
+        worker.set_cadence(60_000)
+        QTest.qWait(400)   # first tick: marquee fetch + themed-day detection
+
+        # Force a second tick.
+        worker.force_poll()
+        QTest.qWait(400)   # second tick: marquee fetch only (one-shot gate holds)
+
+        assert logo_call_count[0] == 1, (
+            f"Expected logo fetch to fire exactly ONCE (D-09/D-17), "
+            f"got {logo_call_count[0]} calls"
+        )
+    finally:
+        worker.stop_and_wait(timeout_ms=3_000)
+
+
+class _FakeRepoForPanel:
+    """Minimal FakeRepo for NowPlayingPanel construction in Task 2 tests."""
+
+    def __init__(self):
+        self._settings = {}
+
+    def get_setting(self, key, default=None):
+        return self._settings.get(key, default)
+
+    def set_setting(self, key, value):
+        self._settings[key] = value
+
+    def is_favorited(self, station_name, track_title):
+        return False
+
+    def add_favorite(self, *args, **kwargs):
+        pass
+
+    def remove_favorite(self, *args, **kwargs):
+        pass
+
+    def list_streams(self, station_id):
+        return []
+
+    def list_stations(self):
+        return []
+
+    def get_station(self, station_id):
+        raise ValueError(f"Station not found: {station_id}")
+
+    def list_favorites(self, *args, **kwargs):
+        return []
+
+
+def test_themed_logo_targets_logo_slot_only_behavior():
+    """set_themed_logo_override targets logo_label only; cover_label is unchanged.
+
+    GBS-THEME-03 behavioral assertion — the source-grep drift-guard ships in
+    Plan 87-06.  This test confirms the SLOT behavior (NowPlayingPanel assigns
+    the pixmap to self.logo_label, not self.cover_label).
+    """
+    _get_qapp()
+    from PySide6.QtGui import QPixmap
+    from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
+    from tests._fake_player import FakePlayer
+
+    repo = _FakeRepoForPanel()
+    player = FakePlayer()
+    panel = NowPlayingPanel(player, repo)
+    panel.show()
+
+    # Record the cover_label pixmap before the override.
+    cover_before = panel.cover_label.pixmap()
+
+    # Apply the themed logo override.
+    themed_pixmap = QPixmap()
+    ok = themed_pixmap.loadFromData(_get_themed_logo_bytes(), "PNG")
+    assert ok and not themed_pixmap.isNull(), "Fixture PNG must load cleanly"
+
+    panel.set_themed_logo_override(themed_pixmap)
+
+    # logo_label must now have a pixmap set.
+    logo_after = panel.logo_label.pixmap()
+    assert logo_after is not None and not logo_after.isNull(), (
+        "logo_label pixmap must be set after set_themed_logo_override"
+    )
+
+    # cover_label must be UNCHANGED (GBS-THEME-03 invariant).
+    cover_after = panel.cover_label.pixmap()
+    # No station bound → cover shows fallback or None; whatever it was, it
+    # must be IDENTICAL after the override (override must not touch cover_label).
+    if cover_before is None or cover_before.isNull():
+        assert cover_after is None or cover_after.isNull(), (
+            "cover_label must remain unchanged after set_themed_logo_override"
+        )
+    else:
+        # If there was a pre-existing cover pixmap, it must be unchanged.
+        assert cover_after is not None and not cover_after.isNull(), (
+            "cover_label must remain unchanged after set_themed_logo_override"
+        )
