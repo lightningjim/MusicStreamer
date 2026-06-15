@@ -294,3 +294,130 @@ def test_no_banned_identifiers_in_module():
     ]
     for identifier in banned:
         assert identifier not in src, f"Banned identifier found in gbs_marquee.py: {identifier}"
+
+
+# ---------------------------------------------------------------------------
+# Plan 87-04: compute_logo_theme + GBS_THEMED_DAY_KEYWORDS + GBS_LOGO_BASELINE_HASHES
+# ---------------------------------------------------------------------------
+
+# SHA-256 of tests/fixtures/gbs_themed_logos/2026-05-25_memorial-day_da-troops.png
+# Harvested live during the 2026-05-25 Memorial Day window (Plan 87-01 SUMMARY + MANIFEST.md).
+_THEMED_HASH = "bd2b83fbe2b4bfe9baf8237a8919494e10cc7cf42ad3c42b1fcd605942881be3"
+
+_THEMED_LOGO_PATH = (
+    pathlib.Path(__file__).resolve().parent
+    / "fixtures"
+    / "gbs_themed_logos"
+    / "2026-05-25_memorial-day_da-troops.png"
+)
+
+
+def test_compute_logo_theme_hashes_logo_bytes():
+    """compute_logo_theme returns is_themed=True + correct hash + label for themed bytes.
+
+    Uses the Plan 87-01 harvested PNG.  The fixture hash must match the
+    MANIFEST.md entry and be a key in GBS_LOGO_BASELINE_HASHES.
+    """
+    from musicstreamer.gbs_marquee import compute_logo_theme
+
+    logo_bytes = _THEMED_LOGO_PATH.read_bytes()
+    result = compute_logo_theme(logo_bytes, "Memorial Day — da troops salute!")
+
+    assert result.is_themed is True
+    assert result.logo_hash == _THEMED_HASH, (
+        f"Expected hash {_THEMED_HASH!r}, got {result.logo_hash!r}"
+    )
+    assert result.theme_label is not None
+    assert "da troops" in result.theme_label.lower()
+    assert result.fallback_unknown_theme is False
+
+
+def test_themed_detection_keyword_match():
+    """Drift + keyword present → is_themed=True, fallback_unknown_theme=False."""
+    from musicstreamer.gbs_marquee import compute_logo_theme
+
+    logo_bytes = _THEMED_LOGO_PATH.read_bytes()
+    result = compute_logo_theme(logo_bytes, "da troops* | tune in Friday!")
+
+    assert result.is_themed is True
+    assert result.fallback_unknown_theme is False
+
+
+def test_themed_detection_no_keyword_fallback():
+    """Drift + no keyword → D-12 fallback: is_themed=True, fallback_unknown_theme=True.
+
+    The hash of the themed logo IS in GBS_LOGO_BASELINE_HASHES with a non-canonical
+    label, so drift IS detected.  The marquee text has no matching keyword.
+    Per D-12: logo still applies (is_themed=True), fallback flag set True.
+    """
+    from musicstreamer.gbs_marquee import compute_logo_theme
+
+    logo_bytes = _THEMED_LOGO_PATH.read_bytes()
+    result = compute_logo_theme(logo_bytes, "ordinary marquee text")
+
+    assert result.is_themed is True
+    assert result.fallback_unknown_theme is True
+
+
+def test_themed_detection_empty_marquee_fallback():
+    """Empty marquee text + drift → D-12 fallback (same as no_keyword case)."""
+    from musicstreamer.gbs_marquee import compute_logo_theme
+
+    logo_bytes = _THEMED_LOGO_PATH.read_bytes()
+    result = compute_logo_theme(logo_bytes, "")
+
+    assert result.is_themed is True
+    assert result.fallback_unknown_theme is True
+
+
+def test_canonical_logo_not_themed(monkeypatch):
+    """Bytes whose hash resolves to 'canonical' → is_themed=False, no fallback.
+
+    Plan 87-01 captured no canonical PNG (themed window was live).  We add the
+    canonical entry temporarily via monkeypatch on GBS_LOGO_BASELINE_HASHES so
+    the test does not require a real canonical fixture on disk.
+    """
+    import hashlib
+    import musicstreamer.gbs_marquee as _mod
+    from musicstreamer.gbs_marquee import compute_logo_theme
+
+    # Synthetic canonical bytes — any bytes not already in the baseline table.
+    canonical_bytes = b"synthetic canonical logo bytes for test"
+    canonical_hash = hashlib.sha256(canonical_bytes).hexdigest()
+
+    # Temporarily inject the canonical entry.
+    patched = {**_mod.GBS_LOGO_BASELINE_HASHES, canonical_hash: "canonical"}
+    monkeypatch.setattr(_mod, "GBS_LOGO_BASELINE_HASHES", patched)
+
+    result = compute_logo_theme(canonical_bytes, "any marquee text")
+
+    assert result.is_themed is False
+    assert result.theme_label == "canonical"
+    assert result.fallback_unknown_theme is False
+
+
+def test_baseline_table_has_harvest_entries():
+    """GBS_LOGO_BASELINE_HASHES must have >= 1 entry and the harvested hash as a key.
+
+    Per GBS-THEME-06 oracle in VALIDATION.md and Plan 87-04 acceptance criteria.
+    """
+    from musicstreamer.gbs_marquee import GBS_LOGO_BASELINE_HASHES
+
+    assert len(GBS_LOGO_BASELINE_HASHES) >= 1, (
+        f"Expected >= 1 entry in GBS_LOGO_BASELINE_HASHES, got {len(GBS_LOGO_BASELINE_HASHES)}"
+    )
+    assert _THEMED_HASH in GBS_LOGO_BASELINE_HASHES, (
+        f"Harvested hash {_THEMED_HASH!r} not found in GBS_LOGO_BASELINE_HASHES. "
+        f"Keys present: {list(GBS_LOGO_BASELINE_HASHES.keys())}"
+    )
+
+
+def test_gbs_themed_day_keywords_constant():
+    """GBS_THEMED_DAY_KEYWORDS must be a frozenset containing 'da troops' (D-12 literal)."""
+    from musicstreamer.constants import GBS_THEMED_DAY_KEYWORDS
+
+    assert isinstance(GBS_THEMED_DAY_KEYWORDS, frozenset)
+    assert "da troops" in GBS_THEMED_DAY_KEYWORDS
+    # Spot-check a few other D-12 literals
+    assert "halloween" in GBS_THEMED_DAY_KEYWORDS
+    assert "christmas" in GBS_THEMED_DAY_KEYWORDS
