@@ -22,6 +22,13 @@ Caller responsibility (Pitfall 1): directory existence is guaranteed by
 ``musicstreamer.migration.run_migration()``; ``__main__._run_gui`` installs the
 handler AFTER migration returns, so ``RotatingFileHandler``'s eager open never
 hits ``FileNotFoundError``.
+
+Phase 87 extension: ``install_gbs_marquee_handler()`` installs a parallel
+``RotatingFileHandler`` on the ``musicstreamer.gbs_marquee`` named logger.
+GBS marquee + themed-day events share ``buffer-events.log`` via this named
+logger; consumers filter by message prefix ``gbs.marquee.*`` /
+``gbs.themed_day.*``.  Both handlers are idempotent and use the same D-02
+rotation parameters.
 """
 from __future__ import annotations
 
@@ -48,6 +55,40 @@ def install_buffer_events_handler() -> None:
     """
     path = paths.buffer_events_log_path()
     log = logging.getLogger("musicstreamer.player")
+    for h in log.handlers:
+        if isinstance(h, RotatingFileHandler) and h.baseFilename == path:
+            return  # already installed — short-circuit
+    handler = RotatingFileHandler(
+        path,
+        maxBytes=1_048_576,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    log.addHandler(handler)
+
+
+def install_gbs_marquee_handler() -> None:
+    """Attach a ``RotatingFileHandler`` to the ``musicstreamer.gbs_marquee`` logger.
+
+    GBS marquee + themed-day events share ``buffer-events.log`` via the named
+    logger ``musicstreamer.gbs_marquee``; consumers filter by message prefix
+    ``gbs.marquee.*`` / ``gbs.themed_day.*``.
+
+    Idempotent (Pitfall 7): if a ``RotatingFileHandler`` whose ``baseFilename``
+    matches ``paths.buffer_events_log_path()`` is already attached, return
+    without adding a second handler.
+
+    Handler shape (D-02): ``maxBytes=1_048_576``, ``backupCount=3``,
+    ``encoding="utf-8"``. Formatter: ``"%(asctime)s %(message)s"`` so each
+    file line is independently date-stampable.
+
+    Leaves ``musicstreamer.gbs_marquee.propagate`` at its default ``True`` so
+    the existing stderr handler from ``basicConfig(WARNING)`` keeps receiving
+    the record (Pitfall 5 stderr-parity invariant).
+    """
+    path = paths.buffer_events_log_path()
+    log = logging.getLogger("musicstreamer.gbs_marquee")
     for h in log.handlers:
         if isinstance(h, RotatingFileHandler) and h.baseFilename == path:
             return  # already installed — short-circuit
