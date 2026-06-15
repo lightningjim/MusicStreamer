@@ -257,7 +257,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 87-02-PLAN.md — Marquee endpoint lock + parse_marquee + synthetic fixture corpus (GBS-MARQ-02/07)
+- [x] 87-02-PLAN.md — Marquee endpoint lock + parse_marquee + synthetic fixture corpus (GBS-MARQ-02/07)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -415,7 +415,7 @@ Plans:
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
-| 87. GBS Marquee + Themed-Day | 1/6 | In Progress|  |
+| 87. GBS Marquee + Themed-Day | 2/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
