@@ -261,7 +261,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 87-03-PLAN.md — GbsMarqueeWorker (QThread + cadence state machine + D-18 quiet-failure log sink, GBS-MARQ-01)
+- [x] 87-03-PLAN.md — GbsMarqueeWorker (QThread + cadence state machine + D-18 quiet-failure log sink, GBS-MARQ-01)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -415,7 +415,7 @@ Plans:
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
 | 88. Windows Packaging Bundle | 3/4 | In Progress|  |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
-| 87. GBS Marquee + Themed-Day | 2/6 | In Progress|  |
+| 87. GBS Marquee + Themed-Day | 3/6 | In Progress|  |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
