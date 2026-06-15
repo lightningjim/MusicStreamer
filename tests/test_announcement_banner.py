@@ -27,6 +27,25 @@ from musicstreamer.ui_qt.announcement_banner import AnnouncementBanner
 
 
 # ---------------------------------------------------------------------------
+# Network block (mirrors test_now_playing_panel.py pattern — Phase 77 D-12)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _block_real_network_for_this_file(block_real_network):
+    """Block urlopen and urlretrieve for ALL tests in this file.
+
+    NowPlayingPanel.bind_station fires _on_gbs_poll_tick which spawns a
+    _GbsPollWorker thread; that thread calls gbs_api._open_with_cookies which
+    calls urllib.request.urlopen. Without blocking, the thread outlives the
+    test and crashes Qt on teardown when the panel is destroyed mid-call.
+
+    Same autouse=True pattern as test_now_playing_panel.py (Phase 77 D-12).
+    """
+    yield
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -222,7 +241,7 @@ class _FakeRepoForPanel:
         return []
 
 
-def test_banner_visibility_predicate(qtbot):
+def test_banner_visibility_predicate(qtbot, tmp_path, monkeypatch):
     """GBS-MARQ-03 full visibility predicate for NowPlayingPanel.
 
     Sequence:
@@ -231,9 +250,17 @@ def test_banner_visibility_predicate(qtbot):
       3. Dismiss → banner hidden, hash in _dismissed_announcement_hashes.
       4. _on_marquee_ready with same first_segment → banner stays hidden (dismissed).
       5. _on_marquee_ready with DIFFERENT first_segment → new hash → banner re-appears.
+
+    Uses tmp_path + _root_override to ensure no cookies file exists so
+    _GbsPollWorker never fires real network calls (mirrors test_now_playing_panel.py
+    pattern for GBS bind_station tests without active GBS login).
     """
     from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
     from tests._fake_player import FakePlayer
+    from musicstreamer import paths
+
+    # No cookies file → _is_gbs_logged_in() returns False → no GBS poll timer.
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
 
     repo = _FakeRepoForPanel()
     player = FakePlayer()
@@ -291,7 +318,7 @@ def test_banner_visibility_predicate(qtbot):
     )
 
 
-def test_banner_hides_on_non_gbs_bind(qtbot):
+def test_banner_hides_on_non_gbs_bind(qtbot, tmp_path, monkeypatch):
     """GBS-MARQ-03: banner stays hidden when bound station is not GBS.FM.
 
     If the current station is SomaFM (or any non-GBS provider), marquee_ready
@@ -299,6 +326,10 @@ def test_banner_hides_on_non_gbs_bind(qtbot):
     """
     from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
     from tests._fake_player import FakePlayer
+    from musicstreamer import paths
+
+    # No cookies → no GBS poll timer.
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
 
     repo = _FakeRepoForPanel()
     player = FakePlayer()

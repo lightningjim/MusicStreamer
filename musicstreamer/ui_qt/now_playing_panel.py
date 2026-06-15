@@ -25,6 +25,7 @@ against the panel.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 from typing import Optional
@@ -50,6 +51,7 @@ from PySide6.QtWidgets import (
 
 # Side-effect import: registers :/icons/ resource prefix.
 from musicstreamer.ui_qt import icons_rc  # noqa: F401
+from musicstreamer.ui_qt.announcement_banner import AnnouncementBanner
 from musicstreamer.ui_qt._art_paths import abs_art_path
 from musicstreamer.cover_art import fetch_cover_art, is_junk_title
 from musicstreamer.models import Station
@@ -349,12 +351,42 @@ class NowPlayingPanel(QWidget):
         self._themed_logo_override: Optional[QPixmap] = None
         self._gbs_marquee_worker = None  # GbsMarqueeWorker | None (typed at runtime)
 
+        # Phase 87 / Plan 87-05 / D-14: in-memory dismissal tracking for the
+        # announcement banner (GBS-MARQ-03). Stores SHA-256 hex digests of
+        # dismissed first-segment texts. Never persisted to SQLite (D-14 spec:
+        # restart re-presents banners). Set is populated by _on_banner_dismissed.
+        self._dismissed_announcement_hashes: set[str] = set()
+
         self.setMinimumWidth(560)
 
         # ------------------------------------------------------------------
-        # Outer three-column layout
+        # Phase 87 / Plan 87-05 / Open Question 4 resolution (option c):
+        # Wrap the existing three-column layout in a new outer QVBoxLayout.
+        # Row 0 = _announcement_banner (hidden by default; shown when GBS.FM
+        # marquee has a non-dismissed announcement). Row 1 = _inner_widget
+        # which holds the existing three-column HBoxLayout unchanged.
+        #
+        # setContentsMargins(0,0,0,0) + setSpacing(0) on _outer_v ensures the
+        # banner sits flush above the existing three-column layout without an
+        # extra visual gap.
         # ------------------------------------------------------------------
-        outer = QHBoxLayout(self)
+        self._announcement_banner = AnnouncementBanner(self)
+        # QA-05: bound-method connection (same-thread dismiss; AutoConnection).
+        self._announcement_banner.dismissed.connect(self._on_banner_dismissed)
+
+        _inner_widget = QWidget(self)
+
+        # _outer_v: new top-level layout on self (banner + inner_widget).
+        _outer_v = QVBoxLayout(self)
+        _outer_v.setContentsMargins(0, 0, 0, 0)
+        _outer_v.setSpacing(0)
+        _outer_v.addWidget(self._announcement_banner)
+        _outer_v.addWidget(_inner_widget)
+
+        # ------------------------------------------------------------------
+        # Outer three-column layout (now on _inner_widget, not on self)
+        # ------------------------------------------------------------------
+        outer = QHBoxLayout(_inner_widget)
         outer.setContentsMargins(16, 16, 16, 16)
         outer.setSpacing(24)
 
@@ -907,6 +939,12 @@ class NowPlayingPanel(QWidget):
                 self._refresh_gbs_marquee_cadence()
             else:
                 self._gbs_marquee_worker.set_cadence(0)  # idle — not a GBS station
+        # Phase 87 / Plan 87-05 / GBS-MARQ-03: hide the announcement banner
+        # immediately when rebinding to a non-GBS station. The next GBS bind
+        # will re-show the banner when marquee_ready fires with a non-dismissed
+        # first_segment. No-op if already hidden.
+        if station.provider_name != "GBS.FM":
+            self._announcement_banner.clear()
 
     # ----------------------------------------------------------------------
     # Player signal slots (wired by MainWindow in 37-04)
@@ -1117,10 +1155,19 @@ class NowPlayingPanel(QWidget):
     def attach_gbs_marquee_worker(self, worker) -> None:
         """Inject the GbsMarqueeWorker reference from MainWindow.
 
-        Connects ``worker.themed_logo_ready`` → ``self.set_themed_logo_override``
-        with ``Qt.QueuedConnection`` (cross-thread payload delivery — CONVENTIONS
-        QA-05 bound-method connection).  Stores the reference so cadence state
-        transitions can call ``worker.set_cadence()``.
+        Connects:
+          - ``worker.themed_logo_ready`` → ``self.set_themed_logo_override``
+            (Plan 87-04 — logo-swap on themed day).
+          - ``worker.marquee_ready`` → ``self._on_marquee_ready``
+            (Plan 87-05 — announcement banner update).
+
+        Both connections use ``Qt.QueuedConnection`` (cross-thread payload
+        delivery from the worker QThread to the main thread — CONVENTIONS
+        QA-05 bound-method connections).
+
+        Stores the reference so cadence state transitions can call
+        ``worker.set_cadence()`` from ``bind_station`` and
+        ``on_playing_state_changed``.
 
         Called by MainWindow during construction, before ``worker.start()``.
         """
@@ -1128,6 +1175,11 @@ class NowPlayingPanel(QWidget):
         self._gbs_marquee_worker = worker
         worker.themed_logo_ready.connect(
             self.set_themed_logo_override, _Qt.QueuedConnection
+        )
+        # Phase 87 / Plan 87-05: wire marquee_ready to the announcement banner slot.
+        # QA-05: bound-method connection with Qt.QueuedConnection (cross-thread).
+        worker.marquee_ready.connect(
+            self._on_marquee_ready, _Qt.QueuedConnection
         )
 
     def _refresh_gbs_marquee_cadence(self) -> None:
@@ -1147,6 +1199,65 @@ class NowPlayingPanel(QWidget):
             self._gbs_marquee_worker.set_cadence(60_000)
         else:
             self._gbs_marquee_worker.set_cadence(300_000)
+
+    # ------------------------------------------------------------------
+    # Phase 87 / Plan 87-05 — Announcement banner slots
+    # ------------------------------------------------------------------
+
+    def _on_banner_dismissed(self, announcement_hash: str) -> None:
+        """Add the dismissed announcement_hash to the in-memory set.
+
+        Connected to ``self._announcement_banner.dismissed`` in ``__init__``
+        (same-thread AutoConnection per QA-05 bound-method pattern). The banner
+        widget already called its own ``clear()`` before emitting; this slot
+        only records the hash so future marquee-ready emissions for the same
+        first_segment stay hidden.
+
+        D-14: hash set is in-memory only — no SQLite write. Restart resets.
+
+        Args:
+            announcement_hash: SHA-256 hex digest of the dismissed first_segment.
+        """
+        self._dismissed_announcement_hashes.add(announcement_hash)
+
+    def _on_marquee_ready(self, first_segment: str, full_text: str) -> None:
+        """Handle a ``marquee_ready(first_segment, full_text)`` emission.
+
+        Connected via ``attach_gbs_marquee_worker`` with ``Qt.QueuedConnection``
+        (cross-thread delivery from ``GbsMarqueeWorker``).
+
+        Visibility predicate (GBS-MARQ-03):
+          1. Station must be GBS.FM — non-GBS binds → hide banner unconditionally.
+          2. ``first_segment.strip()`` must be non-empty — empty marquee → hide.
+          3. SHA-256 hash of ``first_segment`` must NOT be in
+             ``_dismissed_announcement_hashes`` — dismissed → hide.
+
+        Otherwise: call ``self._announcement_banner.set_announcement(...)`` which
+        replaces ``|`` with ``\\n`` for multi-line wrap and shows the widget.
+
+        Args:
+            first_segment: Whitespace-trimmed first marquee segment from
+                ``parse_marquee`` (Plan 87-02). May contain pipe separators.
+            full_text: Complete un-split marquee text (unused by the banner;
+                forwarded so the GbsMarqueeWorker signature is preserved).
+        """
+        # Gate 1: station must be GBS.FM.
+        if self._station is None or self._station.provider_name != "GBS.FM":
+            self._announcement_banner.clear()
+            return
+        # Gate 2: first_segment must be non-empty.
+        if not first_segment.strip():
+            self._announcement_banner.clear()
+            return
+        # Gate 3: hash must not be dismissed.
+        announcement_hash = hashlib.sha256(
+            first_segment.encode("utf-8")
+        ).hexdigest()
+        if announcement_hash in self._dismissed_announcement_hashes:
+            self._announcement_banner.clear()
+            return
+        # All gates passed — show the banner.
+        self._announcement_banner.set_announcement(first_segment, announcement_hash)
 
     # ----------------------------------------------------------------------
     # Internal slots
