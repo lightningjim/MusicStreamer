@@ -489,6 +489,21 @@ class MainWindow(QMainWindow):
         )
 
         # ------------------------------------------------------------------
+        # Phase 87 / Plan 87-04: GbsMarqueeWorker construction + wiring.
+        # Mirrors _aa_live_worker ownership (ASSUMPTIONS in 87-04-PLAN.md).
+        # Worker is constructed unconditionally at __init__ with set_cadence(0)
+        # (idle) until the first GBS bind via NowPlayingPanel.bind_station.
+        # MainWindow owns the worker lifetime; NowPlayingPanel drives cadence
+        # transitions via bind_station + on_playing_state_changed (Pitfall #2).
+        # ------------------------------------------------------------------
+        from musicstreamer.gbs_marquee import GbsMarqueeWorker
+        from musicstreamer.buffer_log import install_gbs_marquee_handler
+        install_gbs_marquee_handler()
+        self._gbs_marquee_worker = GbsMarqueeWorker(parent=self)
+        self.now_playing.attach_gbs_marquee_worker(self._gbs_marquee_worker)
+        self._gbs_marquee_worker.start()  # exec_() loop — idle until set_cadence(>0)
+
+        # ------------------------------------------------------------------
         # Phase 68 / B-03 / F-07: live-detection startup. start_aa_poll_loop
         # is a silent no-op when no audioaddict_listen_key is saved
         # (Plan 03 guard). set_live_chip_visible drives the chip's initial
@@ -749,6 +764,17 @@ class MainWindow(QMainWindow):
             self._media_keys.shutdown()
         except Exception as exc:
             _log.warning("media_keys shutdown failed: %s", exc)
+        # Phase 87 / Plan 87-04: stop the GBS marquee worker BEFORE the AA poll
+        # so no themed-day detection retries occur after the window begins closing.
+        # stop_and_wait(5000) joins the QThread within 5 s; on timeout it logs
+        # a warning but does NOT block the close (mirrors AA precedent pattern).
+        try:
+            if not self._gbs_marquee_worker.stop_and_wait(5_000):
+                _log.warning(
+                    "GbsMarqueeWorker did not stop within 5 s — continuing close"
+                )
+        except Exception as exc:
+            _log.warning("gbs_marquee_worker.stop_and_wait failed: %s", exc)
         # Phase 68 / B-03 closeEvent: stop the AA events poll timer so
         # no further worker spawns occur after the window closes.
         # Idempotent — Plan 03's stop_aa_poll_loop is safe to call when

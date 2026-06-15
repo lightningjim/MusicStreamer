@@ -313,6 +313,44 @@ def _fetch_marquee() -> str | None:
         return None
 
 
+# ---------- Logo fetch helper (Plan 87-04 / D-18 quiet failures) --------------
+
+
+def _fetch_logo_bytes() -> bytes | None:
+    """Fetch logo_3.png from gbs.fm and return the raw PNG bytes.
+
+    The logo is a PUBLIC asset — anonymous ``urllib.request.urlopen`` is
+    sufficient even when cookies are absent.  No auth ladder needed (unlike
+    ``_fetch_marquee``).
+
+    Failure handling (D-18 — quiet failures, no toast, no UI surface):
+      - ``URLError | TimeoutError | OSError``: log ``gbs.themed_day.logo_fetch_failed``
+        WARN with exception class name only; return None.
+      - Generic ``Exception`` belt-and-suspenders: same WARN, return None.
+
+    Returns:
+        Raw PNG bytes or None on any failure.
+    """
+    logo_url = gbs_api.GBS_STATION_METADATA["logo_url"]
+    try:
+        with urllib.request.urlopen(logo_url, timeout=gbs_api._TIMEOUT_READ) as resp:
+            return resp.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        _log.warning(
+            "gbs.themed_day.logo_fetch_failed url=%s error=%s",
+            logo_url,
+            exc.__class__.__name__,
+        )
+        return None
+    except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-04-05)
+        _log.warning(
+            "gbs.themed_day.logo_fetch_failed url=%s error=%s",
+            logo_url,
+            exc.__class__.__name__,
+        )
+        return None
+
+
 # ---------- QThread worker (Plan 87-03 / D-15 long-lived shape) ---------------
 
 
@@ -402,11 +440,58 @@ class GbsMarqueeWorker(QThread):
             self._interval_ms = ms
             self._timer.start(0)  # immediate first tick after cadence change
 
+    def _on_first_gbs_bind(self) -> None:
+        """One-shot themed-day routine — runs on worker thread, called from _on_tick.
+
+        Fetches logo_3.png, correlates with the baseline hash table + keyword set,
+        and emits ``themed_logo_ready`` if drift is detected.  Sets
+        ``_themed_day_detected_this_session = True`` in a ``try/finally`` so the
+        flag is flipped even if an exception occurs mid-routine (T-87-04-05
+        mitigation — prevents the worker from entering a tight retry loop).
+
+        D-17: called once after the first successful marquee fetch; subsequent
+        ticks are gated by ``_themed_day_detected_this_session``.
+        D-18: no marquee body text appears in any log line (only the hash hex).
+        D-09: once the flag is set, the session-long override is not re-evaluated.
+        """
+        try:
+            logo_url = gbs_api.GBS_STATION_METADATA["logo_url"]
+            logo_bytes = _fetch_logo_bytes()
+            if logo_bytes is None:
+                # D-18: fetch failure already logged by _fetch_logo_bytes.
+                # D-17: failure still consumes the one-shot opportunity.
+                return
+            result = compute_logo_theme(logo_bytes, self._last_full_marquee_text)
+            if result.is_themed:
+                # Decode PNG to QPixmap on the worker thread.
+                # Qt.QueuedConnection in the signal ensures the slot
+                # (set_themed_logo_override) runs on the main thread.
+                pix = QPixmap()
+                ok = pix.loadFromData(logo_bytes, "PNG")
+                if ok and not pix.isNull():
+                    self.themed_logo_ready.emit(pix)
+                if result.fallback_unknown_theme:
+                    # D-12 fallback: unknown hash drift detected without keyword.
+                    # Log hash only — no marquee body (T-87-04-02).
+                    _log.info(
+                        "gbs.themed_day.unknown_theme_observed hash=%s",
+                        result.logo_hash,
+                    )
+        finally:
+            # D-17 / T-87-04-05: flip the gate regardless of outcome so the
+            # worker never retries the themed-day detection this session.
+            self._themed_day_detected_this_session = True
+
     def _on_tick(self) -> None:
         """Timer callback — runs on worker thread.
 
         Calls ``_fetch_marquee()`` (blocking urllib call — safe on worker thread),
         parses the HTML, emits ``marquee_ready``, and reschedules the timer.
+
+        D-17: after the marquee fetch+parse (which populates
+        ``_last_full_marquee_text``), fires the themed-day one-shot if not yet
+        detected this session.  Ordering ensures the keyword search has text to
+        scan on the very first tick.
         """
         try:
             html = _fetch_marquee()
@@ -416,6 +501,11 @@ class GbsMarqueeWorker(QThread):
                     first, full = parse_marquee(plain)
                     self._last_full_marquee_text = full
                     self.marquee_ready.emit(first, full)
+            # D-17: themed-day fires AFTER marquee fetch + parse so the keyword
+            # search has populated _last_full_marquee_text.  Subsequent ticks
+            # skip via _themed_day_detected_this_session (D-09 once-per-session).
+            if not self._themed_day_detected_this_session:
+                self._on_first_gbs_bind()
         except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-03-06)
             _log.warning(
                 "gbs.marquee.fetch_failed url=%s error=%s",
