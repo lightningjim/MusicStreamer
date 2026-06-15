@@ -42,7 +42,6 @@ import urllib.request
 from typing import NamedTuple
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
-from PySide6.QtGui import QPixmap
 
 from musicstreamer import gbs_api, paths  # noqa: F401  # drift-guard (Plan 87-06)
 from musicstreamer.constants import GBS_THEMED_DAY_KEYWORDS
@@ -61,12 +60,21 @@ _log = logging.getLogger("musicstreamer.gbs_marquee")
 # All other labels indicate a themed day: the override applies.
 #
 # Seeds from Plan 87-01 MANIFEST.md + SUMMARY.md (live harvest 2026-05-25).
-# No canonical entry was captured during the Memorial Day window; the canonical
-# baseline will accrete when the operator restores the non-themed logo_3.png.
-# Until then, any hash that is NOT in this table is treated as drift.
+# Plan 87-07 correction: the entry below is the SHA-256 of the DYNAMIC
+# #leftmenulogo URL asset (https://i.imgur.com/l27hhaY.png) served during the
+# Memorial Day 2026-05-25 window — NOT logo_3.png (which never changes per theme).
+#
+# No canonical entry has been captured yet (the canonical non-themed #leftmenulogo
+# hash was not obtained during the Plan 87-01 Memorial Day window). Until a
+# canonical entry accretes, any hash that is NOT in this table is treated as
+# drift per D-12 — this is intentional and makes the live Pride logo fire
+# without a named entry. See todos/2026-05-25-gbs-theme-hash-baseline-grow.md.
 GBS_LOGO_BASELINE_HASHES: dict[str, str] = {
-    # Plan 87-01 harvest — 2026-05-25 Memorial Day window (cookie-authenticated fetch)
+    # Plan 87-01 harvest — 2026-05-25 Memorial Day window
+    # Source: DYNAMIC #leftmenulogo URL = https://i.imgur.com/l27hhaY.png
     "bd2b83fbe2b4bfe9baf8237a8919494e10cc7cf42ad3c42b1fcd605942881be3": "da troops (Memorial Day 2026-05-25)",
+    # No "canonical" entry yet — canonical hash will accrete post-themed-window.
+    # Once captured: add entry with label "canonical" to suppress drift on non-themed days.
 }
 
 
@@ -220,6 +228,50 @@ def extract_noticearea_text(html: str) -> str:
     return plain.strip()
 
 
+# ---------- Dynamic logo URL resolver (Plan 87-07) ----------------------------
+
+# Regex that anchors on the '#leftmenulogo' CSS selector and captures the
+# URL argument from its background-image property.  Key design choices:
+#   - Uses re.DOTALL so the rule can span multiple lines.
+#   - Uses re.IGNORECASE for resilience against case variations.
+#   - Captures the URL up to the CLOSING QUOTE ([^'"]+), NOT just to '.png',
+#     so that URLs ending in '/raw' (e.g. img.gbs.fm/.../raw) are fully captured.
+#   - Anchors specifically on '#leftmenulogo' (not '#leftmenu') to avoid
+#     selecting an earlier background-image url() from a sibling selector
+#     (T-87-07-05 mitigation; tested in test_extract_leftmenulogo_url_selects_correct_rule).
+_LEFTMENULOGO_RE = re.compile(
+    r'#leftmenulogo\s*\{[^}]*background-image\s*:\s*url\([\'"]([^\'"]+)[\'"]\)',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def extract_leftmenulogo_url(html: str) -> str | None:
+    """Return the URL from the CSS ``#leftmenulogo {background-image:url('...')}`` rule.
+
+    Parses the raw GBS.FM homepage HTML looking for the operator-managed CSS
+    rule that specifies the themed day logo.  Unlike ``gbs_api.GBS_STATION_METADATA
+    ["logo_url"]`` (always ``logo_3.png``), this URL rotates per theme and per host:
+      - Memorial Day 2026: ``https://i.imgur.com/l27hhaY.png``
+      - Pride 2026:        ``https://img.gbs.fm/NIgE8/yucEqesu87.png/raw``
+
+    This is a PURE function (no I/O, no Qt, no DB) — T-87-07-05 mitigation.
+
+    Args:
+        html: Raw GBS.FM homepage HTML (same bytes already fetched for the marquee;
+              reused via ``self._last_homepage_html`` — no second round-trip).
+
+    Returns:
+        The URL string (may point to any off-site host), or None if the rule is
+        absent from the HTML.
+    """
+    if not html:
+        return None
+    m = _LEFTMENULOGO_RE.search(html)
+    if not m:
+        return None
+    return m.group(1)
+
+
 # ---------- Core parser (GBS-MARQ-02 / D-13 / Pitfall #6) --------------------
 
 
@@ -290,8 +342,13 @@ def _fetch_marquee() -> str | None:
             ) as resp:
                 return resp.read().decode("utf-8", errors="replace")
         else:
+            # Anonymous fallback — send a User-Agent to avoid bare
+            # Python-urllib/3.x rejections (secondary URLError fix, Plan 87-07).
+            _anon_req = urllib.request.Request(
+                MARQUEE_URL, headers={"User-Agent": gbs_api._USER_AGENT}
+            )
             with urllib.request.urlopen(
-                MARQUEE_URL, timeout=gbs_api._TIMEOUT_READ
+                _anon_req, timeout=gbs_api._TIMEOUT_READ
             ) as resp:
                 return resp.read().decode("utf-8", errors="replace")
     except gbs_api.GbsAuthExpiredError:
@@ -316,36 +373,46 @@ def _fetch_marquee() -> str | None:
 # ---------- Logo fetch helper (Plan 87-04 / D-18 quiet failures) --------------
 
 
-def _fetch_logo_bytes() -> bytes | None:
-    """Fetch logo_3.png from gbs.fm and return the raw PNG bytes.
+def _fetch_logo_bytes(url: str) -> bytes | None:
+    """Fetch the themed logo from an arbitrary off-site URL; return raw bytes.
 
-    The logo is a PUBLIC asset — anonymous ``urllib.request.urlopen`` is
-    sufficient even when cookies are absent.  No auth ladder needed (unlike
-    ``_fetch_marquee``).
+    Plan 87-07: the logo URL is resolved dynamically from the homepage CSS
+    (``#leftmenulogo {background-image:url('...')}``).  It may point to any
+    third-party host (``i.imgur.com``, ``img.gbs.fm``, etc.) — NOT the static
+    ``gbs_api.GBS_STATION_METADATA["logo_url"]`` (``logo_3.png``).
+
+    Sends a User-Agent header mirroring ``gbs_api._open_with_cookies`` to avoid
+    bare ``Python-urllib/3.x`` rejections from CDNs (secondary URLError fix —
+    T-87-07-02 / secondary item in 87-HUMAN-UAT).
 
     Failure handling (D-18 — quiet failures, no toast, no UI surface):
       - ``URLError | TimeoutError | OSError``: log ``gbs.themed_day.logo_fetch_failed``
-        WARN with exception class name only; return None.
+        WARN with the resolved off-host URL; return None.
       - Generic ``Exception`` belt-and-suspenders: same WARN, return None.
+
+    Args:
+        url: The resolved dynamic logo URL (may point at any off-site host).
 
     Returns:
         Raw PNG bytes or None on any failure.
     """
-    logo_url = gbs_api.GBS_STATION_METADATA["logo_url"]
     try:
-        with urllib.request.urlopen(logo_url, timeout=gbs_api._TIMEOUT_READ) as resp:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": gbs_api._USER_AGENT}
+        )
+        with urllib.request.urlopen(req, timeout=gbs_api._TIMEOUT_READ) as resp:
             return resp.read()
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         _log.warning(
             "gbs.themed_day.logo_fetch_failed url=%s error=%s",
-            logo_url,
+            url,
             exc.__class__.__name__,
         )
         return None
     except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-04-05)
         _log.warning(
             "gbs.themed_day.logo_fetch_failed url=%s error=%s",
-            logo_url,
+            url,
             exc.__class__.__name__,
         )
         return None
@@ -394,6 +461,7 @@ class GbsMarqueeWorker(QThread):
         self._timer: QTimer | None = None
         self._themed_day_detected_this_session: bool = False
         self._last_full_marquee_text: str = ""
+        self._last_homepage_html: str = ""  # Plan 87-07: cached for logo-URL resolution (no 2nd fetch)
         self._interval_ms: int = 0
         # Pitfall #7 bridge: set_cadence() emits this from any thread;
         # Qt.QueuedConnection guarantees delivery to the worker-thread slot
@@ -443,10 +511,18 @@ class GbsMarqueeWorker(QThread):
     def _on_first_gbs_bind(self) -> None:
         """One-shot themed-day routine — runs on worker thread, called from _on_tick.
 
-        Fetches logo_3.png, correlates with the baseline hash table + keyword set,
-        and emits ``themed_logo_ready`` if drift is detected.  Sets
-        ``_themed_day_detected_this_session = True`` in a ``try/finally`` so the
-        flag is flipped even if an exception occurs mid-routine (T-87-04-05
+        Plan 87-07 (gap-closure): resolves the DYNAMIC #leftmenulogo URL from the
+        reused homepage HTML (``self._last_homepage_html``), fetches that off-site
+        URL, correlates with the baseline hash table + keyword set, and emits
+        ``themed_logo_ready`` with RAW BYTES if drift is detected.
+
+        CR-01 (cleared): the worker emits raw bytes — NO QPixmap is constructed
+        here. ``set_themed_logo_override`` on the main thread decodes bytes →
+        QPixmap (cross-thread boundary is safe for bytes; QPixmap requires the
+        GUI thread).
+
+        Sets ``_themed_day_detected_this_session = True`` in a ``try/finally``
+        so the flag is flipped even if an exception occurs mid-routine (T-87-04-05
         mitigation — prevents the worker from entering a tight retry loop).
 
         D-17: called once after the first successful marquee fetch; subsequent
@@ -455,21 +531,23 @@ class GbsMarqueeWorker(QThread):
         D-09: once the flag is set, the session-long override is not re-evaluated.
         """
         try:
-            logo_url = gbs_api.GBS_STATION_METADATA["logo_url"]
-            logo_bytes = _fetch_logo_bytes()
+            # Plan 87-07: resolve logo URL from the cached homepage HTML — no 2nd fetch.
+            logo_url = extract_leftmenulogo_url(self._last_homepage_html)
+            if logo_url is None:
+                # Rule absent or html empty — log and bail; gate flips in finally.
+                _log.warning("gbs.themed_day.logo_url_unresolved")
+                return
+            logo_bytes = _fetch_logo_bytes(logo_url)
             if logo_bytes is None:
                 # D-18: fetch failure already logged by _fetch_logo_bytes.
                 # D-17: failure still consumes the one-shot opportunity.
                 return
             result = compute_logo_theme(logo_bytes, self._last_full_marquee_text)
             if result.is_themed:
-                # Decode PNG to QPixmap on the worker thread.
-                # Qt.QueuedConnection in the signal ensures the slot
-                # (set_themed_logo_override) runs on the main thread.
-                pix = QPixmap()
-                ok = pix.loadFromData(logo_bytes, "PNG")
-                if ok and not pix.isNull():
-                    self.themed_logo_ready.emit(pix)
+                # CR-01 (Plan 87-07): emit raw bytes — the main-thread slot
+                # set_themed_logo_override decodes bytes → QPixmap there.
+                # QPixmap must NOT be constructed on a non-GUI thread.
+                self.themed_logo_ready.emit(logo_bytes)
                 if result.fallback_unknown_theme:
                     # D-12 fallback: unknown hash drift detected without keyword.
                     # Log hash only — no marquee body (T-87-04-02).
@@ -495,16 +573,25 @@ class GbsMarqueeWorker(QThread):
         """
         try:
             html = _fetch_marquee()
+            # Plan 87-07: cache homepage HTML for logo-URL resolution in
+            # _on_first_gbs_bind — reuses the bytes already fetched for the
+            # marquee, so no second homepage round-trip is needed.
+            self._last_homepage_html = html or ""
+            marquee_ok = False
             if html is not None:
                 plain = extract_noticearea_text(html)
                 if plain:
                     first, full = parse_marquee(plain)
                     self._last_full_marquee_text = full
                     self.marquee_ready.emit(first, full)
+                    marquee_ok = True
             # D-17: themed-day fires AFTER marquee fetch + parse so the keyword
             # search has populated _last_full_marquee_text.  Subsequent ticks
             # skip via _themed_day_detected_this_session (D-09 once-per-session).
-            if not self._themed_day_detected_this_session:
+            # WR-02: only fire after a successful marquee parse so the keyword
+            # correlation has actual text to scan (not an empty string from a
+            # first-tick fetch failure).
+            if marquee_ok and not self._themed_day_detected_this_session:
                 self._on_first_gbs_bind()
         except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-03-06)
             _log.warning(
