@@ -249,7 +249,7 @@ Plans:
   4. Marquee fetcher imports `paths.gbs_cookies_path()` + `musicstreamer.gbs_api.load_auth_context()`; source-grep drift-guard confirms no parallel cookie file is written and no QtWebEngine session is instantiated.
   5. 60-second poll cadence while GBS station bound + playing; 5-minute slow cadence otherwise; 10+ committed marquee fixtures plus 3+ themed-day / 5+ non-themed-day logo SHA-256 samples lock the parser and the canonical-hash table.
 
-**Plans:** 6 plans
+**Plans:** 7 plans (6 + 1 gap-closure)
 Plans:
 **Wave 1**
 
@@ -274,6 +274,10 @@ Plans:
 **Wave 6** *(blocked on Wave 5 completion)*
 
 - [x] 87-06-PLAN.md — Source-grep drift-guards + GBS-THEME-06 follow-up todo (GBS-MARQ-06 enforce, GBS-THEME-06 accrete)
+
+**Wave 7** *(gap closure — UAT Test 2 fix)*
+
+- [ ] 87-07-PLAN.md — Resolve dynamic #leftmenulogo logo URL (imgur + img.gbs.fm/.../raw) from reused homepage bytes; re-baseline + CR-01 main-thread QPixmap (GBS-THEME-01..05)
 
 **Research flag**: YES — `/gsd:plan-phase --research-phase 87` recommended (QtWebEngine cookie persistence cross-process, marquee delimiter ambiguity, themed-day hash baseline harvest).
 **UI hint**: yes
