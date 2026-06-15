@@ -201,7 +201,8 @@ def test_force_poll_triggers_immediate_fetch(monkeypatch):
     from PySide6.QtTest import QTest
     from musicstreamer.gbs_marquee import GbsMarqueeWorker
 
-    FIXTURE_HTML = "hello | world"
+    # Wrap in the noticearea element that _on_tick passes through extract_noticearea_text
+    FIXTURE_HTML = '<p id="noticearea"><b>GBS-FM</b>: hello | world</p>'
     monkeypatch.setattr(_mod, "_fetch_marquee", lambda: FIXTURE_HTML)
 
     emissions = []

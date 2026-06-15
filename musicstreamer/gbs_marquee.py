@@ -1,4 +1,4 @@
-"""GBS.FM marquee parser + constants (Phase 87, Plan 87-02).
+"""GBS.FM marquee parser + worker (Phase 87, Plans 87-02 and 87-03).
 
 Endpoint discovery (Plan 87-01 harvest — 2026-05-25):
   The marquee text lives in the **homepage HTML** at ``<p id="noticearea">``,
@@ -25,17 +25,27 @@ Delimiter convention (Pitfall #6):
   ``|`` and space-padded `` | `` are handled uniformly via per-segment
   ``.strip()`` — ``MARQUEE_DELIMITER`` records the canonical separator.
 
-Module boundary:
-  This file ships the **skeleton** only.  ``GbsMarqueeWorker`` (QThread) is
-  Plan 87-03's deliverable and will be added to this same module.
-
-  # Placeholder for GbsMarqueeWorker — Plan 87-03 fills this
+Worker (Plan 87-03):
+  ``GbsMarqueeWorker`` (QThread) drives the 60s/5min/idle cadence state
+  machine.  The worker is constructed once at GBS bind time and stays alive
+  for the app lifetime (long-lived divergence from ``_AaLiveWorker``).
+  Cadence changes cross the thread boundary via the ``cadence_changed_internal``
+  Signal with ``Qt.QueuedConnection`` (Pitfall #7 bridge).
 """
 from __future__ import annotations
 
+import logging
 import re
+import urllib.error
+import urllib.request
+
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
 
 from musicstreamer import gbs_api, paths  # noqa: F401  # drift-guard (Plan 87-06)
+
+# Module-level named logger — wired to buffer-events.log via
+# buffer_log.install_gbs_marquee_handler() (Plan 87-05 wires the call site).
+_log = logging.getLogger("musicstreamer.gbs_marquee")
 
 # ---------- URL constant (locked from Plan 87-01 harvest dissection) ----------
 
@@ -145,3 +155,194 @@ def parse_marquee(raw_text: str) -> tuple[str, str]:
     segments = [s.strip() for s in full.split(MARQUEE_DELIMITER) if s.strip()]
     first = segments[0] if segments else ""
     return (first, full)
+
+
+# ---------- Network fetch helper (Plan 87-03 / D-11 auth ladder) --------------
+
+
+def _fetch_marquee() -> str | None:
+    """Fetch the GBS.FM homepage HTML and return the raw HTML string.
+
+    Auth ladder (D-11):
+      1. Try ``gbs_api.load_auth_context()`` — if non-None, use
+         ``gbs_api._open_with_cookies`` (Phase 76 cookie jar).
+      2. If ``load_auth_context()`` returns None, fall back to plain
+         ``urllib.request.urlopen`` (anonymous, no cookies).
+
+    Failure handling (D-18 — quiet failures, no toast, no UI surface):
+      - ``GbsAuthExpiredError``: log ``gbs.marquee.auth_expired`` WARN; return
+        None.  No anonymous retry (D-19: operator's server-side rate limiting
+        handles abuse; client-side backoff adds state-machine complexity).
+      - ``URLError | TimeoutError | OSError``: log ``gbs.marquee.fetch_failed``
+        WARN with exception class name only (no marquee body text in log).
+      - Generic ``Exception`` belt-and-suspenders: same ``fetch_failed`` WARN.
+
+    Returns:
+        Raw HTML string (UTF-8, errors=replace) or None on any failure.
+    """
+    auth = gbs_api.load_auth_context()
+    try:
+        if auth is not None:
+            with gbs_api._open_with_cookies(
+                MARQUEE_URL, auth, timeout=gbs_api._TIMEOUT_READ
+            ) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        else:
+            with urllib.request.urlopen(
+                MARQUEE_URL, timeout=gbs_api._TIMEOUT_READ
+            ) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+    except gbs_api.GbsAuthExpiredError:
+        _log.warning("gbs.marquee.auth_expired url=%s", MARQUEE_URL)
+        return None
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        _log.warning(
+            "gbs.marquee.fetch_failed url=%s error=%s",
+            MARQUEE_URL,
+            exc.__class__.__name__,
+        )
+        return None
+    except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-03-06)
+        _log.warning(
+            "gbs.marquee.fetch_failed url=%s error=%s",
+            MARQUEE_URL,
+            exc.__class__.__name__,
+        )
+        return None
+
+
+# ---------- QThread worker (Plan 87-03 / D-15 long-lived shape) ---------------
+
+
+class GbsMarqueeWorker(QThread):
+    """Long-lived QThread that owns its own QTimer and drives the cadence machine.
+
+    Architecture (D-15):
+      Constructed once at GBS bind time; lives for the app lifetime.  Unlike
+      ``_AaLiveWorker`` which spawns per poll cycle, this worker stays alive and
+      transitions between cadence modes via the ``cadence_changed_internal`` Signal
+      bridge (Pitfall #7).  The bridge is necessary because ``QTimer`` objects must
+      be started/stopped on the thread they were created on.
+
+    Cadence state machine (D-16):
+      - 60 000 ms while GBS is playing
+      - 300 000 ms while GBS is not playing
+      - 0 (idle / paused) — timer stopped
+
+    Thread safety:
+      ``set_cadence()`` and ``force_poll()`` are safe to call from any thread
+      (they only emit signals).  All timer + urllib logic runs on the worker thread.
+
+    Signals:
+      marquee_ready(first_segment: str, full_text: str):
+        Emitted after each successful parse.  ``first_segment`` is for the
+        announcement banner (Plan 87-05); ``full_text`` is for themed-day
+        keyword search (Plan 87-04).
+      themed_logo_ready(pixmap: object):
+        Declared here for forward-compatibility (Plan 87-04 emits this).
+        Carries a ``QPixmap`` or None.
+      cadence_changed_internal(ms: int):
+        Internal cross-thread bridge — DO NOT emit from user code.
+    """
+
+    themed_logo_ready = Signal(object)   # QPixmap or None — Plan 87-04 emits
+    marquee_ready = Signal(str, str)     # (first_segment, full_text)
+    cadence_changed_internal = Signal(int)  # ms — cross-thread cadence bridge
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._timer: QTimer | None = None
+        self._themed_day_detected_this_session: bool = False
+        self._last_full_marquee_text: str = ""
+        self._interval_ms: int = 0
+        # Pitfall #7 bridge: set_cadence() emits this from any thread;
+        # Qt.QueuedConnection guarantees delivery to the worker-thread slot
+        # AFTER exec_() is running in run().
+        self.cadence_changed_internal.connect(
+            self._apply_cadence_on_worker_thread, Qt.QueuedConnection
+        )
+
+    def set_cadence(self, ms: int) -> None:
+        """Set poll cadence from any thread (0 = pause; >0 = restart interval).
+
+        Emits ``cadence_changed_internal`` which is delivered via
+        ``Qt.QueuedConnection`` to ``_apply_cadence_on_worker_thread`` running
+        on the worker thread.  Safe to call before ``start()`` — the signal
+        will queue and deliver once ``exec_()`` starts.
+        """
+        self.cadence_changed_internal.emit(int(ms))
+
+    def force_poll(self) -> None:
+        """Request an immediate tick from any thread.
+
+        Emits ``cadence_changed_internal`` with the current interval (or 60 000
+        if not yet set).  The worker-thread slot will restart the timer at 0
+        (immediate tick) while preserving the ongoing cadence.
+
+        Used by tests to skip real-time waits.
+        """
+        self.cadence_changed_internal.emit(self._interval_ms or 60_000)
+
+    def _apply_cadence_on_worker_thread(self, ms: int) -> None:
+        """Slot — runs on worker thread via QueuedConnection.
+
+        Lazy-constructs QTimer on first call (ensures the timer is created on
+        the worker thread, which is required for timer events to fire correctly).
+        """
+        if self._timer is None:
+            self._timer = QTimer()
+            self._timer.setSingleShot(True)
+            self._timer.timeout.connect(self._on_tick)
+        if ms == 0:
+            self._timer.stop()
+            self._interval_ms = 0
+        else:
+            self._interval_ms = ms
+            self._timer.start(0)  # immediate first tick after cadence change
+
+    def _on_tick(self) -> None:
+        """Timer callback — runs on worker thread.
+
+        Calls ``_fetch_marquee()`` (blocking urllib call — safe on worker thread),
+        parses the HTML, emits ``marquee_ready``, and reschedules the timer.
+        """
+        try:
+            html = _fetch_marquee()
+            if html is not None:
+                plain = extract_noticearea_text(html)
+                if plain:
+                    first, full = parse_marquee(plain)
+                    self._last_full_marquee_text = full
+                    self.marquee_ready.emit(first, full)
+        except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-03-06)
+            _log.warning(
+                "gbs.marquee.fetch_failed url=%s error=%s",
+                MARQUEE_URL,
+                exc.__class__.__name__,
+            )
+        finally:
+            # Always reschedule so the worker keeps running despite transient failures.
+            if self._timer is not None and self._interval_ms > 0:
+                self._timer.start(self._interval_ms)
+
+    def current_interval_ms(self) -> int:
+        """Return the current cadence interval in milliseconds (test affordance)."""
+        return self._interval_ms
+
+    def stop_and_wait(self, timeout_ms: int = 5_000) -> bool:
+        """Stop the worker and wait for the thread to finish.
+
+        Calls ``quit()`` (posts a quit event to the worker's event loop) then
+        ``wait(timeout_ms)``.  Returns True if the thread exited within timeout.
+        Called from main_window closeEvent (Plan 87-05 wires the call site).
+        """
+        self.quit()
+        return self.wait(timeout_ms)
+
+    def run(self) -> None:
+        # CRITICAL (Pitfall #7 — 87-RESEARCH.md §Pitfall #7):
+        # exec_() drives the worker thread's Qt event loop.  Without it,
+        # the QTimer constructed in _apply_cadence_on_worker_thread never
+        # fires because there is no event loop to dispatch its timeout signal.
+        # A run() body of `pass` or `while True: time.sleep()` is a regression.
+        self.exec_()
