@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 89 context gathered
-last_updated: "2026-06-16T16:47:32.333Z"
+status: ready_to_plan
+stopped_at: Phase 89 complete (5/5) — ready to discuss Phase 89.1
+last_updated: 2026-06-16T19:52:10.439Z
 last_activity: 2026-06-16 -- Phase 89 execution started
 progress:
   total_phases: 21
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 89 — youtube-channel-avatar-fetch-cover-slot-swap
+**Current focus:** Phase 89.1 — re key channel avatar from per station to per provider chann
 
 ## Current Position
 
-Phase: 89 (youtube-channel-avatar-fetch-cover-slot-swap) — EXECUTING
-Plan: 5 of 5
-Status: Executing Phase 89
-Last activity: 2026-06-16 -- Phase 89 execution started
+Phase: 89.1
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-16
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 223+ (v1.0–v2.1 combined)
+- Total plans completed: 228+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 

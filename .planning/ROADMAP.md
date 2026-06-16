@@ -33,7 +33,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 88: Windows Packaging Bundle (WIN-02 + VER-02-J + WIN-05)** — One Win11 VM session: Inno Setup AUMID polish + `.lnk` cleanup, full v2.2-installer UAT against a previously-v2.1 VM, and AAC stream retest
 - [x] **Phase 89a: Channel-Avatar DB Migration + Storage Layout** — Foundation column + filesystem layout for YT and Twitch avatars; idempotent additive migration in `repo.py:db_init()`
 - [x] **Phase 87: GBS.FM Marquee + Themed-Day Detection** — Banner widget + themed-logo session swap; establishes the QtWebEngine cookie-persistence-cross-process pattern reused by Phase 89
-- [ ] **Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap** — ICY-disabled YT stations show the channel avatar (circular) in the cover slot; cover-resolver precedence keeps MB-CAA above avatar
+- [x] **Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap** — ICY-disabled YT stations show the channel avatar (circular) in the cover slot; cover-resolver precedence keeps MB-CAA above avatar
 - [ ] **Phase 89b: Twitch Channel-Avatar Fetch** — Helix `/users` integration reusing the Phase 32 user token; shares storage + cover-slot path with Phase 89
 - [ ] **Phase 87b: GBS Zero-Token Single-Song Add** — Conditional "Add a song" affordance gated on tokens==0 AND queue empty; UX never frames as "1 token"
 - [ ] **Phase 90: SomaFM Preroll Instrumentation** — Size-rotated `preroll-events.log` + hamburger-menu probe; ship+monitor pattern, no behavior change
@@ -474,7 +474,7 @@ Plans:
 | 88. Windows Packaging Bundle | 4/4 | Complete | 2026-06-13 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 89. YT Channel-Avatar | 5/5 | Complete   | 2026-06-16 |
+| 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |

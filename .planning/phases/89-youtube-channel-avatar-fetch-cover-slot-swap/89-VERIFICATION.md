@@ -1,7 +1,8 @@
 ---
 phase: 89-youtube-channel-avatar-fetch-cover-slot-swap
 verified: 2026-06-16T16:24:17Z
-status: human_needed
+status: verified
+human_verified: "2026-06-16 — all 3 human-verification items passed in UAT (see 89-HUMAN-UAT.md); 3 follow-up bugs found+fixed (channel-walk hang, QThread shutdown abort, .desktop node-runtime); security verified 16/16 (89-SECURITY.md)"
 score: 7/7 must-haves verified
 overrides_applied: 0
 human_verification:
