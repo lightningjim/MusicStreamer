@@ -2152,6 +2152,28 @@ def test_debounce_does_not_launch_worker_for_non_yt_url(qtbot, dialog):
         MockWorker.assert_not_called()
 
 
+def test_yt_url_with_null_provider_does_not_launch_avatar_worker(qtbot, dialog):
+    """Phase 89.1 CR-01: a YouTube URL on a station with provider_id=None must NOT
+    launch the avatar worker — keying by None would write a junk 'None.png' and
+    silently no-op the DB UPDATE WHERE id=NULL while falsely reporting success."""
+    from unittest.mock import patch
+
+    dialog._station.provider_id = None
+    dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+    initial_token = dialog._avatar_fetch_token
+
+    with patch(
+        "musicstreamer.ui_qt.edit_station_dialog._AvatarFetchWorker"
+    ) as MockWorker:
+        dialog._on_url_timer_timeout()
+        # Avatar worker NOT created and avatar token NOT incremented
+        MockWorker.assert_not_called()
+        assert dialog._avatar_fetch_token == initial_token
+        # User is told there is no channel avatar (falls back to thumbnail per D-06)
+        assert "no provider" in dialog._avatar_status.text().lower() or \
+               "no channel avatar" in dialog._avatar_status.text().lower()
+
+
 def test_on_avatar_fetched_success_updates_preview_and_persists(qtbot, dialog, repo):
     """D-12 / D-02 / Phase 89.1 D-09: _on_avatar_fetched on success updates preview +
     calls repo.update_provider_avatar_path (provider-keyed) on the main thread."""

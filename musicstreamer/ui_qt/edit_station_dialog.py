@@ -1304,6 +1304,16 @@ class EditStationDialog(QDialog):
         # Separate monotonic token so stale logo and stale avatar don't collide.
         lower = url.lower()
         if "youtube.com" in lower or "youtu.be" in lower:
+            # Phase 89.1 D-06 / CR-01: the avatar is keyed per-provider. A station
+            # with no provider_id cannot be keyed — fetching would write a junk
+            # 'None.png' orphan and run UPDATE providers ... WHERE id = NULL (a
+            # silent 0-row no-op) while falsely reporting success. Skip the fetch
+            # and fall back to the station thumbnail per D-06.
+            if self._station.provider_id is None:
+                self._avatar_status.setText(
+                    "No channel avatar (station has no provider)"
+                )
+                return
             # Phase 89.1 D-07: skip network fetch if provider already has an avatar,
             # unless _force_avatar_refresh is True (D-08 Refresh bypass).
             provider_avatar = getattr(self._station, "provider_avatar_path", None)
@@ -1451,7 +1461,7 @@ class EditStationDialog(QDialog):
 
         Phase 89-05 / D-02/D-03/D-11/D-12:
           - Stale-token guard: discard results superseded by a newer fetch (T-89-14)
-          - Success: update preview + write channel_avatar_path to DB on main thread (D-12)
+          - Success: update preview + persist provider_avatar_path to DB on main thread (D-12 / Phase 89.1 D-09)
           - Failure (empty path): show non-blocking message; column stays unwritten;
             Save remains enabled (D-03); old cached avatar is retained (D-11)
 
