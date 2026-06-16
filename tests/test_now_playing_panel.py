@@ -3631,10 +3631,11 @@ def test_set_avatar_pixmap_from_path_cached_load_under_1s(qtbot, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _icy_disabled_station(tmp_path, station_id: int = 11, png_size: int = 200) -> "tuple[Station, str]":
-    """Create an ICY-disabled station with a stored avatar PNG.
+def _icy_disabled_yt_station(tmp_path, station_id: int = 11, png_size: int = 200) -> "tuple[Station, str]":
+    """Create an ICY-disabled YT station with a stored avatar PNG (Phase 89 avatar tests).
 
     Returns (station, rel_path).
+    NOTE: distinct from the pre-existing _icy_disabled_station(name) helper at L494.
     """
     rel_path = _make_avatar_png(tmp_path, station_id=station_id, size=png_size)
     station = Station(
@@ -3660,7 +3661,7 @@ def test_avatar_bind_station_icy_disabled_with_avatar_sets_last_avatar_path(qtbo
     import musicstreamer.paths as paths_mod
     paths_mod._root_override = str(tmp_path)
     try:
-        station, rel_path = _icy_disabled_station(tmp_path)
+        station, rel_path = _icy_disabled_yt_station(tmp_path)
         panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
         qtbot.addWidget(panel)
 
@@ -3713,7 +3714,7 @@ def test_avatar_stale_station_reset_on_bind(qtbot, tmp_path):
     import musicstreamer.paths as paths_mod
     paths_mod._root_override = str(tmp_path)
     try:
-        station_a, rel_a = _icy_disabled_station(tmp_path, station_id=1)
+        station_a, rel_a = _icy_disabled_yt_station(tmp_path, station_id=1)
         # Station B: ICY-disabled but no avatar.
         station_b = Station(
             id=2,
@@ -3748,7 +3749,7 @@ def test_avatar_apply_art_tier_replays_circle(qtbot, tmp_path):
     import musicstreamer.paths as paths_mod
     paths_mod._root_override = str(tmp_path)
     try:
-        station, rel_path = _icy_disabled_station(tmp_path, station_id=33)
+        station, rel_path = _icy_disabled_yt_station(tmp_path, station_id=33)
         panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
         qtbot.addWidget(panel)
         panel.bind_station(station)
