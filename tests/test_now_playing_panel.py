@@ -3636,6 +3636,8 @@ def _icy_disabled_yt_station(tmp_path, station_id: int = 11, png_size: int = 200
 
     Returns (station, rel_path).
     NOTE: distinct from the pre-existing _icy_disabled_station(name) helper at L494.
+    Phase 89.1: bind_station resolves via provider_avatar_path (per-provider re-key);
+    the deprecated channel_avatar_path is no longer read.
     """
     rel_path = _make_avatar_png(tmp_path, station_id=station_id, size=png_size)
     station = Station(
@@ -3647,7 +3649,7 @@ def _icy_disabled_yt_station(tmp_path, station_id: int = 11, png_size: int = 200
         station_art_path=None,
         album_fallback_path=None,
         icy_disabled=True,
-        channel_avatar_path=rel_path,
+        provider_avatar_path=rel_path,
         streams=[StationStream(id=station_id * 10, station_id=station_id,
                                url="https://youtube.com/@lofigirl", label="HQ",
                                quality="hi", position=1, stream_type="youtube",
