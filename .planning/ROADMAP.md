@@ -347,13 +347,21 @@ Plans:
 
 ### Phase 89.1: Re-key channel avatar from per-station to per-provider (INSERTED)
 
-**Goal:** Phase 89 stores `channel_avatar_path` on each Station row (`assets/channel-avatars/{station_id}.png`), so every stream of the same YouTube channel (e.g. multiple Lofi Girl streams) fetches and stores the identical avatar. For YouTube imports the provider IS the channel (`yt_import.py:120` sets provider = `playlist_channel`/`playlist_uploader`/`uploader`; `providers.name` is UNIQUE). Move the avatar to the Provider: add `avatar_path` to the `providers` table, key the cached PNG by `provider_id`, persist via a provider-keyed update method, and resolve it in `now_playing_panel.bind_station` and `EditStationDialog` via the station's `provider_id` so all sibling streams reuse one fetch and one file. Fall back to the station thumbnail when `provider_id` is null. Consider migrating the existing `Station.channel_avatar_path` column. Goal: one avatar fetch + one cached file per channel instead of per station.
-**Requirements**: TBD
+**Goal:** Phase 89 stores `channel_avatar_path` on each Station row (`assets/channel-avatars/{station_id}.png`), so every stream of the same YouTube channel (e.g. multiple Lofi Girl streams) fetches and stores the identical avatar. For YouTube imports the provider IS the channel (`yt_import.py:120` sets provider = `playlist_channel`/`playlist_uploader`/`uploader`; `providers.name` is UNIQUE). Move the avatar to the Provider: add `avatar_path` to the `providers` table, key the cached PNG by `provider_id`, persist via a provider-keyed update method, and resolve it in `now_playing_panel.bind_station` and `EditStationDialog` via the station's `provider_id` so all sibling streams reuse one fetch and one file. Fall back to the station thumbnail when `provider_id` is null. Migrate the existing per-station avatars and deprecate the old `stations.channel_avatar_path` column. Goal: one avatar fetch + one cached file per channel instead of per station.
+**Requirements**: D-01..D-11 (CONTEXT.md locked decisions; no formal ROADMAP requirement IDs assigned — decisions are the authoritative requirement set)
 **Depends on:** Phase 89
-**Plans:** 0 plans
+**Plans:** 2 plans across 2 waves
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 89.1 to break down)
+**Wave 1** *(data layer)*
+
+- [ ] 89.1-01-PLAN.md — providers.avatar_path ALTER + idempotent crash-safe backfill (D-01/02/03/11) + write_provider_avatar + update_provider_avatar_path (D-09/10) + Station.provider_avatar_path field + four-mapper carry + write-path cutover (D-04) + Wave-0 migration/backfill/persist tests
+
+**Wave 2** *(consumers — blocked on 89.1-01)*
+
+- [ ] 89.1-02-PLAN.md — cover_art._channel_avatar_lookup + now_playing_panel.bind_station repoint to provider_avatar_path with file-existence guard (D-04/05/06) + EditStationDialog reuse-on-open / force-refresh bypass / provider-keyed persist+write / shared-effect hint (D-07/08) + lookup-test re-point
+
+**Research flag**: NO — direct re-key of the existing Phase 89 mechanism mirroring Phase 89A/89 patterns; RESEARCH/PATTERNS already mapped every analog.
 
 #### Phase 89b: Twitch Channel-Avatar Fetch
 
@@ -475,6 +483,7 @@ Plans:
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
+| 89.1. Re-key Avatar Per-Provider (INSERTED) | 0/2 | Planned | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
@@ -500,7 +509,7 @@ Tier 3 (Week 4, one Win11 VM session):
   Phase 88 (Windows Bundle — parallel-eligible w/ Tiers 1-2)
 
 Tier 4 (Week 5+, channel-avatar infrastructure):
-  Phase 89a (DB Migration) ──> Phase 89 (YT Avatar) ──> Phase 89b (Twitch Avatar)
+  Phase 89a (DB Migration) ──> Phase 89 (YT Avatar) ──> Phase 89.1 (Re-key Per-Provider) ──> Phase 89b (Twitch Avatar)
                                   ▲
                                   └── Phase 87 also precedes Phase 89 (cookie-persistence pattern)
 
