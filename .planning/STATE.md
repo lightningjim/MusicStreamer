@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: ready_to_plan
-stopped_at: Phase 89 complete (5/5) — ready to discuss Phase 89.1
-last_updated: 2026-06-16T19:52:10.439Z
-last_activity: 2026-06-16 -- Phase 89 execution started
+status: planning
+stopped_at: Phase 89.1 context gathered
+last_updated: "2026-06-16T20:04:16.055Z"
+last_activity: 2026-06-16
 progress:
   total_phases: 21
   completed_phases: 13
@@ -180,9 +180,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-16T16:19:21.123Z
-Stopped at: Phase 89 context gathered
-Resume file: .planning/phases/89-youtube-channel-avatar-fetch-cover-slot-swap/89-CONTEXT.md
+Last session: 2026-06-16T20:04:16.047Z
+Stopped at: Phase 89.1 context gathered
+Resume file: .planning/phases/89.1-re-key-channel-avatar-from-per-station-to-per-provider-chann/89.1-CONTEXT.md
 
 ## Operator Next Steps
 
