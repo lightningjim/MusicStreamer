@@ -930,12 +930,19 @@ class NowPlayingPanel(QWidget):
         self._update_star_enabled()
         self._show_station_logo()
         self._show_station_logo_in_cover_slot()
-        # Phase 89 D-09: thumbnail shows first (above); then swap to circular avatar
-        # for ICY-disabled YT stations. Reset _last_avatar_path FIRST to avoid
-        # stale-station bleed (Pitfall 4 / T-89-12).
+        # Phase 89.1 D-04/D-06: resolve via provider avatar only.
+        # stations.channel_avatar_path is deprecated — do NOT read it.
+        # Reset _last_avatar_path FIRST to avoid stale-station bleed (Pitfall 4 / T-89-12).
         self._last_avatar_path = None
-        if getattr(station, "icy_disabled", False) and getattr(station, "channel_avatar_path", None):
-            self._set_avatar_pixmap_from_path(station.channel_avatar_path)
+        if getattr(station, "icy_disabled", False):
+            _provider_rel = getattr(station, "provider_avatar_path", None)
+            if _provider_rel:
+                from musicstreamer import paths as _p
+                import os as _os
+                if _os.path.isfile(_os.path.join(_p.data_dir(), _provider_rel)):
+                    self._set_avatar_pixmap_from_path(_provider_rel)
+        # If provider_id is NULL or no provider avatar: fall through to existing
+        # _show_station_logo_in_cover_slot() already called above at L932.
         self._populate_stream_picker(station)
         # Phase 64 / D-04: re-derive 'Also on:' line for the newly bound station.
         # This is the ONLY call site for _refresh_siblings -- D-04 invariant

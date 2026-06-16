@@ -159,8 +159,8 @@ def _mb_caa_lookup(artist: str, title: str, callback) -> None:
 def _channel_avatar_lookup(station, callback) -> None:
     """Avatar tier placeholder (ART-AVATAR-07 / D-14).
 
-    Synchronous path-returner: reads station.channel_avatar_path, resolves
-    it against paths.data_dir(), and calls callback(abs_path) if the file
+    Synchronous path-returner: reads station.provider_avatar_path (Phase 89.1 D-05),
+    resolves it against paths.data_dir(), and calls callback(abs_path) if the file
     exists on disk — otherwise callback(None).
 
     NEVER raises (WR-04 contract — must not propagate into Qt callback chain).
@@ -176,7 +176,7 @@ def _channel_avatar_lookup(station, callback) -> None:
         if station is None:
             callback(None)
             return
-        rel = getattr(station, "channel_avatar_path", None)
+        rel = getattr(station, "provider_avatar_path", None)   # Phase 89.1 D-05 (was channel_avatar_path)
         if not rel:
             callback(None)
             return
