@@ -2153,8 +2153,8 @@ def test_debounce_does_not_launch_worker_for_non_yt_url(qtbot, dialog):
 
 
 def test_on_avatar_fetched_success_updates_preview_and_persists(qtbot, dialog, repo):
-    """D-12 / D-02: _on_avatar_fetched on success updates preview + calls
-    repo.update_channel_avatar_path on the main thread."""
+    """D-12 / D-02 / Phase 89.1 D-09: _on_avatar_fetched on success updates preview +
+    calls repo.update_provider_avatar_path (provider-keyed) on the main thread."""
     from unittest.mock import patch, MagicMock
     import musicstreamer.paths as paths
     import tempfile, os
@@ -2183,24 +2183,25 @@ def test_on_avatar_fetched_success_updates_preview_and_persists(qtbot, dialog, r
         try:
             dialog._avatar_fetch_token = 5
             dialog._on_avatar_fetched(rel_path, 5)
-            # repo.update_channel_avatar_path called with station_id and rel_path
-            repo.update_channel_avatar_path.assert_called_once_with(
-                dialog._station.id, rel_path
+            # Phase 89.1 D-09: provider-keyed persist called with provider_id + rel_path
+            repo.update_provider_avatar_path.assert_called_once_with(
+                dialog._station.provider_id, rel_path
             )
-            # Status shows success
-            assert "Avatar found" in dialog._avatar_status.text() or \
-                   dialog._avatar_status.text() != ""
+            # Phase 89.1 D-05: in-memory station model carries the new provider avatar
+            assert dialog._station.provider_avatar_path == rel_path
+            # D-08 shared-effect hint surfaced in the status text
+            assert dialog._avatar_status.text() != ""
         finally:
             paths._root_override = None
 
 
 def test_on_avatar_fetched_failure_non_blocking(qtbot, dialog, repo):
     """D-03/D-11: _on_avatar_fetched with empty path shows message, does NOT
-    call update_channel_avatar_path, and leaves Save enabled."""
+    persist the avatar (update_provider_avatar_path), and leaves Save enabled."""
     dialog._avatar_fetch_token = 3
     dialog._on_avatar_fetched("", 3)
-    # repo.update_channel_avatar_path NOT called
-    repo.update_channel_avatar_path.assert_not_called()
+    # Phase 89.1 D-09: provider-keyed persist NOT called on failure
+    repo.update_provider_avatar_path.assert_not_called()
     # Status shows failure message
     assert dialog._avatar_status.text() != ""
     # Save is still enabled (button_box OK button is enabled)
@@ -2216,8 +2217,8 @@ def test_on_avatar_fetched_stale_token_discarded(qtbot, dialog, repo):
     dialog._avatar_fetch_token = 10  # current token
     # Emit with token=7 (stale)
     dialog._on_avatar_fetched("assets/channel-avatars/1.png", 7)
-    # repo.update_channel_avatar_path NOT called (stale discarded)
-    repo.update_channel_avatar_path.assert_not_called()
+    # Phase 89.1 D-09: provider-keyed persist NOT called (stale discarded)
+    repo.update_provider_avatar_path.assert_not_called()
 
 
 def test_refresh_btn_wired_to_fetch_path(qtbot, dialog):
