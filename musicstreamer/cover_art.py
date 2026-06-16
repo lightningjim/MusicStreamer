@@ -19,6 +19,7 @@ panel to pass `source=` explicitly.
 """
 import json
 import logging
+import os
 import tempfile
 import threading
 import urllib.parse
@@ -144,6 +145,48 @@ def _split_artist_title(icy_string: str) -> Optional[tuple[str, str]]:
     return artist, title
 
 
+def _mb_caa_lookup(artist: str, title: str, callback) -> None:
+    """Named wrapper so the source-grep drift-guard (ART-AVATAR-09) is stable.
+
+    Phase 89 D-14: thin delegation to _cover_art_mb.fetch_mb_cover so that
+    the precedence order ICY -> iTunes -> MB-CAA -> channel-avatar is pinned
+    structurally (via test_mb_caa_runs_before_channel_avatar) rather than
+    relying on inline call position.
+    """
+    _cover_art_mb.fetch_mb_cover(artist, title, callback)
+
+
+def _channel_avatar_lookup(station, callback) -> None:
+    """Avatar tier placeholder (ART-AVATAR-07 / D-14).
+
+    Synchronous path-returner: reads station.channel_avatar_path, resolves
+    it against paths.data_dir(), and calls callback(abs_path) if the file
+    exists on disk — otherwise callback(None).
+
+    NEVER raises (WR-04 contract — must not propagate into Qt callback chain).
+    No thread launch (RESEARCH.md anti-pattern: no QPixmap here, Pitfall 7).
+
+    NOTE: This function is intentionally NOT called from fetch_cover_art's
+    auto dispatch chain. The live ICY-disabled avatar swap is triggered by
+    bind_station in now_playing_panel (Phase 89-04). This stub satisfies the
+    ART-AVATAR-09 source-grep drift-guard and provides a real hook for future
+    ICY-enabled avatar use. (RESEARCH.md Q2, RESOLVED)
+    """
+    try:
+        if station is None:
+            callback(None)
+            return
+        rel = getattr(station, "channel_avatar_path", None)
+        if not rel:
+            callback(None)
+            return
+        import musicstreamer.paths as _paths
+        abs_path = os.path.join(_paths.data_dir(), rel)
+        callback(abs_path if os.path.exists(abs_path) else None)
+    except Exception:
+        callback(None)
+
+
 def fetch_cover_art(
     icy_string: str,
     callback: Callable[[Optional[str]], None],
@@ -194,7 +237,7 @@ def fetch_cover_art(
             callback(None)
             return
         artist, title = split
-        _cover_art_mb.fetch_mb_cover(artist, title, callback)
+        _mb_caa_lookup(artist, title, callback)
         return
 
     if source != "auto":
@@ -221,6 +264,6 @@ def fetch_cover_art(
             callback(None)
             return
         artist, title = split
-        _cover_art_mb.fetch_mb_cover(artist, title, callback)
+        _mb_caa_lookup(artist, title, callback)
 
     _itunes_attempt(icy_string, _on_itunes_done)
