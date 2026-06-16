@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
-stopped_at: Phase 89.1 context gathered
-last_updated: "2026-06-16T20:31:25.520Z"
-last_activity: 2026-06-16 -- Phase 89.1 planning complete
+status: executing
+stopped_at: Completed 89.1-01-PLAN.md
+last_updated: "2026-06-16T20:43:22.203Z"
+last_activity: 2026-06-16 -- Phase 89.1 Plan 01 completed
 progress:
   total_phases: 21
   completed_phases: 13
   total_plans: 52
-  completed_plans: 50
+  completed_plans: 51
   percent: 62
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 89.1 — re key channel avatar from per station to per provider chann
+**Current focus:** Phase 89.1 — re-key-channel-avatar-from-per-station-to-per-provider-chann
 
 ## Current Position
 
-Phase: 89.1
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-16 -- Phase 89.1 planning complete
+Phase: 89.1 (re-key-channel-avatar-from-per-station-to-per-provider-chann) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 89.1
+Last activity: 2026-06-16 -- Phase 89.1 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -129,6 +129,9 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: 89-02 Phase 89 Plan 02
 - [Phase ?]: Phase 89-05
 - [Phase ?]: Phase 89-05
+- [Phase 89.1 Plan 01]: Backfill guards provider_id and channel_avatar_path column presence before running SQL (avoids OperationalError on legacy test-fixture schemas)
+- [Phase 89.1 Plan 01]: Same-file skip in backfill: when station_id == provider_id, abspath comparison skips copy but DB UPDATE still runs (file already provider-keyed)
+- [Phase 89.1 Plan 01]: Cleanup pass excludes rows where s.channel_avatar_path == p.avatar_path to prevent deleting the newly-written provider file
 
 ### Decisions (v2.1, preserved for context)
 
@@ -180,7 +183,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-16T20:04:16.047Z
+Last session: 2026-06-16T20:43:22.182Z
 Stopped at: Phase 89.1 context gathered
 Resume file: .planning/phases/89.1-re-key-channel-avatar-from-per-station-to-per-provider-chann/89.1-CONTEXT.md
 

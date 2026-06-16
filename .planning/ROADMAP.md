@@ -355,7 +355,7 @@ Plans:
 Plans:
 **Wave 1** *(data layer)*
 
-- [ ] 89.1-01-PLAN.md — providers.avatar_path ALTER + idempotent crash-safe backfill (D-01/02/03/11) + write_provider_avatar + update_provider_avatar_path (D-09/10) + Station.provider_avatar_path field + four-mapper carry + write-path cutover (D-04) + Wave-0 migration/backfill/persist tests
+- [x] 89.1-01-PLAN.md — providers.avatar_path ALTER + idempotent crash-safe backfill (D-01/02/03/11) + write_provider_avatar + update_provider_avatar_path (D-09/10) + Station.provider_avatar_path field + four-mapper carry + write-path cutover (D-04) + Wave-0 migration/backfill/persist tests
 
 **Wave 2** *(consumers — blocked on 89.1-01)*
 
@@ -483,7 +483,7 @@ Plans:
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
-| 89.1. Re-key Avatar Per-Provider (INSERTED) | 0/2 | Planned | - |
+| 89.1. Re-key Avatar Per-Provider (INSERTED) | 1/2 | In Progress|  |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
