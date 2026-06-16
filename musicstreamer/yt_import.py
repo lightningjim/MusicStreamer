@@ -152,7 +152,11 @@ def import_stations(entries: list[dict], repo, on_progress=None) -> tuple[int, i
     return imported, skipped
 
 
-def fetch_channel_avatar(channel_url: str) -> bytes:
+def fetch_channel_avatar(
+    channel_url: str,
+    *,
+    node_runtime: "NodeRuntime | None" = None,
+) -> bytes:
     """Fetch the channel avatar image for a YouTube channel URL.
 
     Accepts both channel URLs (e.g. https://www.youtube.com/@LofiGirl) and
@@ -172,6 +176,12 @@ def fetch_channel_avatar(channel_url: str) -> bytes:
     Thread safety: cookie_utils.temp_cookies_copy() is used (same as
     scan_playlist) so yt-dlp's save_cookies() on __exit__ writes to a temp
     copy, never the canonical cookies file (T-89-05).
+
+    node_runtime: when supplied, its absolute node path is threaded into
+    build_js_runtimes so GNOME .desktop launchers (which strip the shell
+    PATH) can resolve the JS runtime needed for the EarlyJS/ejs:github
+    challenge. Mirrors the identical fix applied to scan_playlist and
+    player._youtube_resolve_worker (BUG-11 / D-02).
 
     Raises:
         ValueError: No avatar entry found, or avatar entry is non-square.
@@ -196,7 +206,10 @@ def fetch_channel_avatar(channel_url: str) -> bytes:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        "js_runtimes": yt_dlp_opts.build_js_runtimes(None),
+        # Thread the resolved absolute Node path so .desktop-stripped PATH
+        # launches can find the JS runtime for the EarlyJS channel challenge.
+        # Mirrors scan_playlist:86 / player.py:1866 (BUG-11 / D-02).
+        "js_runtimes": yt_dlp_opts.build_js_runtimes(node_runtime),
         "remote_components": {"ejs:github"},
     }
 

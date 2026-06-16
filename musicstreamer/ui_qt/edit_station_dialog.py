@@ -146,22 +146,32 @@ class _AvatarFetchWorker(QThread):
       - run() MUST NOT touch any widget
       - run() MUST NOT call QTimer.singleShot (silently drops from non-QThread)
       - Result marshalled to main thread exclusively via queued finished Signal
+
+    node_runtime: passed through to fetch_channel_avatar so the EarlyJS/JS
+    runtime is resolved via an absolute path rather than PATH-lookup. Required
+    for GNOME .desktop launchers which strip the shell PATH (BUG-11 / D-02).
+    Mirrors _LogoFetchWorker shape for the constructor; mirrors _AvatarFetch
+    semantics for the run() call.
     """
 
     finished = Signal(str, int)  # rel_path_or_empty, token
 
-    def __init__(self, url: str, token: int, station_id: int, parent=None):
+    def __init__(self, url: str, token: int, station_id: int, parent=None,
+                 node_runtime=None):
         super().__init__(parent)
         self.setObjectName("avatar-fetch-worker")
         self._url = url
         self._token = token
         self._station_id = station_id
+        self._node_runtime = node_runtime
 
     def run(self) -> None:  # noqa: N802 (Qt override)
         token = self._token
         try:
             from musicstreamer import yt_import, assets as _assets
-            data = yt_import.fetch_channel_avatar(self._url)
+            data = yt_import.fetch_channel_avatar(
+                self._url, node_runtime=self._node_runtime
+            )
             rel_path = _assets.write_channel_avatar(self._station_id, data)
             self.finished.emit(rel_path, token)
         except Exception:
@@ -305,11 +315,18 @@ class EditStationDialog(QDialog):
     sibling_toast = Signal(str)
 
     def __init__(self, station: Station, player, repo,
-                 parent=None, is_new: bool = False) -> None:
+                 parent=None, is_new: bool = False,
+                 node_runtime=None) -> None:
         super().__init__(parent)
         self._station = station
         self._player = player
         self._repo = repo
+        # Phase 89-05 / BUG-11: resolved absolute node path threaded from
+        # __main__ so GNOME .desktop launchers (minimal PATH) can find the JS
+        # runtime for EarlyJS/ejs:github. Passed through to _AvatarFetchWorker
+        # which forwards to fetch_channel_avatar(node_runtime=...). Mirrors the
+        # identical pattern used by Player and ImportDialog.
+        self._node_runtime = node_runtime
         # Phase 999.1 D-04/D-05/SAVE-CLEANUP: tracks "new station" lifecycle.
         # When True: (a) _build_ui+_populate pre-add one blank stream row,
         # (b) reject()/closeEvent() delete the placeholder station row,
@@ -1293,6 +1310,7 @@ class EditStationDialog(QDialog):
                 token=avatar_token,
                 station_id=self._station.id,
                 parent=self,
+                node_runtime=self._node_runtime,
             )
             self._avatar_fetch_worker.finished.connect(self._on_avatar_fetched)
             self._avatar_fetch_worker.start()

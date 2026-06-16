@@ -1232,6 +1232,7 @@ class MainWindow(QMainWindow):
         dlg = EditStationDialog(
             fresh, self._player, self._repo,
             parent=self, is_new=True,
+            node_runtime=self._node_runtime,
         )
         dlg.station_saved.connect(self._refresh_station_list)
         # D-07: select the new station after save. Lambda matches the precedent
@@ -1253,7 +1254,8 @@ class MainWindow(QMainWindow):
         fresh = self._repo.get_station(station.id)
         if fresh is None:
             return
-        dlg = EditStationDialog(fresh, self._player, self._repo, parent=self)
+        dlg = EditStationDialog(fresh, self._player, self._repo, parent=self,
+                                node_runtime=self._node_runtime)
         dlg.station_saved.connect(self._refresh_station_list)
         dlg.station_saved.connect(lambda: self._sync_now_playing_station(fresh.id))
         dlg.station_deleted.connect(self._on_station_deleted)

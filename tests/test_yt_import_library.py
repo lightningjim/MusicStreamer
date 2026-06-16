@@ -374,6 +374,74 @@ def test_avatar_registry_youtube_registered():
     assert fetcher is yt_import.fetch_channel_avatar
 
 
+# ---------------------------------------------------------------------------
+# BUG-11 / D-02: fetch_channel_avatar node_runtime threading tests
+# (mirrors scan_playlist node-threading tests at L179-209)
+# ---------------------------------------------------------------------------
+
+def _make_avatar_urlopen_mock(fake_bytes: bytes):
+    """Return a mock suitable for patch("urllib.request.urlopen") in avatar tests."""
+    resp = MagicMock()
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    resp.read.return_value = fake_bytes
+    return resp
+
+
+def test_fetch_channel_avatar_passes_node_path_when_available():
+    """BUG-11: fetch_channel_avatar threads NodeRuntime.path into yt_dlp opts.
+
+    GNOME .desktop launchers strip the shell PATH, so yt-dlp's own PATH-lookup
+    for node fails. Passing an absolute node path via build_js_runtimes bypasses
+    the PATH entirely. This mirrors the identical fix for scan_playlist (B-79-07).
+    """
+    thumbnails = [{"id": "avatar_uncropped", "url": "http://uncropped.jpg"}]
+    info = _make_channel_info(thumbnails)
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _make_avatar_urlopen_mock(b"\x89PNG\r\n\x1a\n")
+        yt_import.fetch_channel_avatar(
+            "https://www.youtube.com/@TestChannel",
+            node_runtime=NodeRuntime(available=True, path="/usr/local/bin/node"),
+        )
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": "/usr/local/bin/node"}}
+
+
+def test_fetch_channel_avatar_default_none_node_runtime():
+    """BUG-11: fetch_channel_avatar with no node_runtime kwarg yields {'path': None}.
+
+    Preserves yt-dlp's own PATH-lookup fallback for callers that don't supply
+    a NodeRuntime (registry callees, tests, Twitch). Mirrors B-79-08.
+    """
+    thumbnails = [{"id": "avatar_uncropped", "url": "http://uncropped.jpg"}]
+    info = _make_channel_info(thumbnails)
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _make_avatar_urlopen_mock(b"\x89PNG\r\n\x1a\n")
+        yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": None}}
+
+
+def test_fetch_channel_avatar_passes_none_when_unavailable():
+    """BUG-11: NodeRuntime(available=False, path=None) still yields {'path': None}.
+
+    An unavailable runtime should not inject a bogus path. Mirrors B-79-09.
+    """
+    thumbnails = [{"id": "avatar_uncropped", "url": "http://uncropped.jpg"}]
+    info = _make_channel_info(thumbnails)
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value = _make_avatar_urlopen_mock(b"\x89PNG\r\n\x1a\n")
+        yt_import.fetch_channel_avatar(
+            "https://www.youtube.com/@TestChannel",
+            node_runtime=NodeRuntime(available=False, path=None),
+        )
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": None}}
+
+
 def test_avatar_registry_twitch_absent_by_default():
     """D-04: get_avatar_fetcher('twitch') returns None (not registered this phase)."""
     fetcher = yt_import.get_avatar_fetcher("twitch")
