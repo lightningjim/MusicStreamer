@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 
 from musicstreamer import paths
 
@@ -26,3 +27,34 @@ def copy_asset_for_station(station_id: int, source_path: str, kind: str) -> str:
 
     rel = os.path.relpath(dst, paths.data_dir())  # e.g. assets/12/station_art.png
     return rel
+
+
+def write_channel_avatar(station_id: int, data: bytes) -> str:
+    """Write avatar PNG bytes atomically to the channel-avatars directory.
+
+    Returns path relative to paths.data_dir(), e.g. 'assets/channel-avatars/12.png'.
+    Uses tempfile.mkstemp in the same directory so os.replace is atomic
+    (same filesystem — RESEARCH.md A2 / D-12).
+
+    station_id is an int from SQLite — no user-controlled string, no traversal
+    risk (T-89-02).
+    """
+    dst_dir = paths.channel_avatars_dir()
+    os.makedirs(dst_dir, exist_ok=True)
+    dst = os.path.join(dst_dir, f"{station_id}.png")
+    fd, tmp = tempfile.mkstemp(dir=dst_dir, suffix=".png.tmp")
+    try:
+        os.write(fd, data)
+        os.close(fd)
+        os.replace(tmp, dst)
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return os.path.relpath(dst, paths.data_dir())
