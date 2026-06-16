@@ -3462,3 +3462,159 @@ def test_fetch_cover_art_async_defaults_to_auto_when_station_lacks_attribute(qtb
     assert fetch_spy.called
     kwargs = fetch_spy.call_args.kwargs
     assert kwargs.get("source") == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Phase 89 / ART-AVATAR-06/08: circular-avatar render path
+# ---------------------------------------------------------------------------
+
+
+def _make_avatar_png(tmp_path, station_id: int = 99, size: int = 200) -> str:
+    """Write a small opaque red square PNG to tmp_path/assets/channel-avatars/<id>.png.
+
+    Returns the relative path (e.g. 'assets/channel-avatars/99.png').
+    Used to test _set_avatar_pixmap_from_path without network I/O.
+    """
+    import struct, zlib
+
+    def _png_chunk(name: bytes, data: bytes) -> bytes:
+        chunk_len = struct.pack(">I", len(data))
+        chunk_data = name + data
+        crc = struct.pack(">I", zlib.crc32(chunk_data) & 0xFFFFFFFF)
+        return chunk_len + chunk_data + crc
+
+    def _make_png(w: int, h: int) -> bytes:
+        sig = b"\x89PNG\r\n\x1a\n"
+        ihdr_data = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
+        ihdr = _png_chunk(b"IHDR", ihdr_data)
+        rows = [b"\x00" + b"\xFF\x00\x00" * w for _ in range(h)]
+        raw = b"".join(rows)
+        compressed = zlib.compress(raw)
+        idat = _png_chunk(b"IDAT", compressed)
+        iend = _png_chunk(b"IEND", b"")
+        return sig + ihdr + idat + iend
+
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    avatar_dir = tmp_path / "assets" / "channel-avatars"
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+    png_path = avatar_dir / f"{station_id}.png"
+    png_path.write_bytes(_make_png(size, size))
+    return f"assets/channel-avatars/{station_id}.png"
+
+
+def test_make_circular_pixmap_produces_opaque_center_transparent_corners(qtbot, tmp_path):
+    """ART-AVATAR-06 / D-06: _make_circular_pixmap clips to circle.
+
+    Center pixel is opaque (alpha > 0); corner pixels are transparent (alpha == 0).
+    """
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        from musicstreamer.ui_qt.now_playing_panel import _make_circular_pixmap
+        from PySide6.QtGui import QPixmap, QImage, QColor
+        from PySide6.QtCore import QSize, Qt
+
+        # Create a 200x200 solid red pixmap.
+        src = QPixmap(200, 200)
+        src.fill(QColor(255, 0, 0))
+
+        result = _make_circular_pixmap(src, 100)
+
+        assert result.width() == 100
+        assert result.height() == 100
+
+        img = result.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+
+        # Corner pixel should be transparent (alpha == 0).
+        corner_pixel = QColor(img.pixel(0, 0))
+        assert corner_pixel.alpha() == 0, (
+            f"Corner pixel alpha should be 0 (transparent), got {corner_pixel.alpha()}"
+        )
+
+        # Center pixel should be opaque.
+        cx, cy = 50, 50
+        center_pixel = QColor(img.pixel(cx, cy))
+        assert center_pixel.alpha() > 0, (
+            f"Center pixel alpha should be > 0 (opaque), got {center_pixel.alpha()}"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_set_avatar_pixmap_from_path_success_sets_last_avatar_path(qtbot, tmp_path):
+    """ART-AVATAR-06: successful load sets _last_avatar_path, NOT _last_cover_path (D-05)."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        rel_path = _make_avatar_png(tmp_path, station_id=42)
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+
+        # _last_cover_path must stay None; _last_avatar_path must become rel_path.
+        assert panel._last_cover_path is None
+        panel._set_avatar_pixmap_from_path(rel_path)
+
+        assert panel._last_avatar_path == rel_path, (
+            f"Expected _last_avatar_path=={rel_path!r}, got {panel._last_avatar_path!r}"
+        )
+        assert panel._last_cover_path is None, (
+            "_set_avatar_pixmap_from_path must NOT touch _last_cover_path (D-05 orthogonality)"
+        )
+        # cover_label must have a pixmap set (not null).
+        assert not panel.cover_label.pixmap().isNull()
+    finally:
+        paths_mod._root_override = None
+
+
+def test_set_avatar_pixmap_from_path_null_png_clears_last_avatar_path(qtbot, tmp_path):
+    """ART-AVATAR-06 / T-89-10: corrupt PNG clears _last_avatar_path and falls back.
+
+    On QPixmap.isNull(), _last_avatar_path must be set to None BEFORE calling
+    _show_station_logo_in_cover_slot() so a subsequent _apply_art_tier resize
+    does NOT retry the corrupt path (self-healing).
+    """
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        # Write a corrupt (non-image) file.
+        avatar_dir = tmp_path / "assets" / "channel-avatars"
+        avatar_dir.mkdir(parents=True, exist_ok=True)
+        bad_path = avatar_dir / "99.png"
+        bad_path.write_bytes(b"this is not a png")
+        rel_path = "assets/channel-avatars/99.png"
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+        # Pre-set to a non-None value to verify it gets cleared.
+        panel._last_avatar_path = rel_path
+
+        panel._set_avatar_pixmap_from_path(rel_path)
+
+        assert panel._last_avatar_path is None, (
+            "After null/corrupt PNG, _last_avatar_path must be None "
+            "(prevents retry on next _apply_art_tier resize — T-89-10)"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_set_avatar_pixmap_from_path_cached_load_under_1s(qtbot, tmp_path):
+    """ART-AVATAR-08: cached avatar PNG loads in well under 1 second."""
+    import time
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        rel_path = _make_avatar_png(tmp_path, station_id=7)
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+
+        t0 = time.monotonic()
+        panel._set_avatar_pixmap_from_path(rel_path)
+        elapsed = time.monotonic() - t0
+
+        assert elapsed < 1.0, (
+            f"ART-AVATAR-08: cached avatar load must be < 1s, took {elapsed:.3f}s"
+        )
+    finally:
+        paths_mod._root_override = None
