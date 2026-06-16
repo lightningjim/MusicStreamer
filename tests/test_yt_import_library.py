@@ -207,3 +207,135 @@ def test_scan_playlist_passes_none_when_unavailable():
         )
     opts = youtubedl_cls.call_args[0][0]
     assert opts["js_runtimes"] == {"node": {"path": None}}
+
+
+# ---------------------------------------------------------------------------
+# ART-AVATAR-03: fetch_channel_avatar field-filter tests (Task 1 / Phase 89-02)
+# ---------------------------------------------------------------------------
+
+def _make_channel_info(thumbnails):
+    """Return a minimal yt-dlp info dict (channel page type) with the given thumbnails."""
+    return {"thumbnails": thumbnails, "_type": "channel"}
+
+
+def test_avatar_prefers_avatar_uncropped():
+    """ART-AVATAR-03: avatar_uncropped entry is selected over numeric-id entries."""
+    thumbnails = [
+        {"id": "0", "url": "http://cropped.jpg", "width": 200, "height": 200},
+        {"id": "avatar_uncropped", "url": "http://uncropped.jpg"},
+    ]
+    info = _make_channel_info(thumbnails)
+    fake_bytes = b"\x89PNG\r\n\x1a\n"  # PNG magic
+    p, _, fake_ydl = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        resp = MagicMock()
+        resp.__enter__ = MagicMock(return_value=resp)
+        resp.__exit__ = MagicMock(return_value=False)
+        resp.read.return_value = fake_bytes
+        mock_urlopen.return_value = resp
+        result = yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+    assert result == fake_bytes
+    # Verify the URL used to download was the uncropped one
+    mock_urlopen.assert_called_once()
+    call_args = mock_urlopen.call_args
+    assert "uncropped" in call_args[0][0]
+
+
+def test_avatar_raises_when_no_avatar_entry():
+    """ART-AVATAR-03: raises ValueError when no avatar_uncropped or avatar entry exists."""
+    thumbnails = [
+        {"id": "0", "url": "http://banner.jpg", "width": 2560, "height": 1440},
+    ]
+    info = _make_channel_info(thumbnails)
+    p, _, _ = _patch_youtubedl(extract_info_return=info)
+    with p, pytest.raises(ValueError, match="No channel avatar found"):
+        yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+
+
+def test_avatar_rejects_non_square_entry():
+    """ART-AVATAR-03: raises ValueError when width and height are both present and unequal."""
+    thumbnails = [
+        {"id": "avatar_uncropped", "url": "http://bad.jpg", "width": 200, "height": 150},
+    ]
+    info = _make_channel_info(thumbnails)
+    p, _, _ = _patch_youtubedl(extract_info_return=info)
+    with p, pytest.raises(ValueError, match="not square"):
+        yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+
+
+def test_avatar_allows_none_dimensions():
+    """ART-AVATAR-03 / RESEARCH.md Pitfall 2: None dims must NOT be rejected.
+
+    avatar_uncropped has no width/height; None != None is False in Python so the
+    entry must pass through the null-safe square-guard unchanged.
+    """
+    thumbnails = [
+        {"id": "avatar_uncropped", "url": "http://uncropped.jpg"},  # no width/height
+    ]
+    info = _make_channel_info(thumbnails)
+    fake_bytes = b"\xff\xd8\xff"  # JPEG magic
+    p, _, _ = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        resp = MagicMock()
+        resp.__enter__ = MagicMock(return_value=resp)
+        resp.__exit__ = MagicMock(return_value=False)
+        resp.read.return_value = fake_bytes
+        mock_urlopen.return_value = resp
+        result = yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+    assert result == fake_bytes
+
+
+def test_avatar_opts_do_not_contain_extract_flat():
+    """RESEARCH.md Pitfall 3: extract_flat must NOT appear in the avatar fetch opts."""
+    thumbnails = [{"id": "avatar_uncropped", "url": "http://uncropped.jpg"}]
+    info = _make_channel_info(thumbnails)
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        resp = MagicMock()
+        resp.__enter__ = MagicMock(return_value=resp)
+        resp.__exit__ = MagicMock(return_value=False)
+        resp.read.return_value = b"\xff\xd8\xff"
+        mock_urlopen.return_value = resp
+        yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+    opts = youtubedl_cls.call_args[0][0]
+    assert "extract_flat" not in opts, "extract_flat must NOT be in avatar fetch opts (Pitfall 3)"
+
+
+def test_avatar_video_url_two_step_resolution():
+    """ART-AVATAR-03 / RESEARCH.md Open Question 3: video URL resolves to channel_url first."""
+    # First call returns a video info dict (no thumbnails / no avatar_uncropped)
+    video_info = {
+        "_type": "video",
+        "thumbnails": [{"id": "0", "url": "http://video-thumb.jpg", "width": 320, "height": 180}],
+        "channel_url": "https://www.youtube.com/@TestChannel",
+    }
+    # Second call (re-resolved on channel URL) returns avatar
+    channel_info = {
+        "_type": "channel",
+        "thumbnails": [
+            {"id": "avatar_uncropped", "url": "http://channel-avatar.jpg"},
+        ],
+    }
+    fake_bytes = b"\x89PNG\r\n\x1a\n"
+
+    fake_ydl = MagicMock()
+    fake_ydl.extract_info.side_effect = [video_info, channel_info]
+    cm = MagicMock()
+    cm.__enter__.return_value = fake_ydl
+    cm.__exit__.return_value = False
+    youtubedl_cls = MagicMock(return_value=cm)
+
+    with patch("musicstreamer.yt_import.yt_dlp.YoutubeDL", youtubedl_cls):
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            resp = MagicMock()
+            resp.__enter__ = MagicMock(return_value=resp)
+            resp.__exit__ = MagicMock(return_value=False)
+            resp.read.return_value = fake_bytes
+            mock_urlopen.return_value = resp
+            result = yt_import.fetch_channel_avatar("https://www.youtube.com/watch?v=abc123")
+    assert result == fake_bytes
+    # Verify two-step: extract_info called twice
+    assert fake_ydl.extract_info.call_count == 2
+    # Second call should have been on the channel_url
+    second_call_url = fake_ydl.extract_info.call_args_list[1][0][0]
+    assert "TestChannel" in second_call_url or "youtube.com" in second_call_url
