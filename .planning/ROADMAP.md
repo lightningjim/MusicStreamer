@@ -441,7 +441,7 @@ Plans:
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 0/? | Not started | - |
-| 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete   | 2026-06-16 |
+| 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-16 |
 | 95. YT URL-Change Replay Bug | 0/? | Not started | - |
 
 ### Dependency Graph (Tier Summary)

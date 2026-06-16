@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 94 executed — verification human_needed (2 manual UAT items)
-last_updated: "2026-06-16T01:16:14.539Z"
+status: ready_to_plan
+stopped_at: Phase 94 complete (3/3) — ready to discuss Phase 95
+last_updated: 2026-06-16T01:59:13.396Z
 last_activity: 2026-06-16 -- Phase 94 execution started
 progress:
   total_phases: 20
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 94 — optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for
+**Current focus:** Phase 95 — yt url change replay bug post edit stream exhausted on first
 
 ## Current Position
 
-Phase: 94 (optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for) — EXECUTING
-Plan: 3 of 3
-Status: Executing Phase 94
-Last activity: 2026-06-16 -- Phase 94 execution started
+Phase: 95
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-16
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 220+ (v1.0–v2.1 combined)
+- Total plans completed: 223+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
