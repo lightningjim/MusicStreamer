@@ -131,6 +131,44 @@ class _LogoFetchWorker(QThread):
             self.finished.emit("", token, "")
 
 
+class _AvatarFetchWorker(QThread):
+    """Background channel-avatar fetcher for YouTube URLs (Phase 89-05 / ART-AVATAR-05).
+
+    Calls yt_import.fetch_channel_avatar(url) then persists the PNG bytes
+    atomically via assets.write_channel_avatar(station_id, data).
+
+    finished Signal: (rel_path_or_empty: str, token: int)
+      - rel_path: relative path of saved PNG on success (e.g. 'assets/channel-avatars/1.png')
+      - "": on failure (any exception — WR-04: run() never re-raises)
+      - token: monotonic stale-discard token (mirrors _logo_fetch_token pattern)
+
+    Threading rules (spike landmine):
+      - run() MUST NOT touch any widget
+      - run() MUST NOT call QTimer.singleShot (silently drops from non-QThread)
+      - Result marshalled to main thread exclusively via queued finished Signal
+    """
+
+    finished = Signal(str, int)  # rel_path_or_empty, token
+
+    def __init__(self, url: str, token: int, station_id: int, parent=None):
+        super().__init__(parent)
+        self.setObjectName("avatar-fetch-worker")
+        self._url = url
+        self._token = token
+        self._station_id = station_id
+
+    def run(self) -> None:  # noqa: N802 (Qt override)
+        token = self._token
+        try:
+            from musicstreamer import yt_import, assets as _assets
+            data = yt_import.fetch_channel_avatar(self._url)
+            rel_path = _assets.write_channel_avatar(self._station_id, data)
+            self.finished.emit(rel_path, token)
+        except Exception:
+            # WR-04: never raise out of run(). Emit empty path to signal failure.
+            self.finished.emit("", token)
+
+
 class _PlaylistFetchWorker(QThread):
     """Background playlist fetcher (Phase 58 / D-04).
 
@@ -324,6 +362,10 @@ class EditStationDialog(QDialog):
         # (mirrors _logo_fetch_worker pattern above).
         self._pls_fetch_worker: Optional[_PlaylistFetchWorker] = None
         self._pls_fetch_token: int = 0
+        # Phase 89-05 / ART-AVATAR-05: avatar fetch worker + monotonic token.
+        # Separate from _logo_fetch_token — logo and avatar are orthogonal.
+        self._avatar_fetch_worker: Optional[_AvatarFetchWorker] = None
+        self._avatar_fetch_token: int = 0
         logo_row = QHBoxLayout()
         logo_row.setContentsMargins(0, 0, 0, 0)
         logo_row.setSpacing(8)
@@ -416,6 +458,31 @@ class EditStationDialog(QDialog):
         self.cover_art_source_combo.addItem("iTunes only", "itunes_only")
         self.cover_art_source_combo.addItem("MusicBrainz only", "mb_only")
         form.addRow("Cover art source:", self.cover_art_source_combo)
+
+        # Phase 89-05 / ART-AVATAR-05: avatar preview row.
+        # 64×64 preview QLabel + inline status + YT-gated Refresh button.
+        # Placed immediately after cover_art_source_combo (D-10: naturally groups
+        # with the per-station art controls). Layout uses an intermediate QWidget
+        # so form.addRow receives a single widget (not a layout).
+        avatar_row = QHBoxLayout()
+        avatar_row.setContentsMargins(0, 0, 0, 0)
+        avatar_row.setSpacing(8)
+        self._avatar_preview = QLabel(self)
+        self._avatar_preview.setFixedSize(64, 64)
+        self._avatar_preview.setAlignment(Qt.AlignCenter)
+        self._avatar_status = QLabel("", self)
+        self._refresh_avatar_btn = QPushButton("Refresh avatar", self)
+        # D-10: disabled until URL proves YouTube-capable (gated in _on_url_text_changed)
+        self._refresh_avatar_btn.setEnabled(False)
+        avatar_row.addWidget(self._avatar_preview)
+        avatar_row.addWidget(self._avatar_status)
+        avatar_row.addStretch()
+        avatar_row.addWidget(self._refresh_avatar_btn)
+        _avatar_container = QWidget(self)
+        _avatar_container.setLayout(avatar_row)
+        form.addRow("Channel avatar:", _avatar_container)
+        # Wire Refresh button: same path as the logo Refresh — stop timer, call timeout handler
+        self._refresh_avatar_btn.clicked.connect(self._on_refresh_avatar_clicked)
 
         # Streams table
         streams_container = QWidget()
@@ -1181,6 +1248,12 @@ class EditStationDialog(QDialog):
         # QLabel.clear is idempotent — safe when label is already empty.
         self._logo_status_clear_timer.stop()
         self._logo_status.clear()
+        # Phase 89-05 / D-10: gate Refresh button on YouTube URL detection.
+        # Inline check mirrors the existing check at _on_logo_fetched L1288.
+        url = self.url_edit.text().strip()
+        lower = url.lower()
+        is_yt = "youtube.com" in lower or "youtu.be" in lower
+        self._refresh_avatar_btn.setEnabled(is_yt)
 
     def _on_url_timer_timeout(self) -> None:
         """Debounced: kick off a _LogoFetchWorker for the current URL.
@@ -1359,6 +1432,63 @@ class EditStationDialog(QDialog):
             pass
         worker.wait(2000)
 
+    # ------------------------------------------------------------------
+    # Avatar row (Phase 89-05 / ART-AVATAR-05)
+    # ------------------------------------------------------------------
+
+    def _refresh_avatar_preview(self) -> None:
+        """Load the cached avatar PNG into the 64×64 preview label.
+
+        Uses paths.data_dir() to resolve the relative path stored in
+        self._station.channel_avatar_path. Clears the label on missing/null image.
+        Square preview only — circular crop is the now-playing panel's concern.
+        Main thread only: QPixmap construction is not thread-safe.
+        """
+        rel = getattr(self._station, "channel_avatar_path", None)
+        if not rel:
+            self._avatar_preview.clear()
+            return
+        from musicstreamer import paths as _paths
+        abs_path = os.path.join(_paths.data_dir(), rel)
+        if not os.path.exists(abs_path):
+            self._avatar_preview.clear()
+            return
+        pix = QPixmap(abs_path)
+        if pix.isNull():
+            self._avatar_preview.clear()
+            return
+        self._avatar_preview.setPixmap(
+            pix.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+
+    def _on_refresh_avatar_clicked(self) -> None:
+        """Manual Refresh: stop the debounce timer and trigger avatar fetch immediately.
+
+        Mirrors _on_fetch_logo_clicked — same async path so D-11 (Refresh reuses
+        the identical worker pipeline) is satisfied.
+        """
+        self._url_timer.stop()
+        url = self.url_edit.text().strip()
+        if not url:
+            return
+        self._on_url_timer_timeout()
+
+    def _shutdown_avatar_fetch_worker(self) -> None:
+        """Bound-wait for the avatar fetch worker so QThread destroy-while-running
+        crash is prevented (mirrors _shutdown_logo_fetch_worker / _shutdown_pls_fetch_worker).
+
+        Called from accept(), closeEvent(), and reject() — all three teardown paths.
+        Capped at 2s to keep UI close snappy.
+        """
+        worker = self._avatar_fetch_worker
+        if worker is None or not worker.isRunning():
+            return
+        try:
+            worker.finished.disconnect()
+        except Exception:  # noqa: BLE001
+            pass
+        worker.wait(2000)
+
     def accept(self) -> None:
         # BUG-FIX: accept() is the Save path. closeEvent() and reject() already
         # call _shutdown_logo_fetch_worker(), but accept() did not — so clicking
@@ -1367,6 +1497,7 @@ class EditStationDialog(QDialog):
         #   QThread: Destroyed while thread '' is still running
         self._shutdown_logo_fetch_worker()
         self._shutdown_pls_fetch_worker()  # Phase 58
+        self._shutdown_avatar_fetch_worker()  # Phase 89-05
         super().accept()
 
     def closeEvent(self, event):  # noqa: N802 (Qt override)
@@ -1380,6 +1511,7 @@ class EditStationDialog(QDialog):
             self._is_new = False
         self._shutdown_logo_fetch_worker()
         self._shutdown_pls_fetch_worker()  # Phase 58
+        self._shutdown_avatar_fetch_worker()  # Phase 89-05
         super().closeEvent(event)
 
     def reject(self) -> None:
@@ -1389,6 +1521,7 @@ class EditStationDialog(QDialog):
             self._is_new = False
         self._shutdown_logo_fetch_worker()
         self._shutdown_pls_fetch_worker()  # Phase 58
+        self._shutdown_avatar_fetch_worker()  # Phase 89-05
         super().reject()
 
     # ------------------------------------------------------------------
