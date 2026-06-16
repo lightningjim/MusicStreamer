@@ -1924,3 +1924,171 @@ def test_aa_and_manual_collision_matches_merge_siblings_semantics(
     )
     expected_ids = sorted(sid for _, sid, _ in merge_siblings(aa_list, manual_list))
     assert rendered_ids == expected_ids
+
+
+# ---------------------------------------------------------------------------
+# Phase 89-05 / ART-AVATAR-05 — Channel avatar preview row + _AvatarFetchWorker
+# ---------------------------------------------------------------------------
+
+
+def test_avatar_widgets_present(dialog):
+    """D-10: dialog has _avatar_preview (QLabel), _avatar_status (QLabel),
+    _refresh_avatar_btn (QPushButton) after the cover-art-source row."""
+    from PySide6.QtWidgets import QLabel, QPushButton
+    assert hasattr(dialog, "_avatar_preview")
+    assert hasattr(dialog, "_avatar_status")
+    assert hasattr(dialog, "_refresh_avatar_btn")
+    assert isinstance(dialog._avatar_preview, QLabel)
+    assert isinstance(dialog._avatar_status, QLabel)
+    assert isinstance(dialog._refresh_avatar_btn, QPushButton)
+    # Preview is fixed 64×64
+    assert dialog._avatar_preview.width() == 64
+    assert dialog._avatar_preview.height() == 64
+
+
+def test_avatar_fetch_token_initializes_zero(dialog):
+    """_avatar_fetch_token initializes to 0."""
+    assert dialog._avatar_fetch_token == 0
+
+
+def test_refresh_avatar_btn_disabled_for_non_yt_url(qtbot, dialog):
+    """D-10: Refresh button disabled for a non-YouTube URL."""
+    dialog.url_edit.setText("http://streams.radioprimavera.com/stream.mp3")
+    # Process events so textChanged propagates
+    from PySide6.QtCore import QCoreApplication
+    QCoreApplication.processEvents()
+    assert dialog._refresh_avatar_btn.isEnabled() is False
+
+
+def test_refresh_avatar_btn_enabled_for_youtube_url(qtbot, dialog):
+    """D-10: Refresh button enabled for a youtube.com URL."""
+    dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+    from PySide6.QtCore import QCoreApplication
+    QCoreApplication.processEvents()
+    assert dialog._refresh_avatar_btn.isEnabled() is True
+
+
+def test_refresh_avatar_btn_enabled_for_youtu_be_url(qtbot, dialog):
+    """D-10: Refresh button enabled for a youtu.be URL."""
+    dialog.url_edit.setText("https://youtu.be/dQw4w9WgXcQ")
+    from PySide6.QtCore import QCoreApplication
+    QCoreApplication.processEvents()
+    assert dialog._refresh_avatar_btn.isEnabled() is True
+
+
+def test_avatar_fetch_worker_emit_shape(qtbot):
+    """_AvatarFetchWorker.finished emits (str, int) — path/empty + token.
+
+    Uses a mock fetch to avoid network. Verifies the worker emits correctly
+    on success (non-empty path) and never re-raises on failure.
+    """
+    from unittest.mock import patch, MagicMock
+    from PySide6.QtCore import QCoreApplication
+    from musicstreamer.ui_qt.edit_station_dialog import _AvatarFetchWorker
+    import musicstreamer.paths as paths
+    import tempfile, os
+
+    # Use a temp dir as data root to avoid writing to real paths
+    with tempfile.TemporaryDirectory() as tmp_root:
+        paths._root_override = tmp_root
+
+        # Create channel-avatars dir so write_channel_avatar can write
+        avatars_dir = os.path.join(tmp_root, "assets", "channel-avatars")
+        os.makedirs(avatars_dir, exist_ok=True)
+
+        try:
+            received = []
+
+            def on_finished(path, token):
+                received.append((path, token))
+
+            # Patch fetch_channel_avatar to return fake PNG bytes
+            fake_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+            with patch(
+                "musicstreamer.yt_import.fetch_channel_avatar",
+                return_value=fake_bytes,
+            ):
+                worker = _AvatarFetchWorker(
+                    url="https://www.youtube.com/@KEXP/live",
+                    token=42,
+                    station_id=1,
+                    parent=None,
+                )
+                worker.finished.connect(on_finished)
+                worker.start()
+                worker.wait(5000)
+                QCoreApplication.processEvents()
+
+            assert len(received) == 1
+            path, token = received[0]
+            assert token == 42
+            # On success path is non-empty
+            assert path != ""
+        finally:
+            paths._root_override = None
+
+
+def test_avatar_fetch_worker_failure_emits_empty(qtbot):
+    """_AvatarFetchWorker emits ("", token) on fetch failure — never re-raises."""
+    from unittest.mock import patch
+    from PySide6.QtCore import QCoreApplication
+    from musicstreamer.ui_qt.edit_station_dialog import _AvatarFetchWorker
+
+    received = []
+
+    def on_finished(path, token):
+        received.append((path, token))
+
+    with patch(
+        "musicstreamer.yt_import.fetch_channel_avatar",
+        side_effect=RuntimeError("network error"),
+    ):
+        worker = _AvatarFetchWorker(
+            url="https://www.youtube.com/@KEXP/live",
+            token=7,
+            station_id=1,
+            parent=None,
+        )
+        worker.finished.connect(on_finished)
+        worker.start()
+        worker.wait(5000)
+        QCoreApplication.processEvents()
+
+    assert len(received) == 1
+    path, token = received[0]
+    assert path == ""
+    assert token == 7
+
+
+def test_avatar_worker_shutdown_no_crash(qtbot, dialog):
+    """Closing the dialog while a worker runs shuts down cleanly (no crash)."""
+    from unittest.mock import patch
+    import time
+
+    # Patch fetch_channel_avatar to sleep briefly so the worker is running
+    # when we shut it down
+    def slow_fetch(url):
+        time.sleep(0.5)
+        return b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+
+    with patch("musicstreamer.yt_import.fetch_channel_avatar", side_effect=slow_fetch):
+        from musicstreamer.ui_qt.edit_station_dialog import _AvatarFetchWorker
+        import musicstreamer.paths as paths
+        import tempfile, os
+
+        with tempfile.TemporaryDirectory() as tmp_root:
+            paths._root_override = tmp_root
+            try:
+                worker = _AvatarFetchWorker(
+                    url="https://www.youtube.com/@KEXP/live",
+                    token=1,
+                    station_id=1,
+                    parent=dialog,
+                )
+                dialog._avatar_fetch_worker = worker
+                worker.start()
+                # Shut it down immediately
+                dialog._shutdown_avatar_fetch_worker()
+                # No exception = PASS
+            finally:
+                paths._root_override = None
