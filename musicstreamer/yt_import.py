@@ -5,12 +5,16 @@ Public API:
   is_yt_playlist_url(url) -> bool
   scan_playlist(url) -> list[dict]   # [{"title", "url", "provider"}, ...]
   import_stations(entries, repo, on_progress=None) -> (imported: int, skipped: int)
+  fetch_channel_avatar(channel_url) -> bytes
+  register_avatar_fetcher(provider, fetcher) -> None
+  get_avatar_fetcher(provider) -> Optional[Callable[[str], bytes]]
 
 Uses the yt_dlp Python library API directly (PORT-09 / D-17). No subprocess.
 """
 import logging
 import os
 import re
+import urllib.request
 from typing import Callable, Optional
 
 import yt_dlp
@@ -146,3 +150,112 @@ def import_stations(entries: list[dict], repo, on_progress=None) -> tuple[int, i
         if on_progress:
             on_progress(imported, skipped)
     return imported, skipped
+
+
+def fetch_channel_avatar(channel_url: str) -> bytes:
+    """Fetch the channel avatar image for a YouTube channel URL.
+
+    Accepts both channel URLs (e.g. https://www.youtube.com/@LofiGirl) and
+    video URLs (e.g. https://www.youtube.com/watch?v=...). For video URLs a
+    two-step resolution is performed: the channel_url is extracted from the
+    video info dict, then avatar extraction runs on the channel URL.
+
+    Selects the ``avatar_uncropped`` thumbnail (preferred) or ``avatar`` (belt-
+    and-suspenders fallback; never matches in current yt-dlp — see RESEARCH.md
+    Pitfall 1). Rejects entries where BOTH width and height are present and
+    unequal (null-safe: ``None != None`` is False, so uncropped entries with no
+    dimensions are never rejected — see RESEARCH.md Pitfall 2).
+
+    Downloads the avatar bytes via urllib.request with a 10-second timeout.
+    Runs on a worker thread (Plan 05); must NOT touch any Qt widget.
+
+    Thread safety: cookie_utils.temp_cookies_copy() is used (same as
+    scan_playlist) so yt-dlp's save_cookies() on __exit__ writes to a temp
+    copy, never the canonical cookies file (T-89-05).
+
+    Raises:
+        ValueError: No avatar entry found, or avatar entry is non-square.
+        RuntimeError: yt-dlp extraction failure.
+        urllib.error.URLError: Network error downloading the avatar.
+    """
+    opts = {
+        # OMIT extract_flat — it suppresses channel thumbnails (RESEARCH.md Pitfall 3).
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "js_runtimes": yt_dlp_opts.build_js_runtimes(None),
+        "remote_components": {"ejs:github"},
+    }
+
+    with cookie_utils.temp_cookies_copy() as cookiefile:
+        if cookiefile is not None:
+            opts["cookiefile"] = cookiefile
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(channel_url, download=False)
+                # Two-step resolution: if the URL resolved to a video (not a channel),
+                # re-extract using the channel_url from the video info dict.
+                # A channel page has its own avatar thumbnails; a video page does not.
+                thumbnails = (info or {}).get("thumbnails", [])
+                has_avatar = any(
+                    t.get("id") in ("avatar_uncropped", "avatar") for t in thumbnails
+                )
+                if not has_avatar:
+                    redirect_url = (info or {}).get("channel_url") or (info or {}).get(
+                        "uploader_url"
+                    )
+                    if redirect_url:
+                        info = ydl.extract_info(redirect_url, download=False)
+        except yt_dlp.utils.DownloadError as e:
+            raise RuntimeError(str(e)) from e
+
+    thumbnails = (info or {}).get("thumbnails", [])
+    # Prefer avatar_uncropped (explicitly named); fall back to id == 'avatar'
+    # (belt-and-suspenders for future yt-dlp versions — never matches in 2026.3.17).
+    avatar_entry = next(
+        (t for t in thumbnails if t.get("id") == "avatar_uncropped"), None
+    ) or next(
+        (t for t in thumbnails if t.get("id") == "avatar"), None
+    )
+    if avatar_entry is None:
+        raise ValueError("No channel avatar found")
+
+    # Null-safe square guard: only reject when BOTH width and height are
+    # present and differ. ``None != None`` evaluates to False in Python, so
+    # avatar_uncropped entries (which have no width/height) are never rejected.
+    w = avatar_entry.get("width")
+    h = avatar_entry.get("height")
+    if w is not None and h is not None and w != h:
+        raise ValueError(f"Avatar is not square: {w}x{h}")
+
+    url = avatar_entry["url"]
+    with urllib.request.urlopen(url, timeout=10) as resp:  # noqa: S310  # T-89-06 timeout
+        return resp.read()
+
+
+# ---------------------------------------------------------------------------
+# Per-provider avatar fetcher registry (D-04)
+#
+# Phase 89b (Twitch) registers its fetcher here with zero dialog/cover-slot
+# rework: register_avatar_fetcher("twitch", twitch_helix.fetch_channel_avatar)
+# ---------------------------------------------------------------------------
+
+_AVATAR_FETCHERS: dict[str, Callable[[str], bytes]] = {}
+
+
+def register_avatar_fetcher(provider: str, fetcher: Callable[[str], bytes]) -> None:
+    """Register a per-provider avatar fetcher callable.
+
+    Phase 89 registers YouTube at module load. Phase 89b will register Twitch
+    without touching any dialog or cover-slot code (D-04).
+    """
+    _AVATAR_FETCHERS[provider] = fetcher
+
+
+def get_avatar_fetcher(provider: str) -> Optional[Callable[[str], bytes]]:
+    """Return the registered avatar fetcher for the given provider, or None."""
+    return _AVATAR_FETCHERS.get(provider)
+
+
+# Register YouTube avatar fetcher at module load (D-04).
+register_avatar_fetcher("youtube", fetch_channel_avatar)
