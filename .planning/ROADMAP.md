@@ -335,7 +335,7 @@ Plans:
 
 - [x] 89-01-PLAN.md — Thread channel_avatar_path through models/repo + atomic avatar PNG writer (D-12/D-13)
 - [x] 89-02-PLAN.md — yt_import.fetch_channel_avatar (avatar_uncropped filter) + per-provider registry (D-04)
-- [ ] 89-03-PLAN.md — cover_art.py named precedence wrappers + source-grep drift-guards (ART-AVATAR-07/09/10)
+- [x] 89-03-PLAN.md — cover_art.py named precedence wrappers + source-grep drift-guards (ART-AVATAR-07/09/10)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -464,7 +464,7 @@ Plans:
 | 88. Windows Packaging Bundle | 4/4 | Complete | 2026-06-13 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 89. YT Channel-Avatar | 2/5 | In Progress|  |
+| 89. YT Channel-Avatar | 3/5 | In Progress|  |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |

@@ -80,10 +80,10 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [ ] **ART-AVATAR-04**: For Twitch stations, `musicstreamer/twitch_helix.py` fetches the channel `profile_image_url` from `GET https://api.twitch.tv/helix/users?login=<x>` using the existing Phase 32 `twitch-token.txt` user token (no new OAuth scopes)
 - [x] **ART-AVATAR-05**: Avatar auto-fetches on URL paste in `EditStationDialog` (consistent with the Phase 6/17 YT thumbnail behavior) AND surfaces a "Refresh avatar" button for manual re-fetch on demand
 - [ ] **ART-AVATAR-06**: When ICY metadata is disabled for a YT or Twitch station AND a channel avatar exists, the now-playing cover slot displays the channel avatar (circular crop) instead of duplicating the station thumbnail
-- [ ] **ART-AVATAR-07**: When ICY metadata is enabled (any station, any provider), cover-resolver precedence stays **`ICY → iTunes → MB-CAA → channel-avatar → placeholder`** — channel-avatar fallback fires ONLY when ICY is empty/disabled; never short-circuits Phase 73 MB-CAA Vaporwave/niche-electronic coverage
+- [x] **ART-AVATAR-07**: When ICY metadata is enabled (any station, any provider), cover-resolver precedence stays **`ICY → iTunes → MB-CAA → channel-avatar → placeholder`** — channel-avatar fallback fires ONLY when ICY is empty/disabled; never short-circuits Phase 73 MB-CAA Vaporwave/niche-electronic coverage
 - [ ] **ART-AVATAR-08**: Avatar load completes in under 1 second from station-bind (cached after first fetch); cover-slot reverts to current behavior (placeholder or station thumbnail) if avatar fetch fails
-- [ ] **ART-AVATAR-09**: Source-grep drift-guard `test_cover_resolution_precedence` asserts `_mb_caa_lookup` appears in source BEFORE `_channel_avatar_lookup` (per `feedback_gstreamer_mock_blind_spot.md` lesson — source-level gates beat behavioral mocks)
-- [ ] **ART-AVATAR-10**: Phase 71 sibling rendering parity preserved — new drift-guard `test_richtext_baseline_unchanged_by_phase_89` mirrors the existing Phase 71 baseline test
+- [x] **ART-AVATAR-09**: Source-grep drift-guard `test_cover_resolution_precedence` asserts `_mb_caa_lookup` appears in source BEFORE `_channel_avatar_lookup` (per `feedback_gstreamer_mock_blind_spot.md` lesson — source-level gates beat behavioral mocks)
+- [x] **ART-AVATAR-10**: Phase 71 sibling rendering parity preserved — new drift-guard `test_richtext_baseline_unchanged_by_phase_89` mirrors the existing Phase 71 baseline test
 - [ ] **ART-AVATAR-11**: A provider brand-avatar registry keyed on `provider_name` supplies a distinct brand image for SomaFM and AudioAddict/DI.FM stations; shipped as **bundled assets** (not a per-station fetch/store like ART-AVATAR-01/02), and explicitly **excludes GBS.FM** by intent — a single-station provider where the duplicated logo reads as goofy-but-on-brand, so it keeps current behavior (the Phase 87 themed override only touches `logo_label`, not the cover slot, so this is a deliberate vibe choice, not because GBS is already distinct)
 - [ ] **ART-AVATAR-12**: When per-track cover-art resolution is exhausted — the `now_playing_panel.py` `if not path:` fallback branch (`now_playing_panel.py:2136`) that currently calls `_show_station_logo_in_cover_slot` — AND the station's provider has a registered brand avatar, the cover slot renders the provider brand avatar (circular crop) instead of duplicating the station logo shown in the left logo slot. Trigger is **resolution-exhausted, NOT `icy_disabled`** (the defining difference from ART-AVATAR-06); providers without a registered avatar retain current station-logo → generic-icon behavior (no regression)
 
@@ -205,10 +205,10 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | ART-AVATAR-04 | Phase 89b | Pending |
 | ART-AVATAR-05 | Phase 89 | Complete |
 | ART-AVATAR-06 | Phase 89 | Pending |
-| ART-AVATAR-07 | Phase 89 | Pending |
+| ART-AVATAR-07 | Phase 89 | Complete |
 | ART-AVATAR-08 | Phase 89 | Pending |
-| ART-AVATAR-09 | Phase 89 | Pending |
-| ART-AVATAR-10 | Phase 89 | Pending |
+| ART-AVATAR-09 | Phase 89 | Complete |
+| ART-AVATAR-10 | Phase 89 | Complete |
 | ART-AVATAR-11 | Phase 89c | Pending |
 | ART-AVATAR-12 | Phase 89c | Pending |
 | SOMA-PRE-01 | Phase 90 | Pending |
