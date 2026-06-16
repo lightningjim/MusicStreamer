@@ -2013,6 +2013,7 @@ def test_avatar_fetch_worker_emit_shape(qtbot):
                     token=42,
                     station_id=1,
                     parent=None,
+                    provider_id=1,  # Phase 89.1: avatar keyed by provider_id
                 )
                 worker.finished.connect(on_finished)
                 worker.start()
@@ -2048,6 +2049,7 @@ def test_avatar_fetch_worker_failure_emits_empty(qtbot):
             token=7,
             station_id=1,
             parent=None,
+            provider_id=1,  # Phase 89.1: avatar keyed by provider_id
         )
         worker.finished.connect(on_finished)
         worker.start()
@@ -2084,6 +2086,7 @@ def test_avatar_worker_shutdown_no_crash(qtbot, dialog):
                     token=1,
                     station_id=1,
                     parent=dialog,
+                    provider_id=1,  # Phase 89.1: avatar keyed by provider_id
                 )
                 dialog._avatar_fetch_worker = worker
                 worker.start()
