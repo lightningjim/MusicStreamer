@@ -16,7 +16,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, Signal
+import queue as _queue_mod
+
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QPixmapCache
 
 from musicstreamer.models import Station
@@ -47,10 +49,22 @@ class StationTreeModel(QAbstractItemModel):
         self._populate(stations)
         # Dedup guard: station ids currently being processed by a daemon worker.
         # Access is main-thread-only (called from data() and slot); no lock needed.
+        # Dedup guard: station ids currently being processed by a daemon worker.
+        # Access is main-thread-only (called from data() and _poll_pending_landings); no lock needed.
         self._in_flight_thumbs: set[int] = set()
-        # Explicit QueuedConnection: guarantees _on_thumb_landing runs on the main
-        # thread even when _thumb_landing is emitted from the daemon worker's callback
-        # lambda. Matches gbs_marquee.py cadence_changed_internal precedent.
+        # Thread-safe queue for daemon-thread → main-thread hand-off (Rule 1 fix:
+        # PySide6 6.11 does not deliver QueuedConnection events posted from Python
+        # daemon threads during QTest.qWait; a SimpleQueue + QTimer bridge does).
+        self._pending_landings: _queue_mod.SimpleQueue = _queue_mod.SimpleQueue()
+        # Poll timer: fires every 10ms on the main thread, drains _pending_landings,
+        # then emits _thumb_landing from the main thread so QueuedConnection works.
+        self._landing_poll_timer = QTimer(self)
+        self._landing_poll_timer.setInterval(10)
+        self._landing_poll_timer.timeout.connect(self._poll_pending_landings)
+        self._landing_poll_timer.start()
+        # Explicit QueuedConnection: guarantees _on_thumb_landing slot runs after
+        # the event loop returns control (even though emission is from main thread).
+        # Matches gbs_marquee.py cadence_changed_internal precedent.
         self._thumb_landing.connect(self._on_thumb_landing, Qt.QueuedConnection)
 
     # ------------------------------------------------------------------
@@ -105,27 +119,49 @@ class StationTreeModel(QAbstractItemModel):
 
         Dedup guard: if station_id is already in-flight, returns immediately
         (Pitfall #2 — prevents duplicate daemon threads during fast scroll).
-        On enqueue: adds station_id to _in_flight_thumbs, spawns _generate_thumb,
-        and wires the callback to emit _thumb_landing so the QueuedConnection
-        delivers the landing to the main-thread slot _on_thumb_landing.
+        On enqueue: adds station_id to _in_flight_thumbs and spawns _generate_thumb
+        with a callback that puts the result into _pending_landings (thread-safe
+        SimpleQueue). The 10ms poll timer picks this up on the main thread and
+        emits _thumb_landing, which QueuedConnection delivers to _on_thumb_landing.
 
-        The lambda maps _generate_thumb's callback(sid, src, path|None) to
-        Signal(int, str, str) by passing path or "" for the None case;
-        _on_thumb_landing treats a falsy third arg as failure.
+        Cross-thread bridge note (Rule 1 fix): PySide6 6.11 does not deliver
+        QueuedConnection events that are posted from Python daemon threads during
+        QTest.qWait. Emitting the Signal directly from the daemon callback fails in
+        tests. The SimpleQueue + QTimer bridge avoids this: the daemon callback is
+        signal-free (just a queue.put), and the poll timer emits _thumb_landing from
+        the main thread where QTest.qWait processes it normally.
+
+        Call via module reference (_art_paths_mod._generate_thumb) so that
+        test monkeypatching of the module attribute is effective.
         """
         if station_id in self._in_flight_thumbs:
             return
         self._in_flight_thumbs.add(station_id)
-        # Bind emit to a local name to avoid capturing self in the daemon closure.
-        # Call via module reference (_art_paths_mod._generate_thumb) so that
-        # test monkeypatching of the module attribute is effective.
-        emit = self._thumb_landing.emit
-        _art_paths_mod._generate_thumb(
-            source_path,
-            thumb_path,
-            station_id,
-            lambda sid, src, path: emit(sid, src, path or ""),
-        )
+        pending = self._pending_landings
+
+        def _callback(sid, src, path):
+            # Runs on the daemon thread: only enqueue, never touch Qt objects.
+            pending.put((sid, src, path or ""))
+
+        _art_paths_mod._generate_thumb(source_path, thumb_path, station_id, _callback)
+
+    def _poll_pending_landings(self) -> None:
+        """Main-thread timer slot: drain _pending_landings and emit _thumb_landing.
+
+        Fires every 10ms from _landing_poll_timer. For each completed thumbnail
+        result in the queue, emit _thumb_landing from the main thread. The
+        QueuedConnection then delivers the slot in the next event loop iteration,
+        which QTest.qWait (and the real event loop) process normally.
+
+        This is the main-thread side of the SimpleQueue bridge. The daemon thread
+        only calls queue.put(); this slot does the Qt signal work.
+        """
+        while True:
+            try:
+                sid, src, path = self._pending_landings.get_nowait()
+                self._thumb_landing.emit(sid, src, path)
+            except _queue_mod.Empty:
+                break
 
     def _on_thumb_landing(self, station_id: int, source_path: str, thumb_path: str) -> None:
         """Main-thread slot: evict stale cache entry and trigger row repaint.

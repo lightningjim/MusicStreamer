@@ -182,8 +182,13 @@ def load_station_icon(
                 src = QPixmap(thumb_path)
             elif on_thumb_needed is not None:
                 # Thumb missing/stale and a consumer wants async generation:
-                # return fallback immediately, enqueue generation (D-02).
-                src = QPixmap(FALLBACK_ICON)
+                # use the source logo immediately (not fallback) so the icon
+                # renders correctly on first paint, then enqueue thumb generation
+                # so subsequent renders use the 96px pre-scaled thumbnail
+                # (Rule 1 fix: returning fallback here regresses the
+                # test_station_tree_model_decoration_role_returns_real_logo
+                # integration test which asserts real-logo delivery on first call).
+                src = QPixmap(load_path)
                 if getattr(station, "id", None) is not None:
                     on_thumb_needed(station.id, abs_path, thumb_path)
             else:
