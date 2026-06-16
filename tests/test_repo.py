@@ -1442,6 +1442,8 @@ def test_backfill_copies_avatar_to_provider_keyed_location(tmp_path):
 
     After a successful backfill, the old per-station file must be deleted.
     No network fetch — shutil.copy2 from existing on-disk file only.
+    We insert an extra provider first so provider_id != station_id (avoiding
+    the same-file edge case where {station_id}.png == {provider_id}.png).
     """
     import os
     import musicstreamer.paths as paths_mod
@@ -1451,11 +1453,19 @@ def test_backfill_copies_avatar_to_provider_keyed_location(tmp_path):
         con = _make_bare_con()
         db_init(con)
 
-        # Seed: provider + station with channel_avatar_path pointing at a real file
         repo = Repo(con)
+        # Insert a dummy provider first so the target provider gets id > 1
+        _dummy_pid = repo.ensure_provider("_DummyProvider")
         pid = repo.ensure_provider("Lofi Girl")
+        # Create a station — its id will differ from pid so paths won't collide
         sid = repo.create_station()
         repo.update_station(sid, "Lofi Girl 24/7", pid, "", None, None, icy_disabled=True)
+
+        # Confirm station_id != provider_id to make the test meaningful
+        assert sid != pid, (
+            f"Test setup error: station_id ({sid}) == provider_id ({pid}); "
+            "distinct IDs are required to test the copy-not-same-file path"
+        )
 
         # Write a fake per-station PNG
         avatar_dir = paths_mod.channel_avatars_dir()
@@ -1477,7 +1487,7 @@ def test_backfill_copies_avatar_to_provider_keyed_location(tmp_path):
         assert os.path.isfile(os.path.join(avatar_dir, f"{pid}.png")), (
             f"{pid}.png does not exist in channel_avatars_dir"
         )
-        # Old per-station file must be deleted
+        # Old per-station file must be deleted (it differs from provider path)
         assert not os.path.isfile(station_png), (
             f"old per-station file {sid}.png was not deleted after backfill"
         )
@@ -1525,7 +1535,10 @@ def test_backfill_most_recently_updated_sibling_wins(tmp_path):
         repo.update_channel_avatar_path(sid_a, f"assets/channel-avatars/{sid_a}.png")
         repo.update_channel_avatar_path(sid_b, f"assets/channel-avatars/{sid_b}.png")
 
-        # Force station A to be older, station B to be newer via direct SQL
+        # Force station A to be older, station B to be newer.
+        # The stations_updated_at trigger fires on every UPDATE, so we must
+        # drop it temporarily to set custom timestamps directly.
+        con.execute("DROP TRIGGER IF EXISTS stations_updated_at")
         con.execute(
             "UPDATE stations SET updated_at = '2020-01-01T00:00:00' WHERE id = ?", (sid_a,)
         )
@@ -1533,6 +1546,14 @@ def test_backfill_most_recently_updated_sibling_wins(tmp_path):
             "UPDATE stations SET updated_at = '2025-01-01T00:00:00' WHERE id = ?", (sid_b,)
         )
         con.commit()
+        # Restore the trigger for the rest of the session
+        con.execute("""
+            CREATE TRIGGER IF NOT EXISTS stations_updated_at
+            AFTER UPDATE ON stations
+            BEGIN
+              UPDATE stations SET updated_at = datetime('now') WHERE id = NEW.id;
+            END
+        """)
 
         # Re-run db_init — backfill should pick station B (newer)
         db_init(con)

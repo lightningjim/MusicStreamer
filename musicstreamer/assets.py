@@ -58,3 +58,32 @@ def write_channel_avatar(station_id: int, data: bytes) -> str:
             pass
         raise
     return os.path.relpath(dst, paths.data_dir())
+
+
+def write_provider_avatar(provider_id: int, data: bytes) -> str:
+    """Write avatar PNG bytes atomically keyed by provider_id (Phase 89.1 D-10).
+
+    Returns path relative to paths.data_dir(), e.g. 'assets/channel-avatars/7.png'.
+    Uses tempfile.mkstemp + os.replace for atomicity (same as write_channel_avatar).
+    provider_id is an int from SQLite PK AUTOINCREMENT — no user-controlled string,
+    no traversal risk (T-89.1-01).
+    """
+    dst_dir = paths.channel_avatars_dir()
+    os.makedirs(dst_dir, exist_ok=True)
+    dst = os.path.join(dst_dir, f"{provider_id}.png")
+    fd, tmp = tempfile.mkstemp(dir=dst_dir, suffix=".png.tmp")
+    try:
+        os.write(fd, data)
+        os.close(fd)
+        os.replace(tmp, dst)
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return os.path.relpath(dst, paths.data_dir())

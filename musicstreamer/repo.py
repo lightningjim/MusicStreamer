@@ -323,6 +323,103 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent
 
+    # Phase 89.1 D-11 — provider-level channel avatar; nullable TEXT no DEFAULT.
+    # providers has NO legacy rebuild block (unlike stations — see Phase 73/82/83/89A
+    # ordering comments). Confirmed by grep: zero hits for 'providers_new' in db_init.
+    # Idempotent via the same try/except OperationalError idiom as above.
+    try:
+        con.execute("ALTER TABLE providers ADD COLUMN avatar_path TEXT")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
+    # Phase 89.1 D-01/D-02/D-03: one-time idempotent backfill.
+    # Copy the most-recently-updated per-station PNG to the provider-keyed location
+    # and record the path in providers.avatar_path. Old per-station files deleted
+    # only after providers.avatar_path is committed (Pitfall 3 — shutil.copy2 not
+    # os.rename; source file survives a mid-backfill crash).
+    # Skips stations with provider_id IS NULL (WHERE clause excludes them).
+    # NOT EXISTS guard on p.avatar_path ensures idempotency.
+    # Guard: only run if the stations table has both channel_avatar_path and
+    # provider_id columns (legacy test-fixture schemas may lack them; the
+    # backfill is a no-op on such schemas).
+    _stations_cols = {
+        row[1]
+        for row in con.execute("PRAGMA table_info('stations')").fetchall()
+    }
+    _backfill_eligible = (
+        "channel_avatar_path" in _stations_cols and "provider_id" in _stations_cols
+    )
+    if _backfill_eligible:
+        import os as _os, shutil as _shutil
+        from musicstreamer import paths as _bfpaths  # safe: no Qt dependency
+
+        _avatar_dir = _bfpaths.channel_avatars_dir()
+        _bf_rows = con.execute(
+            """
+            SELECT s.provider_id,
+                   s.channel_avatar_path,
+                   s.id AS station_id
+            FROM   stations s
+            WHERE  s.channel_avatar_path IS NOT NULL
+              AND  s.provider_id IS NOT NULL
+              AND  s.updated_at = (
+                       SELECT MAX(s2.updated_at)
+                       FROM   stations s2
+                       WHERE  s2.provider_id = s.provider_id
+                         AND  s2.channel_avatar_path IS NOT NULL
+                   )
+              AND  NOT EXISTS (
+                       SELECT 1 FROM providers p
+                       WHERE p.id = s.provider_id AND p.avatar_path IS NOT NULL
+                   )
+            ORDER BY s.provider_id, s.id DESC
+            """
+        ).fetchall()
+        _seen: set = set()
+        for _row in _bf_rows:
+            _pid = _row[0]
+            if _pid in _seen:
+                continue  # take only the first (best) row per provider
+            _seen.add(_pid)
+            _src = _os.path.join(_bfpaths.data_dir(), _row[1])
+            if not _os.path.isfile(_src):
+                continue  # avatar missing on disk — skip this provider (T-89.1-04)
+            _dst = _os.path.join(_avatar_dir, f"{_pid}.png")
+            _prov_rel = _os.path.relpath(_dst, _bfpaths.data_dir())
+            try:
+                _os.makedirs(_avatar_dir, exist_ok=True)
+                if _os.path.abspath(_src) != _os.path.abspath(_dst):
+                    _shutil.copy2(_src, _dst)  # copy2 not rename: crash-safe (T-89.1-02 / Pitfall 3)
+                # If src == dst (station_id == provider_id), file is already in place — just update DB.
+            except OSError:
+                continue  # skip provider on copy failure — don't abort db_init
+            con.execute(
+                "UPDATE providers SET avatar_path = ? WHERE id = ?",
+                (_prov_rel, _pid),
+            )
+            con.commit()
+
+        # Clean up per-station files whose provider now has a committed avatar (D-01).
+        # EXCLUDE paths that ARE the provider avatar (s.channel_avatar_path == p.avatar_path)
+        # — this prevents deleting the newly-written provider-keyed file when a station's
+        # legacy path happened to match (e.g. station_id == provider_id on a fresh DB).
+        # OSError swallowed — file may already be gone (idempotent on double-run).
+        for _cr in con.execute(
+            """
+            SELECT s.channel_avatar_path
+            FROM   stations s
+            JOIN   providers p ON p.id = s.provider_id
+            WHERE  s.channel_avatar_path IS NOT NULL
+              AND  p.avatar_path IS NOT NULL
+              AND  s.channel_avatar_path != p.avatar_path
+            """
+        ).fetchall():
+            try:
+                _os.unlink(_os.path.join(_bfpaths.data_dir(), _cr[0]))
+            except OSError:
+                pass  # already gone — idempotent
+
 
 def sweep_orphans(con: sqlite3.Connection) -> None:
     """Delete orphan FK-child rows and INFO-log per-table counts when N>0.
