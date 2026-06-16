@@ -674,22 +674,18 @@ For the avatar path, use `yt_import.is_yt_playlist_url(url)` OR the same inline 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All three open questions were resolved during planning; the resolutions are implemented in the Phase 89 plans (89-02, 89-03).
 
 1. **Does yt-dlp need `remote_components: {'ejs:github'}` for channel URL extraction?**
-   - What we know: `scan_playlist` includes it for defensive parity; channel info extraction without `extract_flat` will hit the same authenticated code path if cookies are present
-   - What's unclear: whether channel tab extraction actually requires the EJS remote component at all
-   - Recommendation: Include the same options as `scan_playlist` for parity; the cost is near-zero for a non-download extraction
+   - RESOLVED: Include the same options as `scan_playlist` for parity; the cost is near-zero for a non-download extraction. **Adopted in 89-02 Task 1.**
 
 2. **Does `_channel_avatar_lookup` in `cover_art.py` need to be callable with real behavior or just a named placeholder?**
-   - What we know: ART-AVATAR-09 only requires the function to exist AND appear after `_mb_caa_lookup` in source; ART-AVATAR-07 says avatar fires only when ICY is empty/disabled
-   - What's unclear: whether the planner should wire up a real lookup through `cover_art.py` or just have the function exist for the drift-guard while the real logic lives in `bind_station`
-   - Recommendation: `_channel_avatar_lookup` should be a real stub that reads `station.channel_avatar_path` and calls `callback(abs_path)` synchronously — it is never reached for ICY-enabled stations because the ICY-disabled path bypasses `fetch_cover_art` entirely (bind-time load)
+   - RESOLVED: `_channel_avatar_lookup` is a real synchronous stub that reads `station.channel_avatar_path`; it is never reached for ICY-enabled stations because the ICY-disabled path performs the avatar swap at `bind_station` time, bypassing `fetch_cover_art`. Its source position (immediately after `_mb_caa_lookup`) anchors the ART-AVATAR-09 drift-guard. **Adopted in 89-03 Task 1.**
 
 3. **Should `fetch_channel_avatar` support video URLs as well as channel URLs?**
-   - What we know: Success Criterion 1 says "pasting a YT channel/video URL"; yt-dlp for a video URL returns the video's thumbnail, not the channel avatar
-   - What's unclear: how to extract the channel avatar from a video URL
-   - Recommendation: `fetch_channel_avatar` should extract the `channel_url` from a video's info dict (`info.get('channel_url')`) and re-call itself, or use `uploader_url`. This adds one more `extract_info` call for video URLs. The planner should plan for this case.
+   - RESOLVED: Yes — `fetch_channel_avatar` extracts `channel_url` from a video's info dict (`info.get('channel_url')`) and re-resolves (two-step lookup), adding one `extract_info` call for video URLs. **Adopted in 89-02 Task 1.**
 
 ---
 

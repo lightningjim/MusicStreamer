@@ -1,9 +1,9 @@
 ---
 phase: 89
 slug: youtube-channel-avatar-fetch-cover-slot-swap
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: approved
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-16
 ---
 
@@ -44,7 +44,7 @@ created: 2026-06-16
 | ART-AVATAR-05 | Auto-fetch on debounced URL paste + "Refresh avatar" button present and gated | unit (Qt) | `.venv/bin/python -m pytest tests/test_edit_station_dialog.py -k avatar -x` | ❌ W0 (add to existing file) |
 | ART-AVATAR-06 | ICY-disabled YT station shows circular-cropped avatar in cover slot | unit (Qt) | `.venv/bin/python -m pytest tests/test_now_playing_panel.py -k avatar -x` | ❌ W0 (add to existing file) |
 | ART-AVATAR-07 | Precedence `ICY → iTunes → MB-CAA → channel-avatar → placeholder`; avatar fires only when ICY empty/disabled | source-grep | `.venv/bin/python -m pytest tests/test_cover_art_avatar.py::test_mb_caa_runs_before_channel_avatar -x` | ❌ W0 (new file) |
-| ART-AVATAR-08 | Cached avatar load <1s via QPixmap; clean fallback to station thumbnail on miss/fail | unit (timing) + manual | `<1s` assertion on local-file load in bind_station test | ❌ W0 |
+| ART-AVATAR-08 | Cached avatar load <1s via QPixmap; clean fallback to station thumbnail on miss/fail | unit (timing) | `.venv/bin/python -m pytest tests/test_now_playing_panel.py -k avatar -x` (asserts `elapsed < 1.0` on cached-PNG load) | ❌ W0 |
 | ART-AVATAR-09 | Source-grep drift-guard: `_mb_caa_lookup` appears before `_channel_avatar_lookup` in `cover_art.py` | source-grep | `.venv/bin/python -m pytest tests/test_cover_art_avatar.py::test_mb_caa_runs_before_channel_avatar -x` | ❌ W0 (new file) |
 | ART-AVATAR-10 | Phase 71 sibling-render parity: `setTextFormat(Qt.RichText)` count unchanged (`EXPECTED_RICHTEXT_COUNT = 3`) | source-grep | `.venv/bin/python -m pytest tests/test_constants_drift.py::test_richtext_baseline_unchanged_by_phase_89 -x` | ❌ W0 (append to existing file) |
 
@@ -76,11 +76,13 @@ created: 2026-06-16
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references (5 test files above)
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s (per-wave scoped)
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies (every task in 89-01..89-05 carries a `.venv/bin/python -m pytest` command)
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify (10/10 tasks have automated verify)
+- [x] Wave 0 covers all MISSING references (5 test files folded into the plans via task-level TDD: test written RED before production GREEN)
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s (per-wave scoped)
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-06-16
+
+> Note: ART-AVATAR-08's <1s budget is an automated timing assertion (`elapsed < 1.0`) in `tests/test_now_playing_panel.py`; the only manual item is subjective circular-crop visual balance (D-07).
