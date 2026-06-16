@@ -1256,11 +1256,15 @@ class EditStationDialog(QDialog):
         self._refresh_avatar_btn.setEnabled(is_yt)
 
     def _on_url_timer_timeout(self) -> None:
-        """Debounced: kick off a _LogoFetchWorker for the current URL.
+        """Debounced: kick off a _LogoFetchWorker (and optionally _AvatarFetchWorker)
+        for the current URL.
 
         Uses a monotonic token so any prior in-flight worker's emission is
         recognized as stale by _on_logo_fetched (which unlinks its tmp file).
         No disconnect needed — the slot always runs.
+
+        Phase 89-05 / D-01: also launches _AvatarFetchWorker when the URL is a
+        YouTube URL — reuses the same 500ms debounce (separate token).
         """
         url = self.url_edit.text().strip()
         if not url:
@@ -1276,6 +1280,22 @@ class EditStationDialog(QDialog):
         # and stale-token branches — see RESEARCH Pitfall P-1).
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         self._logo_fetch_worker.start()
+
+        # Phase 89-05 / D-01/D-10: also launch avatar fetch for YouTube URLs.
+        # Separate monotonic token so stale logo and stale avatar don't collide.
+        lower = url.lower()
+        if "youtube.com" in lower or "youtu.be" in lower:
+            self._avatar_fetch_token += 1
+            avatar_token = self._avatar_fetch_token
+            self._avatar_status.setText("Fetching avatar\u2026")
+            self._avatar_fetch_worker = _AvatarFetchWorker(
+                url=url,
+                token=avatar_token,
+                station_id=self._station.id,
+                parent=self,
+            )
+            self._avatar_fetch_worker.finished.connect(self._on_avatar_fetched)
+            self._avatar_fetch_worker.start()
 
     def _on_fetch_logo_clicked(self) -> None:
         """Manual trigger — bypass debounce and fetch now."""
@@ -1396,6 +1416,41 @@ class EditStationDialog(QDialog):
             return
         resolved = abs_art_path(rel_path)
         QPixmapCache.remove(f"station-logo:{resolved}")
+
+    def _on_avatar_fetched(self, rel_path: str, token: int) -> None:
+        """Queued slot: receives result from _AvatarFetchWorker.
+
+        Phase 89-05 / D-02/D-03/D-11/D-12:
+          - Stale-token guard: discard results superseded by a newer fetch (T-89-14)
+          - Success: update preview + write channel_avatar_path to DB on main thread (D-12)
+          - Failure (empty path): show non-blocking message; column stays unwritten;
+            Save remains enabled (D-03); old cached avatar is retained (D-11)
+
+        WR-04: never raises. All exception branches set status only.
+        """
+        # Stale guard (T-89-14): a newer fetch already started; discard this result.
+        if token != self._avatar_fetch_token:
+            return
+
+        try:
+            if not rel_path:
+                # Failure — D-03: non-blocking. Do NOT write to DB. Keep old avatar.
+                self._avatar_status.setText(
+                    "No avatar found — cover will use the station thumbnail"
+                )
+                return
+
+            # Success path (D-12): preview update + main-thread DB write.
+            # Update in-memory station model so _refresh_avatar_preview resolves
+            # correctly without re-reading from disk.
+            self._station.channel_avatar_path = rel_path
+            self._refresh_avatar_preview()
+            self._avatar_status.setText("Avatar found")
+            # Persist to DB on the main thread (SQLite write off-main-thread is unsafe).
+            self._repo.update_channel_avatar_path(self._station.id, rel_path)
+        except Exception:
+            # WR-04: never raise out of a slot.
+            self._avatar_status.setText("Avatar save failed")
 
     def _shutdown_logo_fetch_worker(self) -> None:
         """Bound-wait for the logo fetch worker so tmp files are cleaned up.
