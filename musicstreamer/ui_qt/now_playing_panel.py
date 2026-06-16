@@ -32,7 +32,7 @@ from typing import Optional
 
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
 from PySide6.QtCore import QThread
-from PySide6.QtGui import QFont, QIcon, QPalette, QPixmap
+from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -216,6 +216,36 @@ def _load_scaled_pixmap(path: Optional[str], size: QSize) -> QPixmap:
     return pix.scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
 
+def _make_circular_pixmap(source: QPixmap, size: int) -> QPixmap:
+    """Phase 89 D-06: center-crop source to square, clip to inscribed circle, antialiased.
+
+    Scales the source with KeepAspectRatioByExpanding so the shorter dimension
+    fills ``size``, then crops to an exact ``size``x``size`` square from the
+    center (D-07), then paints into a transparent QPixmap through an ellipse
+    clip path with Antialiasing enabled (no border/ring — D-06).
+
+    Main thread only — QPixmap/QPainter are not thread-safe (RESEARCH Pitfall 8).
+    """
+    sq = source.scaled(
+        QSize(size, size), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation
+    )
+    # Center-crop to exact square (D-07).
+    if sq.width() != size or sq.height() != size:
+        x = (sq.width() - size) // 2
+        y = (sq.height() - size) // 2
+        sq = sq.copy(x, y, size, size)
+    result = QPixmap(size, size)
+    result.fill(Qt.transparent)
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    path = QPainterPath()
+    path.addEllipse(0, 0, size, size)
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, sq)
+    painter.end()
+    return result
+
+
 class NowPlayingPanel(QWidget):
     """Right-panel now-playing widget (UI-02 + UI-14).
 
@@ -314,6 +344,7 @@ class NowPlayingPanel(QWidget):
         # cascade. D-02 single-tier source of truth.
         self._current_art_tier: Optional[int] = None
         self._last_cover_path: Optional[str] = None
+        self._last_avatar_path: Optional[str] = None   # Phase 89 D-13 — circular avatar tier-replay
         # Phase 67 / R-01: in-memory cache of (same_provider_sample, same_tag_sample)
         # tuples keyed by station id. Populated by _refresh_similar_stations on
         # cache miss; reused on revisit (R-02). Popped by _on_refresh_similar_clicked
@@ -2154,6 +2185,29 @@ class NowPlayingPanel(QWidget):
         self.cover_label.setPixmap(scaled)
         # Pattern 4 in 72.3-RESEARCH: track for tier-change replay.
         self._last_cover_path = path
+
+    def _set_avatar_pixmap_from_path(self, rel_path: str) -> None:
+        """Phase 89 ART-AVATAR-06: load cached avatar PNG, circular-crop, display in cover_label.
+
+        Tracks self._last_avatar_path for tier-change replay in _apply_art_tier.
+        Does NOT touch _last_cover_path — the two state vars are orthogonal (D-05).
+        On QPixmap.isNull() (load failure), clears _last_avatar_path = None BEFORE
+        falling back to _show_station_logo_in_cover_slot() so a subsequent
+        _apply_art_tier resize does NOT retry the corrupt path (T-89-10 self-healing).
+        Main thread only — QPixmap/QPainter are not thread-safe (RESEARCH Pitfall 8).
+        """
+        from musicstreamer import paths as _paths
+        abs_path = os.path.join(_paths.data_dir(), rel_path)
+        pix = QPixmap(abs_path)
+        if pix.isNull():
+            # Clear bad path FIRST so subsequent _apply_art_tier skips avatar branch.
+            self._last_avatar_path = None
+            self._show_station_logo_in_cover_slot()
+            return
+        n = self._current_art_tier or 180
+        circ = _make_circular_pixmap(pix, n)
+        self.cover_label.setPixmap(circ)
+        self._last_avatar_path = rel_path   # tracks for tier-change replay; NOT _last_cover_path
 
     # ----------------------------------------------------------------------
     # Public accessor for cover pixmap (used by MainWindow media-keys bridge)

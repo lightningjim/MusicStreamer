@@ -3503,7 +3503,7 @@ def _make_avatar_png(tmp_path, station_id: int = 99, size: int = 200) -> str:
     return f"assets/channel-avatars/{station_id}.png"
 
 
-def test_make_circular_pixmap_produces_opaque_center_transparent_corners(qtbot, tmp_path):
+def test_avatar_make_circular_pixmap_produces_opaque_center_transparent_corners(qtbot, tmp_path):
     """ART-AVATAR-06 / D-06: _make_circular_pixmap clips to circle.
 
     Center pixel is opaque (alpha > 0); corner pixels are transparent (alpha == 0).
@@ -3526,17 +3526,23 @@ def test_make_circular_pixmap_produces_opaque_center_transparent_corners(qtbot, 
 
         img = result.toImage().convertToFormat(QImage.Format.Format_ARGB32)
 
+        # QColor(raw_qrgb) treats 0 as RGB(0,0,0) with alpha=255 (opaque).
+        # Use QColor.fromRgba(raw) which correctly parses the ARGB32 alpha channel.
         # Corner pixel should be transparent (alpha == 0).
-        corner_pixel = QColor(img.pixel(0, 0))
-        assert corner_pixel.alpha() == 0, (
-            f"Corner pixel alpha should be 0 (transparent), got {corner_pixel.alpha()}"
+        corner_raw = img.pixel(0, 0)
+        corner_alpha = QColor.fromRgba(corner_raw).alpha()
+        assert corner_alpha == 0, (
+            f"Corner pixel alpha should be 0 (transparent), got {corner_alpha} "
+            f"(raw=0x{corner_raw:08x})"
         )
 
         # Center pixel should be opaque.
         cx, cy = 50, 50
-        center_pixel = QColor(img.pixel(cx, cy))
-        assert center_pixel.alpha() > 0, (
-            f"Center pixel alpha should be > 0 (opaque), got {center_pixel.alpha()}"
+        center_raw = img.pixel(cx, cy)
+        center_alpha = QColor.fromRgba(center_raw).alpha()
+        assert center_alpha > 0, (
+            f"Center pixel alpha should be > 0 (opaque), got {center_alpha} "
+            f"(raw=0x{center_raw:08x})"
         )
     finally:
         paths_mod._root_override = None
