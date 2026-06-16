@@ -126,22 +126,34 @@ def _generate_thumb(
     threading.Thread(target=_worker, daemon=True).start()
 
 
-def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
+def load_station_icon(
+    station, size: int = STATION_ICON_SIZE, on_thumb_needed=None
+) -> QIcon:
     """Return a QPixmapCache-backed QIcon for ``station`` with fallback.
 
-    Resolution order:
-        1. station.station_art_path (resolved via abs_art_path) loaded as QPixmap.
-        2. If that yields a null pixmap (missing/unreadable file), fall back to
-           FALLBACK_ICON.
+    Phase 94 thumb fast path: when a 96px pre-scaled thumbnail exists on disk
+    and is fresher than the source logo (D-06), it is loaded directly instead
+    of decoding the full-resolution source (D-02). On a thumb miss or stale
+    thumb, the fallback icon is returned immediately and ``on_thumb_needed``
+    is called to trigger async generation (D-02, D-04, D-05).
+
+    Resolution order (QPixmapCache miss, abs_path present):
+        1. Thumb exists and is fresh -> src = QPixmap(thumb_path) (96px fast path).
+        2. Thumb missing or stale -> src = QPixmap(FALLBACK_ICON); call
+           on_thumb_needed(station.id, abs_path, thumb_path) if provided and
+           station.id is not None.
+        3. abs_path is None (no station_art_path) -> src = QPixmap(FALLBACK_ICON);
+           no on_thumb_needed call (Pitfall 5 — no worker spawned for icon-less stations).
 
     Cache key is ``f"station-logo:{abs_path or FALLBACK_ICON}"`` keyed on the
-    resolved-then-joined absolute path string. Note: paths are joined via
-    ``os.path.join`` but NOT canonicalized (no ``os.path.normpath`` /
-    ``os.path.realpath``), so callers passing a non-canonical relative form
-    (e.g. ``./assets/1/logo.png`` vs ``assets/1/logo.png``) may not hit a
-    previously-cached entry for the equivalent canonical path. Once a given
-    string is used, subsequent calls with the same string hit the same cache
-    entry (D-03). WR-03 / Phase 54 review.
+    resolved-then-joined absolute path string (NOT the thumb path). This matches
+    the eviction key used by edit_station_dialog._invalidate_cache_for. Note:
+    paths are joined via ``os.path.join`` but NOT canonicalized (no
+    ``os.path.normpath`` / ``os.path.realpath``), so callers passing a
+    non-canonical relative form (e.g. ``./assets/1/logo.png`` vs
+    ``assets/1/logo.png``) may not hit a previously-cached entry for the
+    equivalent canonical path. Once a given string is used, subsequent calls
+    with the same string hit the same cache entry (D-03). WR-03 / Phase 54 review.
 
     Parameters
     ----------
@@ -150,6 +162,11 @@ def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
     size : int, default 32
         Target pixel bound. Pixmap is scaled to fit ``size`` × ``size`` with
         aspect ratio preserved.
+    on_thumb_needed : callable(station_id: int, source_abs_path: str, thumb_abs_path: str) | None
+        Called when the thumb is missing or stale. The caller (typically
+        StationTreeModel) uses this to enqueue async thumb generation without
+        re-entering this function. Default None preserves the existing 2-arg
+        call signature at all existing call sites.
     """
     rel = getattr(station, "station_art_path", None)
     abs_path = abs_art_path(rel)
@@ -158,7 +175,23 @@ def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
 
     pix = QPixmap()
     if not QPixmapCache.find(key, pix):
-        src = QPixmap(load_path)
+        if abs_path is not None:
+            thumb_path = _thumb_path_for(abs_path)
+            if _is_thumb_fresh(abs_path, thumb_path):
+                # Thumb is fresh: use 96px thumbnail (fast path, D-02).
+                src = QPixmap(thumb_path)
+            elif on_thumb_needed is not None:
+                # Thumb missing/stale and a consumer wants async generation:
+                # return fallback immediately, enqueue generation (D-02).
+                src = QPixmap(FALLBACK_ICON)
+                if getattr(station, "id", None) is not None:
+                    on_thumb_needed(station.id, abs_path, thumb_path)
+            else:
+                # Legacy 2-arg callers (favorites_view, station_list_panel):
+                # no thumb consumer, load the source logo directly (original behavior).
+                src = QPixmap(load_path)
+        else:
+            src = QPixmap(FALLBACK_ICON)
         if src.isNull():
             src = QPixmap(FALLBACK_ICON)
         scaled = src.scaled(
