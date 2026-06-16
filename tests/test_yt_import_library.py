@@ -339,3 +339,41 @@ def test_avatar_video_url_two_step_resolution():
     # Second call should have been on the channel_url
     second_call_url = fake_ydl.extract_info.call_args_list[1][0][0]
     assert "TestChannel" in second_call_url or "youtube.com" in second_call_url
+
+
+# ---------------------------------------------------------------------------
+# D-04: Per-provider avatar fetcher registry tests (Task 2 / Phase 89-02)
+# ---------------------------------------------------------------------------
+
+def test_avatar_registry_youtube_registered():
+    """D-04: get_avatar_fetcher('youtube') returns fetch_channel_avatar after module import."""
+    fetcher = yt_import.get_avatar_fetcher("youtube")
+    assert fetcher is not None, "youtube fetcher must be registered at module load"
+    assert fetcher is yt_import.fetch_channel_avatar
+
+
+def test_avatar_registry_twitch_absent_by_default():
+    """D-04: get_avatar_fetcher('twitch') returns None (not registered this phase)."""
+    fetcher = yt_import.get_avatar_fetcher("twitch")
+    assert fetcher is None, "twitch fetcher must not be registered in Phase 89"
+
+
+def test_avatar_registry_register_and_retrieve():
+    """D-04: register_avatar_fetcher then get_avatar_fetcher returns the registered callable."""
+    def fake_twitch_fetcher(url: str) -> bytes:
+        return b"twitch-avatar"
+
+    # Save original so we can restore after test
+    original = yt_import._AVATAR_FETCHERS.copy()
+    try:
+        yt_import.register_avatar_fetcher("twitch", fake_twitch_fetcher)
+        result = yt_import.get_avatar_fetcher("twitch")
+        assert result is fake_twitch_fetcher
+    finally:
+        yt_import._AVATAR_FETCHERS.clear()
+        yt_import._AVATAR_FETCHERS.update(original)
+
+
+def test_avatar_registry_unknown_provider_returns_none():
+    """D-04: unknown provider returns None."""
+    assert yt_import.get_avatar_fetcher("unknown_provider_xyz") is None
