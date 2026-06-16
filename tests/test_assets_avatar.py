@@ -67,3 +67,51 @@ def test_write_channel_avatar_failure_cleans_up_tmp(tmp_path, monkeypatch):
     if os.path.isdir(avatar_dir):
         leftover = [f for f in os.listdir(avatar_dir) if f.endswith(".png.tmp")]
         assert leftover == [], f".tmp files left behind after failure: {leftover}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 89.1 D-10: write_provider_avatar — atomic provider-keyed PNG writer
+# ---------------------------------------------------------------------------
+
+
+def test_write_provider_avatar_creates_file_and_returns_relative_path(tmp_path):
+    """D-10: write_provider_avatar(7, data) returns 'assets/channel-avatars/7.png'."""
+    rel = assets.write_provider_avatar(7, b"<pngbytes>")
+    assert rel == os.path.join("assets", "channel-avatars", "7.png")
+    abs_path = os.path.join(str(tmp_path), rel)
+    assert os.path.isfile(abs_path)
+    assert open(abs_path, "rb").read() == b"<pngbytes>"
+
+
+def test_write_provider_avatar_overwrite_atomic_no_tmp_remains(tmp_path):
+    """D-10: second write atomically overwrites; no .tmp file remains in the dir."""
+    assets.write_provider_avatar(7, b"<firstbytes>")
+    assets.write_provider_avatar(7, b"<newbytes>")
+    avatar_dir = paths.channel_avatars_dir()
+    files = sorted(os.listdir(avatar_dir))
+    # Only the final .png should be present — no .png.tmp left behind
+    assert files == ["7.png"], f"unexpected files in dir: {files}"
+    final_path = os.path.join(avatar_dir, "7.png")
+    assert open(final_path, "rb").read() == b"<newbytes>"
+
+
+def test_write_provider_avatar_failure_cleans_up_tmp(tmp_path, monkeypatch):
+    """D-10 / T-89.1-01: on simulated write failure, no .tmp file is left behind."""
+    import tempfile as _tempfile
+
+    original_os_write = os.write
+
+    def raising_os_write(fd, data):
+        original_os_write(fd, data[:0])  # write nothing
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(os, "write", raising_os_write)
+
+    with pytest.raises(OSError, match="simulated disk full"):
+        assets.write_provider_avatar(7, b"<pngbytes>")
+
+    # No .tmp file must remain
+    avatar_dir = paths.channel_avatars_dir()
+    if os.path.isdir(avatar_dir):
+        leftover = [f for f in os.listdir(avatar_dir) if f.endswith(".png.tmp")]
+        assert leftover == [], f".tmp files left behind after failure: {leftover}"

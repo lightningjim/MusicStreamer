@@ -1334,3 +1334,403 @@ def test_channel_avatar_path_in_list_favorite_stations(repo):
     favs = repo.list_favorite_stations()
     match = next(s for s in favs if s.id == sid)
     assert match.channel_avatar_path == "assets/channel-avatars/3.png"
+
+
+# ---------------------------------------------------------------------------
+# Phase 89.1 Plan 01: providers.avatar_path migration + backfill + persist
+#                     + four-mapper carry (D-11, D-01..D-03, D-09)
+# ---------------------------------------------------------------------------
+
+
+def test_provider_avatar_path_migration_idempotent(repo):
+    """D-11: providers.avatar_path TEXT nullable present after db_init; double-run no-raise.
+
+    Mirrors test_channel_avatar_path_migration_idempotent (L1171).
+    PRAGMA table_info cols: (cid, name, type, notnull, dflt_value, pk).
+    avatar_path must be TEXT, nullable (notnull=0), no DEFAULT (None).
+    """
+    # Second and third db_init calls must not raise.
+    db_init(repo.con)
+    db_init(repo.con)
+
+    cols = repo.con.execute("PRAGMA table_info('providers')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "avatar_path" in by_name, (
+        f"avatar_path column missing from providers; got {sorted(by_name)}"
+    )
+    col = by_name["avatar_path"]
+    assert col[2] == "TEXT", f"column type must be TEXT; got {col[2]!r}"
+    assert col[3] == 0, "avatar_path must be nullable (notnull=0)"
+    assert col[4] is None, (
+        f"avatar_path must have no DEFAULT; got {col[4]!r}"
+    )
+
+
+def test_provider_avatar_path_schema_convergence():
+    """D-11: fresh DB and upgraded pre-89.1 DB (no providers.avatar_path) converge.
+
+    Mirrors test_channel_avatar_path_schema_convergence (L1197).
+    Builds a pre-89.1 providers schema (avatar_path absent), runs db_init(),
+    and asserts PRAGMA table_info(providers) matches a fresh db_init() DB.
+    """
+    # --- fresh DB (the target shape) ---
+    fresh_con = _make_bare_con()
+    db_init(fresh_con)
+    fresh_cols = {
+        row[1]: (row[2], row[3], row[4])  # (type, notnull, dflt_value)
+        for row in fresh_con.execute("PRAGMA table_info('providers')").fetchall()
+    }
+    assert "avatar_path" in fresh_cols, "fresh DB must have providers.avatar_path"
+
+    # --- pre-89.1 DB: providers WITHOUT avatar_path column ---
+    legacy_con = _make_bare_con()
+    legacy_con.executescript("""
+        CREATE TABLE providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE stations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            provider_id INTEGER,
+            tags TEXT DEFAULT '',
+            station_art_path TEXT,
+            album_fallback_path TEXT,
+            icy_disabled INTEGER NOT NULL DEFAULT 0,
+            last_played_at TEXT,
+            is_favorite INTEGER NOT NULL DEFAULT 0,
+            cover_art_source TEXT NOT NULL DEFAULT 'auto',
+            preferred_stream_id INTEGER,
+            prerolls_fetched_at INTEGER,
+            channel_avatar_path TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(provider_id) REFERENCES providers(id) ON DELETE SET NULL
+        );
+        INSERT INTO providers(name) VALUES ('ExistingProvider');
+    """)
+    legacy_con.commit()
+    # Confirm avatar_path is absent before migration
+    pre_cols = {
+        row[1] for row in legacy_con.execute("PRAGMA table_info('providers')").fetchall()
+    }
+    assert "avatar_path" not in pre_cols, "pre-89.1 fixture must NOT have avatar_path"
+
+    # Apply migration
+    db_init(legacy_con)
+
+    # Post-migration schema must match fresh DB for avatar_path
+    migrated_cols = {
+        row[1]: (row[2], row[3], row[4])
+        for row in legacy_con.execute("PRAGMA table_info('providers')").fetchall()
+    }
+    assert "avatar_path" in migrated_cols, "avatar_path absent after migration"
+    assert migrated_cols["avatar_path"] == fresh_cols["avatar_path"], (
+        f"migrated schema differs from fresh: "
+        f"migrated={migrated_cols['avatar_path']!r}, "
+        f"fresh={fresh_cols['avatar_path']!r}"
+    )
+
+    # Existing row must still exist with NULL avatar_path (data preserved)
+    row = legacy_con.execute("SELECT name, avatar_path FROM providers").fetchone()
+    assert row[0] == "ExistingProvider"
+    assert row[1] is None, "existing row must have NULL avatar_path"
+
+
+def test_backfill_copies_avatar_to_provider_keyed_location(tmp_path):
+    """D-01: backfill copies {station_id}.png to {provider_id}.png; providers.avatar_path set.
+
+    After a successful backfill, the old per-station file must be deleted.
+    No network fetch — shutil.copy2 from existing on-disk file only.
+    """
+    import os
+    import musicstreamer.paths as paths_mod
+
+    paths_mod._root_override = str(tmp_path)
+    try:
+        con = _make_bare_con()
+        db_init(con)
+
+        # Seed: provider + station with channel_avatar_path pointing at a real file
+        repo = Repo(con)
+        pid = repo.ensure_provider("Lofi Girl")
+        sid = repo.create_station()
+        repo.update_station(sid, "Lofi Girl 24/7", pid, "", None, None, icy_disabled=True)
+
+        # Write a fake per-station PNG
+        avatar_dir = paths_mod.channel_avatars_dir()
+        os.makedirs(avatar_dir, exist_ok=True)
+        station_png = os.path.join(avatar_dir, f"{sid}.png")
+        with open(station_png, "wb") as fh:
+            fh.write(b"\x89PNG\r\n")
+        repo.update_channel_avatar_path(sid, f"assets/channel-avatars/{sid}.png")
+
+        # Re-run db_init (startup) — backfill runs
+        db_init(con)
+
+        # Provider must now have avatar_path
+        row = con.execute("SELECT avatar_path FROM providers WHERE id = ?", (pid,)).fetchone()
+        assert row[0] == f"assets/channel-avatars/{pid}.png", (
+            f"providers.avatar_path not set correctly; got {row[0]!r}"
+        )
+        # Provider-keyed file must exist
+        assert os.path.isfile(os.path.join(avatar_dir, f"{pid}.png")), (
+            f"{pid}.png does not exist in channel_avatars_dir"
+        )
+        # Old per-station file must be deleted
+        assert not os.path.isfile(station_png), (
+            f"old per-station file {sid}.png was not deleted after backfill"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_backfill_most_recently_updated_sibling_wins(tmp_path):
+    """D-02: when two sibling stations have avatars, the most-recently-updated one's PNG wins.
+
+    Uses distinct PNG byte payloads to distinguish winner from loser.
+    bumps updated_at explicitly via a direct SQL UPDATE so ordering is unambiguous.
+    """
+    import os
+    import time
+    import musicstreamer.paths as paths_mod
+
+    paths_mod._root_override = str(tmp_path)
+    try:
+        con = _make_bare_con()
+        db_init(con)
+
+        repo = Repo(con)
+        pid = repo.ensure_provider("BigChannel")
+
+        # Station A — will be the OLDER one
+        sid_a = repo.create_station()
+        repo.update_station(sid_a, "BigChannel Stream A", pid, "", None, None, icy_disabled=True)
+
+        # Station B — will be the NEWER one (most recently updated)
+        sid_b = repo.create_station()
+        repo.update_station(sid_b, "BigChannel Stream B", pid, "", None, None, icy_disabled=True)
+
+        avatar_dir = paths_mod.channel_avatars_dir()
+        os.makedirs(avatar_dir, exist_ok=True)
+
+        # Write distinct bytes so we can identify which file was used as source
+        png_a = os.path.join(avatar_dir, f"{sid_a}.png")
+        png_b = os.path.join(avatar_dir, f"{sid_b}.png")
+        with open(png_a, "wb") as fh:
+            fh.write(b"AVATAR_A")
+        with open(png_b, "wb") as fh:
+            fh.write(b"AVATAR_B")
+
+        repo.update_channel_avatar_path(sid_a, f"assets/channel-avatars/{sid_a}.png")
+        repo.update_channel_avatar_path(sid_b, f"assets/channel-avatars/{sid_b}.png")
+
+        # Force station A to be older, station B to be newer via direct SQL
+        con.execute(
+            "UPDATE stations SET updated_at = '2020-01-01T00:00:00' WHERE id = ?", (sid_a,)
+        )
+        con.execute(
+            "UPDATE stations SET updated_at = '2025-01-01T00:00:00' WHERE id = ?", (sid_b,)
+        )
+        con.commit()
+
+        # Re-run db_init — backfill should pick station B (newer)
+        db_init(con)
+
+        row = con.execute("SELECT avatar_path FROM providers WHERE id = ?", (pid,)).fetchone()
+        provider_png = os.path.join(avatar_dir, f"{pid}.png")
+        assert os.path.isfile(provider_png), "provider-keyed PNG not created"
+        winner_bytes = open(provider_png, "rb").read()
+        assert winner_bytes == b"AVATAR_B", (
+            f"Expected AVATAR_B (newer sibling) to win; got {winner_bytes!r}"
+        )
+        assert row[0] == f"assets/channel-avatars/{pid}.png", (
+            f"providers.avatar_path wrong: {row[0]!r}"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_backfill_idempotent_double_run(tmp_path):
+    """D-03: after a successful backfill, a third db_init is a no-op.
+
+    providers.avatar_path must be unchanged; no exception raised.
+    """
+    import os
+    import musicstreamer.paths as paths_mod
+
+    paths_mod._root_override = str(tmp_path)
+    try:
+        con = _make_bare_con()
+        db_init(con)
+
+        repo = Repo(con)
+        pid = repo.ensure_provider("IdempotentCh")
+        sid = repo.create_station()
+        repo.update_station(sid, "IdempotentCh 1", pid, "", None, None, icy_disabled=True)
+
+        avatar_dir = paths_mod.channel_avatars_dir()
+        os.makedirs(avatar_dir, exist_ok=True)
+        station_png = os.path.join(avatar_dir, f"{sid}.png")
+        with open(station_png, "wb") as fh:
+            fh.write(b"\x89PNG_IDEM")
+        repo.update_channel_avatar_path(sid, f"assets/channel-avatars/{sid}.png")
+
+        # First backfill run
+        db_init(con)
+        row1 = con.execute("SELECT avatar_path FROM providers WHERE id = ?", (pid,)).fetchone()
+        first_path = row1[0]
+        assert first_path == f"assets/channel-avatars/{pid}.png"
+
+        # Second run — must be a no-op
+        db_init(con)
+        row2 = con.execute("SELECT avatar_path FROM providers WHERE id = ?", (pid,)).fetchone()
+        assert row2[0] == first_path, (
+            f"providers.avatar_path changed on second run: {row2[0]!r} != {first_path!r}"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_backfill_skips_null_provider_id_stations(tmp_path):
+    """D-03: station with provider_id IS NULL and a channel_avatar_path is NOT copied.
+
+    Its on-disk file must be left untouched (no copy, no delete).
+    """
+    import os
+    import musicstreamer.paths as paths_mod
+
+    paths_mod._root_override = str(tmp_path)
+    try:
+        con = _make_bare_con()
+        db_init(con)
+
+        repo = Repo(con)
+        # Station with no provider (provider_id IS NULL)
+        sid = repo.create_station()
+        repo.update_station(sid, "No Provider Station", None, "", None, None, icy_disabled=True)
+
+        avatar_dir = paths_mod.channel_avatars_dir()
+        os.makedirs(avatar_dir, exist_ok=True)
+        station_png = os.path.join(avatar_dir, f"{sid}.png")
+        with open(station_png, "wb") as fh:
+            fh.write(b"\x89PNG_NULL_PROV")
+        repo.update_channel_avatar_path(sid, f"assets/channel-avatars/{sid}.png")
+
+        # Run backfill — should NOT copy this station's avatar
+        db_init(con)
+
+        # The per-station file must still exist (was NOT deleted)
+        assert os.path.isfile(station_png), (
+            f"per-station PNG was deleted despite provider_id IS NULL — it should be left alone"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_update_provider_avatar_path_round_trip(repo):
+    """D-09: update_provider_avatar_path writes; all four mappers return provider_avatar_path.
+
+    Also exercises the four-mapper carrier (Pitfall 6 — miss none).
+    """
+    pid = repo.ensure_provider("TestProviderRT")
+    sid = repo.create_station()
+    repo.update_station(sid, "TestProviderRT Sta", pid, "", None, None, icy_disabled=True)
+    rel = f"assets/channel-avatars/{pid}.png"
+
+    repo.update_provider_avatar_path(pid, rel)
+
+    # list_stations
+    stations = repo.list_stations()
+    match = next(s for s in stations if s.id == sid)
+    assert match.provider_avatar_path == rel, (
+        f"list_stations: expected {rel!r}, got {match.provider_avatar_path!r}"
+    )
+
+    # get_station
+    st = repo.get_station(sid)
+    assert st.provider_avatar_path == rel, (
+        f"get_station: expected {rel!r}, got {st.provider_avatar_path!r}"
+    )
+
+    # list_recently_played
+    repo.update_last_played(sid)
+    recently = repo.list_recently_played(5)
+    match_rp = next(s for s in recently if s.id == sid)
+    assert match_rp.provider_avatar_path == rel, (
+        f"list_recently_played: expected {rel!r}, got {match_rp.provider_avatar_path!r}"
+    )
+
+    # list_favorite_stations
+    repo.con.execute("UPDATE stations SET is_favorite=1 WHERE id=?", (sid,))
+    repo.con.commit()
+    favs = repo.list_favorite_stations()
+    match_fav = next(s for s in favs if s.id == sid)
+    assert match_fav.provider_avatar_path == rel, (
+        f"list_favorite_stations: expected {rel!r}, got {match_fav.provider_avatar_path!r}"
+    )
+
+
+def test_update_provider_avatar_path_clear(repo):
+    """D-09: update_provider_avatar_path(provider_id, None) sets providers.avatar_path NULL."""
+    pid = repo.ensure_provider("TestProviderClear")
+    repo.update_provider_avatar_path(pid, "assets/channel-avatars/99.png")
+    row = repo.con.execute("SELECT avatar_path FROM providers WHERE id=?", (pid,)).fetchone()
+    assert row[0] == "assets/channel-avatars/99.png"
+    repo.update_provider_avatar_path(pid, None)
+    row2 = repo.con.execute("SELECT avatar_path FROM providers WHERE id=?", (pid,)).fetchone()
+    assert row2[0] is None, f"avatar_path not cleared; got {row2[0]!r}"
+
+
+def test_update_station_does_not_reset_provider_avatar_path(repo):
+    """D-09 / Pitfall 5: update_station on a sibling must NOT reset providers.avatar_path.
+
+    Dedicated single-column UPDATE only — broad provider update would silently clear it.
+    """
+    pid = repo.ensure_provider("PitfallFive")
+    sid_a = repo.create_station()
+    repo.update_station(sid_a, "PitfallFive A", pid, "", None, None, icy_disabled=True)
+    sid_b = repo.create_station()
+    repo.update_station(sid_b, "PitfallFive B", pid, "", None, None, icy_disabled=True)
+
+    rel = f"assets/channel-avatars/{pid}.png"
+    repo.update_provider_avatar_path(pid, rel)
+
+    # Call update_station on the sibling — must not touch providers.avatar_path
+    repo.update_station(sid_b, "PitfallFive B-edited", pid, "", None, None, icy_disabled=False)
+
+    row = repo.con.execute("SELECT avatar_path FROM providers WHERE id=?", (pid,)).fetchone()
+    assert row[0] == rel, (
+        f"update_station reset providers.avatar_path to {row[0]!r} (Pitfall 5 violation)"
+    )
+
+
+def test_provider_avatar_path_in_all_mappers(repo):
+    """Pitfall 6: all four mappers populate provider_avatar_path from providers.avatar_path."""
+    pid = repo.ensure_provider("AllMappers")
+    sid = repo.create_station()
+    repo.update_station(sid, "AllMappers Sta", pid, "", None, None, icy_disabled=True)
+    rel = f"assets/channel-avatars/{pid}.png"
+    repo.update_provider_avatar_path(pid, rel)
+
+    # list_stations
+    sl = repo.list_stations()
+    m = next(s for s in sl if s.id == sid)
+    assert m.provider_avatar_path == rel, f"list_stations missing: {m.provider_avatar_path!r}"
+
+    # get_station
+    gs = repo.get_station(sid)
+    assert gs.provider_avatar_path == rel, f"get_station missing: {gs.provider_avatar_path!r}"
+
+    # list_recently_played
+    repo.update_last_played(sid)
+    rp = repo.list_recently_played(5)
+    m_rp = next(s for s in rp if s.id == sid)
+    assert m_rp.provider_avatar_path == rel, f"list_recently_played missing: {m_rp.provider_avatar_path!r}"
+
+    # list_favorite_stations
+    repo.con.execute("UPDATE stations SET is_favorite=1 WHERE id=?", (sid,))
+    repo.con.commit()
+    fav = repo.list_favorite_stations()
+    m_fav = next(s for s in fav if s.id == sid)
+    assert m_fav.provider_avatar_path == rel, f"list_favorite_stations missing: {m_fav.provider_avatar_path!r}"
