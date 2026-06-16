@@ -3624,3 +3624,178 @@ def test_set_avatar_pixmap_from_path_cached_load_under_1s(qtbot, tmp_path):
         )
     finally:
         paths_mod._root_override = None
+
+
+# ---------------------------------------------------------------------------
+# Phase 89 Task 2: bind-time avatar load + _apply_art_tier resize replay
+# ---------------------------------------------------------------------------
+
+
+def _icy_disabled_station(tmp_path, station_id: int = 11, png_size: int = 200) -> "tuple[Station, str]":
+    """Create an ICY-disabled station with a stored avatar PNG.
+
+    Returns (station, rel_path).
+    """
+    rel_path = _make_avatar_png(tmp_path, station_id=station_id, size=png_size)
+    station = Station(
+        id=station_id,
+        name="Lofi Girl",
+        provider_id=1,
+        provider_name="YouTube",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=True,
+        channel_avatar_path=rel_path,
+        streams=[StationStream(id=station_id * 10, station_id=station_id,
+                               url="https://youtube.com/@lofigirl", label="HQ",
+                               quality="hi", position=1, stream_type="youtube",
+                               codec="AAC")],
+    )
+    return station, rel_path
+
+
+def test_avatar_bind_station_icy_disabled_with_avatar_sets_last_avatar_path(qtbot, tmp_path):
+    """ART-AVATAR-06 / D-09: bind_station on ICY-disabled station WITH avatar sets _last_avatar_path."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        station, rel_path = _icy_disabled_station(tmp_path)
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+
+        panel.bind_station(station)
+
+        assert panel._last_avatar_path == rel_path, (
+            f"Expected _last_avatar_path=={rel_path!r} after bind, got {panel._last_avatar_path!r}"
+        )
+        assert panel._last_cover_path is None, (
+            "bind_station via avatar path must NOT touch _last_cover_path (D-05)"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_avatar_bind_station_icy_disabled_without_avatar_leaves_thumbnail(qtbot, tmp_path):
+    """D-08: ICY-disabled station WITHOUT avatar stays on station thumbnail; _last_avatar_path=None."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        # ICY-disabled but no avatar stored.
+        station = Station(
+            id=55,
+            name="No-Avatar YT",
+            provider_id=1,
+            provider_name="YouTube",
+            tags="",
+            station_art_path=None,
+            album_fallback_path=None,
+            icy_disabled=True,
+            channel_avatar_path=None,
+            streams=[StationStream(id=550, station_id=55, url="https://youtube.com/x",
+                                   label="hi", quality="hi", position=1,
+                                   stream_type="youtube", codec="AAC")],
+        )
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+
+        panel.bind_station(station)
+
+        assert panel._last_avatar_path is None, (
+            "ICY-disabled station without avatar must leave _last_avatar_path=None (D-08)"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_avatar_stale_station_reset_on_bind(qtbot, tmp_path):
+    """Pitfall 4 / T-89-12: binding station B after station A resets A's avatar (no bleed)."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        station_a, rel_a = _icy_disabled_station(tmp_path, station_id=1)
+        # Station B: ICY-disabled but no avatar.
+        station_b = Station(
+            id=2,
+            name="Station B",
+            provider_id=1,
+            provider_name="YouTube",
+            tags="",
+            station_art_path=None,
+            album_fallback_path=None,
+            icy_disabled=True,
+            channel_avatar_path=None,
+            streams=[StationStream(id=20, station_id=2, url="https://youtube.com/b",
+                                   label="hi", quality="hi", position=1,
+                                   stream_type="youtube", codec="AAC")],
+        )
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+
+        panel.bind_station(station_a)
+        assert panel._last_avatar_path == rel_a
+
+        panel.bind_station(station_b)
+        assert panel._last_avatar_path is None, (
+            "After binding station B (no avatar), A's _last_avatar_path must be None (Pitfall 4)"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_avatar_apply_art_tier_replays_circle(qtbot, tmp_path):
+    """D-06 / resize replay: _apply_art_tier with _last_avatar_path re-renders circle, not thumbnail."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        station, rel_path = _icy_disabled_station(tmp_path, station_id=33)
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+        panel.bind_station(station)
+        assert panel._last_avatar_path == rel_path
+
+        # Force a tier change to trigger _apply_art_tier re-render.
+        panel._current_art_tier = None   # reset so _apply_art_tier sees new tier
+        panel._apply_art_tier()
+
+        # After replay, _last_avatar_path must still be set (not reverted to thumbnail).
+        assert panel._last_avatar_path == rel_path, (
+            "After _apply_art_tier resize replay, _last_avatar_path must still be set "
+            f"(expected {rel_path!r}, got {panel._last_avatar_path!r})"
+        )
+        # cover_label must have a non-null pixmap.
+        assert not panel.cover_label.pixmap().isNull()
+    finally:
+        paths_mod._root_override = None
+
+
+def test_avatar_real_cover_wins_over_avatar_in_apply_art_tier(qtbot, tmp_path):
+    """Pitfall 6 / D-05: when _last_cover_path is set, it wins over _last_avatar_path."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        rel_path = _make_avatar_png(tmp_path, station_id=44)
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo({"volume": "80"}))
+        qtbot.addWidget(panel)
+        # Manually inject both state vars to simulate the precedence check.
+        # (In practice only one should be set at a time, but the ordering test is critical.)
+        panel._last_avatar_path = rel_path
+        panel._last_cover_path = "/some/cover.jpg"
+
+        # Patch _set_cover_pixmap and _set_avatar_pixmap_from_path to detect which is called.
+        calls = []
+        panel._set_cover_pixmap = lambda p: calls.append("cover")
+        panel._set_avatar_pixmap_from_path = lambda p: calls.append("avatar")
+
+        panel._current_art_tier = None
+        panel._apply_art_tier()
+
+        assert calls and calls[0] == "cover", (
+            "Pitfall 6: _set_cover_pixmap must be called (real cover wins over avatar) "
+            f"— got calls={calls}"
+        )
+        assert "avatar" not in calls, (
+            "When _last_cover_path is set, _set_avatar_pixmap_from_path must NOT be called"
+        )
+    finally:
+        paths_mod._root_override = None
