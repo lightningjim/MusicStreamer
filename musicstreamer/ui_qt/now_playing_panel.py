@@ -930,6 +930,12 @@ class NowPlayingPanel(QWidget):
         self._update_star_enabled()
         self._show_station_logo()
         self._show_station_logo_in_cover_slot()
+        # Phase 89 D-09: thumbnail shows first (above); then swap to circular avatar
+        # for ICY-disabled YT stations. Reset _last_avatar_path FIRST to avoid
+        # stale-station bleed (Pitfall 4 / T-89-12).
+        self._last_avatar_path = None
+        if getattr(station, "icy_disabled", False) and getattr(station, "channel_avatar_path", None):
+            self._set_avatar_pixmap_from_path(station.channel_avatar_path)
         self._populate_stream_picker(station)
         # Phase 64 / D-04: re-derive 'Also on:' line for the newly bound station.
         # This is the ONLY call site for _refresh_siblings -- D-04 invariant
@@ -2110,8 +2116,11 @@ class NowPlayingPanel(QWidget):
         # Re-render logo (always shows station_art_path or fallback icon).
         self._show_station_logo()
         # Re-render cover slot: branch on whether a real cover is loaded.
+        # Precedence: real cover > circular avatar > station-thumbnail fallback (Pitfall 6).
         if self._last_cover_path is not None:
             self._set_cover_pixmap(self._last_cover_path)
+        elif self._last_avatar_path is not None:       # Phase 89 D-06 circular avatar re-render
+            self._set_avatar_pixmap_from_path(self._last_avatar_path)
         else:
             self._show_station_logo_in_cover_slot()
 
