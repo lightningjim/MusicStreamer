@@ -1542,7 +1542,14 @@ class EditStationDialog(QDialog):
             worker.finished.disconnect()
         except Exception:  # noqa: BLE001
             pass
-        worker.wait(2000)
+        # Snappy bounded wait first. If the fetch is still in flight (e.g. a slow
+        # image download — urllib caps at 10s, extract at socket_timeout=10s), do
+        # NOT return: destroying this child QThread while run() is executing aborts
+        # the process ("QThread: Destroyed while thread is still running" -> core
+        # dump, observed in Phase 89 UAT). run() is now bounded, so escalate to a
+        # full wait that is guaranteed to return.
+        if not worker.wait(2000):
+            worker.wait()
 
     def accept(self) -> None:
         # BUG-FIX: accept() is the Save path. closeEvent() and reject() already

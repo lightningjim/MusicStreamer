@@ -52,9 +52,11 @@ blocked: 0
   reason: "User reported: stuck at 'Fetching avatar...' indefinitely; no avatar ever stored"
   severity: blocker
   test: 2
-  root_cause: "fetch_channel_avatar opts omitted any playlist bound; channel URL triggered full per-video recursive extraction (unbounded by the 10s urllib timeout) so the worker never emitted finished"
-  fix: "playlist_items='0' added to opts (yt_import.py); regression test test_avatar_opts_bound_playlist_items_to_zero"
+  root_cause: "fetch_channel_avatar opts omitted any playlist bound; channel URL triggered full per-video recursive extraction (unbounded by the 10s urllib timeout) so the worker never emitted finished. Quitting while stuck also core-dumped: _shutdown_avatar_fetch_worker only wait(2000)'d, so the still-running child QThread was destroyed -> 'QThread: Destroyed while thread is still running' -> Aborted."
+  fix: "(1) playlist_items='0' bounds extraction to channel metadata only; (2) socket_timeout=10 bounds yt-dlp network ops; (3) _shutdown_avatar_fetch_worker escalates to a full worker.wait() when the 2s cap is exceeded so the QThread is never destroyed while running. Regression test: test_avatar_opts_bound_playlist_items_to_zero."
   artifacts:
     - path: "musicstreamer/yt_import.py"
-      issue: "avatar fetch opts had no playlist_items bound"
+      issue: "avatar fetch opts had no playlist_items bound and no socket_timeout"
+    - path: "musicstreamer/ui_qt/edit_station_dialog.py"
+      issue: "_shutdown_avatar_fetch_worker bounded wait at 2s -> destroy-while-running abort"
   missing: []

@@ -188,6 +188,11 @@ def fetch_channel_avatar(channel_url: str) -> bytes:
         # preserved with playlist_items="0" (verified against @LofiGirl: 0 entries,
         # avatar_uncropped still present). See Phase 89 UAT gap.
         "playlist_items": "0",
+        # Bound yt-dlp's own network ops so extract_info() cannot hang the worker
+        # thread indefinitely on a stalled connection (the worker is wait()-ed at
+        # dialog teardown; an unbounded extract risks "QThread: Destroyed while
+        # thread is still running" on close). See Phase 89 UAT gap.
+        "socket_timeout": 10,
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
