@@ -339,7 +339,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 89-04-PLAN.md — now_playing_panel circular-avatar render path + tier-replay + bind-time load (ART-AVATAR-06/08)
+- [x] 89-04-PLAN.md — now_playing_panel circular-avatar render path + tier-replay + bind-time load (ART-AVATAR-06/08)
 - [ ] 89-05-PLAN.md — EditStationDialog debounced auto-fetch + Refresh button + atomic persist (ART-AVATAR-05)
 
 **Research flag**: YES — `/gsd:plan-phase --research-phase 89` recommended (yt-dlp channel-avatar field stability spike, sibling-rendering regression risk).
@@ -464,7 +464,7 @@ Plans:
 | 88. Windows Packaging Bundle | 4/4 | Complete | 2026-06-13 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 89. YT Channel-Avatar | 3/5 | In Progress|  |
+| 89. YT Channel-Avatar | 4/5 | In Progress|  |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
