@@ -569,6 +569,7 @@ class Repo:
                     streams=self.list_streams(r["id"]),
                     prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                     prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
+                    channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
                 )
             )
         return out
@@ -608,6 +609,7 @@ class Repo:
             streams=self.list_streams(station_id),
             prerolls=self.list_prerolls(station_id),               # Phase 83 D-01/D-03
             prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
+            channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
         )
 
     def delete_station(self, station_id: int):
@@ -717,6 +719,7 @@ class Repo:
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
+                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
             )
             for r in rows
         ]
@@ -832,6 +835,7 @@ class Repo:
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
+                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
             )
             for r in rows
         ]
@@ -840,5 +844,17 @@ class Repo:
         self.con.execute(
             "UPDATE stations SET station_art_path = ? WHERE id = ?",
             (art_path, station_id),
+        )
+        self.con.commit()
+
+    def update_channel_avatar_path(self, station_id: int, path: Optional[str]) -> None:
+        """Phase 89 D-13: write channel_avatar_path for station.
+
+        Not routed through update_station to avoid silent-reset of avatar on saves
+        that don't touch the avatar column (RESEARCH.md Pitfall 5).
+        """
+        self.con.execute(
+            "UPDATE stations SET channel_avatar_path = ? WHERE id = ?",
+            (path, station_id),
         )
         self.con.commit()
