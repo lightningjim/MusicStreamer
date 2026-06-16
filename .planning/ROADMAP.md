@@ -328,7 +328,14 @@ Plans:
   4. Phase 71 sibling-line rendering parity preserved — drift-guard `test_richtext_baseline_unchanged_by_phase_89` mirrors the existing Phase 71 baseline test (Pitfall 13 mitigated).
   5. `EditStationDialog` surfaces a "Refresh avatar" button so the user can manually re-fetch after a channel rebrand; auto-fetch on URL paste matches the Phase 6/17 YT-thumbnail UX precedent.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 89-01-PLAN.md — Thread channel_avatar_path through models/repo + atomic avatar PNG writer (D-12/D-13)
+- [ ] 89-02-PLAN.md — yt_import.fetch_channel_avatar (avatar_uncropped filter) + per-provider registry (D-04)
+- [ ] 89-03-PLAN.md — cover_art.py named precedence wrappers + source-grep drift-guards (ART-AVATAR-07/09/10)
+- [ ] 89-04-PLAN.md — now_playing_panel circular-avatar render path + tier-replay + bind-time load (ART-AVATAR-06/08)
+- [ ] 89-05-PLAN.md — EditStationDialog debounced auto-fetch + Refresh button + atomic persist (ART-AVATAR-05)
 **Research flag**: YES — `/gsd:plan-phase --research-phase 89` recommended (yt-dlp channel-avatar field stability spike, sibling-rendering regression risk).
 **UI hint**: yes
 
@@ -345,6 +352,23 @@ Plans:
 
 **Plans**: TBD
 **Research flag**: NO — Helix `/users` is a single GET, pattern is well-established in `aa_live.py` and elsewhere.
+
+#### Phase 89c (INSERTED): Provider Brand-Avatar Cover-Slot Fallback (SomaFM, AudioAddict)
+
+**Goal**: When per-track cover-art resolution is exhausted for an ICY-metadata provider whose track art frequently misses (SomaFM, AudioAddict/DI.FM), the now-playing cover slot shows a distinct provider brand avatar (circular crop) instead of duplicating the station logo already shown in the left logo slot. Trigger is **cover-resolution-exhausted** — the `if not path:` fallback branch in `now_playing_panel.py:2136` that currently calls `_show_station_logo_in_cover_slot` — **NOT `icy_disabled`**; this is the defining difference from Phase 89/89b, which swap on `icy_disabled`.
+**Depends on**: Phase 89 (cover-slot swap + circular-crop rendering + cover-resolver precedence)
+**Requirements**: ART-AVATAR-11, ART-AVATAR-12
+**Success Criteria** (what must be TRUE):
+
+  1. A provider brand-avatar registry keyed on `provider_name` (bundled assets for SomaFM and AudioAddict; no per-station DB fetch like Phase 89a) resolves a distinct brand image for stations of those providers.
+  2. When per-track cover-art resolution is exhausted (the `now_playing_panel.py:2136` `if not path:` branch) for a station whose `provider_name` has a registered brand avatar, the cover slot renders the provider brand avatar with circular crop instead of the station logo; the left logo slot is unchanged, so the same image is never shown on both panels (the Drone Zone duplicate-logo complaint).
+  3. GBS.FM is excluded by intent — it is a single-station provider where the duplicated logo (left + cover slot) reads as goofy-but-on-brand for the GBS aesthetic, so it keeps current behavior and no brand avatar is registered for it. (Note: the Phase 87 themed-logo override only touches `logo_label`, NOT the cover slot, so GBS would otherwise duplicate too — exclusion is a deliberate vibe choice, not because GBS is already distinct.)
+  4. Stations of providers WITHOUT a registered brand avatar keep current behavior (station logo → generic icon); no regression to the `_show_station_logo_in_cover_slot` path.
+  5. Source-grep drift-guard pins that the provider-avatar lookup fires only on the resolution-exhausted branch (after iTunes/MB-CAA), never short-circuiting Phase 73 MB-CAA per-track coverage.
+
+**Plans**: TBD
+**Research flag**: NO — reuses Phase 89 cover-slot swap + circular-crop rendering; source is bundled provider assets, no new network fetch.
+**UI hint**: yes
 
 #### Phase 87b: GBS Zero-Token Single-Song Add
 
@@ -431,11 +455,12 @@ Plans:
 | 91. FIX-MPRIS | 1/1 | Complete | 2026-06-02 |
 | 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
-| 88. Windows Packaging Bundle | 3/4 | In Progress|  |
+| 88. Windows Packaging Bundle | 4/4 | Complete | 2026-06-13 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
 | 89. YT Channel-Avatar | 0/? | Not started | - |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
+| 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
 | 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
