@@ -11,6 +11,10 @@ Public API:
     abs_art_path(rel_or_abs)   — resolve a relative art path to absolute
     load_station_icon(station) — QPixmapCache-backed QIcon with fallback
     FALLBACK_ICON              — resource path to the generic fallback icon
+    THUMB_FILENAME             — constant filename for pre-scaled thumbnails
+    _thumb_path_for(abs_source) — derive sibling thumb path (D-05)
+    _is_thumb_fresh(source, thumb) — mtime staleness check (D-06)
+    _generate_thumb(source, thumb, station_id, callback) — daemon worker (D-02, D-04)
 
 The module is underscore-prefixed to mark it internal-to-ui_qt; the functions
 and constant are the public surface.
@@ -18,10 +22,12 @@ and constant are the public surface.
 from __future__ import annotations
 
 import os
+import tempfile
+import threading
 from typing import Optional
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QIcon, QPainter, QPixmap, QPixmapCache
+from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap, QPixmapCache
 
 from musicstreamer import paths
 from musicstreamer.ui_qt._theme import STATION_ICON_SIZE
@@ -30,6 +36,7 @@ from musicstreamer.ui_qt import icons_rc  # noqa: F401
 
 
 FALLBACK_ICON = ":/icons/audio-x-generic-symbolic.svg"
+THUMB_FILENAME = "station_art.thumb.png"
 
 
 def abs_art_path(rel_or_abs: Optional[str]) -> Optional[str]:
@@ -43,6 +50,80 @@ def abs_art_path(rel_or_abs: Optional[str]) -> Optional[str]:
     if os.path.isabs(rel_or_abs):
         return rel_or_abs
     return os.path.join(paths.data_dir(), rel_or_abs)
+
+
+def _thumb_path_for(abs_source_path: str) -> str:
+    """Return the sibling thumbnail path for a source logo (D-05).
+
+    The thumbnail is always stored as ``THUMB_FILENAME`` in the same directory
+    as the source logo, e.g. ``assets/12/station_art.thumb.png`` for a source
+    at ``assets/12/station_art.png``.
+    """
+    return os.path.join(os.path.dirname(abs_source_path), THUMB_FILENAME)
+
+
+def _is_thumb_fresh(source_path: str, thumb_path: str) -> bool:
+    """Return True iff the thumbnail is at least as new as the source logo (D-06).
+
+    Returns False on any OSError (missing source or missing thumb).
+    """
+    try:
+        return os.stat(thumb_path).st_mtime >= os.stat(source_path).st_mtime
+    except OSError:
+        return False
+
+
+def _generate_thumb(
+    source_path: str,
+    thumb_path: str,
+    station_id: int,
+    callback,
+) -> None:
+    """Spawn a daemon thread that scales source_path to 96px and writes it atomically (D-02, D-04).
+
+    The worker calls ``callback(station_id, source_path, thumb_path)`` on success
+    or ``callback(station_id, source_path, None)`` on any failure (null image,
+    write error, unexpected exception).
+
+    CR-01: the worker uses QImage only — QPixmap is NOT thread-safe and must
+    never be constructed off the main thread (see gbs_marquee.py line 468).
+    The atomic write uses mkstemp + os.replace so readers see either the old
+    complete file or the new complete file, never a partial write (T-94-04).
+    """
+
+    def _worker():
+        try:
+            img = QImage(source_path)
+            if img.isNull():
+                callback(station_id, source_path, None)
+                return
+
+            # Scale to 96px longest axis, preserve aspect ratio (D-04).
+            scaled = img.scaled(96, 96, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+            thumb_dir = os.path.dirname(thumb_path)
+            os.makedirs(thumb_dir, exist_ok=True)
+
+            # Atomic write: mkstemp in the same directory guarantees a same-fs
+            # rename so os.replace is POSIX-atomic (T-94-04).
+            fd, tmp = tempfile.mkstemp(dir=thumb_dir, suffix=".thumb.tmp.png")
+            try:
+                os.close(fd)
+                if scaled.save(tmp, "PNG"):
+                    os.replace(tmp, thumb_path)
+                    callback(station_id, source_path, thumb_path)
+                else:
+                    callback(station_id, source_path, None)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                callback(station_id, source_path, None)
+        except Exception:
+            callback(station_id, source_path, None)
+
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 def load_station_icon(station, size: int = STATION_ICON_SIZE) -> QIcon:
