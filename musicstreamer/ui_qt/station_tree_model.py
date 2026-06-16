@@ -48,8 +48,6 @@ class StationTreeModel(QAbstractItemModel):
         self._root = _TreeNode(kind="root", label="")
         self._populate(stations)
         # Dedup guard: station ids currently being processed by a daemon worker.
-        # Access is main-thread-only (called from data() and slot); no lock needed.
-        # Dedup guard: station ids currently being processed by a daemon worker.
         # Access is main-thread-only (called from data() and _poll_pending_landings); no lock needed.
         self._in_flight_thumbs: set[int] = set()
         # Thread-safe queue for daemon-thread → main-thread hand-off (Rule 1 fix:
