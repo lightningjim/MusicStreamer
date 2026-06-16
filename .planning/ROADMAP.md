@@ -39,7 +39,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [ ] **Phase 90: SomaFM Preroll Instrumentation** — Size-rotated `preroll-events.log` + hamburger-menu probe; ship+monitor pattern, no behavior change
 - [ ] **Phase 90b (CONDITIONAL): SomaFM Preroll Fix** — Fires only if Phase 90's harvest identifies a clear, atomic root cause for the Boot Liquor / missing-preroll target
 - [ ] **Phase 92: FIX-PLS — PLS URL-Fallback for Codec/Bitrate** — Carry-over from Phase 58 pending-todo: detect codec/bitrate from resolved URL pattern when PLS title metadata is missing
-- [ ] **Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up** — Fires only if any of Phase 84-VERIFICATION.md's 3 Follow-Up Triggers fires during v2.2 dev window
+- [x] **Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up** — Condition FIRED (all 3 triggers); closed-via-deviation 2026-06-15. YouTube live-edge starvation fixed out-of-band (commit f716f083, DVR seek); SomaFM/network residual closed as no-action. See 93-VERIFICATION.md
 - [x] **Phase 94: Sidebar Logo Thumbnail Optimization** — Investigate sidebar scroll slowdown on large lists (e.g., DI.fm); generate pre-scaled small logo variants for sidebar use while preserving full-res for Now Playing
 - [ ] **Phase 95: YT URL-Change Replay Bug** — After editing a YT stream with a changed URL, first play fails with "stream exhausted"; replay picks up the new URL. Diagnose stale cached resolution post-edit, fix to invalidate on station update
 
@@ -440,7 +440,7 @@ Plans:
 | 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
-| 93. BUFFER-MONITOR (CONDITIONAL) | 0/? | Not started | - |
+| 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 0/? | Not started | - |
 
@@ -471,7 +471,7 @@ Tier 6 (Week 7, SomaFM):
 
 Tier 7 (carry-overs, slot-in):
   Phase 92 (FIX-PLS) — independent
-  Phase 93 (CONDITIONAL BUFFER-MONITOR) — trigger-gated
+  Phase 93 (CONDITIONAL BUFFER-MONITOR) — trigger-gated; FIRED + closed 2026-06-15
 ```
 
 ### Coverage Summary (v2.2)

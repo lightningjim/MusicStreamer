@@ -75,7 +75,7 @@ Tier 6 (Week 7, SomaFM):
 Tier 7 (carry-overs):
 
 - Phase 92: FIX-PLS
-- Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up
+- Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up — ✅ FIRED + closed 2026-06-15 (deviation close)
 
 Tier 8 (post-roadmap additions):
 
@@ -118,7 +118,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Channel-avatar precedence is locked at `ICY → iTunes → MB-CAA → channel-avatar → placeholder` — channel-avatar must NEVER short-circuit Phase 73 MB-CAA Vaporwave/niche-electronic coverage (Pitfall 8)
 - Flatpak app ID locked at `io.github.kcreasey.MusicStreamer` (PKG-LIN-FP-01)
 - AppImage GLIBC baseline locked at 2.35 or lower (Ubuntu 22.04 LTS); build container pinned in Phase 85a
-- Phase 90b (SomaFM fix) and Phase 93 (BUFFER-MONITOR) are CONDITIONAL placeholders — they exist in the roadmap but only fire on trigger
+- Phase 90b (SomaFM fix) is a CONDITIONAL placeholder — exists in the roadmap but only fires on trigger
+- Phase 93 (BUFFER-MONITOR) was CONDITIONAL — condition FIRED (all 3 triggers, 05-24→06-07 window); closed 2026-06-15 via deviation: YouTube live-edge starvation fixed out-of-band (commit f716f083, DVR seek), SomaFM/network residual closed as no-action. See 93-VERIFICATION.md
 
 (Phase-level decisions accumulate as phases close; v2.1 phase decisions preserved below.)
 
@@ -160,7 +161,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Category | Item | Status |
 |----------|------|--------|
 | requirement | WIN-02 (SMTC AUMID Start-Menu shortcut) | In v2.2 — Phase 88 |
-| verification | Phase 84 — 2-week buffer-events.log monitor window | In v2.2 — Phase 93 (CONDITIONAL) |
+| verification | Phase 84 — 2-week buffer-events.log monitor window | ✅ Closed — Phase 93 (deviation close, 2026-06-15) |
 | verification | Phase 65 VER-02-J — Win11 VM bundled-exe end-to-end | In v2.2 — Phase 88 |
 | seed | SEED-009 — Linux AppImage install | In v2.2 — Phases 85a + 85 |
 | todo | 2026-05-10-pls-codec-bitrate-url-fallback | In v2.2 — Phase 92 |
