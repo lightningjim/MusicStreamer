@@ -113,6 +113,10 @@ def _generate_thumb(
                     os.replace(tmp, thumb_path)
                     callback(station_id, source_path, thumb_path)
                 else:
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
                     callback(station_id, source_path, None)
             except Exception:
                 try:
