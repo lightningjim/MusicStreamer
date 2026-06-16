@@ -180,6 +180,14 @@ def fetch_channel_avatar(channel_url: str) -> bytes:
     """
     opts = {
         # OMIT extract_flat — it suppresses channel thumbnails (RESEARCH.md Pitfall 3).
+        # BUT bound the playlist to zero items: a bare channel URL otherwise makes
+        # yt-dlp recursively extract every video in the channel (no extract_flat =>
+        # full per-video extraction), which hangs for minutes on large channels and
+        # is never bounded by the 10s urllib timeout below. The channel's own
+        # avatar_uncropped thumbnail lives at the channel/playlist level and is
+        # preserved with playlist_items="0" (verified against @LofiGirl: 0 entries,
+        # avatar_uncropped still present). See Phase 89 UAT gap.
+        "playlist_items": "0",
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,

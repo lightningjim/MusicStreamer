@@ -301,6 +301,28 @@ def test_avatar_opts_do_not_contain_extract_flat():
     assert "extract_flat" not in opts, "extract_flat must NOT be in avatar fetch opts (Pitfall 3)"
 
 
+def test_avatar_opts_bound_playlist_items_to_zero():
+    """Phase 89 UAT gap: a bare channel URL with no playlist bound makes yt-dlp
+    recursively extract every video in the channel (since extract_flat is omitted),
+    hanging on large channels. The avatar lives at the channel level, so
+    playlist_items="0" must bound extraction to channel metadata only."""
+    thumbnails = [{"id": "avatar_uncropped", "url": "http://uncropped.jpg"}]
+    info = _make_channel_info(thumbnails)
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return=info)
+    with p, patch("urllib.request.urlopen") as mock_urlopen:
+        resp = MagicMock()
+        resp.__enter__ = MagicMock(return_value=resp)
+        resp.__exit__ = MagicMock(return_value=False)
+        resp.read.return_value = b"\xff\xd8\xff"
+        mock_urlopen.return_value = resp
+        yt_import.fetch_channel_avatar("https://www.youtube.com/@TestChannel")
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts.get("playlist_items") == "0", (
+        "avatar fetch opts must bound playlist_items to '0' so a channel URL does "
+        "not trigger full per-video extraction (UAT hang)"
+    )
+
+
 def test_avatar_video_url_two_step_resolution():
     """ART-AVATAR-03 / RESEARCH.md Open Question 3: video URL resolves to channel_url first."""
     # First call returns a video info dict (no thumbnails / no avatar_uncropped)
