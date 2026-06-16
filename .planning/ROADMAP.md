@@ -441,7 +441,7 @@ Plans:
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 0/? | Not started | - |
-| 94. Sidebar Logo Thumbnail Optimization | 0/? | Not started | - |
+| 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete   | 2026-06-16 |
 | 95. YT URL-Change Replay Bug | 0/? | Not started | - |
 
 ### Dependency Graph (Tier Summary)
@@ -506,15 +506,15 @@ Plans:
 
 **Wave 1**
 
-- [ ] 94-01-PLAN.md — Wave 0 test scaffolding: 9 RED tests across test_art_paths.py + test_station_thumb_async.py encoding D-01..D-06
+- [x] 94-01-PLAN.md — Wave 0 test scaffolding: 9 RED tests across test_art_paths.py + test_station_thumb_async.py encoding D-01..D-06
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 94-02-PLAN.md — _art_paths.py: thumb helpers + off-UI-thread _generate_thumb worker + load_station_icon fast path (D-02/D-04/D-05/D-06)
+- [x] 94-02-PLAN.md — _art_paths.py: thumb helpers + off-UI-thread _generate_thumb worker + load_station_icon fast path (D-02/D-04/D-05/D-06)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 94-03-PLAN.md — station_tree_model.py: Signal + dedup + index lookup + _on_thumb_landing slot + data() wiring (D-01/D-03)
+- [x] 94-03-PLAN.md — station_tree_model.py: Signal + dedup + index lookup + _on_thumb_landing slot + data() wiring (D-01/D-03)
 
 ### Phase 95: YT URL-change replay bug: post-edit 'stream exhausted' on first play, second play picks up new URL
 

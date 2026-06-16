@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
-stopped_at: Phase 94 context gathered
-last_updated: "2026-06-16T00:08:23.652Z"
-last_activity: 2026-06-16 -- Phase 94 planning complete
+status: executing
+stopped_at: Phase 94 executed — verification human_needed (2 manual UAT items)
+last_updated: "2026-06-16T01:16:14.539Z"
+last_activity: 2026-06-16 -- Phase 94 execution started
 progress:
   total_phases: 20
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 45
-  completed_plans: 41
-  percent: 50
+  completed_plans: 44
+  percent: 55
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87.1 — gbs fm session expiry re login prompt surface gbsauthexpired
+**Current focus:** Phase 94 — optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for
 
 ## Current Position
 
-Phase: 87.1
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-16 -- Phase 94 planning complete
+Phase: 94 (optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for) — EXECUTING
+Plan: 3 of 3
+Status: Executing Phase 94
+Last activity: 2026-06-16 -- Phase 94 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -124,6 +124,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 
 - [Phase ?]: Lazy imports for flatpak_first_launch, paths, FlatpakImportWizard, and QTimer inside _run_gui keep _run_smoke Qt-light (D-05/D-24)
 - [Phase ?]: QTimer.singleShot(0, _maybe_offer_import) defers wizard modal until event loop start so it renders over shown MainWindow
+- [Phase ?]: Legacy 2-arg callers use original load_path behavior when on_thumb_needed=None to preserve existing test contracts
 
 ### Decisions (v2.1, preserved for context)
 
@@ -166,12 +167,14 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 86.1 P02 | 1 | 2 tasks | 2 files |
 | Phase 88 P02 | 104 | 2 tasks | 1 files |
 | Phase 88.3 P01 | 5m | 2 tasks | 5 files |
+| Phase 94-optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for P02 | 22m | 2 tasks | 1 files |
+| Phase 94 P03 | 26 | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-15T23:36:51.805Z
-Stopped at: Phase 94 context gathered
-Resume file: .planning/phases/94-optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for/94-CONTEXT.md
+Last session: 2026-06-16T01:16:14.531Z
+Stopped at: Phase 94 executed — verification human_needed (2 manual UAT items)
+Resume file: .planning/phases/94-optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for/94-HUMAN-UAT.md
 
 ## Operator Next Steps
 
