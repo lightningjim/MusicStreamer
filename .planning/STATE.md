@@ -4,14 +4,14 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 89 context gathered
-last_updated: "2026-06-16T16:19:24.516Z"
+last_updated: "2026-06-16T16:47:32.333Z"
 last_activity: 2026-06-16 -- Phase 89 execution started
 progress:
-  total_phases: 20
+  total_phases: 21
   completed_phases: 13
   total_plans: 50
   completed_plans: 50
-  percent: 65
+  percent: 62
 ---
 
 # Project State
@@ -146,6 +146,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 88.3 inserted after Phase 88: Bundle QtWebEngine in frozen Windows build — OAuth helper crashes exit 2 (oauth_helper.py module-level QtWebEngineWidgets import) because QtWebEngine is not in the musicstreamer-build env nor bundled in MusicStreamer.spec. New gap exposed after 88.2 fixed the launcher. Phase 88 UAT G6/G3-bis (UAT-10 GBS + Twitch + Google all crash). Fix: provision PySide6-Addons/qt6-webengine + explicit WebEngine collect in spec + deepen step-4d guard. (URGENT)
 - Phase 87.1 inserted after Phase 87: GBS.FM session-expiry re-login prompt — surface GbsAuthExpiredError as a re-login affordance instead of silent playlist-load failure (user-reported symptom 2026-06-12; planned feature, GBS cluster, reusable by 87 marquee + 87b)
 - Phase 89c inserted after Phase 89b: Provider brand-avatar cover-slot fallback (SomaFM, AudioAddict) — distinct brand avatar when per-track art resolution is exhausted, trigger is resolution-exhausted not icy_disabled (URGENT)
+- Phase 89.1 inserted after Phase 89: Re-key channel avatar from per-station to per-provider (channel) — dedupe fetch + storage across sibling YT streams of the same channel (URGENT)
 
 ### Pending Todos
 

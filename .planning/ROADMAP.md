@@ -345,6 +345,16 @@ Plans:
 **Research flag**: YES — `/gsd:plan-phase --research-phase 89` recommended (yt-dlp channel-avatar field stability spike, sibling-rendering regression risk).
 **UI hint**: yes
 
+### Phase 89.1: Re-key channel avatar from per-station to per-provider (INSERTED)
+
+**Goal:** Phase 89 stores `channel_avatar_path` on each Station row (`assets/channel-avatars/{station_id}.png`), so every stream of the same YouTube channel (e.g. multiple Lofi Girl streams) fetches and stores the identical avatar. For YouTube imports the provider IS the channel (`yt_import.py:120` sets provider = `playlist_channel`/`playlist_uploader`/`uploader`; `providers.name` is UNIQUE). Move the avatar to the Provider: add `avatar_path` to the `providers` table, key the cached PNG by `provider_id`, persist via a provider-keyed update method, and resolve it in `now_playing_panel.bind_station` and `EditStationDialog` via the station's `provider_id` so all sibling streams reuse one fetch and one file. Fall back to the station thumbnail when `provider_id` is null. Consider migrating the existing `Station.channel_avatar_path` column. Goal: one avatar fetch + one cached file per channel instead of per station.
+**Requirements**: TBD
+**Depends on:** Phase 89
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 89.1 to break down)
+
 #### Phase 89b: Twitch Channel-Avatar Fetch
 
 **Goal**: ICY-disabled Twitch stations show the streamer's Helix `profile_image_url` (circular crop) in the cover slot, sharing the Phase 89 cover-slot integration and the Phase 89a storage layout.
