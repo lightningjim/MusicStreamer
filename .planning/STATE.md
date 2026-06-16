@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: ready_to_plan
-stopped_at: Phase 94 complete (3/3) — ready to discuss Phase 95
-last_updated: 2026-06-16T01:59:13.396Z
-last_activity: 2026-06-15 -- Phase 94 complete (all gates green)
+status: planning
+stopped_at: Phase 89 context gathered
+last_updated: "2026-06-16T03:20:42.692Z"
+last_activity: 2026-06-16
 progress:
   total_phases: 20
   completed_phases: 11
@@ -173,9 +173,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-16T01:16:14.531Z
-Stopped at: Phase 94 complete (verify 6/6, UAT 2/2, security 9/9) — ready to plan Phase 95
-Resume file: None
+Last session: 2026-06-16T03:20:42.683Z
+Stopped at: Phase 89 context gathered
+Resume file: .planning/phases/89-youtube-channel-avatar-fetch-cover-slot-swap/89-CONTEXT.md
 
 ## Operator Next Steps
 
