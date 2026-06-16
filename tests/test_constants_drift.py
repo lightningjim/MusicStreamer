@@ -153,3 +153,30 @@ def test_soma_nn_requirements_registered():
             f"REQUIREMENTS.md missing {req_id} after Phase 74. "
             "Plan 01 Task 1 must register all SOMA-01..SOMA-17 rows."
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 89 / ART-AVATAR-10 drift guard (appended — do NOT modify existing tests above)
+# ---------------------------------------------------------------------------
+
+
+def test_richtext_baseline_unchanged_by_phase_89():
+    """ART-AVATAR-10: Phase 89 must not add new setTextFormat(Qt.RichText) calls.
+
+    The baseline is 3 (established by Phase 71). Phase 89 adds a circular-crop
+    avatar render path that does NOT use Qt.RichText — this test stays GREEN.
+    """
+    pkg_root = Path(__file__).parent.parent / "musicstreamer"
+    needle = "setTextFormat(Qt.RichText)"
+    count = 0
+    for py in pkg_root.rglob("*.py"):
+        try:
+            text = py.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        count += text.count(needle)
+    assert count == EXPECTED_RICHTEXT_COUNT, (
+        f"ART-AVATAR-10 / Phase 89: expected {EXPECTED_RICHTEXT_COUNT} "
+        f"setTextFormat(Qt.RichText) calls in musicstreamer/, found {count}. "
+        "Phase 89 must not add new RichText labels."
+    )
