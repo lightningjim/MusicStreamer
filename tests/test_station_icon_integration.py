@@ -20,11 +20,12 @@ import os
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPixmap, QPixmapCache
+from PySide6.QtTest import QTest
 
 from musicstreamer import paths
 from musicstreamer.models import Station
 from musicstreamer.ui_qt import icons_rc  # noqa: F401 — register :/icons/ prefix
-from musicstreamer.ui_qt._art_paths import FALLBACK_ICON
+from musicstreamer.ui_qt._art_paths import FALLBACK_ICON, load_station_icon
 from musicstreamer.ui_qt.favorites_view import FavoritesView
 from musicstreamer.ui_qt.station_tree_model import StationTreeModel
 
@@ -120,11 +121,19 @@ class _FakeRepo:
 
 
 def test_station_tree_model_decoration_role_returns_real_logo(tmp_data_dir, qtbot):
-    """DecorationRole on a station row must return the real logo (not fallback).
+    """DecorationRole on a station row must ultimately deliver the real logo.
 
-    Regression guard for the original bug: StationTreeModel._icon_for_station
-    passed the raw relative path to QPixmap, which silently returned null, so
-    the generic audio-x-symbolic fallback rendered in its place.
+    Phase 94 D-03: the model path is now async — on the FIRST call data() returns
+    the fallback immediately (no full-res decode on the paint path), enqueues async
+    96px thumb generation, then emits dataChanged.  After QTest.qWait(500) the thumb
+    is on disk and the SECOND call must return the real (green) logo via the 96px
+    thumb fast path.
+
+    Regression guards preserved:
+    - The legacy 2-arg path (load_station_icon without on_thumb_needed) must still
+      return the real logo synchronously — this is the populate-once callers path
+      (favorites_view, station_list_panel) unchanged since Phase 54.
+    - The async model path must deliver the real logo after the thumb lands.
     """
     rel = "assets/100/station_art.png"
     _write_green_logo(os.path.join(tmp_data_dir, rel))
@@ -137,16 +146,39 @@ def test_station_tree_model_decoration_role_returns_real_logo(tmp_data_dir, qtbo
     station_idx = model.index(0, 0, provider_idx)
     assert station_idx.isValid(), "expected a station row under the provider"
 
-    icon = model.data(station_idx, Qt.DecorationRole)
-    assert isinstance(icon, QIcon), f"DecorationRole must return QIcon, got {type(icon)}"
-    assert not icon.isNull()
-
-    center = _icon_center_rgb(icon)
+    # ---- Legacy 2-arg path (no on_thumb_needed) ----
+    # The populate-once callers (favorites_view, station_list_panel) use this path.
+    # Must return the real logo synchronously (Phase 54 path-bug regression guard).
+    QPixmapCache.clear()
+    legacy_icon = load_station_icon(station)
+    assert isinstance(legacy_icon, QIcon)
+    assert not legacy_icon.isNull()
+    legacy_center = _icon_center_rgb(legacy_icon)
     fallback_center = _fallback_center_rgb()
+    assert legacy_center == GREEN_RGB, (
+        f"Legacy 2-arg path returned fallback (center {legacy_center}), expected GREEN. "
+        f"Fallback center: {fallback_center}. Phase 54 path-bug regression."
+    )
+
+    # ---- Async model path (on_thumb_needed wired via data(DecorationRole)) ----
+    # First call returns fallback immediately (D-03: no full-res decode on paint path).
+    QPixmapCache.clear()
+    first_icon = model.data(station_idx, Qt.DecorationRole)
+    assert isinstance(first_icon, QIcon), f"DecorationRole must return QIcon, got {type(first_icon)}"
+    assert not first_icon.isNull()
+
+    # Wait for daemon worker to generate the 96px thumb and _on_thumb_landing to fire.
+    QTest.qWait(500)
+
+    # Second call must return the real (green) logo via the fresh 96px thumb.
+    second_icon = model.data(station_idx, Qt.DecorationRole)
+    assert isinstance(second_icon, QIcon)
+    assert not second_icon.isNull()
+    center = _icon_center_rgb(second_icon)
     assert center == GREEN_RGB, (
-        f"Tree model returned fallback icon (center {center}) instead of the real "
-        f"green logo. Fallback center: {fallback_center}. "
-        "Likely regression: rel path passed directly to QPixmap without abs_art_path."
+        f"After thumb landing, tree model returned fallback (center {center}) "
+        f"instead of the real green logo. Fallback center: {fallback_center}. "
+        "The 96px thumb was not generated or the cache was not evicted correctly."
     )
 
 
