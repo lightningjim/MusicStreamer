@@ -122,11 +122,9 @@ def test_thumb_landing_emits_datachanged(tmp_data_dir, qtbot):
     # Trigger the DecorationRole path — this should call on_thumb_needed ->
     # _request_thumb -> daemon thread.  Symbols _request_thumb / _in_flight_thumbs /
     # _thumb_landing do NOT exist yet (Plan 03) — this line will AttributeError (RED).
-    model.data(station_idx, Qt.DecorationRole)
-
-    # Wait for the daemon thread to finish the PNG write and the QueuedConnection
-    # to deliver _on_thumb_landing -> dataChanged on the main thread.
-    QTest.qWait(500)
+    # Use a signal-driven wait so the test does not flake on a loaded CI host.
+    with qtbot.waitSignal(model.dataChanged, timeout=5000):
+        model.data(station_idx, Qt.DecorationRole)
 
     assert len(emissions) == 1, (
         f"expected exactly 1 dataChanged emission, got {len(emissions)}"
