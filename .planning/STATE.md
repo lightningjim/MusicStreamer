@@ -4,14 +4,14 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: planning
 stopped_at: Phase 89 context gathered
-last_updated: "2026-06-16T03:20:42.692Z"
-last_activity: 2026-06-16
+last_updated: "2026-06-16T14:49:32.014Z"
+last_activity: 2026-06-16 -- Phase 89 planning complete
 progress:
   total_phases: 20
-  completed_phases: 11
-  total_plans: 45
-  completed_plans: 44
-  percent: 55
+  completed_phases: 12
+  total_plans: 50
+  completed_plans: 45
+  percent: 60
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 Phase: 95
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-06-16
+Last activity: 2026-06-16 -- Phase 89 planning complete
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -142,6 +142,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 88.2 inserted after Phase 88: Fix GBS.FM in-app login dialog fails to start (Phase 88 UAT G3) (URGENT)
 - Phase 88.3 inserted after Phase 88: Bundle QtWebEngine in frozen Windows build — OAuth helper crashes exit 2 (oauth_helper.py module-level QtWebEngineWidgets import) because QtWebEngine is not in the musicstreamer-build env nor bundled in MusicStreamer.spec. New gap exposed after 88.2 fixed the launcher. Phase 88 UAT G6/G3-bis (UAT-10 GBS + Twitch + Google all crash). Fix: provision PySide6-Addons/qt6-webengine + explicit WebEngine collect in spec + deepen step-4d guard. (URGENT)
 - Phase 87.1 inserted after Phase 87: GBS.FM session-expiry re-login prompt — surface GbsAuthExpiredError as a re-login affordance instead of silent playlist-load failure (user-reported symptom 2026-06-12; planned feature, GBS cluster, reusable by 87 marquee + 87b)
+- Phase 89c inserted after Phase 89b: Provider brand-avatar cover-slot fallback (SomaFM, AudioAddict) — distinct brand avatar when per-track art resolution is exhausted, trigger is resolution-exhausted not icy_disabled (URGENT)
 
 ### Pending Todos
 
@@ -179,8 +180,6 @@ Resume file: .planning/phases/89-youtube-channel-avatar-fetch-cover-slot-swap/89
 
 ## Operator Next Steps
 
-Phase 88 is held open (Option C). Before 88-03 can close with a clean VM pass:
+✅ Phase 88 CLOSED (2026-06-13). The consolidated Option-C Win11 VM session passed all 8 rows (`88-UAT.md` status: resolved, 0 blocked) covering Phase 88 (G1/G5), 88.1 (G2 SMTC), 88.2 (G3 OAuth-helper launch), and 88.3 (G6 QtWebEngine logins). `88-03-SUMMARY.md` written 2026-06-16 to close the plan-without-summary bookkeeping gap; ROADMAP progress table 88 → 4/4 Complete.
 
-1. ✅ DONE — G2 fix phase (88.1): SMTC winrt bundling fix landed Linux-side (collect_all 5 dists + diagnostics + `--check-mediakeys` + build.ps1 exit-11 guard). 90 tests green, code review clean. VM re-verify rolls into 88-03 (see 88.1-HUMAN-UAT.md).
-2. Create the G3 fix phase (GBS.FM login won't start) — e.g. `/gsd:insert-phase 88.2` then `/gsd:plan-phase 88.2`. VER-02-J blocker. (Phase 88.2 already inserted in roadmap.)
-3. After 88.2 lands, do ONE consolidated Win11 VM session re-running 88-HUMAN-UAT.md rows: UAT-17 (G1), UAT-15 (G5), UAT-3/UAT-7 (G2 — rebuild via build.ps1; step-4c smoke guard fast-fails if winrt still missing), UAT-10 (G3). Set 88-HUMAN-UAT frontmatter status: resolved when all pass, then close 88-03 and verify Phase 88.
+Next: advance v2.2 phase work via `/gsd:next` (Phase 89 YT Channel-Avatar has context gathered and is ready to plan).

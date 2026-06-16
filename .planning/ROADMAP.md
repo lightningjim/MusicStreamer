@@ -331,11 +331,17 @@ Plans:
 **Plans**: 5 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 89-01-PLAN.md — Thread channel_avatar_path through models/repo + atomic avatar PNG writer (D-12/D-13)
 - [ ] 89-02-PLAN.md — yt_import.fetch_channel_avatar (avatar_uncropped filter) + per-provider registry (D-04)
 - [ ] 89-03-PLAN.md — cover_art.py named precedence wrappers + source-grep drift-guards (ART-AVATAR-07/09/10)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 89-04-PLAN.md — now_playing_panel circular-avatar render path + tier-replay + bind-time load (ART-AVATAR-06/08)
 - [ ] 89-05-PLAN.md — EditStationDialog debounced auto-fetch + Refresh button + atomic persist (ART-AVATAR-05)
+
 **Research flag**: YES — `/gsd:plan-phase --research-phase 89` recommended (yt-dlp channel-avatar field stability spike, sibling-rendering regression risk).
 **UI hint**: yes
 
