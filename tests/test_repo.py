@@ -1262,3 +1262,75 @@ def test_channel_avatar_path_schema_convergence():
     row = legacy_con.execute("SELECT name, channel_avatar_path FROM stations").fetchone()
     assert row[0] == "ExistingFM"
     assert row[1] is None, "existing row must have NULL channel_avatar_path"
+
+
+# ---------------------------------------------------------------------------
+# Phase 89 Plan 01: channel_avatar_path model/repo plumbing (D-13)
+# ---------------------------------------------------------------------------
+
+
+def test_channel_avatar_path_default_is_none(repo):
+    """D-13: new station reads back channel_avatar_path == None (no avatar set)."""
+    sid = repo.create_station()
+    st = repo.get_station(sid)
+    assert st.channel_avatar_path is None
+
+
+def test_update_channel_avatar_path_round_trip(repo):
+    """D-13: update_channel_avatar_path writes, get_station reads back the path."""
+    sid = repo.create_station()
+    repo.update_channel_avatar_path(sid, "assets/channel-avatars/12.png")
+    st = repo.get_station(sid)
+    assert st.channel_avatar_path == "assets/channel-avatars/12.png"
+
+
+def test_update_channel_avatar_path_clear(repo):
+    """D-13: update_channel_avatar_path(station_id, None) clears the column back to None."""
+    sid = repo.create_station()
+    repo.update_channel_avatar_path(sid, "assets/channel-avatars/12.png")
+    assert repo.get_station(sid).channel_avatar_path == "assets/channel-avatars/12.png"
+    repo.update_channel_avatar_path(sid, None)
+    assert repo.get_station(sid).channel_avatar_path is None
+
+
+def test_update_station_does_not_reset_channel_avatar_path(repo):
+    """D-13 / Pitfall 5: calling update_station without the avatar kwarg must NOT
+    reset channel_avatar_path (dedicated method only, not routed through update_station)."""
+    sid = repo.create_station()
+    repo.update_channel_avatar_path(sid, "assets/channel-avatars/99.png")
+    # Call update_station without any channel_avatar_path kwarg
+    repo.update_station(sid, "Radio", None, "", None, None, icy_disabled=False)
+    st = repo.get_station(sid)
+    assert st.channel_avatar_path == "assets/channel-avatars/99.png", (
+        "update_station must NOT reset channel_avatar_path (Pitfall 5 — dedicated method only)"
+    )
+
+
+def test_channel_avatar_path_in_list_stations(repo):
+    """D-13: list_stations mapper reads channel_avatar_path."""
+    sid = repo.create_station()
+    repo.update_channel_avatar_path(sid, "assets/channel-avatars/5.png")
+    stations = repo.list_stations()
+    match = next(s for s in stations if s.id == sid)
+    assert match.channel_avatar_path == "assets/channel-avatars/5.png"
+
+
+def test_channel_avatar_path_in_list_recently_played(repo):
+    """D-13: list_recently_played mapper reads channel_avatar_path."""
+    sid = repo.create_station()
+    repo.update_channel_avatar_path(sid, "assets/channel-avatars/7.png")
+    repo.update_last_played(sid)
+    recently = repo.list_recently_played(5)
+    match = next(s for s in recently if s.id == sid)
+    assert match.channel_avatar_path == "assets/channel-avatars/7.png"
+
+
+def test_channel_avatar_path_in_list_favorite_stations(repo):
+    """D-13: list_favorite_stations mapper reads channel_avatar_path."""
+    sid = repo.create_station()
+    repo.update_channel_avatar_path(sid, "assets/channel-avatars/3.png")
+    repo.con.execute("UPDATE stations SET is_favorite=1 WHERE id=?", (sid,))
+    repo.con.commit()
+    favs = repo.list_favorite_stations()
+    match = next(s for s in favs if s.id == sid)
+    assert match.channel_avatar_path == "assets/channel-avatars/3.png"
