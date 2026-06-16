@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Completed 89.1-02-PLAN.md
-last_updated: "2026-06-16T21:02:00.000Z"
+status: ready_to_plan
+stopped_at: Phase 89.1 complete (2/2) — ready to discuss Phase 89A
+last_updated: 2026-06-16T21:16:29.052Z
 last_activity: 2026-06-16 -- Phase 89.1 Plan 02 completed
 progress:
   total_phases: 21
   completed_phases: 13
   total_plans: 52
   completed_plans: 52
-  percent: 63
+  percent: 62
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 89.1 — re-key-channel-avatar-from-per-station-to-per-provider-chann
+**Current focus:** Phase 89A — channel avatar db migration storage layout
 
 ## Current Position
 
-Phase: 89.1 (re-key-channel-avatar-from-per-station-to-per-provider-chann) — COMPLETE
-Plan: 2 of 2 (COMPLETE)
-Status: Phase 89.1 complete — all consumers rewired to provider_avatar_path
-Last activity: 2026-06-16 -- Phase 89.1 Plan 02 completed
+Phase: 89A
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-16
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 228+ (v1.0–v2.1 combined)
+- Total plans completed: 230+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 

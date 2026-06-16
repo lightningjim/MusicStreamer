@@ -483,7 +483,7 @@ Plans:
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
-| 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete   | 2026-06-16 |
+| 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
