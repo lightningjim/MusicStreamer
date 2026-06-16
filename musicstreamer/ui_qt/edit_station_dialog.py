@@ -135,7 +135,7 @@ class _AvatarFetchWorker(QThread):
     """Background channel-avatar fetcher for YouTube URLs (Phase 89-05 / ART-AVATAR-05).
 
     Calls yt_import.fetch_channel_avatar(url) then persists the PNG bytes
-    atomically via assets.write_channel_avatar(station_id, data).
+    atomically via assets.write_provider_avatar(provider_id, data) (Phase 89.1 D-10).
 
     finished Signal: (rel_path_or_empty: str, token: int)
       - rel_path: relative path of saved PNG on success (e.g. 'assets/channel-avatars/1.png')
@@ -157,13 +157,14 @@ class _AvatarFetchWorker(QThread):
     finished = Signal(str, int)  # rel_path_or_empty, token
 
     def __init__(self, url: str, token: int, station_id: int, parent=None,
-                 node_runtime=None):
+                 node_runtime=None, provider_id: "int | None" = None):
         super().__init__(parent)
         self.setObjectName("avatar-fetch-worker")
         self._url = url
         self._token = token
         self._station_id = station_id
         self._node_runtime = node_runtime
+        self._provider_id = provider_id   # Phase 89.1 D-10
 
     def run(self) -> None:  # noqa: N802 (Qt override)
         token = self._token
@@ -172,7 +173,7 @@ class _AvatarFetchWorker(QThread):
             data = yt_import.fetch_channel_avatar(
                 self._url, node_runtime=self._node_runtime
             )
-            rel_path = _assets.write_channel_avatar(self._station_id, data)
+            rel_path = _assets.write_provider_avatar(self._provider_id, data)  # Phase 89.1 D-10
             self.finished.emit(rel_path, token)
         except Exception:
             # WR-04: never raise out of run(). Emit empty path to signal failure.
@@ -383,6 +384,7 @@ class EditStationDialog(QDialog):
         # Separate from _logo_fetch_token — logo and avatar are orthogonal.
         self._avatar_fetch_worker: Optional[_AvatarFetchWorker] = None
         self._avatar_fetch_token: int = 0
+        self._force_avatar_refresh: bool = False  # Phase 89.1 D-08: bypass D-07 reuse gate
         logo_row = QHBoxLayout()
         logo_row.setContentsMargins(0, 0, 0, 0)
         logo_row.setSpacing(8)
@@ -1302,6 +1304,14 @@ class EditStationDialog(QDialog):
         # Separate monotonic token so stale logo and stale avatar don't collide.
         lower = url.lower()
         if "youtube.com" in lower or "youtu.be" in lower:
+            # Phase 89.1 D-07: skip network fetch if provider already has an avatar,
+            # unless _force_avatar_refresh is True (D-08 Refresh bypass).
+            provider_avatar = getattr(self._station, "provider_avatar_path", None)
+            if provider_avatar and not getattr(self, "_force_avatar_refresh", False):
+                self._avatar_status.setText("Avatar loaded from channel (shared)")
+                self._refresh_avatar_preview()
+                return
+
             self._avatar_fetch_token += 1
             avatar_token = self._avatar_fetch_token
             self._avatar_status.setText("Fetching avatar\u2026")
@@ -1311,6 +1321,7 @@ class EditStationDialog(QDialog):
                 station_id=self._station.id,
                 parent=self,
                 node_runtime=self._node_runtime,
+                provider_id=self._station.provider_id,  # Phase 89.1 D-10
             )
             self._avatar_fetch_worker.finished.connect(self._on_avatar_fetched)
             self._avatar_fetch_worker.start()
@@ -1459,13 +1470,19 @@ class EditStationDialog(QDialog):
                 return
 
             # Success path (D-12): preview update + main-thread DB write.
+            # Phase 89.1: re-key to provider_avatar_path (D-04/D-07/D-08).
             # Update in-memory station model so _refresh_avatar_preview resolves
             # correctly without re-reading from disk.
-            self._station.channel_avatar_path = rel_path
+            self._station.provider_avatar_path = rel_path              # Phase 89.1 D-05
             self._refresh_avatar_preview()
-            self._avatar_status.setText("Avatar found")
+            # D-08: shared-effect hint — other sibling stations share this avatar.
+            provider_name = getattr(self._station, "provider_name", None) or "this channel"
+            self._avatar_status.setText(
+                f"Avatar saved — all {provider_name} stations updated"
+            )
             # Persist to DB on the main thread (SQLite write off-main-thread is unsafe).
-            self._repo.update_channel_avatar_path(self._station.id, rel_path)
+            # Phase 89.1: route through update_provider_avatar_path (D-09, Pitfall 5).
+            self._repo.update_provider_avatar_path(self._station.provider_id, rel_path)
         except Exception:
             # WR-04: never raise out of a slot.
             self._avatar_status.setText("Avatar save failed")
@@ -1513,11 +1530,12 @@ class EditStationDialog(QDialog):
         """Load the cached avatar PNG into the 64×64 preview label.
 
         Uses paths.data_dir() to resolve the relative path stored in
-        self._station.channel_avatar_path. Clears the label on missing/null image.
-        Square preview only — circular crop is the now-playing panel's concern.
-        Main thread only: QPixmap construction is not thread-safe.
+        self._station.provider_avatar_path (Phase 89.1 D-05). Clears the label
+        on missing/null image. Square preview only — circular crop is the
+        now-playing panel's concern. Main thread only: QPixmap construction is
+        not thread-safe.
         """
-        rel = getattr(self._station, "channel_avatar_path", None)
+        rel = getattr(self._station, "provider_avatar_path", None)  # Phase 89.1 D-05
         if not rel:
             self._avatar_preview.clear()
             return
@@ -1537,6 +1555,10 @@ class EditStationDialog(QDialog):
     def _on_refresh_avatar_clicked(self) -> None:
         """Manual Refresh: stop the debounce timer and trigger avatar fetch immediately.
 
+        Phase 89.1 D-08: bypasses the D-07 reuse-on-open gate by setting
+        _force_avatar_refresh = True for the duration of the call, ensuring
+        a fresh network fetch overwrites the existing per-provider file.
+        The try/finally guarantees the flag is always cleared (even on exception).
         Mirrors _on_fetch_logo_clicked — same async path so D-11 (Refresh reuses
         the identical worker pipeline) is satisfied.
         """
@@ -1544,7 +1566,11 @@ class EditStationDialog(QDialog):
         url = self.url_edit.text().strip()
         if not url:
             return
-        self._on_url_timer_timeout()
+        self._force_avatar_refresh = True   # Phase 89.1 D-08: bypass D-07 gate
+        try:
+            self._on_url_timer_timeout()
+        finally:
+            self._force_avatar_refresh = False
 
     def _shutdown_avatar_fetch_worker(self) -> None:
         """Bound-wait for the avatar fetch worker so QThread destroy-while-running
