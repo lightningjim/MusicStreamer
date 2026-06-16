@@ -578,17 +578,15 @@ def _on_thumb_landing(self, station_id: int, source_path: str,
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Signal arity: `(int, str, str)` vs `(int, str)`**
+1. **Signal arity: `(int, str, str)` vs `(int, str)`** — **RESOLVED:** three-arg `Signal(int, str, str)` emitting `(station_id, source_path, thumb_path)`. Locked into Plan 94-03 (`must_haves.artifacts` + Task 1 action) and PATTERNS.md.
    - What we know: `_on_thumb_landing` needs `station_id` to look up the model index, and either `source_path` (to compute cache key) or `thumb_path` (to load the pixmap).
-   - What's unclear: whether to emit `(station_id, source_path, thumb_path)` or just `(station_id, thumb_path)` and re-derive source path by stripping `.thumb.png` suffix.
-   - Recommendation: Use three-arg `Signal(int, str, str)` emitting `(station_id, source_path, thumb_path)`. Avoids fragile string surgery on `.thumb.png` suffix.
+   - Why: three-arg avoids fragile string surgery on the `.thumb.png` suffix when reconstructing the `station-logo:{source_path}` cache key for eviction.
 
-2. **favorites_view.py and station_list_panel.py also call `load_station_icon`**
-   - What we know: `favorites_view.py:153` and `station_list_panel.py:495` call `load_station_icon`. These are called during `_populate_stations()` (not during paint). They do not pass `on_thumb_needed`.
-   - What's unclear: whether these callers should also trigger async generation.
-   - Recommendation: The primary jank surface is `StationTreeModel.data()` (DecorationRole during paint). `favorites_view` and `station_list_panel._populate_recent` are called once at populate time, not during scroll. They will benefit from the thumbnail path automatically (cache hit on subsequent calls to `load_station_icon` after thumb is generated). No changes needed at those call sites for the phase goal.
+2. **favorites_view.py and station_list_panel.py also call `load_station_icon`** — **RESOLVED:** no changes needed at those call sites for the phase goal (confirmed in Plan 94-02 Task 2 behavior — 2-arg callers preserved unchanged).
+   - What we know: `favorites_view.py:153` and `station_list_panel.py:495` call `load_station_icon` during `_populate_stations()` (not during paint); they do not pass `on_thumb_needed`.
+   - Why: the primary jank surface is `StationTreeModel.data()` (DecorationRole during paint). Populate-time callers are invoked once, not during scroll, and benefit from the thumbnail automatically on subsequent cache hits once a thumb exists.
 
 ---
 

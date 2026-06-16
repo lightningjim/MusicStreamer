@@ -58,6 +58,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   4. Spike outcome document captures the AppRun env-var template (`GST_PLUGIN_SYSTEM_PATH_1_0`, `GST_PLUGIN_PATH_1_0`, `GST_PLUGIN_SCANNER`, `GST_REGISTRY_FORK=no`) ready for Phase 85 consumption.
 
 **Plans**: 8 plans across 6 waves
+
 - [x] 85A-01-PLAN.md — Host tooling install + environment manifest (Wave 0)
 - [x] 85A-02-PLAN.md — Dockerfile + environment-spike.yml (Wave 1, parallel with 03)
 - [x] 85A-03-PLAN.md — Toolchain SHA256 pins + verify-pins.sh drift-guard (Wave 1, parallel with 02)
@@ -81,7 +82,9 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
   3. Phase 77's `test_richtext_baseline_unchanged_by_phase_71` drift-guard remains green; no source-introspection regressions introduced by the repair.
 
 **Plans**: 1 plan, 1 wave
+
 - [x] 91-01-PLAN.md — Bookkeeping close-out: verify Phase 77 MPRIS2 closure (378440c) holds, fix the miswritten SC1 grep to the anchored PCRE form, refresh the SC2 baseline, flip FIX-MPRIS-01/02/03 to Complete
+
 **Research flag**: NO — pattern is well-established (Phase 77 D-04 + shared FakePlayer convention).
 
 #### Phase 85: Linux Common + AppImage Build
@@ -128,11 +131,13 @@ Plans:
   5. First launch on a host with existing `~/.local/share/musicstreamer/` offers the in-app import wizard (Phase 25 settings-export ZIP flow); manifest declares zero broad filesystem permissions; `appstreamcli validate` and `desktop-file-validate` both pass pre-flight.
 
 **Plans**: 5 plans (3 waves)
+
 - [x] 86-01-PLAN.md — Manifest + python3-modules.yaml + .desktop/metainfo artifacts (FP-01/03/04/05/09/10)
 - [x] 86-02-PLAN.md — First-launch import wizard reusing Phase 25 ZIP flow (FP-06)
 - [x] 86-03-PLAN.md — Manifest allow/deny-list + runtime-pin + validator + first-launch drift-guards (FP-01/03/04/05/06/08/09/10)
 - [x] 86-04-PLAN.md — build.sh + workflow_dispatch CI + GPG signing + REQUIREMENTS signing row (FP-02/04/10/11)
 - [x] 86-05-PLAN.md — UAT evidence bundle: install/launch, AAC, GBS.FM login, MPRIS2 (FP-02/05/07/08)
+
 **Research flag**: YES — `/gsd:plan-phase --research-phase 86` recommended (QtWebEngine sandbox-in-sandbox, BaseApp version pinning, Flathub policy nuances).
 
 ### Phase 86.1: SC5 failure followup from phase 86 (INSERTED)
@@ -143,6 +148,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
+
 - [x] 86.1-01-PLAN.md — Add is_sandboxed() helper + make run_migration() sandbox-aware (skip auto-copy, keep marker/dest dir); secrets never copied without consent
 - [x] 86.1-02-PLAN.md — Wire FlatpakImportWizard into _run_gui (gated on is_sandboxed AND should_offer, deferred via singleShot after window.show()); gate-logic tests
 
@@ -173,6 +179,7 @@ Plans:
 **Wave 3** *(gap closure — G1; disjoint files from Waves 1-2)*
 
 - [x] 88-04-PLAN.md — Installer [InstallDelete] dist-info cleanup: scoped `{app}\_internal\musicstreamer-*.dist-info` wildcard fixes stale-version mislabel + VM-only UAT-17 row (WIN-02-A, VER-02-J)
+
 **Research flag**: NO — spike-style first-plan (WPR trace + `Get-StartApps` PowerShell verification) lives inside the phase but no `--research-phase` needed.
 
 ### Phase 88.3: Bundle QtWebEngine in frozen Windows build so OAuth logins run — Phase 88 UAT G6 (INSERTED)
@@ -183,6 +190,7 @@ Plans:
 **Plans:** 5 plans (88.3-01 HISTORICAL same-bundle, retained + reverted; 88.3-02..05 are the B1 replan)
 
 Plans:
+
 - [x] 88.3-01-PLAN.md — (HISTORICAL — same-bundle attempt, INVALIDATED at G6 UAT; its changes are reverted by the B1 replan) Wave 0 drift-guard tests + spec WebEngine hiddenimports + __main__.py --check-webengine guard + build.ps1 step-4e/preflight + README precondition
 - [x] 88.3-02-PLAN.md — [wave 1] Revert the same-bundle changes: strip WebEngine hiddenimports from the conda spec, remove --check-webengine from __main__.py, drop build.ps1 step-0 preflight + step-4e, re-point the 5 drift-guards at B1 invariants (G6-T1..T5)
 - [x] 88.3-03-PLAN.md — [wave 1] Rewire the frozen launch path to spawn the SEPARATE oauth_helper.exe (replacing 88.2's self-re-exec) + platform-aware _CHROME_UA so Twitch accepts the Windows login
@@ -198,8 +206,11 @@ Plans:
 
 Plans:
 **Wave 1**
+
 - [x] 88.2-01-PLAN.md — D-01 shared frozen-safe launcher (`_make_oauth_launch_args` + `__main__.py --oauth-helper` dispatch + 3 call-site rewires) + D-04 Linux frozen-dispatch test
+
 **Wave 2** *(depends on 88.2-01)*
+
 - [x] 88.2-02-PLAN.md — D-02/D-03 errorOccurred handlers (WR-03 reset + log + cookie-import fallback) + D-05 build.ps1 oauth-helper smoke guard (exit 12) + source-text drift-guard
 
 ### Phase 88.1: Fix SMTC media overlay absent and dead media keys on bundled Windows build (Phase 88 UAT G2) (INSERTED)
@@ -210,6 +221,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
+
 - [x] 88.1-01-PLAN.md — D-03 factory backend-selection logging + `--check-mediakeys` headless harness + SMTC factory-log test extensions
 - [x] 88.1-02-PLAN.md — D-01/D-02 spec collect_all for 5 winrt distributions + D-05 build.ps1 SMTC smoke guard (exit 11) + D-04 Linux static drift-guard test
 
@@ -289,6 +301,7 @@ Plans:
 **Root cause / existing state:** Detection ALREADY exists — `gbs_api.py` raises `GbsAuthExpiredError` (`gbs_api.py:86`) on a `302 → /accounts/login/` redirect ("session cookie no longer authorizes"). The gap is HANDLING/UX: that exception is not surfaced to the user as a re-login prompt, so callers experience a silent load failure. This phase is NOT about detecting expiry (done) — it catches `GbsAuthExpiredError` at the GBS call sites and routes to a re-login affordance.
 
 **Scope:**
+
 - Catch `GbsAuthExpiredError` at the existing GBS call sites — primarily the active-playlist loader (`fetch_active_playlist`), plus vote/search/submit — and present a non-dismissive "session expired, re-login" prompt that launches the existing GBS login flow, then retries/refreshes on success.
 - Provide a SHARED expiry→re-login handler that the Phase 87 `GbsMarqueeWorker` poller and the Phase 87b zero-token add can reuse (both call `gbs_api` with the same cookies and can hit the same `GbsAuthExpiredError`) — avoid each call site re-implementing error handling.
 - No silent dead-ends: if the user cancels re-login, show a clear inline state, not an empty/failed load.
@@ -299,6 +312,7 @@ Plans:
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (run /gsd:plan-phase 87.1 to break down)
 
 #### Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap
@@ -483,14 +497,24 @@ Tier 7 (carry-overs, slot-in):
 
 ### Phase 94: Optimize sidebar logo loading with pre-scaled thumbnails for large station lists
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Sidebar scrolling on large station lists (DI.fm-scale) stays smooth on the first pass by rendering pre-scaled 96px logo thumbnails, generated lazily off the UI thread on cache/file miss, while the full-res station_art continues to feed the Now Playing panel unchanged.
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06 (CONTEXT.md locked decisions)
 **Depends on:** Phase 92
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 94 to break down)
+**Wave 1**
+
+- [ ] 94-01-PLAN.md — Wave 0 test scaffolding: 9 RED tests across test_art_paths.py + test_station_thumb_async.py encoding D-01..D-06
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 94-02-PLAN.md — _art_paths.py: thumb helpers + off-UI-thread _generate_thumb worker + load_station_icon fast path (D-02/D-04/D-05/D-06)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 94-03-PLAN.md — station_tree_model.py: Signal + dedup + index lookup + _on_thumb_landing slot + data() wiring (D-01/D-03)
 
 ### Phase 95: YT URL-change replay bug: post-edit 'stream exhausted' on first play, second play picks up new URL
 
@@ -617,4 +641,5 @@ Phase directories: `.planning/milestones/v2.1-phases/`
 **Plans:** 0 plans
 
 Plans:
+
 - [ ] TBD (promote with /gsd:review-backlog when ready)
