@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Completed 89.1-01-PLAN.md
-last_updated: "2026-06-16T20:43:22.203Z"
-last_activity: 2026-06-16 -- Phase 89.1 Plan 01 completed
+stopped_at: Completed 89.1-02-PLAN.md
+last_updated: "2026-06-16T21:02:00.000Z"
+last_activity: 2026-06-16 -- Phase 89.1 Plan 02 completed
 progress:
   total_phases: 21
   completed_phases: 13
   total_plans: 52
-  completed_plans: 51
-  percent: 62
+  completed_plans: 52
+  percent: 63
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 89.1 (re-key-channel-avatar-from-per-station-to-per-provider-chann) — EXECUTING
-Plan: 2 of 2
-Status: Executing Phase 89.1
-Last activity: 2026-06-16 -- Phase 89.1 execution started
+Phase: 89.1 (re-key-channel-avatar-from-per-station-to-per-provider-chann) — COMPLETE
+Plan: 2 of 2 (COMPLETE)
+Status: Phase 89.1 complete — all consumers rewired to provider_avatar_path
+Last activity: 2026-06-16 -- Phase 89.1 Plan 02 completed
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -132,6 +132,9 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase 89.1 Plan 01]: Backfill guards provider_id and channel_avatar_path column presence before running SQL (avoids OperationalError on legacy test-fixture schemas)
 - [Phase 89.1 Plan 01]: Same-file skip in backfill: when station_id == provider_id, abspath comparison skips copy but DB UPDATE still runs (file already provider-keyed)
 - [Phase 89.1 Plan 01]: Cleanup pass excludes rows where s.channel_avatar_path == p.avatar_path to prevent deleting the newly-written provider file
+- [Phase 89.1 Plan 02]: bind_station uses os.path.isfile guard on provider_avatar_path before _set_avatar_pixmap_from_path (D-06 / T-89.1-05)
+- [Phase 89.1 Plan 02]: D-07 reuse gate placed inside the YouTube URL branch of _on_url_timer_timeout; controlled by _force_avatar_refresh instance flag (D-08)
+- [Phase 89.1 Plan 02]: _on_refresh_avatar_clicked uses try/finally to guarantee _force_avatar_refresh resets to False after D-08 bypass
 
 ### Decisions (v2.1, preserved for context)
 

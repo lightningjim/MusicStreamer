@@ -359,7 +359,7 @@ Plans:
 
 **Wave 2** *(consumers — blocked on 89.1-01)*
 
-- [ ] 89.1-02-PLAN.md — cover_art._channel_avatar_lookup + now_playing_panel.bind_station repoint to provider_avatar_path with file-existence guard (D-04/05/06) + EditStationDialog reuse-on-open / force-refresh bypass / provider-keyed persist+write / shared-effect hint (D-07/08) + lookup-test re-point
+- [x] 89.1-02-PLAN.md — cover_art._channel_avatar_lookup + now_playing_panel.bind_station repoint to provider_avatar_path with file-existence guard (D-04/05/06) + EditStationDialog reuse-on-open / force-refresh bypass / provider-keyed persist+write / shared-effect hint (D-07/08) + lookup-test re-point
 
 **Research flag**: NO — direct re-key of the existing Phase 89 mechanism mirroring Phase 89A/89 patterns; RESEARCH/PATTERNS already mapped every analog.
 
@@ -483,7 +483,7 @@ Plans:
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
-| 89.1. Re-key Avatar Per-Provider (INSERTED) | 1/2 | In Progress|  |
+| 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete   | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 0/? | Not started | - |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
