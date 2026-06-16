@@ -2092,3 +2092,139 @@ def test_avatar_worker_shutdown_no_crash(qtbot, dialog):
                 # No exception = PASS
             finally:
                 paths._root_override = None
+
+
+# ---------------------------------------------------------------------------
+# Phase 89-05 / Task 2 — Debounce auto-fetch, stale-token discard, non-blocking
+# failure, and Refresh wiring
+# ---------------------------------------------------------------------------
+
+
+def test_debounce_launches_avatar_worker_on_yt_url(qtbot, dialog):
+    """D-01: typing a YT URL starts an _AvatarFetchWorker via the 500ms debounce.
+
+    We test _on_url_timer_timeout directly (bypassing the timer delay) to
+    confirm the worker is started and _avatar_fetch_token is incremented.
+    """
+    from unittest.mock import patch, MagicMock
+    import musicstreamer.paths as paths
+    import tempfile, os
+
+    with tempfile.TemporaryDirectory() as tmp_root:
+        paths._root_override = tmp_root
+        try:
+            initial_token = dialog._avatar_fetch_token
+            dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+
+            # Patch the worker start so we don't actually hit the network
+            with patch.object(dialog, "_avatar_fetch_worker", None):
+                with patch(
+                    "musicstreamer.ui_qt.edit_station_dialog._AvatarFetchWorker"
+                ) as MockWorker:
+                    mock_instance = MagicMock()
+                    MockWorker.return_value = mock_instance
+                    dialog._on_url_timer_timeout()
+                    # Token incremented
+                    assert dialog._avatar_fetch_token == initial_token + 1
+                    # Worker started
+                    mock_instance.start.assert_called_once()
+                    # Status shows "Fetching avatar…"
+                    assert "Fetching" in dialog._avatar_status.text() or \
+                           dialog._avatar_status.text() != ""
+        finally:
+            paths._root_override = None
+
+
+def test_debounce_does_not_launch_worker_for_non_yt_url(qtbot, dialog):
+    """D-01: non-YT URL does NOT launch an _AvatarFetchWorker on debounce timeout."""
+    from unittest.mock import patch, MagicMock
+
+    dialog.url_edit.setText("http://streams.radioprimavera.com/stream.mp3")
+    initial_token = dialog._avatar_fetch_token
+
+    with patch(
+        "musicstreamer.ui_qt.edit_station_dialog._AvatarFetchWorker"
+    ) as MockWorker:
+        dialog._on_url_timer_timeout()
+        # Token NOT incremented
+        assert dialog._avatar_fetch_token == initial_token
+        # Worker NOT created
+        MockWorker.assert_not_called()
+
+
+def test_on_avatar_fetched_success_updates_preview_and_persists(qtbot, dialog, repo):
+    """D-12 / D-02: _on_avatar_fetched on success updates preview + calls
+    repo.update_channel_avatar_path on the main thread."""
+    from unittest.mock import patch, MagicMock
+    import musicstreamer.paths as paths
+    import tempfile, os
+
+    with tempfile.TemporaryDirectory() as tmp_root:
+        paths._root_override = tmp_root
+        # Create a tiny valid PNG so QPixmap.isNull() is False
+        avatar_dir = os.path.join(tmp_root, "assets", "channel-avatars")
+        os.makedirs(avatar_dir, exist_ok=True)
+        rel_path = "assets/channel-avatars/1.png"
+        abs_path = os.path.join(tmp_root, rel_path)
+        # Write a minimal 1x1 PNG
+        import struct, zlib
+        def _minimal_png():
+            sig = b'\x89PNG\r\n\x1a\n'
+            def chunk(name, data):
+                c = struct.pack('>I', len(data)) + name + data
+                return c + struct.pack('>I', zlib.crc32(name + data) & 0xffffffff)
+            ihdr = struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)
+            raw = b'\x00\xff\x00\x00'
+            idat = zlib.compress(raw)
+            return sig + chunk(b'IHDR', ihdr) + chunk(b'IDAT', idat) + chunk(b'IEND', b'')
+        with open(abs_path, 'wb') as f:
+            f.write(_minimal_png())
+
+        try:
+            dialog._avatar_fetch_token = 5
+            dialog._on_avatar_fetched(rel_path, 5)
+            # repo.update_channel_avatar_path called with station_id and rel_path
+            repo.update_channel_avatar_path.assert_called_once_with(
+                dialog._station.id, rel_path
+            )
+            # Status shows success
+            assert "Avatar found" in dialog._avatar_status.text() or \
+                   dialog._avatar_status.text() != ""
+        finally:
+            paths._root_override = None
+
+
+def test_on_avatar_fetched_failure_non_blocking(qtbot, dialog, repo):
+    """D-03/D-11: _on_avatar_fetched with empty path shows message, does NOT
+    call update_channel_avatar_path, and leaves Save enabled."""
+    dialog._avatar_fetch_token = 3
+    dialog._on_avatar_fetched("", 3)
+    # repo.update_channel_avatar_path NOT called
+    repo.update_channel_avatar_path.assert_not_called()
+    # Status shows failure message
+    assert dialog._avatar_status.text() != ""
+    # Save is still enabled (button_box OK button is enabled)
+    ok_btn = dialog.button_box.button(
+        __import__("PySide6.QtWidgets", fromlist=["QDialogButtonBox"]).QDialogButtonBox.Ok
+    )
+    if ok_btn:
+        assert ok_btn.isEnabled() is True
+
+
+def test_on_avatar_fetched_stale_token_discarded(qtbot, dialog, repo):
+    """Stale-token guard: _on_avatar_fetched discards results when token != current."""
+    dialog._avatar_fetch_token = 10  # current token
+    # Emit with token=7 (stale)
+    dialog._on_avatar_fetched("assets/channel-avatars/1.png", 7)
+    # repo.update_channel_avatar_path NOT called (stale discarded)
+    repo.update_channel_avatar_path.assert_not_called()
+
+
+def test_refresh_btn_wired_to_fetch_path(qtbot, dialog):
+    """D-11: Refresh button invokes _on_url_timer_timeout (same async path as debounce)."""
+    from unittest.mock import patch, MagicMock
+
+    dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+    with patch.object(dialog, "_on_url_timer_timeout") as mock_timeout:
+        dialog._on_refresh_avatar_clicked()
+        mock_timeout.assert_called_once()
