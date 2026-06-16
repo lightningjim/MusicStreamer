@@ -79,9 +79,9 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [x] **ART-AVATAR-03**: For YouTube stations, `yt_import.fetch_channel_avatar(channel_url) -> bytes` returns a square channel-avatar image; filters `info.get('thumbnails', [])` for entries with `id == 'avatar_uncropped'` (preferred) or `id == 'avatar'`; rejects entries where `width != height`
 - [ ] **ART-AVATAR-04**: For Twitch stations, `musicstreamer/twitch_helix.py` fetches the channel `profile_image_url` from `GET https://api.twitch.tv/helix/users?login=<x>` using the existing Phase 32 `twitch-token.txt` user token (no new OAuth scopes)
 - [x] **ART-AVATAR-05**: Avatar auto-fetches on URL paste in `EditStationDialog` (consistent with the Phase 6/17 YT thumbnail behavior) AND surfaces a "Refresh avatar" button for manual re-fetch on demand
-- [ ] **ART-AVATAR-06**: When ICY metadata is disabled for a YT or Twitch station AND a channel avatar exists, the now-playing cover slot displays the channel avatar (circular crop) instead of duplicating the station thumbnail
+- [x] **ART-AVATAR-06**: When ICY metadata is disabled for a YT or Twitch station AND a channel avatar exists, the now-playing cover slot displays the channel avatar (circular crop) instead of duplicating the station thumbnail
 - [x] **ART-AVATAR-07**: When ICY metadata is enabled (any station, any provider), cover-resolver precedence stays **`ICY → iTunes → MB-CAA → channel-avatar → placeholder`** — channel-avatar fallback fires ONLY when ICY is empty/disabled; never short-circuits Phase 73 MB-CAA Vaporwave/niche-electronic coverage
-- [ ] **ART-AVATAR-08**: Avatar load completes in under 1 second from station-bind (cached after first fetch); cover-slot reverts to current behavior (placeholder or station thumbnail) if avatar fetch fails
+- [x] **ART-AVATAR-08**: Avatar load completes in under 1 second from station-bind (cached after first fetch); cover-slot reverts to current behavior (placeholder or station thumbnail) if avatar fetch fails
 - [x] **ART-AVATAR-09**: Source-grep drift-guard `test_cover_resolution_precedence` asserts `_mb_caa_lookup` appears in source BEFORE `_channel_avatar_lookup` (per `feedback_gstreamer_mock_blind_spot.md` lesson — source-level gates beat behavioral mocks)
 - [x] **ART-AVATAR-10**: Phase 71 sibling rendering parity preserved — new drift-guard `test_richtext_baseline_unchanged_by_phase_89` mirrors the existing Phase 71 baseline test
 - [ ] **ART-AVATAR-11**: A provider brand-avatar registry keyed on `provider_name` supplies a distinct brand image for SomaFM and AudioAddict/DI.FM stations; shipped as **bundled assets** (not a per-station fetch/store like ART-AVATAR-01/02), and explicitly **excludes GBS.FM** by intent — a single-station provider where the duplicated logo reads as goofy-but-on-brand, so it keeps current behavior (the Phase 87 themed override only touches `logo_label`, not the cover slot, so this is a deliberate vibe choice, not because GBS is already distinct)
@@ -204,9 +204,9 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | ART-AVATAR-03 | Phase 89 | Complete |
 | ART-AVATAR-04 | Phase 89b | Pending |
 | ART-AVATAR-05 | Phase 89 | Complete |
-| ART-AVATAR-06 | Phase 89 | Pending |
+| ART-AVATAR-06 | Phase 89 | Complete |
 | ART-AVATAR-07 | Phase 89 | Complete |
-| ART-AVATAR-08 | Phase 89 | Pending |
+| ART-AVATAR-08 | Phase 89 | Complete |
 | ART-AVATAR-09 | Phase 89 | Complete |
 | ART-AVATAR-10 | Phase 89 | Complete |
 | ART-AVATAR-11 | Phase 89c | Pending |
