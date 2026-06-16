@@ -641,7 +641,7 @@ class Repo:
     def list_stations(self) -> List[Station]:
         rows = self.con.execute(
             """
-            SELECT s.*, p.name AS provider_name
+            SELECT s.*, p.name AS provider_name, p.avatar_path AS provider_avatar_path
             FROM stations s
             LEFT JOIN providers p ON p.id = s.provider_id
             ORDER BY COALESCE(p.name,'') COLLATE NOCASE, s.name COLLATE NOCASE
@@ -666,7 +666,8 @@ class Repo:
                     streams=self.list_streams(r["id"]),
                     prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                     prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
-                    channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
+                    channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
+                    provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
                 )
             )
         return out
@@ -681,7 +682,7 @@ class Repo:
     def get_station(self, station_id: int) -> Station:
         r = self.con.execute(
             """
-            SELECT s.*, p.name AS provider_name
+            SELECT s.*, p.name AS provider_name, p.avatar_path AS provider_avatar_path
             FROM stations s
             LEFT JOIN providers p ON p.id = s.provider_id
             WHERE s.id = ?
@@ -706,7 +707,8 @@ class Repo:
             streams=self.list_streams(station_id),
             prerolls=self.list_prerolls(station_id),               # Phase 83 D-01/D-03
             prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
-            channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
+            channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
+            provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
         )
 
     def delete_station(self, station_id: int):
@@ -790,7 +792,7 @@ class Repo:
     def list_recently_played(self, n: int = 5) -> List[Station]:
         rows = self.con.execute(
             """
-            SELECT s.*, p.name AS provider_name
+            SELECT s.*, p.name AS provider_name, p.avatar_path AS provider_avatar_path
             FROM stations s
             LEFT JOIN providers p ON p.id = s.provider_id
             WHERE s.last_played_at IS NOT NULL
@@ -816,7 +818,8 @@ class Repo:
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
-                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
+                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
+                provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
             )
             for r in rows
         ]
@@ -908,7 +911,7 @@ class Repo:
     def list_favorite_stations(self) -> List[Station]:
         rows = self.con.execute(
             """
-            SELECT s.*, p.name AS provider_name
+            SELECT s.*, p.name AS provider_name, p.avatar_path AS provider_avatar_path
             FROM stations s
             LEFT JOIN providers p ON p.id = s.provider_id
             WHERE s.is_favorite = 1
@@ -932,7 +935,8 @@ class Repo:
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
-                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13
+                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
+                provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
             )
             for r in rows
         ]
@@ -949,9 +953,24 @@ class Repo:
 
         Not routed through update_station to avoid silent-reset of avatar on saves
         that don't touch the avatar column (RESEARCH.md Pitfall 5).
+        Superseded by update_provider_avatar_path as of Phase 89.1 — no new callers
+        should be added here (D-04, write-path cutover to providers table).
         """
         self.con.execute(
             "UPDATE stations SET channel_avatar_path = ? WHERE id = ?",
             (path, station_id),
+        )
+        self.con.commit()
+
+    def update_provider_avatar_path(self, provider_id: int, path: Optional[str]) -> None:
+        """Phase 89.1 D-09: write avatar_path for provider.
+
+        Not routed through a broad provider update to avoid silent-reset of avatar
+        on saves that don't touch the avatar column (same Pitfall 5 rationale as
+        update_channel_avatar_path). Dedicated single-column UPDATE only.
+        """
+        self.con.execute(
+            "UPDATE providers SET avatar_path = ? WHERE id = ?",
+            (path, provider_id),
         )
         self.con.commit()

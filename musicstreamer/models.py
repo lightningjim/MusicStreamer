@@ -40,7 +40,8 @@ class Station:
     preferred_stream_id: Optional[int] = None  # Phase 82 D-01: per-station sticky preferred stream
     prerolls: List[str] = field(default_factory=list)              # Phase 83 D-01/D-03
     prerolls_fetched_at: Optional[int] = None                      # Phase 83 D-04
-    channel_avatar_path: Optional[str] = None                      # Phase 89 D-13
+    channel_avatar_path: Optional[str] = None                      # Phase 89 D-13 — deprecated Phase 89.1 (use provider_avatar_path)
+    provider_avatar_path: Optional[str] = None                     # Phase 89.1 D-11
 
 
 @dataclass
