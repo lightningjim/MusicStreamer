@@ -82,17 +82,17 @@ def test_channel_avatar_lookup_none_station_calls_cb_none():
 
 
 def test_channel_avatar_lookup_no_path_calls_cb_none():
-    """_channel_avatar_lookup with station lacking channel_avatar_path calls cb(None)."""
-    station = MagicMock(spec=[])  # no channel_avatar_path attribute
+    """_channel_avatar_lookup with station lacking provider_avatar_path calls cb(None)."""
+    station = MagicMock(spec=[])  # no provider_avatar_path attribute
     cb = MagicMock()
     cover_art_mod._channel_avatar_lookup(station, cb)
     cb.assert_called_once_with(None)
 
 
 def test_channel_avatar_lookup_empty_path_calls_cb_none():
-    """_channel_avatar_lookup with station.channel_avatar_path == "" calls cb(None)."""
-    station = MagicMock()
-    station.channel_avatar_path = ""
+    """_channel_avatar_lookup with station.provider_avatar_path == "" calls cb(None)."""
+    station = MagicMock(spec=["provider_avatar_path"])
+    station.provider_avatar_path = ""
     cb = MagicMock()
     cover_art_mod._channel_avatar_lookup(station, cb)
     cb.assert_called_once_with(None)
@@ -108,8 +108,8 @@ def test_channel_avatar_lookup_existing_path_calls_cb_abs(tmp_path):
     avatar_abs.parent.mkdir(parents=True, exist_ok=True)
     avatar_abs.write_bytes(b"\x89PNG\r\n")
 
-    station = MagicMock()
-    station.channel_avatar_path = avatar_rel
+    station = MagicMock(spec=["provider_avatar_path"])
+    station.provider_avatar_path = avatar_rel
 
     cb = MagicMock()
     original = _paths_mod._root_override
@@ -129,8 +129,8 @@ def test_channel_avatar_lookup_missing_file_calls_cb_none(tmp_path):
     """_channel_avatar_lookup calls cb(None) when the resolved path does not exist."""
     import musicstreamer.paths as _paths_mod
 
-    station = MagicMock()
-    station.channel_avatar_path = "assets/channel-avatars/99.png"
+    station = MagicMock(spec=["provider_avatar_path"])
+    station.provider_avatar_path = "assets/channel-avatars/99.png"
 
     cb = MagicMock()
     original = _paths_mod._root_override
@@ -140,4 +140,13 @@ def test_channel_avatar_lookup_missing_file_calls_cb_none(tmp_path):
     finally:
         _paths_mod._root_override = original
 
+    cb.assert_called_once_with(None)
+
+
+def test_channel_avatar_lookup_null_provider_avatar_calls_cb_none():
+    """D-06: station with provider_id set but no provider_avatar_path calls cb(None)."""
+    station = MagicMock(spec=["provider_avatar_path"])
+    station.provider_avatar_path = None
+    cb = MagicMock()
+    cover_art_mod._channel_avatar_lookup(station, cb)
     cb.assert_called_once_with(None)
