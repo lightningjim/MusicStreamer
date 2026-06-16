@@ -40,7 +40,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [ ] **Phase 90b (CONDITIONAL): SomaFM Preroll Fix** — Fires only if Phase 90's harvest identifies a clear, atomic root cause for the Boot Liquor / missing-preroll target
 - [ ] **Phase 92: FIX-PLS — PLS URL-Fallback for Codec/Bitrate** — Carry-over from Phase 58 pending-todo: detect codec/bitrate from resolved URL pattern when PLS title metadata is missing
 - [ ] **Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up** — Fires only if any of Phase 84-VERIFICATION.md's 3 Follow-Up Triggers fires during v2.2 dev window
-- [ ] **Phase 94: Sidebar Logo Thumbnail Optimization** — Investigate sidebar scroll slowdown on large lists (e.g., DI.fm); generate pre-scaled small logo variants for sidebar use while preserving full-res for Now Playing
+- [x] **Phase 94: Sidebar Logo Thumbnail Optimization** — Investigate sidebar scroll slowdown on large lists (e.g., DI.fm); generate pre-scaled small logo variants for sidebar use while preserving full-res for Now Playing
 - [ ] **Phase 95: YT URL-Change Replay Bug** — After editing a YT stream with a changed URL, first play fails with "stream exhausted"; replay picks up the new URL. Diagnose stale cached resolution post-edit, fix to invalidate on station update
 
 ### Phase Details
@@ -441,7 +441,7 @@ Plans:
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 0/? | Not started | - |
-| 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-16 |
+| 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 0/? | Not started | - |
 
 ### Dependency Graph (Tier Summary)
