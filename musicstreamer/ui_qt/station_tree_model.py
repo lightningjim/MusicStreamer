@@ -58,10 +58,13 @@ class StationTreeModel(QAbstractItemModel):
         self._pending_landings: _queue_mod.SimpleQueue = _queue_mod.SimpleQueue()
         # Poll timer: fires every 10ms on the main thread, drains _pending_landings,
         # then emits _thumb_landing from the main thread so QueuedConnection works.
+        # Lifecycle-managed: created STOPPED.  Started in _request_thumb when a new
+        # job is enqueued; stopped in _poll_pending_landings when both the queue and
+        # _in_flight_thumbs are empty (zero idle wakeups when nothing is loading).
         self._landing_poll_timer = QTimer(self)
         self._landing_poll_timer.setInterval(10)
         self._landing_poll_timer.timeout.connect(self._poll_pending_landings)
-        self._landing_poll_timer.start()
+        # Do NOT call .start() here — timer starts on first enqueue.
         # Explicit QueuedConnection: guarantees _on_thumb_landing slot runs after
         # the event loop returns control (even though emission is from main thread).
         # Matches gbs_marquee.py cadence_changed_internal precedent.
@@ -144,6 +147,10 @@ class StationTreeModel(QAbstractItemModel):
             pending.put((sid, src, path or ""))
 
         _art_paths_mod._generate_thumb(source_path, thumb_path, station_id, _callback)
+        # Start the poll timer if it is not already running (lifecycle management:
+        # timer is idle when nothing is in flight; first enqueue wakes it up).
+        if not self._landing_poll_timer.isActive():
+            self._landing_poll_timer.start()
 
     def _poll_pending_landings(self) -> None:
         """Main-thread timer slot: drain _pending_landings and emit _thumb_landing.
@@ -162,6 +169,11 @@ class StationTreeModel(QAbstractItemModel):
                 self._thumb_landing.emit(sid, src, path)
             except _queue_mod.Empty:
                 break
+        # If both the queue and the in-flight set are now empty, go idle:
+        # stop the timer so there are zero main-thread wakeups until the next
+        # _request_thumb call (lifecycle management — no always-on 100Hz poll).
+        if self._pending_landings.empty() and not self._in_flight_thumbs:
+            self._landing_poll_timer.stop()
 
     def _on_thumb_landing(self, station_id: int, source_path: str, thumb_path: str) -> None:
         """Main-thread slot: evict stale cache entry and trigger row repaint.
