@@ -1,7 +1,8 @@
 ---
 phase: 94-optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for
 verified: 2026-06-15T00:00:00Z
-status: human_needed
+status: passed
+human_verification_result: passed 2026-06-15 — Test 1 (first-scroll smoothness) PASS ("fluid movement instead of slow molasses", fallback barely visible before the real logo lands); Test 2 (logo sharpness) PASS at 1x — no HiDPI hardware available to exercise WR-02, which remains a documented non-blocking follow-up.
 score: 6/6 must-haves verified
 overrides_applied: 0
 human_verification:
