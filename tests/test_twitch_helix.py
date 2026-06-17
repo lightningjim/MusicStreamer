@@ -4,15 +4,16 @@ These tests run RED before twitch_helix.py is created and GREEN after Task 2
 implements the module.  No live network calls — all urllib.request.urlopen and
 token-file reads are monkeypatched.
 
-Fixture-locked Helix /users response body matches RESEARCH Finding #1.
+Fixture-locked Twitch GQL user response body. (89b UAT fix: the web auth-token
+cookie has no Helix REST access — it returns 404 — so the avatar is fetched via
+the GQL endpoint, the same one streamlink uses for playback.)
 """
 from __future__ import annotations
 
 import json
 import urllib.error
-from io import BytesIO
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,25 +21,17 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-#: Fixture-locked Helix /users 200 response (RESEARCH Finding #1 shape)
-HELIX_USERS_RESPONSE = json.dumps(
+#: Fixture-locked GQL user() 200 response (gql.twitch.tv/gql shape)
+GQL_USER_RESPONSE = json.dumps(
     {
-        "data": [
-            {
-                "id": "141981764",
-                "login": "twitchdev",
-                "display_name": "TwitchDev",
-                "type": "",
-                "broadcaster_type": "partner",
-                "description": "Supporting third-party...",
-                "profile_image_url": (
+        "data": {
+            "user": {
+                "profileImageURL": (
                     "https://static-cdn.jtvnw.net/jtv_user_pictures/"
                     "twitchdev-profile_image-300x300.png"
-                ),
-                "offline_image_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/offline.png",
-                "created_at": "2016-12-14T20:32:28Z",
+                )
             }
-        ]
+        }
     }
 ).encode("utf-8")
 
@@ -58,10 +51,10 @@ def _make_cm(data: bytes) -> MagicMock:
     return resp
 
 
-def _make_urlopen_side_effect(helix_bytes: bytes, cdn_bytes: bytes):
+def _make_urlopen_side_effect(gql_bytes: bytes, cdn_bytes: bytes):
     """Return a side-effect function for urlopen.
 
-    First call (Helix /users) returns helix_bytes; second call (CDN) returns
+    First call (GQL user) returns gql_bytes; second call (CDN) returns
     cdn_bytes.  Distinguishes by call order so no URL inspection is needed.
     """
     calls = [0]  # mutable counter inside closure
@@ -69,7 +62,7 @@ def _make_urlopen_side_effect(helix_bytes: bytes, cdn_bytes: bytes):
     def _side_effect(request_or_url, timeout=None):
         calls[0] += 1
         if calls[0] == 1:
-            return _make_cm(helix_bytes)
+            return _make_cm(gql_bytes)
         return _make_cm(cdn_bytes)
 
     return _side_effect
@@ -107,8 +100,9 @@ def test_parse_login():
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_calls_helix_with_bearer_and_client_id(tmp_path, monkeypatch):
-    """T-89b-01/D-06: Helix request carries Authorization: Bearer + Client-Id.
+def test_fetch_calls_gql_with_oauth_and_client_id(tmp_path, monkeypatch):
+    """T-89b-01: GQL request carries Authorization: OAuth + Client-Id and binds
+    the login as a query variable (not string-interpolated — T-89b-02).
 
     The CDN download must NOT carry the Authorization header (token scope).
     """
@@ -124,7 +118,7 @@ def test_fetch_calls_helix_with_bearer_and_client_id(tmp_path, monkeypatch):
         captured_requests.append(request_or_url)
         idx = len(captured_requests)
         if idx == 1:
-            return _make_cm(HELIX_USERS_RESPONSE)
+            return _make_cm(GQL_USER_RESPONSE)
         return _make_cm(CDN_IMAGE_BYTES)
 
     with patch("urllib.request.urlopen", side_effect=_urlopen_side_effect):
@@ -134,16 +128,23 @@ def test_fetch_calls_helix_with_bearer_and_client_id(tmp_path, monkeypatch):
 
     assert result == CDN_IMAGE_BYTES
 
-    # First call must be a Request object (not a plain URL string)
-    helix_req = captured_requests[0]
-    assert hasattr(helix_req, "get_header"), (
-        "Helix call must use urllib.request.Request, not a bare URL string"
+    # First call must be a POST Request to the GQL endpoint (not a bare URL string)
+    gql_req = captured_requests[0]
+    assert hasattr(gql_req, "get_header"), (
+        "GQL call must use urllib.request.Request, not a bare URL string"
     )
-    assert helix_req.full_url == "https://api.twitch.tv/helix/users?login=twitchdev"
+    assert gql_req.full_url == "https://gql.twitch.tv/gql"
+    assert gql_req.get_method() == "POST"
 
-    # Headers are stored with capitalised first letter by urllib internals
-    assert helix_req.get_header("Authorization") == f"Bearer {FAKE_TOKEN}"
-    assert helix_req.get_header("Client-id") == "kimne78kx3ncx6brgo4mv6wki5h1ko"
+    # Web client requires the OAuth framing (NOT Bearer — Helix's Bearer 404s here)
+    assert gql_req.get_header("Authorization") == f"OAuth {FAKE_TOKEN}"
+    assert gql_req.get_header("Client-id") == "kimne78kx3ncx6brgo4mv6wki5h1ko"
+
+    # The login is bound as a GraphQL variable, not interpolated into the query
+    payload = json.loads(gql_req.data.decode("utf-8"))
+    assert payload["variables"] == {"login": "twitchdev"}
+    assert "profileImageURL" in payload["query"]
+    assert "$login" in payload["query"]  # parameterised, injection-safe
 
     # Second call (CDN) must NOT carry Authorization — token scope (T-89b-01 / Pitfall 5).
     # The CDN download is invoked with a bare URL string, so by construction it can
@@ -187,13 +188,13 @@ def test_fetch_raises_on_missing_token(tmp_path, monkeypatch):
 
 
 def test_fetch_raises_on_empty_data(tmp_path, monkeypatch):
-    """RESEARCH #1: Helix 200 with data:[] → raises ValueError."""
+    """GQL 200 with data.user == null (login not found) → raises ValueError."""
     import musicstreamer.paths as paths
 
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     (tmp_path / "twitch-token.txt").write_text(FAKE_TOKEN)
 
-    empty_response = json.dumps({"data": []}).encode("utf-8")
+    empty_response = json.dumps({"data": {"user": None}}).encode("utf-8")
 
     with patch("urllib.request.urlopen", return_value=_make_cm(empty_response)):
         from musicstreamer import twitch_helix  # noqa: PLC0415
@@ -209,22 +210,22 @@ def test_fetch_raises_on_empty_data(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_raises_on_401(tmp_path, monkeypatch):
-    """RESEARCH #1: Helix responds with HTTP 401 → raises (propagates)."""
+def test_fetch_raises_on_http_error(tmp_path, monkeypatch):
+    """A non-2xx HTTP status from GQL propagates (caller catches and falls back)."""
     import musicstreamer.paths as paths
 
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     (tmp_path / "twitch-token.txt").write_text(FAKE_TOKEN)
 
-    http_401 = urllib.error.HTTPError(
-        url="https://api.twitch.tv/helix/users?login=twitchdev",
+    http_err = urllib.error.HTTPError(
+        url="https://gql.twitch.tv/gql",
         code=401,
         msg="Unauthorized",
         hdrs={},  # type: ignore[arg-type]
         fp=None,
     )
 
-    with patch("urllib.request.urlopen", side_effect=http_401):
+    with patch("urllib.request.urlopen", side_effect=http_err):
         from musicstreamer import twitch_helix  # noqa: PLC0415
 
         with pytest.raises(urllib.error.HTTPError):
@@ -239,8 +240,8 @@ def test_fetch_raises_on_401(tmp_path, monkeypatch):
 def test_no_square_guard():
     """D-05 / RESEARCH #3: Twitch images are always square — no width!=height guard needed.
 
-    Source-grep drift-guard: confirm 'not square' is absent and
-    'profile_image_url' is present in twitch_helix.py.
+    Source-grep drift-guard: confirm 'not square' is absent and the GQL
+    'profileImageURL' field is present in twitch_helix.py.
     """
     src_path = Path(__file__).parent.parent / "musicstreamer" / "twitch_helix.py"
     assert src_path.exists(), "musicstreamer/twitch_helix.py must exist"
@@ -252,8 +253,8 @@ def test_no_square_guard():
     assert "width != height" not in src, (
         "twitch_helix.py must NOT contain a width != height guard (D-05)"
     )
-    assert "profile_image_url" in src, (
-        "twitch_helix.py must reference 'profile_image_url' from the Helix response"
+    assert "profileImageURL" in src, (
+        "twitch_helix.py must reference the GQL 'profileImageURL' field"
     )
 
 
