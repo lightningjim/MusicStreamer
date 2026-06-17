@@ -1691,6 +1691,18 @@ class EditStationDialog(QDialog):
         tags_csv = ",".join(selected_tags)
 
         # D-02: currentText() on save — ensure_provider handles blank → None
+        # Phase 89b D-02/D-04: when the Provider field is blank AND the URL is a
+        # twitch.tv URL, derive the login and build a "Twitch: <login>" provider
+        # name so the station gets a stable per-streamer dedup anchor. This ONLY
+        # fires for blank-provider stations — a user-typed provider is NEVER
+        # overwritten (Pitfall 3 / D-04).
+        if not provider_name:
+            _url_for_derive = self.url_edit.text().strip()
+            if "twitch.tv" in _url_for_derive.lower():
+                from musicstreamer import twitch_helix as _twitch_helix
+                _login = _twitch_helix._parse_login(_url_for_derive)
+                if _login:
+                    provider_name = f"Twitch: {_login}"
         provider_id = repo.ensure_provider(provider_name)
 
         repo.update_station(

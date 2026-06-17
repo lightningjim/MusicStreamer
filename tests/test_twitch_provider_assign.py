@@ -66,8 +66,8 @@ def player():
 
 
 def test_save_source_has_twitch_derivation():
-    """Source-grep gate: _on_save must contain 'Twitch: ' string and a blank-provider
-    guard (not provider_name) preceding the Twitch derivation.
+    """Source-grep gate: _on_save must contain the f-string Twitch provider derivation
+    and a blank-provider guard (not provider_name) preceding it.
 
     This guard fires during the RED phase — these strings are not yet in _on_save.
     """
@@ -76,14 +76,19 @@ def test_save_source_has_twitch_derivation():
         "edit_station_dialog.py"
     ).read_text()
 
-    assert '"Twitch: "' in src or "'Twitch: '" in src or 'f"Twitch: ' in src, (
-        "Drift-guard: _on_save must contain 'Twitch: ' string for provider name "
-        "derivation. Not yet implemented."
+    # The f-string derivation form specifically (not a comment mentioning Twitch:)
+    assert 'f"Twitch: ' in src or "f'Twitch: " in src, (
+        "Drift-guard: _on_save must contain f\"Twitch: {login}\" f-string for "
+        "provider name derivation. Not yet implemented."
     )
 
-    # The blank-provider guard must precede the Twitch derivation
-    # Look for 'not provider_name' before the Twitch: derivation
-    twitch_idx = src.find("Twitch: ")
+    # The blank-provider guard must precede the f-string Twitch derivation
+    # Use the f-string form to locate the actual implementation (not the comment)
+    if 'f"Twitch: ' in src:
+        twitch_idx = src.find('f"Twitch: ')
+    else:
+        twitch_idx = src.find("f'Twitch: ")
+
     blank_guard_idx = src.find("not provider_name")
     assert blank_guard_idx != -1 and blank_guard_idx < twitch_idx, (
         "Drift-guard: blank-provider guard ('not provider_name') must appear "
