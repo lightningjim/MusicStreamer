@@ -393,7 +393,10 @@ Plans:
   4. Stations of providers WITHOUT a registered brand avatar keep current behavior (station logo → generic icon); no regression to the `_show_station_logo_in_cover_slot` path.
   5. Source-grep drift-guard pins that the provider-avatar lookup fires only on the resolution-exhausted branch (after iTunes/MB-CAA), never short-circuiting Phase 73 MB-CAA per-track coverage.
 
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 89c-01-PLAN.md — Registry module + asset dir + now_playing_panel wiring + drift-guards + PyInstaller datas
+- [ ] 89c-02-PLAN.md — EditStationDialog "Choose brand image…" upload override (D-09/D-09a)
 **Research flag**: NO — reuses Phase 89 cover-slot swap + circular-crop rendering; source is bundled provider assets, no new network fetch.
 **UI hint**: yes
 
