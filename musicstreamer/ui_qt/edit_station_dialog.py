@@ -170,9 +170,21 @@ class _AvatarFetchWorker(QThread):
         token = self._token
         try:
             from musicstreamer import yt_import, assets as _assets
-            data = yt_import.fetch_channel_avatar(
-                self._url, node_runtime=self._node_runtime
-            )
+            # Phase 89b: dispatch through the per-provider registry so twitch.tv
+            # URLs call the Twitch fetcher and YouTube URLs call the YouTube fetcher
+            # (Pitfall 1). node_runtime is YouTube-specific — pass only for YT.
+            lower = (self._url or "").lower()
+            if "twitch.tv" in lower:
+                provider_key = "twitch"
+            else:
+                provider_key = "youtube"
+            fetcher = yt_import.get_avatar_fetcher(provider_key)
+            if fetcher is None:
+                raise ValueError(f"No avatar fetcher registered for URL: {self._url!r}")
+            if provider_key == "youtube":
+                data = fetcher(self._url, node_runtime=self._node_runtime)
+            else:
+                data = fetcher(self._url)
             rel_path = _assets.write_provider_avatar(self._provider_id, data)  # Phase 89.1 D-10
             self.finished.emit(rel_path, token)
         except Exception:
@@ -1268,11 +1280,12 @@ class EditStationDialog(QDialog):
         self._logo_status_clear_timer.stop()
         self._logo_status.clear()
         # Phase 89-05 / D-10: gate Refresh button on YouTube URL detection.
-        # Inline check mirrors the existing check at _on_logo_fetched L1288.
+        # Phase 89b / D-08: extend gate to include twitch.tv URLs (Pitfall 2).
         url = self.url_edit.text().strip()
         lower = url.lower()
         is_yt = "youtube.com" in lower or "youtu.be" in lower
-        self._refresh_avatar_btn.setEnabled(is_yt)
+        is_twitch = "twitch.tv" in lower
+        self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
 
     def _on_url_timer_timeout(self) -> None:
         """Debounced: kick off a _LogoFetchWorker (and optionally _AvatarFetchWorker)
@@ -1301,14 +1314,20 @@ class EditStationDialog(QDialog):
         self._logo_fetch_worker.start()
 
         # Phase 89-05 / D-01/D-10: also launch avatar fetch for YouTube URLs.
+        # Phase 89b / D-08: extend to twitch.tv URLs via the registry (Pitfall 7).
         # Separate monotonic token so stale logo and stale avatar don't collide.
         lower = url.lower()
-        if "youtube.com" in lower or "youtu.be" in lower:
+        is_avatar_url = (
+            "youtube.com" in lower or "youtu.be" in lower or "twitch.tv" in lower
+        )
+        if is_avatar_url:
             # Phase 89.1 D-06 / CR-01: the avatar is keyed per-provider. A station
             # with no provider_id cannot be keyed — fetching would write a junk
             # 'None.png' orphan and run UPDATE providers ... WHERE id = NULL (a
             # silent 0-row no-op) while falsely reporting success. Skip the fetch
             # and fall back to the station thumbnail per D-06.
+            # Phase 89b Pitfall 7: this guard runs ONCE for both YouTube and Twitch
+            # branches — do not duplicate it.
             if self._station.provider_id is None:
                 self._avatar_status.setText(
                     "No channel avatar (station has no provider)"
