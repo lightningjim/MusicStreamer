@@ -449,6 +449,129 @@ def test_submit_auth_expired_still_raises(monkeypatch, fake_cookies_jar):
         gbs_api.submit(123, fake_cookies_jar)
 
 
+# ---------- Plan 87.1-04 regression tests: real-chain auth-expiry detection ----------
+# These tests close gap GBS-AUTH-EXP-01 (87.1-HUMAN-UAT).  The existing
+# test_fetch_playlist_auth_expired (lines 226-234) mocks _open_with_cookies itself,
+# which is exactly why the bug passed verification: the default opener auto-follows
+# the 302 → /accounts/login/ and returns a 200 login page; the HTTPError/302 branch
+# in the old _open_with_cookies was dead code for GET requests.
+#
+# These tests patch at urllib.request.AbstractHTTPHandler.do_open (same deep-transport
+# level as the T13 tests above) so the ENTIRE opener chain — including any redirect
+# handler — runs against real CPython code.  RED before Task 2 GREEN fix.
+
+
+def _make_fake_200_response(body: bytes = b"") -> http.client.HTTPResponse:
+    """Build an http.client.HTTPResponse-shaped object for a fake 200 OK.
+
+    Mirrors _make_fake_302_response (line 363) but emits an HTTP/1.1 200 status
+    line.  Used to verify that the happy-path (normal JSON response) is preserved
+    after the GREEN fix.
+    """
+    raw = b"HTTP/1.1 200 OK\r\n"
+    raw += b"Content-Type: application/json\r\n"
+    raw += b"Content-Length: " + str(len(body)).encode() + b"\r\n"
+    raw += b"\r\n"
+    raw += body
+
+    class _FakeSock:
+        def __init__(self, data: bytes):
+            self._buf = io.BytesIO(data)
+        def makefile(self, *a, **kw):
+            return self._buf
+        def sendall(self, *a, **kw):
+            pass
+        def close(self):
+            pass
+
+    sock = _FakeSock(raw)
+    resp = http.client.HTTPResponse(sock)
+    resp.begin()
+    return resp
+
+
+def test_open_with_cookies_raises_on_login_redirect(monkeypatch, fake_cookies_jar):
+    """RED (GBS-AUTH-EXP-01): _open_with_cookies must raise GbsAuthExpiredError on
+    302 → /accounts/login/ through the real urllib redirect chain.
+
+    Before the fix: the default HTTPRedirectHandler auto-follows the 302 and returns
+    a 200 login page — no exception is raised (the HTTPError/302 branch is dead code
+    for GET redirects).  After the GREEN fix (Task 2), this test must pass.
+    """
+    fake_resp = _make_fake_302_response(location="/accounts/login/?next=/ajax")
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    with pytest.raises(gbs_api.GbsAuthExpiredError):
+        gbs_api._open_with_cookies("https://gbs.fm/ajax?position=0", fake_cookies_jar)
+
+
+def test_fetch_active_playlist_raises_on_login_redirect(monkeypatch, fake_cookies_jar):
+    """RED (GBS-AUTH-EXP-01): fetch_active_playlist must raise GbsAuthExpiredError
+    (NOT json.JSONDecodeError) when the /ajax GET redirects to /accounts/login/.
+
+    This is the exact production path that broke in UAT: the old opener followed the
+    302, returned a 200 HTML login page, and json.loads raised JSONDecodeError — which
+    _GbsPollWorker.run routed to the generic-error (silent-fallback) branch so the
+    inline re-login prompt was never reachable.
+
+    Gap: GBS-AUTH-EXP-01 / 87.1-HUMAN-UAT.  After the GREEN fix (Task 2) this passes.
+    """
+    fake_resp = _make_fake_302_response(location="/accounts/login/?next=/ajax")
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    with pytest.raises(gbs_api.GbsAuthExpiredError):
+        gbs_api.fetch_active_playlist(fake_cookies_jar)
+
+
+def test_open_with_cookies_non_login_302_does_not_raise_auth_expired(
+    monkeypatch, fake_cookies_jar
+):
+    """RED guard: a 302 to a non-login path must NOT raise GbsAuthExpiredError.
+
+    Guards against over-broad detection that would treat any redirect as auth expiry.
+    The contract is: only a 302 whose Location contains '/accounts/login/' triggers
+    GbsAuthExpiredError.  A redirect to '/somewhere-else' must not.
+
+    After the GREEN fix this test must pass (non-login 302 is not treated as expiry).
+    """
+    # A non-login 302; body is a minimal JSON array so if the opener happens to follow
+    # the redirect and land on the body, json.loads won't raise either.
+    fake_resp = _make_fake_302_response(location="/somewhere-else")
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    try:
+        gbs_api._open_with_cookies("https://gbs.fm/ajax?position=0", fake_cookies_jar)
+    except gbs_api.GbsAuthExpiredError:
+        pytest.fail(
+            "GbsAuthExpiredError must NOT be raised for a non-login 302 redirect"
+        )
+    except Exception:
+        pass  # Any other exception (URLError, HTTPError, etc.) is acceptable
+
+
+def test_open_with_cookies_returns_200_json_unchanged(monkeypatch, fake_cookies_jar):
+    """GREEN must-not-regress: a normal 200 JSON response is returned readable.
+
+    Verifies the happy path for all GET callers (fetch_active_playlist,
+    fetch_user_tokens, search, fetch_artist_songs, fetch_album_songs) is
+    preserved after the fix.  resp.read() must yield the original JSON bytes.
+    """
+    body = b'[["now_playing", 42], ["metadata", "Artist - Title"]]'
+    fake_resp = _make_fake_200_response(body=body)
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    resp = gbs_api._open_with_cookies("https://gbs.fm/ajax?position=0", fake_cookies_jar)
+    data = resp.read()
+    assert data == body, (
+        f"_open_with_cookies must return the 200 response body unchanged; "
+        f"got {data!r}"
+    )
+
+
 def test_import_no_field_changes_returns_zero_updated(fake_repo):
     """T6 RED: idempotent re-import (no field changes) must return (0, 0).
 
