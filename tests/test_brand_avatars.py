@@ -225,3 +225,35 @@ def test_choose_brand_image_never_raises():
         "WR-02: _on_choose_brand_image must wrap file-read/write/persist in try/except "
         "(slots-never-raise contract)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Gap-closure drift-guard (89c-03 — UAT Test 5 / Phase 89.1 D-07 reuse-on-open)
+# ---------------------------------------------------------------------------
+
+
+def test_populate_refreshes_avatar_preview():
+    """Phase 89.1 D-07 reuse-on-open: _populate() must invoke _refresh_avatar_preview()
+    so that a persisted provider_avatar_path renders in the dialog preview on open.
+
+    Source-grep drift-guard: structural contract over live source (closes 89c UAT Test 5).
+    """
+    src = EDIT_STATION_SRC.read_text(encoding="utf-8")
+
+    # Locate the method definition
+    method_start = src.find("def _populate")
+    assert method_start != -1, (
+        "edit_station_dialog.py must define _populate (D-07 reuse-on-open host)"
+    )
+
+    # Extract method body up to the next top-level def at the same indent
+    next_def_pos = src.find("\n    def ", method_start + 1)
+    if next_def_pos == -1:
+        next_def_pos = len(src)
+    method_body = src[method_start:next_def_pos]
+
+    assert "self._refresh_avatar_preview()" in method_body, (
+        "Phase 89.1 D-07 reuse-on-open / UAT Test 5: _populate() must call "
+        "self._refresh_avatar_preview() so the persisted provider_avatar_path "
+        "renders in the avatar preview when the dialog is reopened (89c gap-closure)"
+    )

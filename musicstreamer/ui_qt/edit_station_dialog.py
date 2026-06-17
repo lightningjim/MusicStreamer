@@ -675,6 +675,8 @@ class EditStationDialog(QDialog):
 
         # Logo preview (Plan 40.1-04)
         self._refresh_logo_preview()
+        # Avatar/brand preview — Phase 89.1 D-07 reuse-on-open (closes 89c UAT Test 5)
+        self._refresh_avatar_preview()
 
         # Phase 51-02 / D-12: capture clean-state baseline AFTER all widgets are
         # populated. _is_dirty() compares against this snapshot. The is_new
