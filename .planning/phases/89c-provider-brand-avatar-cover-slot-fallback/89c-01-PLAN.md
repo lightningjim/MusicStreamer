@@ -23,6 +23,10 @@ must_haves:
     - "ART-AVATAR-12/D-10: real cover art still wins — _set_cover_pixmap path unchanged; brand avatar is transient per cover-resolution"
     - "D-11: _last_brand_avatar tier-replay var participates in _apply_art_tier (4th branch between _last_avatar_path and the logo else) and is reset in bind_station"
     - "ART-AVATAR-12/D-04 (frozen build): the brand-avatars dir is bundled via PyInstaller datas so importlib.resources resolves it in frozen builds"
+    - "D-02: the registry ships per-network granularity — 7 distinct keys (SomaFM + DI.fm, RadioTunes, JazzRadio, RockRadio, ClassicalRadio, ZenRadio), not one shared AudioAddict mark"
+    - "D-03: brand PNGs are loaded as pre-composed circular source images — no runtime center-crop of wordmarks is added; the render path treats the asset as already circle-fitting"
+    - "D-06: _set_brand_avatar_pixmap reuses _make_circular_pixmap (now_playing_panel.py:219) for an antialiased, borderless circular render"
+    - "D-12: a source-grep drift-guard (test_brand_lookup_only_in_cover_exhausted_branch, mirroring test_mb_caa_runs_before_channel_avatar) pins the brand lookup to the resolution-exhausted branch only — no GStreamer/Qt behavioral mocks"
   artifacts:
     - path: "musicstreamer/brand_avatars.py"
       provides: "Provider brand-avatar registry; lookup(provider_name) -> Optional[str]"
