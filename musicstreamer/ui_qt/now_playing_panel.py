@@ -694,6 +694,45 @@ class NowPlayingPanel(QWidget):
         self._gbs_playlist_widget.setMaximumHeight(180)  # ~6 rows; lets controls keep prominence
         center.addWidget(self._gbs_playlist_widget)
 
+        # === Phase 87.1 D-01/D-02/D-05: inline GBS session-expiry prompt ===
+        # Non-dismissive (D-02 — no × control). Mutually exclusive with
+        # _gbs_playlist_widget (setVisible toggling). Construction mirrors
+        # announcement_banner.py (QA-05 bound methods, T-40-04 PlainText labels).
+        self._gbs_expiry_widget = QWidget(self)
+        _expiry_layout = QVBoxLayout(self._gbs_expiry_widget)
+        _expiry_layout.setContentsMargins(0, 4, 0, 4)
+        _expiry_layout.setSpacing(4)
+
+        _expiry_primary = QLabel("GBS session expired", self._gbs_expiry_widget)
+        _expiry_primary.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04: GBS text is untrusted
+        _expiry_layout.addWidget(_expiry_primary)
+
+        _expiry_sub = QLabel(
+            "Log in again to keep the playlist updating",
+            self._gbs_expiry_widget,
+        )
+        _expiry_sub.setTextFormat(Qt.TextFormat.PlainText)  # T-40-04
+        _expiry_layout.addWidget(_expiry_sub)
+
+        self._gbs_relogin_btn = QPushButton("Log in again", self._gbs_expiry_widget)
+        self._gbs_relogin_btn.clicked.connect(self._on_gbs_relogin_clicked)  # QA-05 bound method
+        _expiry_layout.addWidget(self._gbs_relogin_btn)
+
+        self._gbs_expiry_widget.setVisible(False)  # hidden-when-empty pattern
+        center.addWidget(self._gbs_expiry_widget)  # immediately after _gbs_playlist_widget
+
+        # Shared GBS re-login handler (GBS-AUTH-EXP-02): owned here, consumed by
+        # the expiry-prompt button + marquee auth_expired signal (wired in
+        # attach_gbs_marquee_worker). QA-05 bound-method connections throughout.
+        from musicstreamer.ui_qt.gbs_relogin_handler import GbsReloginHandler
+        self._gbs_relogin_handler: Optional[GbsReloginHandler] = GbsReloginHandler(parent=self)
+        self._gbs_relogin_handler.relogin_succeeded.connect(
+            self._on_gbs_relogin_succeeded  # QA-05
+        )
+        self._gbs_relogin_handler.relogin_failed.connect(
+            self._on_gbs_relogin_failed  # QA-05
+        )
+
         # Phase 60 D-06a RESOLVED: 15s poll cadence (matches gbs.fm web UI DELAY=15000)
         self._gbs_poll_timer = QTimer(self)
         self._gbs_poll_timer.setInterval(15000)
