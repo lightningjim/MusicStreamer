@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 89b executed — 2/2 plans, verification human_needed (3 live-token UAT items)
-last_updated: "2026-06-17T01:59:33.451Z"
+last_updated: "2026-06-17T13:59:02.961Z"
 last_activity: 2026-06-17 -- Phase 89B execution started
 progress:
   total_phases: 21
   completed_phases: 15
-  total_plans: 54
-  completed_plans: 54
+  total_plans: 55
+  completed_plans: 55
   percent: 71
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 ## Current Position
 
 Phase: 89B (twitch-channel-avatar-fetch) — EXECUTING
-Plan: 2 of 2
+Plan: 2 of 3
 Status: Executing Phase 89B
 Last activity: 2026-06-17 -- Phase 89B execution started
 
@@ -139,6 +139,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase 89B Plan 02]: Registry dispatch by URL sniff in _AvatarFetchWorker.run(): "twitch.tv" → "twitch" key, else "youtube"; node_runtime only for YouTube path (Pitfall 1)
 - [Phase 89B Plan 02]: Single is_avatar_url gate in _on_url_timer_timeout covers YouTube+Twitch with single provider_id-None guard (Pitfall 7 compliance)
 - [Phase 89B Plan 02]: blank-provider guard (not provider_name) enforces D-04: manual providers never overwritten by Twitch: login derivation in _on_save
+- [Phase ?]: [Phase 89B Plan 03]: Add-path avatar fetch is SYNCHRONOUS (not async _AvatarFetchWorker) — accept() teardown disconnects the finished signal before the queued slot fires, so a pre-accept async fetch never persists
+- [Phase ?]: [Phase 89B Plan 03]: _on_save refreshes self._station.provider_id/provider_name after ensure_provider for both derived-Twitch and manual cases; the sync helper provider_id None-check is a distinct call site, not a duplicate of the line-1331 Pitfall-7 guard
 
 ### Decisions (v2.1, preserved for context)
 
@@ -188,10 +190,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 89 P02 | 2m | 2 tasks | 2 files |
 | Phase 89 P05 | 22 | 2 tasks | 2 files |
 | Phase 89B-twitch-channel-avatar-fetch P01 | 2m | 2 tasks | 3 files |
+| Phase 89B P03 | 8m | 3 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-17T01:59:33.441Z
+Last session: 2026-06-17T13:58:46.409Z
 Stopped at: Phase 89b executed — 2/2 plans, verification human_needed (3 live-token UAT items)
 Resume file: .planning/phases/89B-twitch-channel-avatar-fetch/89B-HUMAN-UAT.md
 

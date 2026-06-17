@@ -377,7 +377,7 @@ Plans:
 **Plans**: 3 plans
 - [x] 89B-01-PLAN.md — New `musicstreamer/twitch_helix.py` (`fetch_channel_avatar` via Helix `/users`, Bearer + Client-Id, login parse) + register into the per-provider avatar registry (Wave 1)
 - [x] 89B-02-PLAN.md — EditStationDialog: twitch.tv URL detection + Refresh gate, `_AvatarFetchWorker` registry dispatch, blank-only `Twitch: <login>` provider derivation on save (Wave 2)
-- [ ] 89B-03-PLAN.md — Gap closure: refresh in-memory provider_id/provider_name + synchronous fetch-and-persist of the Twitch avatar in `_on_save` before `accept()` so a NEW Twitch station fetches its avatar on FIRST save (UAT add-path gap) (Wave 1)
+- [x] 89B-03-PLAN.md — Gap closure: refresh in-memory provider_id/provider_name + synchronous fetch-and-persist of the Twitch avatar in `_on_save` before `accept()` so a NEW Twitch station fetches its avatar on FIRST save (UAT add-path gap) (Wave 1)
 **Research flag**: NO — Helix `/users` is a single GET, pattern is well-established in `aa_live.py` and elsewhere.
 
 #### Phase 89c (INSERTED): Provider Brand-Avatar Cover-Slot Fallback (SomaFM, AudioAddict)
@@ -487,7 +487,7 @@ Plans:
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
-| 89b. Twitch Channel-Avatar | 2/2 | Complete   | 2026-06-17 |
+| 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 0/? | Not started | - |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
 | 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
