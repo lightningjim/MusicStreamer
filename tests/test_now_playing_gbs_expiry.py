@@ -6,6 +6,13 @@ Five tests exercising the inline _gbs_expiry_widget show/hide lifecycle:
   - GBS-AUTH-EXP-03/D-02: prompt stays visible on cancel (non-dismissive)
   - GBS-AUTH-EXP-01/D-02: prompt hides when user navigates away from GBS station
 
+Phase 87.1 Plan 05 (RED, Task 1): three additional regression tests asserting that
+detection events (playlist error + marquee) reveal the prompt but do NOT start any
+QProcess subprocess, and that the button click is the sole launch trigger.
+  - GBS-AUTH-EXP-01: no auto-launch on playlist auth_expired detection
+  - GBS-AUTH-EXP-02: no auto-launch on marquee auth_expired detection (USER DECISION 2026-06-17)
+  - GBS-AUTH-EXP-01: button click launches exactly one subprocess after detection
+
 All tests are RED at creation time (Wave 0) — _gbs_expiry_widget, _gbs_relogin_btn,
 _on_gbs_relogin_succeeded, and _on_gbs_relogin_failed do not yet exist in
 now_playing_panel.py.
@@ -208,3 +215,118 @@ def test_gbs_expiry_prompt_hides_on_station_change(qtbot, tmp_path, monkeypatch)
     panel.bind_station(_make_gbs_station(provider_name="SomaFM", name="Drone Zone"))
 
     assert panel._gbs_expiry_widget.isVisible() is False
+
+
+# ---------------------------------------------------------------------------
+# Phase 87.1 Plan 05 — Task 1 (RED): dual-path no-auto-launch regression tests
+#
+# These three tests assert the detection-vs-launch separation required by
+# D-01 (GBS-AUTH-EXP-01), GBS-AUTH-EXP-02, and the USER DECISION 2026-06-17.
+#
+# RED at Task 1 commit time because:
+#   - test_playlist_auth_expired_shows_prompt_no_auto_launch fails:
+#       _on_gbs_playlist_error still calls notify_expiry_detected() → start_calls == 1
+#   - test_marquee_auth_expired_shows_prompt_no_auto_launch fails:
+#       attach_gbs_marquee_worker wires auth_expired → notify_expiry_detected → start_calls == 1
+# ---------------------------------------------------------------------------
+
+def _make_qprocess_patcher(monkeypatch):
+    """Return start_calls list after patching QProcess.start and _make_oauth_launch_args.
+
+    Patches QProcess.start to append to start_calls (no real subprocess).
+    Patches musicstreamer.subprocess_utils._make_oauth_launch_args to return fake args.
+    Mirrors the pattern from tests/test_gbs_relogin_handler.py lines 44-49.
+    """
+    from PySide6.QtCore import QProcess
+    start_calls: list[int] = []
+    monkeypatch.setattr(QProcess, "start", lambda self, prog, args: start_calls.append(1))
+    monkeypatch.setattr(
+        "musicstreamer.subprocess_utils._make_oauth_launch_args",
+        lambda mode: ("fake_prog", ["--mode", mode]),
+    )
+    return start_calls
+
+
+def test_playlist_auth_expired_shows_prompt_no_auto_launch(qtbot, tmp_path, monkeypatch):
+    """GBS-AUTH-EXP-01: playlist auth_expired reveals the prompt but starts ZERO subprocesses.
+
+    Detection must not auto-launch the oauth_helper. The launch is user-gated on
+    _on_gbs_relogin_clicked (D-01 / GBS-AUTH-EXP-01).
+
+    RED reason: _on_gbs_playlist_error auth_expired branch still calls
+    notify_expiry_detected() → start_calls == 1.
+    """
+    panel = _setup_gbs_panel(qtbot, tmp_path, monkeypatch)
+    start_calls = _make_qprocess_patcher(monkeypatch)
+
+    panel._on_gbs_playlist_error(5, "auth_expired")
+
+    assert panel._gbs_expiry_widget.isHidden() is False, (
+        "_gbs_expiry_widget must be revealed after auth_expired detection"
+    )
+    assert len(start_calls) == 0, (
+        f"Expected ZERO QProcess.start calls on detection; got {len(start_calls)}. "
+        "Detection must not auto-launch the oauth_helper (D-01 / GBS-AUTH-EXP-01)."
+    )
+
+
+def test_marquee_auth_expired_shows_prompt_no_auto_launch(qtbot, tmp_path, monkeypatch):
+    """GBS-AUTH-EXP-02: marquee auth_expired reveals the prompt but starts ZERO subprocesses.
+
+    USER DECISION 2026-06-17: the marquee surfaces the inline prompt (does NOT no-op,
+    does NOT auto-launch). Gap closure for 87.1-HUMAN-UAT.md Test 1 (major, GBS-AUTH-EXP-02).
+
+    RED reason: attach_gbs_marquee_worker wires worker.auth_expired directly to
+    handler.notify_expiry_detected → start_calls == 1 on signal emit.
+    """
+    # USER DECISION 2026-06-17 / GBS-AUTH-EXP-02: marquee surfaces prompt, does not auto-launch
+    panel = _setup_gbs_panel(qtbot, tmp_path, monkeypatch)
+    start_calls = _make_qprocess_patcher(monkeypatch)
+
+    # Build a minimal marquee worker double exposing the signals that
+    # attach_gbs_marquee_worker expects to connect. Using a real GbsMarqueeWorker
+    # is lightest since __init__ touches no network.
+    from musicstreamer.gbs_marquee import GbsMarqueeWorker
+    from PySide6.QtWidgets import QApplication
+
+    worker = GbsMarqueeWorker()
+    panel.attach_gbs_marquee_worker(worker)
+
+    # Emit auth_expired from the worker (same-thread here; QueuedConnection still
+    # delivers via the event loop — processEvents() drains the queue).
+    worker.auth_expired.emit()
+    QApplication.processEvents()
+
+    assert panel._gbs_expiry_widget.isHidden() is False, (
+        "_gbs_expiry_widget must be revealed after marquee auth_expired signal "
+        "(USER DECISION 2026-06-17 / GBS-AUTH-EXP-02)"
+    )
+    assert len(start_calls) == 0, (
+        f"Expected ZERO QProcess.start calls on marquee detection; got {len(start_calls)}. "
+        "Marquee must surface prompt only, not auto-launch (USER DECISION 2026-06-17)."
+    )
+
+
+def test_relogin_button_click_launches_after_detection(qtbot, tmp_path, monkeypatch):
+    """GBS-AUTH-EXP-01: after detection (zero starts), button click launches exactly one subprocess.
+
+    Proves the launch is user-gated and still works after the detection-vs-launch separation.
+    _on_gbs_relogin_clicked must remain the sole caller of notify_expiry_detected (D-01).
+    """
+    panel = _setup_gbs_panel(qtbot, tmp_path, monkeypatch)
+    start_calls = _make_qprocess_patcher(monkeypatch)
+
+    # Detection: prompt reveals, zero subprocess starts
+    panel._on_gbs_playlist_error(5, "auth_expired")
+    assert len(start_calls) == 0  # detection must not launch
+
+    # User-gated launch: button click triggers the sole notify_expiry_detected call
+    panel._on_gbs_relogin_clicked()
+
+    assert len(start_calls) == 1, (
+        f"Expected exactly 1 QProcess.start call after button click; got {len(start_calls)}. "
+        "_on_gbs_relogin_clicked must remain the sole caller of notify_expiry_detected."
+    )
+    assert panel._gbs_relogin_btn.isEnabled() is False, (
+        "_gbs_relogin_btn must be disabled while in-flight (Pitfall 5 / GBS-AUTH-EXP-01)"
+    )
