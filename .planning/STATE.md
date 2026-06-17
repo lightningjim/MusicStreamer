@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 89b executed — 2/2 plans, verification human_needed (3 live-token UAT items)
-last_updated: "2026-06-17T13:59:02.961Z"
-last_activity: 2026-06-17 -- Phase 89B execution started
+stopped_at: Phase 89b COMPLETE — 3/3 plans, verification passed (16/16), UAT 3/3 + add-path gap closed via 89B-03
+last_updated: "2026-06-17T14:30:00.000Z"
+last_activity: 2026-06-17 -- Phase 89B closed (UAT + 89B-03 gap closure + verification passed)
 progress:
   total_phases: 21
-  completed_phases: 15
+  completed_phases: 16
   total_plans: 55
   completed_plans: 55
-  percent: 71
+  percent: 76
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 89B — twitch-channel-avatar-fetch
+**Current focus:** Phase 89B closed — next up Phase 87b (GBS Zero-Token Add) or 89c (provider brand-avatar fallback)
 
 ## Current Position
 
-Phase: 89B (twitch-channel-avatar-fetch) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 89B
-Last activity: 2026-06-17 -- Phase 89B execution started
+Phase: 89B (twitch-channel-avatar-fetch) — COMPLETE (verified 16/16; UAT 3/3 + add-path gap closed)
+Plan: 3 of 3
+Status: Phase 89B complete
+Last activity: 2026-06-17 -- Phase 89B closed (UAT + 89B-03 gap closure + verification passed)
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
