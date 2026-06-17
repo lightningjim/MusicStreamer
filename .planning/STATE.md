@@ -4,7 +4,7 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 89c context gathered
-last_updated: "2026-06-17T16:56:26.027Z"
+last_updated: "2026-06-17T17:00:52.164Z"
 last_activity: 2026-06-17 -- Phase 89c execution started
 progress:
   total_phases: 21
@@ -141,6 +141,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase 89B Plan 02]: blank-provider guard (not provider_name) enforces D-04: manual providers never overwritten by Twitch: login derivation in _on_save
 - [Phase ?]: [Phase 89B Plan 03]: Add-path avatar fetch is SYNCHRONOUS (not async _AvatarFetchWorker) — accept() teardown disconnects the finished signal before the queued slot fires, so a pre-accept async fetch never persists
 - [Phase ?]: [Phase 89B Plan 03]: _on_save refreshes self._station.provider_id/provider_name after ensure_provider for both derived-Twitch and manual cases; the sync helper provider_id None-check is a distinct call site, not a duplicate of the line-1331 Pitfall-7 guard
+- [Phase ?]: Phase 89c Plan 02
+- [Phase ?]: Phase 89c Plan 02
 
 ### Decisions (v2.1, preserved for context)
 
@@ -191,10 +193,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 89 P05 | 22 | 2 tasks | 2 files |
 | Phase 89B-twitch-channel-avatar-fetch P01 | 2m | 2 tasks | 3 files |
 | Phase 89B P03 | 8m | 3 tasks | 2 files |
+| Phase 89c P02 | 8m | 1 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-17T16:56:26.017Z
+Last session: 2026-06-17T17:00:48.841Z
 Stopped at: Phase 89c context gathered
 Resume file: .planning/phases/89c-provider-brand-avatar-cover-slot-fallback/89C-CONTEXT.md
 
