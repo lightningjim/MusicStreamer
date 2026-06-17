@@ -355,6 +355,37 @@ def test_quiet_failure_logs_warn_no_toast(monkeypatch, caplog):
         assert "raw_text" not in rec.message
 
 
+def test_marquee_emits_auth_expired(monkeypatch):
+    """GBS-AUTH-EXP-02: _fetch_marquee raising GbsAuthExpiredError emits auth_expired signal.
+
+    Monkeypatches the module-level _fetch_marquee to raise GbsAuthExpiredError,
+    starts the worker, waits for a poll cycle, then asserts at least one
+    auth_expired emission was captured.
+    """
+    _get_qapp()
+    import musicstreamer.gbs_marquee as _mod
+    import musicstreamer.gbs_api as _gbs_api
+    from PySide6.QtTest import QTest
+    from musicstreamer.gbs_marquee import GbsMarqueeWorker
+
+    def _raise_auth_expired():
+        raise _gbs_api.GbsAuthExpiredError("session expired")
+
+    monkeypatch.setattr(_mod, "_fetch_marquee", _raise_auth_expired)
+
+    emissions = []
+    worker = GbsMarqueeWorker()
+    worker.auth_expired.connect(lambda: emissions.append(True))
+    try:
+        worker.start()
+        worker.set_cadence(60_000)
+        QTest.qWait(300)
+    finally:
+        worker.stop_and_wait(timeout_ms=3_000)
+
+    assert emissions, "Expected at least one auth_expired emission"
+
+
 def test_no_banned_identifiers_in_module():
     """gbs_marquee.py must not reference banned identifiers.
 
