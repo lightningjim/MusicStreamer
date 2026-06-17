@@ -261,9 +261,6 @@ def fetch_channel_avatar(
 
 # ---------------------------------------------------------------------------
 # Per-provider avatar fetcher registry (D-04)
-#
-# Phase 89b (Twitch) registers its fetcher here with zero dialog/cover-slot
-# rework: register_avatar_fetcher("twitch", twitch_helix.fetch_channel_avatar)
 # ---------------------------------------------------------------------------
 
 _AVATAR_FETCHERS: dict[str, Callable[[str], bytes]] = {}
@@ -285,3 +282,10 @@ def get_avatar_fetcher(provider: str) -> Optional[Callable[[str], bytes]]:
 
 # Register YouTube avatar fetcher at module load (D-04).
 register_avatar_fetcher("youtube", fetch_channel_avatar)
+
+# Register Twitch avatar fetcher at module load (Phase 89b D-05).
+# Late/local import avoids an import cycle: twitch_helix imports `paths` (not
+# yt_import), so there is no circular dependency — but we defer the import
+# until after _AVATAR_FETCHERS and register_avatar_fetcher are defined above.
+from musicstreamer import twitch_helix as _twitch_helix  # noqa: E402
+register_avatar_fetcher("twitch", _twitch_helix.fetch_channel_avatar)
