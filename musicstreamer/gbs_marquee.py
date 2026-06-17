@@ -325,9 +325,9 @@ def _fetch_marquee() -> str | None:
          ``urllib.request.urlopen`` (anonymous, no cookies).
 
     Failure handling (D-18 — quiet failures, no toast, no UI surface):
-      - ``GbsAuthExpiredError``: log ``gbs.marquee.auth_expired`` WARN; return
-        None.  No anonymous retry (D-19: operator's server-side rate limiting
-        handles abuse; client-side backoff adds state-machine complexity).
+      - ``GbsAuthExpiredError``: propagates to caller (``GbsMarqueeWorker._on_tick``)
+        which logs ``gbs.marquee.auth_expired`` WARN and emits the ``auth_expired``
+        Signal (GBS-AUTH-EXP-02, Plan 87.1-02).  No anonymous retry (D-19).
       - ``URLError | TimeoutError | OSError``: log ``gbs.marquee.fetch_failed``
         WARN with exception class name only (no marquee body text in log).
       - Generic ``Exception`` belt-and-suspenders: same ``fetch_failed`` WARN.
@@ -352,9 +352,6 @@ def _fetch_marquee() -> str | None:
                 _anon_req, timeout=gbs_api._TIMEOUT_READ
             ) as resp:
                 return resp.read().decode("utf-8", errors="replace")
-    except gbs_api.GbsAuthExpiredError:
-        _log.warning("gbs.marquee.auth_expired url=%s", MARQUEE_URL)
-        return None
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         _log.warning(
             "gbs.marquee.fetch_failed url=%s error=%s",
@@ -468,6 +465,7 @@ class GbsMarqueeWorker(QThread):
     themed_logo_ready = Signal(object)   # raw PNG bytes — CR-01: NO QPixmap off the GUI thread; main-thread slot decodes
     marquee_ready = Signal(str, str)     # (first_segment, full_text)
     cadence_changed_internal = Signal(int)  # ms — cross-thread cadence bridge
+    auth_expired = Signal()  # emitted when _fetch_marquee raises GbsAuthExpiredError (GBS-AUTH-EXP-02)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -609,6 +607,14 @@ class GbsMarqueeWorker(QThread):
             # _last_homepage_html / _last_full_marquee_text empty).
             if html is not None and not self._themed_day_detected_this_session:
                 self._on_first_gbs_bind()
+        except gbs_api.GbsAuthExpiredError:
+            # GBS-AUTH-EXP-02: surface expiry as a cross-thread signal so the
+            # shared GbsReloginHandler can be notified (Plan 87.1-02).
+            # D-18: existing quiet-failure policy preserved — no marquee_ready emitted,
+            # timer continues rescheduling below.  Warning log mirrors the original
+            # _fetch_marquee handler (now moved here where self is available).
+            _log.warning("gbs.marquee.auth_expired url=%s", MARQUEE_URL)
+            self.auth_expired.emit()  # crosses QThread boundary via Qt queue (Pitfall 9)
         except Exception as exc:  # noqa: BLE001  # belt-and-suspenders (T-87-03-06)
             _log.warning(
                 "gbs.marquee.fetch_failed url=%s error=%s",
