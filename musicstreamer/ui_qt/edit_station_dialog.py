@@ -514,6 +514,11 @@ class EditStationDialog(QDialog):
         form.addRow("Channel avatar:", _avatar_container)
         # Wire Refresh button: same path as the logo Refresh — stop timer, call timeout handler
         self._refresh_avatar_btn.clicked.connect(self._on_refresh_avatar_clicked)
+        # Phase 89c D-09: "Choose brand image…" picker — synchronous, any provider.
+        # Visible for ALL providers (NOT URL-gated). Disjoint from _AvatarFetchWorker (D-09a).
+        self._choose_brand_image_btn = QPushButton("Choose brand image…", self)
+        avatar_row.addWidget(self._choose_brand_image_btn)
+        self._choose_brand_image_btn.clicked.connect(self._on_choose_brand_image)
 
         # Streams table
         streams_container = QWidget()
@@ -1393,6 +1398,36 @@ class EditStationDialog(QDialog):
         self._logo_path = rel
         self._refresh_logo_preview()
         self._invalidate_cache_for(old_path)
+
+    def _on_choose_brand_image(self) -> None:
+        """Phase 89c D-09: synchronous brand-image picker for any provider.
+
+        Writes the chosen image to the provider-keyed avatar file and persists
+        providers.avatar_path via the non-silent-reset single-column UPDATE
+        (Pitfall 5). Synchronous file read only — no network worker thread
+        involved (D-09a). Pitfall-7 guard prevents None.png on new/unsaved stations.
+        """
+        # Pitfall-7: provider_id is None for new/unsaved stations — writing would
+        # produce a junk 'None.png' file and a silent 0-row DB UPDATE. No-op early.
+        if self._station.provider_id is None:
+            self._avatar_status.setText("Save station first to set a brand image")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose brand image", "",
+            "Images (*.png *.jpg *.jpeg *.webp)",
+        )
+        if not path:
+            return
+        with open(path, "rb") as f:
+            data = f.read()
+        from musicstreamer import assets as _assets
+        rel_path = _assets.write_provider_avatar(self._station.provider_id, data)
+        # 3-step sequence: in-memory → preview → DB persist (mirrors _on_avatar_fetched).
+        self._station.provider_avatar_path = rel_path
+        self._refresh_avatar_preview()
+        self._avatar_status.setText("Brand image saved")
+        # Non-silent-reset single-column UPDATE (Pitfall 5 — not a broad save).
+        self._repo.update_provider_avatar_path(self._station.provider_id, rel_path)
 
     def _on_clear_logo(self) -> None:
         old_path = self._logo_path
