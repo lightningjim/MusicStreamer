@@ -1,39 +1,41 @@
 ---
-status: partial
+status: diagnosed
 phase: 89B-twitch-channel-avatar-fetch
 source: [89B-VERIFICATION.md]
 started: 2026-06-16
-updated: 2026-06-16
+updated: 2026-06-17
 ---
 
 ## Current Test
 
-number: 1
-name: Live avatar auto-fetch in EditStationDialog
-result: fix applied (commit ff027cf8) — re-testing in app
-awaiting: user re-test (restart the app to load the GQL fix)
+[testing complete — 1 issue found on new-station-add path]
 
 ## Tests
 
 ### 1. Live avatar auto-fetch in EditStationDialog
 expected: With a valid `twitch-token.txt` (logged into Twitch via Accounts), pasting/editing a `https://www.twitch.tv/<streamer>` URL in EditStationDialog triggers the debounced auto-fetch and shows the streamer's profile image, circular-cropped, in the avatar preview. The "Refresh avatar" button is enabled for the twitch.tv URL.
-result: [pending]
+result: pass
+note: Re-tested 2026-06-17 after GQL fix (commit ff027cf8). Avatar fetches and renders correctly.
 
 ### 2. ICY-disabled cover-slot rendering
 expected: A bound Twitch station with ICY disabled and a stored avatar shows the circular-cropped streamer avatar in the now-playing **cover slot** (not the left logo slot); the left logo slot is unchanged, so the same image is never shown twice. Sibling Twitch stations of the same streamer reuse the one cached `{provider_id}.png`.
-result: [pending]
+result: pass
+note: Verified 2026-06-17 — cover slot shows circular avatar, left logo unchanged. Sibling-reuse sub-case N/A: Twitch is one live stream per channel by platform design (the multi-live-per-channel case is YouTube, covered by Phase 89.1 per-provider keying).
 
 ### 3. No-token / failure fallback UX
 expected: With no `twitch-token.txt` (or an expired token → Helix 401, or a non-existent login → empty `data`), adding/editing a twitch.tv station shows a non-blocking inline message and **Save always succeeds**; the cover slot falls back to the station thumbnail (no crash, no blank). Optionally a hint points to the Accounts dialog to connect Twitch.
+result: pass
+note: Verified 2026-06-17 — non-blocking inline message, Save succeeds, cover slot falls back to station thumbnail. During this test the user observed a separate add-path defect (see Gaps, test: add-path).
 
 ## Summary
 
 total: 3
-passed: 0
-issues: 0
-pending: 3
+passed: 3
+issues: 1
+pending: 0
 skipped: 0
 blocked: 0
+note: 3/3 scripted tests pass. 1 issue discovered out-of-band on the new-station-add path (see Gaps, test: add-path).
 
 ## Gaps
 
@@ -48,3 +50,13 @@ blocked: 0
     - path: "musicstreamer/twitch_helix.py"
       issue: "Used Helix /users (no access for this token) → 404 → empty emit → 'No avatar found'"
   missing: []
+
+- truth: "Adding a NEW Twitch station with a valid URL auto-fetches and shows the streamer avatar on first save (same as editing an existing station)"
+  status: failed
+  reason: "User reported (2026-06-17 UAT): on new station add, the avatar fails to resolve for a valid station; re-opening the station in edit mode and saving again fetches it correctly."
+  severity: major
+  test: add-path
+  root_cause: ""  # Filled by diagnosis
+  artifacts: []   # Filled by diagnosis
+  missing: []     # Filled by diagnosis
+  debug_session: ""  # Filled by diagnosis
