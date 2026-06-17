@@ -321,7 +321,7 @@ Plans:
 Plans:
 **Wave 1** *(parallel — disjoint files)*
 
-- [ ] 87.1-01-PLAN.md — Shared GbsReloginHandler QObject: single-flight oauth_helper launch + cookie write (0o600) + relogin_succeeded/relogin_failed signals (GBS-AUTH-EXP-02)
+- [x] 87.1-01-PLAN.md — Shared GbsReloginHandler QObject: single-flight oauth_helper launch + cookie write (0o600) + relogin_succeeded/relogin_failed signals (GBS-AUTH-EXP-02)
 - [ ] 87.1-02-PLAN.md — GbsMarqueeWorker.auth_expired signal feeding the shared handler (GBS-AUTH-EXP-02)
 
 **Wave 2** *(blocked on Wave 1)*
@@ -506,7 +506,7 @@ Plans:
 | 88.1. Fix SMTC + Media Keys (G2) (INSERTED) | 2/2 | Complete   | 2026-06-09 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 87.1. GBS Session-Expiry Re-login (INSERTED) | 0/? | Not started | - |
+| 87.1. GBS Session-Expiry Re-login (INSERTED) | 1/3 | In Progress|  |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |

@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 87.1 context gathered
-last_updated: "2026-06-17T18:55:37.542Z"
-last_activity: 2026-06-17 -- Phase 89c execution started
+last_updated: "2026-06-17T19:01:34.959Z"
+last_activity: 2026-06-17 -- Phase 87.1 execution started
 progress:
   total_phases: 21
   completed_phases: 15
   total_plans: 58
-  completed_plans: 55
+  completed_plans: 56
   percent: 71
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 89c — provider-brand-avatar-cover-slot-fallback
+**Current focus:** Phase 87.1 — gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired
 
 ## Current Position
 
-Phase: 89c (provider-brand-avatar-cover-slot-fallback) — EXECUTING
-Plan: 2 of 2
-Status: Executing Phase 89c
-Last activity: 2026-06-17 -- Phase 89c execution started
+Phase: 87.1 (gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 87.1
+Last activity: 2026-06-17 -- Phase 87.1 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -197,7 +197,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-17T18:29:41.342Z
+Last session: 2026-06-17T19:01:34.948Z
 Stopped at: Phase 87.1 context gathered
 Resume file: .planning/phases/87.1-gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired/87.1-CONTEXT.md
 
