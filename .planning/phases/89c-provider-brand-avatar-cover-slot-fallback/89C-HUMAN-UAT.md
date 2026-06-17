@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: complete
 phase: 89c-provider-brand-avatar-cover-slot-fallback
 source: [89c-VERIFICATION.md]
 started: 2026-06-17
@@ -33,15 +33,16 @@ result: pass
 
 ### 5. Brand image shows in dialog preview on reopen
 expected: After setting a brand image and closing the Edit Station dialog, reopening the dialog for that station shows the persisted brand image in the avatar preview (reuse-on-open, per Phase 89.1 D-07).
-result: issue
+result: pass
 reported: "the edit station dialog when re-opened does not show the brand image on the dialog, even though it is set. I only see it when I initially save it and before I click save to close out the dialog"
 severity: minor
+resolution: Fixed by plan 89c-03 — _populate() now calls _refresh_avatar_preview() alongside _refresh_logo_preview(). Verified by drift-guard test_populate_refreshes_avatar_preview + diagnosis against live source. User to re-confirm in-app at leisure.
 
 ## Summary
 
 total: 5
-passed: 4
-issues: 1
+passed: 5
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -49,8 +50,9 @@ blocked: 0
 ## Gaps
 
 - truth: "Reopening EditStationDialog for a station with a set provider brand image shows that image in the avatar preview (reuse-on-open, Phase 89.1 D-07)"
-  status: failed
+  status: resolved
   reason: "User reported: the edit station dialog when re-opened does not show the brand image on the dialog, even though it is set. I only see it when I initially save it and before I click save to close out the dialog."
+  resolved_by: 89c-03
   severity: minor
   test: 5
   root_cause: "EditStationDialog._populate() (edit_station_dialog.py:628) calls self._refresh_logo_preview() at L677 but omits the parallel self._refresh_avatar_preview() call, so the avatar/brand preview is never populated from self._station.provider_avatar_path on dialog open. _refresh_avatar_preview() (L1603) already resolves and renders the persisted path correctly — it is simply never invoked at construction/populate time (only on fetch/pick paths at L1346/1434/1551)."

@@ -1,9 +1,10 @@
 ---
 phase: 89c-provider-brand-avatar-cover-slot-fallback
 verified: 2026-06-17T00:00:00Z
-status: human_needed
+status: passed
 score: 11/11 must-haves verified
 overrides_applied: 0
+human_uat_resolution: "All 4 human-verification items confirmed PASS via 89C-HUMAN-UAT.md (live render across all providers, picker, Pitfall-7 guard, tier-replay). One additional minor gap surfaced during UAT (dialog avatar preview empty on reopen) was diagnosed and fixed by gap-closure plan 89c-03 (_populate now calls _refresh_avatar_preview; drift-guard test_populate_refreshes_avatar_preview). Two cosmetic notes (status-label truncation at small window sizes) logged, not blocking."
 human_verification:
   - test: "Play a SomaFM or AudioAddict station in the running app and wait for a track whose art resolution exhausts (cover slot shows placeholder or logo)"
     expected: "After cover resolution exhausts, cover slot shows the provider brand avatar (circular crop) rather than duplicating the station logo shown in the left logo slot — but only if a brand PNG has been supplied by the user. Without a PNG, the cover slot shows the station logo (current behavior, D-04 missing-asset path)."
