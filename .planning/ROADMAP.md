@@ -506,7 +506,7 @@ Plans:
 | 88.1. Fix SMTC + Media Keys (G2) (INSERTED) | 2/2 | Complete   | 2026-06-09 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 87.1. GBS Session-Expiry Re-login (INSERTED) | 3/3 | Complete   | 2026-06-17 |
+| 87.1. GBS Session-Expiry Re-login (INSERTED) | 3/3 | Human UAT  | 2026-06-17 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
