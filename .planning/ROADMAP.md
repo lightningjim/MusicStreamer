@@ -493,9 +493,14 @@ Plans:
 | 91. FIX-MPRIS | 1/1 | Complete | 2026-06-02 |
 | 85. Linux Common + AppImage Build | 4/4 | Complete   | 2026-06-01 |
 | 86. Linux Flatpak Build | 5/5 | Complete   | 2026-06-09 |
+| 86.1. SC5 Failure Follow-up (INSERTED) | 2/2 | Complete   | 2026-06-04 |
 | 88. Windows Packaging Bundle | 4/4 | Complete | 2026-06-13 |
+| 88.3. Bundle QtWebEngine (G6) (INSERTED) | 5/5 | Complete   | 2026-06-13 |
+| 88.2. Fix GBS Login Start (G3) (INSERTED) | 2/2 | Complete   | 2026-06-09 |
+| 88.1. Fix SMTC + Media Keys (G2) (INSERTED) | 2/2 | Complete   | 2026-06-09 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
+| 87.1. GBS Session-Expiry Re-login (INSERTED) | 0/? | Not started | - |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
