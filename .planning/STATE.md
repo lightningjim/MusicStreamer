@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 87.1 context gathered
-last_updated: "2026-06-17T19:01:34.959Z"
+last_updated: "2026-06-17T19:05:49.879Z"
 last_activity: 2026-06-17 -- Phase 87.1 execution started
 progress:
   total_phases: 21
   completed_phases: 15
   total_plans: 58
-  completed_plans: 56
+  completed_plans: 57
   percent: 71
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 ## Current Position
 
 Phase: 87.1 (gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Executing Phase 87.1
 Last activity: 2026-06-17 -- Phase 87.1 execution started
 
@@ -197,7 +197,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-17T19:01:34.948Z
+Last session: 2026-06-17T19:05:49.868Z
 Stopped at: Phase 87.1 context gathered
 Resume file: .planning/phases/87.1-gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired/87.1-CONTEXT.md
 
