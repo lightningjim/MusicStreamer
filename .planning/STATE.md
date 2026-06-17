@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Completed 89B-01-PLAN.md
-last_updated: "2026-06-17T01:30:45.754Z"
+stopped_at: Completed 89B-02-PLAN.md
+last_updated: "2026-06-17T01:39:31.024Z"
 last_activity: 2026-06-17 -- Phase 89B execution started
 progress:
   total_phases: 21
-  completed_phases: 14
+  completed_phases: 15
   total_plans: 54
-  completed_plans: 53
-  percent: 67
+  completed_plans: 54
+  percent: 71
 ---
 
 # Project State
@@ -136,6 +136,9 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase 89.1 Plan 02]: D-07 reuse gate placed inside the YouTube URL branch of _on_url_timer_timeout; controlled by _force_avatar_refresh instance flag (D-08)
 - [Phase 89.1 Plan 02]: _on_refresh_avatar_clicked uses try/finally to guarantee _force_avatar_refresh resets to False after D-08 bypass
 - [Phase ?]: Bearer token scoped to Helix Request object only (T-89b-01); late import of twitch_helix in yt_import avoids import cycle
+- [Phase 89B Plan 02]: Registry dispatch by URL sniff in _AvatarFetchWorker.run(): "twitch.tv" → "twitch" key, else "youtube"; node_runtime only for YouTube path (Pitfall 1)
+- [Phase 89B Plan 02]: Single is_avatar_url gate in _on_url_timer_timeout covers YouTube+Twitch with single provider_id-None guard (Pitfall 7 compliance)
+- [Phase 89B Plan 02]: blank-provider guard (not provider_name) enforces D-04: manual providers never overwritten by Twitch: login derivation in _on_save
 
 ### Decisions (v2.1, preserved for context)
 
@@ -188,7 +191,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-17T01:30:45.742Z
+Last session: 2026-06-17T01:39:31.014Z
 Stopped at: Completed 89B-01-PLAN.md
 Resume file: None
 
