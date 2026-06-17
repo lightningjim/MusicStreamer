@@ -77,7 +77,7 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [ ] **ART-AVATAR-01**: `stations` table gains a `channel_avatar_path TEXT` column via idempotent additive migration in `repo.py:db_init()` (matches existing `station_art_path` pattern); existing rows default to NULL
 - [ ] **ART-AVATAR-02**: New filesystem directory `~/.local/share/musicstreamer/assets/channel-avatars/` stores avatar PNGs keyed by station ID
 - [x] **ART-AVATAR-03**: For YouTube stations, `yt_import.fetch_channel_avatar(channel_url) -> bytes` returns a square channel-avatar image; filters `info.get('thumbnails', [])` for entries with `id == 'avatar_uncropped'` (preferred) or `id == 'avatar'`; rejects entries where `width != height`
-- [ ] **ART-AVATAR-04**: For Twitch stations, `musicstreamer/twitch_helix.py` fetches the channel `profile_image_url` from `GET https://api.twitch.tv/helix/users?login=<x>` using the existing Phase 32 `twitch-token.txt` user token (no new OAuth scopes)
+- [x] **ART-AVATAR-04**: For Twitch stations, `musicstreamer/twitch_helix.py` fetches the channel `profile_image_url` from `GET https://api.twitch.tv/helix/users?login=<x>` using the existing Phase 32 `twitch-token.txt` user token (no new OAuth scopes)
 - [x] **ART-AVATAR-05**: Avatar auto-fetches on URL paste in `EditStationDialog` (consistent with the Phase 6/17 YT thumbnail behavior) AND surfaces a "Refresh avatar" button for manual re-fetch on demand
 - [x] **ART-AVATAR-06**: When ICY metadata is disabled for a YT or Twitch station AND a channel avatar exists, the now-playing cover slot displays the channel avatar (circular crop) instead of duplicating the station thumbnail
 - [x] **ART-AVATAR-07**: When ICY metadata is enabled (any station, any provider), cover-resolver precedence stays **`ICY → iTunes → MB-CAA → channel-avatar → placeholder`** — channel-avatar fallback fires ONLY when ICY is empty/disabled; never short-circuits Phase 73 MB-CAA Vaporwave/niche-electronic coverage
@@ -202,7 +202,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | ART-AVATAR-01 | Phase 89a | Pending |
 | ART-AVATAR-02 | Phase 89a | Pending |
 | ART-AVATAR-03 | Phase 89 | Complete |
-| ART-AVATAR-04 | Phase 89b | Pending |
+| ART-AVATAR-04 | Phase 89b | Complete |
 | ART-AVATAR-05 | Phase 89 | Complete |
 | ART-AVATAR-06 | Phase 89 | Complete |
 | ART-AVATAR-07 | Phase 89 | Complete |

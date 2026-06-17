@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
-stopped_at: Phase 89b context gathered
-last_updated: "2026-06-17T01:25:19.516Z"
-last_activity: 2026-06-17 -- Phase 89B planning complete
+status: executing
+stopped_at: Completed 89B-01-PLAN.md
+last_updated: "2026-06-17T01:30:45.754Z"
+last_activity: 2026-06-17 -- Phase 89B execution started
 progress:
   total_phases: 21
   completed_phases: 14
   total_plans: 54
-  completed_plans: 52
+  completed_plans: 53
   percent: 67
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 89A — channel avatar db migration storage layout
+**Current focus:** Phase 89B — twitch-channel-avatar-fetch
 
 ## Current Position
 
-Phase: 89A
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-17 -- Phase 89B planning complete
+Phase: 89B (twitch-channel-avatar-fetch) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 89B
+Last activity: 2026-06-17 -- Phase 89B execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -135,6 +135,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase 89.1 Plan 02]: bind_station uses os.path.isfile guard on provider_avatar_path before _set_avatar_pixmap_from_path (D-06 / T-89.1-05)
 - [Phase 89.1 Plan 02]: D-07 reuse gate placed inside the YouTube URL branch of _on_url_timer_timeout; controlled by _force_avatar_refresh instance flag (D-08)
 - [Phase 89.1 Plan 02]: _on_refresh_avatar_clicked uses try/finally to guarantee _force_avatar_refresh resets to False after D-08 bypass
+- [Phase ?]: Bearer token scoped to Helix Request object only (T-89b-01); late import of twitch_helix in yt_import avoids import cycle
 
 ### Decisions (v2.1, preserved for context)
 
@@ -183,12 +184,13 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 94 P03 | 26 | 2 tasks | 2 files |
 | Phase 89 P02 | 2m | 2 tasks | 2 files |
 | Phase 89 P05 | 22 | 2 tasks | 2 files |
+| Phase 89B-twitch-channel-avatar-fetch P01 | 2m | 2 tasks | 3 files |
 
 ## Session Continuity
 
-Last session: 2026-06-17T00:42:13.007Z
-Stopped at: Phase 89b context gathered
-Resume file: .planning/phases/89B-twitch-channel-avatar-fetch/89B-CONTEXT.md
+Last session: 2026-06-17T01:30:45.742Z
+Stopped at: Completed 89B-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
