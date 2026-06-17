@@ -374,9 +374,10 @@ Plans:
   2. When a Twitch station has ICY disabled and a stored Twitch avatar, the cover slot displays the avatar via the same circular-crop path as Phase 89 (zero new UI code; integration is a per-provider auto-fetch trigger only).
   3. Helix rate-limit budget is preserved — avatar fetched once per station-create/edit, then cached indefinitely with a manual "Refresh avatar" affordance (no per-play refresh).
 
-**Plans**: 2 plans
+**Plans**: 3 plans
 - [x] 89B-01-PLAN.md — New `musicstreamer/twitch_helix.py` (`fetch_channel_avatar` via Helix `/users`, Bearer + Client-Id, login parse) + register into the per-provider avatar registry (Wave 1)
 - [x] 89B-02-PLAN.md — EditStationDialog: twitch.tv URL detection + Refresh gate, `_AvatarFetchWorker` registry dispatch, blank-only `Twitch: <login>` provider derivation on save (Wave 2)
+- [ ] 89B-03-PLAN.md — Gap closure: refresh in-memory provider_id/provider_name + synchronous fetch-and-persist of the Twitch avatar in `_on_save` before `accept()` so a NEW Twitch station fetches its avatar on FIRST save (UAT add-path gap) (Wave 1)
 **Research flag**: NO — Helix `/users` is a single GET, pattern is well-established in `aa_live.py` and elsewhere.
 
 #### Phase 89c (INSERTED): Provider Brand-Avatar Cover-Slot Fallback (SomaFM, AudioAddict)
