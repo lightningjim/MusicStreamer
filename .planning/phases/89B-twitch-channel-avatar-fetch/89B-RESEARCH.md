@@ -603,7 +603,7 @@ if not token:
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should `_AvatarFetchWorker.run()` determine provider by URL-sniffing or carry a provider-key field?**
    - What we know: the constructor receives `url`; the Twitch branch can be detected via `"twitch.tv" in url.lower()`.

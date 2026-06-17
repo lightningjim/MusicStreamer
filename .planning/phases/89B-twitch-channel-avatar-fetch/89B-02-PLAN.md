@@ -18,6 +18,9 @@ must_haves:
     - "On save, when the Provider field is blank AND the URL is twitch.tv, the login is derived and repo.ensure_provider('Twitch: <login>') sets the station provider_id; a user-typed Provider is NEVER overwritten (D-02, D-03, D-04, Pitfall 3)"
     - "All Twitch fetch failures fall back non-blocking to the station thumbnail and Save is always allowed (D-07); the no-token status text points the user to Accounts"
     - "The stored Twitch avatar renders through the unchanged cover_art/now_playing provider-keyed path — no renderer or cover-slot edits in this phase (D-11)"
+    - "The fetched avatar bytes are stored per-provider as assets/channel-avatars/{provider_id}.png via the existing assets.write_provider_avatar(provider_id, data) and persisted with repo.update_provider_avatar_path(provider_id, path) — never per-station {station_id}.png; the roadmap's <station-id>.png wording is superseded (D-01, 89.1 D-09/D-10)"
+    - "No staleness TTL or per-bind/per-play refetch is added — the avatar is fetched once when the provider has no avatar and updated only via the manual Refresh button (D-09)"
+    - "Refresh re-fetches and overwrites the single per-provider {provider_id}.png so every sibling Twitch station of that streamer updates; the existing 89.1 shared-effect Refresh hint is reused with no Twitch-specific divergence (D-10, 89.1 D-08)"
   artifacts:
     - path: "tests/test_edit_station_dialog_avatar.py"
       provides: "Wave 0 unit tests: twitch.tv URL enables Refresh; worker dispatch picks twitch fetcher"
