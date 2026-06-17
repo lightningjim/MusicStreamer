@@ -1704,6 +1704,15 @@ class EditStationDialog(QDialog):
                 if _login:
                     provider_name = f"Twitch: {_login}"
         provider_id = repo.ensure_provider(provider_name)
+        # Phase 89B-03 (gap closure): refresh the in-memory Station so its
+        # provider_id/provider_name reflect the just-derived provider. On a NEW
+        # station add, self._station.provider_id was None (placeholder from
+        # repo.create_station) and was never updated, so the synchronous add-path
+        # avatar fetch below (and any downstream consumer) could not key on it.
+        # Runs for BOTH the derived-Twitch case and the manual-provider case;
+        # the D-04 blank-provider derivation above is untouched.
+        self._station.provider_id = provider_id
+        self._station.provider_name = provider_name
 
         repo.update_station(
             station.id,
@@ -1780,12 +1789,66 @@ class EditStationDialog(QDialog):
             repo.reorder_streams(station.id, ordered_ids)
 
         self.station_saved.emit()
+        # Phase 89B-03 (gap closure): synchronously fetch-and-persist the channel
+        # avatar on the add path BEFORE accept(). The debounced async path
+        # (_on_url_timer_timeout) is skipped on a NEW add because provider_id was
+        # None (Pitfall-7 guard, line ~1331); and an async fetch kicked here would
+        # be torn down by accept()'s _shutdown_avatar_fetch_worker() before the
+        # queued finished->_on_avatar_fetched slot can persist. So do it inline.
+        self._maybe_fetch_avatar_sync(self.url_edit.text().strip(), provider_id)
         # SAVE-CLEANUP: flip _is_new False BEFORE accept() so a later
         # reject()/closeEvent() does not delete the just-saved station.
         self._is_new = False
         # Phase 51-04 / D-11: validation + persistence succeeded.
         self._save_succeeded = True
         self.accept()
+
+    def _maybe_fetch_avatar_sync(self, url: str, provider_id: "int | None") -> None:
+        """Phase 89B-03: synchronous channel-avatar fetch-and-persist for the
+        save (add) path. Mirrors _AvatarFetchWorker.run() but runs inline so the
+        result is persisted before accept() teardown.
+
+        Non-blocking on failure (D-07): never raises, Save always succeeds.
+        Honors the D-07 reuse gate and the Pitfall-7 provider_id intent (this is a
+        distinct save-path call site, NOT a duplicate of the line-1331 guard).
+        """
+        # Mirror Pitfall-7 intent: a provider-less station cannot be keyed.
+        if provider_id is None:
+            return
+        lower = (url or "").lower()
+        is_avatar_url = (
+            "youtube.com" in lower or "youtu.be" in lower or "twitch.tv" in lower
+        )
+        if not is_avatar_url:
+            return
+        # D-07 reuse gate: skip the network fetch if the provider already has an
+        # avatar, unless a Refresh forced it (existing-provider adds must NOT
+        # refetch — invariant 3 / D-07).
+        provider_avatar = getattr(self._station, "provider_avatar_path", None)
+        if provider_avatar and not getattr(self, "_force_avatar_refresh", False):
+            return
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        try:
+            from musicstreamer import yt_import, assets as _assets
+            provider_key = "twitch" if "twitch.tv" in lower else "youtube"
+            fetcher = yt_import.get_avatar_fetcher(provider_key)
+            if fetcher is None:
+                return
+            if provider_key == "youtube":
+                data = fetcher(url, node_runtime=self._node_runtime)
+            else:
+                data = fetcher(url)
+            rel_path = _assets.write_provider_avatar(provider_id, data)
+            self._repo.update_provider_avatar_path(provider_id, rel_path)
+            self._station.provider_avatar_path = rel_path
+        except Exception:  # noqa: BLE001
+            # D-07: all failure modes are non-blocking. Save still succeeds.
+            self._avatar_status.setText(
+                "No avatar found — cover will use the station thumbnail"
+            )
+        finally:
+            QApplication.restoreOverrideCursor()
 
     # ------------------------------------------------------------------
     # Delete (T-39-03)
