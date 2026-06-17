@@ -56,7 +56,14 @@ note: 3/3 scripted tests pass. 1 issue discovered out-of-band on the new-station
   reason: "User reported (2026-06-17 UAT): on new station add, the avatar fails to resolve for a valid station; re-opening the station in edit mode and saving again fetches it correctly."
   severity: major
   test: add-path
-  root_cause: ""  # Filled by diagnosis
-  artifacts: []   # Filled by diagnosis
-  missing: []     # Filled by diagnosis
-  debug_session: ""  # Filled by diagnosis
+  root_cause: "On new-station add, self._station.provider_id is None (placeholder created by repo.create_station() with no provider) and is never updated in-memory. The debounced avatar fetch in _on_url_timer_timeout is gated on provider_id != None (Pitfall-7 guard, edit_station_dialog.py:1331), so it is skipped on the add path. _on_save derives+persists provider_id (line 1706) but never refreshes self._station.provider_id and never triggers a fetch before accept() — so first add never fetches. On re-edit, get_station() rehydrates provider_id from DB, the gate passes, and the fetch fires."
+  artifacts:
+    - path: "musicstreamer/ui_qt/edit_station_dialog.py"
+      issue: "_on_save (~line 1699-1788) derives provider_id via repo.ensure_provider but never assigns self._station.provider_id / provider_name and never kicks the avatar fetch before accept(); guard at line 1331 then blocks add-path fetch since provider_id is None"
+    - path: "musicstreamer/ui_qt/main_window.py"
+      issue: "new station created via repo.create_station() (~line 1230) with provider_id NULL; edit path re-fetches via get_station() (~line 1254) which rehydrates provider_id (hence edit works)"
+  missing:
+    - "After provider_id = repo.ensure_provider(provider_name) in _on_save: assign self._station.provider_id = provider_id and self._station.provider_name = provider_name"
+    - "Trigger the avatar fetch on the add path once provider_id is set, only when provider_avatar_path is empty (honor D-07 reuse gate + _force_avatar_refresh); ensure the fetch result is actually persisted before/independent of accept() teardown (worker QThread finished->_on_avatar_fetched slot delivery risk; prefer synchronous fetch-and-persist or fetch-before-accept)"
+    - "Preserve D-04 blank-provider guard (line 1699) and Pitfall-7 single guard (line 1331 untouched)"
+  debug_session: ".planning/debug/twitch-avatar-fails-on-new-add.md"
