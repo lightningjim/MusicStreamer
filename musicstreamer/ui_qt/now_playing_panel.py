@@ -1289,14 +1289,15 @@ class NowPlayingPanel(QWidget):
         worker.marquee_ready.connect(
             self._on_marquee_ready, _Qt.QueuedConnection
         )
-        # Phase 87.1 / GBS-AUTH-EXP-02: wire auth_expired from the marquee worker
-        # (QThread) to the shared handler (main thread) with Qt.QueuedConnection
-        # (Pitfall 9 — worker thread emits, main thread receives).
-        if self._gbs_relogin_handler is not None:
-            worker.auth_expired.connect(
-                self._gbs_relogin_handler.notify_expiry_detected,
-                _Qt.QueuedConnection,
-            )
+        # Phase 87.1 Plan 05 / GBS-AUTH-EXP-02: wire auth_expired from the marquee
+        # worker (QThread) to the panel's reveal-only slot with Qt.QueuedConnection
+        # (Pitfall 9 — cross-thread delivery). USER DECISION 2026-06-17: the marquee
+        # surfaces the inline prompt here; it does NOT auto-launch the subprocess and
+        # does NOT no-op. Launch remains user-gated on _on_gbs_relogin_clicked.
+        worker.auth_expired.connect(
+            self._on_gbs_expiry_detected,
+            _Qt.QueuedConnection,
+        )
 
     def _refresh_gbs_marquee_cadence(self) -> None:
         """Drive GbsMarqueeWorker cadence from current is_playing state.
@@ -3165,11 +3166,10 @@ class NowPlayingPanel(QWidget):
             # returns True until the user logs out, but ajax_possible
             # becomes False.
             self._gbs_ajax_disabled = True
-            # Phase 87.1 D-01: show inline expiry prompt in place of playlist widget.
-            self._gbs_expiry_widget.setVisible(True)
-            # Notify shared handler (single-flight de-dup lives there — GBS-AUTH-EXP-02).
-            if self._gbs_relogin_handler is not None:
-                self._gbs_relogin_handler.notify_expiry_detected()
+            # Phase 87.1 Plan 05 / D-01: detection only — reveal the inline expiry
+            # prompt via the shared slot. Launch is user-gated on _on_gbs_relogin_clicked
+            # (GBS-AUTH-EXP-01); notify_expiry_detected is NOT called here.
+            self._on_gbs_expiry_detected()
         else:
             # Pitfall 5 + 7: don't retry; just log.
             _log.warning("GBS.FM playlist poll failed: %s", msg)
@@ -3208,10 +3208,30 @@ class NowPlayingPanel(QWidget):
         Pitfall 5: disables the button while in-flight to prevent multiple
         concurrent subprocess spawns. The handler's single-flight guard is the
         second layer of defence.
+
+        SOLE user-gated launch trigger (D-01 / GBS-AUTH-EXP-01). Detection events
+        MUST NOT reach the handler directly — they route to _on_gbs_expiry_detected.
         """
         self._gbs_relogin_btn.setEnabled(False)  # Pitfall 5: disable while in-flight
         if self._gbs_relogin_handler is not None:
             self._gbs_relogin_handler.notify_expiry_detected()
+
+    def _on_gbs_expiry_detected(self) -> None:
+        """Detection → reveal the inline expiry prompt ONLY. No subprocess launch.
+
+        Called from:
+          - _on_gbs_playlist_error (auth_expired branch) — playlist-poll detection.
+          - attach_gbs_marquee_worker via worker.auth_expired (Qt.QueuedConnection,
+            cross-thread) — marquee-worker detection.
+
+        Both paths must ONLY reveal the prompt; they must NOT launch the oauth_helper.
+        Launch is user-gated exclusively on _on_gbs_relogin_clicked (D-01 /
+        GBS-AUTH-EXP-01). The marquee surfaces the prompt here per USER DECISION
+        2026-06-17 (does not auto-launch, does not no-op) closing GBS-AUTH-EXP-02.
+
+        Idempotent: setVisible(True) is safe to call multiple times.
+        """
+        self._gbs_expiry_widget.setVisible(True)
 
     # ----------------------------------------------------------------------
     # Phase 60 / GBS-01d: vote control handlers (D-07a/D-07b/D-07c/D-07d)
