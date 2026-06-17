@@ -1828,8 +1828,11 @@ class EditStationDialog(QDialog):
         if provider_avatar and not getattr(self, "_force_avatar_refresh", False):
             return
 
-        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         try:
+            # WR-02: keep the cursor set inside try so the D-07 "Save always
+            # succeeds" contract is structural — any raise (even cursor setup)
+            # is swallowed below rather than propagating out of _on_save.
+            QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
             from musicstreamer import yt_import, assets as _assets
             provider_key = "twitch" if "twitch.tv" in lower else "youtube"
             fetcher = yt_import.get_avatar_fetcher(provider_key)
