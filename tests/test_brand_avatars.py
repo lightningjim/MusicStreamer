@@ -132,3 +132,50 @@ def test_bind_station_resets_brand_avatar():
         "D-11: _last_brand_avatar = None must appear within bind_station body "
         "(stale-station bleed guard, Phase 89c Pitfall 3)"
     )
+
+
+# ---------------------------------------------------------------------------
+# D-09 / D-09a drift-guard — Wave 2 (edit_station_dialog.py picker)
+# ---------------------------------------------------------------------------
+
+EDIT_STATION_SRC = Path(__file__).parent.parent / "musicstreamer" / "ui_qt" / "edit_station_dialog.py"
+
+
+def test_choose_brand_image_uses_provider_keyed_persist():
+    """D-09/D-09a: _on_choose_brand_image must exist in edit_station_dialog.py and its
+    body must reference write_provider_avatar and update_provider_avatar_path (non-silent-
+    reset persist, Pitfall 5), contain a provider_id is None guard (Pitfall 7), and must
+    NOT reference _AvatarFetchWorker (D-09a — synchronous, not the network worker).
+
+    Source-grep drift-guard: structural contract over live source.
+    """
+    src = EDIT_STATION_SRC.read_text(encoding="utf-8")
+
+    # Locate the method definition
+    method_start = src.find("def _on_choose_brand_image")
+    assert method_start != -1, (
+        "edit_station_dialog.py must define _on_choose_brand_image (D-09)"
+    )
+
+    # Extract method body up to next top-level def at the same indent
+    next_def_pos = src.find("\n    def ", method_start + 1)
+    if next_def_pos == -1:
+        next_def_pos = len(src)
+    method_body = src[method_start:next_def_pos]
+
+    assert "write_provider_avatar" in method_body, (
+        "D-09: _on_choose_brand_image body must call write_provider_avatar "
+        "(provider-keyed atomic write, Pitfall 6)"
+    )
+    assert "update_provider_avatar_path" in method_body, (
+        "D-09: _on_choose_brand_image body must call update_provider_avatar_path "
+        "(non-silent-reset single-column persist, Pitfall 5)"
+    )
+    assert "provider_id is None" in method_body, (
+        "D-09 Pitfall-7: _on_choose_brand_image body must guard against "
+        "provider_id is None before any write (never write None.png)"
+    )
+    assert "_AvatarFetchWorker" not in method_body, (
+        "D-09a: _on_choose_brand_image must NOT reference _AvatarFetchWorker "
+        "(pick is synchronous, disjoint from YouTube/Twitch auto-fetch path)"
+    )
