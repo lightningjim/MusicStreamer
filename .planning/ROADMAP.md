@@ -334,7 +334,7 @@ Plans:
 
 **Wave 4** *(GAP CLOSURE — gates the oauth_helper launch behind the user's button click; blocked on Waves 1-3)*
 
-- [ ] 87.1-05-PLAN.md — Separate detection from launch: detection (playlist error + marquee auth_expired) reveals the inline prompt only; oauth_helper launches solely on the "Log in again" click; dual-path no-auto-launch regression test (GBS-AUTH-EXP-01/02/03, gap closure from 87.1-HUMAN-UAT Test 1)
+- [x] 87.1-05-PLAN.md — Separate detection from launch: detection (playlist error + marquee auth_expired) reveals the inline prompt only; oauth_helper launches solely on the "Log in again" click; dual-path no-auto-launch regression test (GBS-AUTH-EXP-01/02/03, gap closure from 87.1-HUMAN-UAT Test 1)
 
 #### Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap
 
@@ -514,7 +514,7 @@ Plans:
 | 88.1. Fix SMTC + Media Keys (G2) (INSERTED) | 2/2 | Complete   | 2026-06-09 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 87.1. GBS Session-Expiry Re-login (INSERTED) | 4/4 | Complete   | 2026-06-17 |
+| 87.1. GBS Session-Expiry Re-login (INSERTED) | 5/5 | Complete   | 2026-06-17 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
