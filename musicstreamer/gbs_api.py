@@ -160,16 +160,72 @@ def _open_with_cookies(url: str, cookies: http.cookiejar.MozillaCookieJar,
     """Send GET with cookies; return urlopen response (caller closes via with).
 
     Raises GbsAuthExpiredError on 302 → /accounts/login/.
+
+    Detection strategy (mirrors _open_no_redirect): install a _NoRedirect handler
+    that returns fp (the raw response) instead of following any redirect, then
+    inspect the returned response.  If Location contains "/accounts/login/" the
+    session has expired; raise GbsAuthExpiredError.  For any OTHER 3xx, re-issue
+    the request with a redirect-following opener so legitimate redirects and the
+    200-JSON happy path are unaffected.
+
+    The previous implementation relied on the default HTTPRedirectHandler, which
+    auto-follows 302 → /accounts/login/ and returns the 200 login page; the
+    "except HTTPError" 302 branch below was therefore DEAD CODE for GET requests
+    (urllib only raises HTTPError(302) when redirect_request returns None, which
+    the default handler does not do for GET).  The _NoRedirect pattern fixes this
+    by stopping the chain at the first redirect so the Location header is visible.
+
+    The "except HTTPError" belt-and-braces block is retained for the error-style
+    case (any future server configuration that returns 302 as an HTTP error rather
+    than following it) and for the submit() path which shares the same Location
+    convention via _open_no_redirect.
     """
-    handler = urllib.request.HTTPCookieProcessor(cookies)
-    opener = urllib.request.build_opener(handler)
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        # Return fp (raw response) instead of following the redirect.
+        # Mirrors _open_no_redirect._NoRedirect — same CPython hook, same rationale
+        # (see _open_no_redirect docstring and 60-DIAGNOSIS-302-messages.md §2/§5a).
+        def http_error_302(self, req, fp, code, msg, headers):
+            return fp
+        http_error_301 = http_error_307 = http_error_303 = http_error_302
+
+    handler_cookie = urllib.request.HTTPCookieProcessor(cookies)
+    handler_noredir = _NoRedirect()
+    opener = urllib.request.build_opener(handler_cookie, handler_noredir)
     req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        return opener.open(req, timeout=timeout)
+        resp = opener.open(req, timeout=timeout)
     except urllib.error.HTTPError as e:
+        # Belt-and-braces: error-style 302 (redirect_request returned None, or
+        # server sent 302 outside the normal redirect flow).
         if e.code in (301, 302) and "/accounts/login/" in (e.headers.get("Location") or ""):
             raise GbsAuthExpiredError(f"Session expired (302→login from {url})") from e
         raise
+
+    # Inspect the stopped redirect response.
+    if getattr(resp, "status", None) in (301, 302, 303, 307):
+        location = (resp.headers.get("Location") or "")
+        if "/accounts/login/" in location:
+            try:
+                resp.close()
+            except Exception:
+                pass
+            raise GbsAuthExpiredError(f"Session expired (302→login from {url})")
+        # Non-login redirect: re-follow using the default redirect-following opener
+        # so legitimate redirects work as before.  Use a fresh opener without the
+        # _NoRedirect handler.
+        try:
+            resp.close()
+        except Exception:
+            pass
+        follow_opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(cookies)
+        )
+        return follow_opener.open(
+            urllib.request.Request(url, headers={"User-Agent": _USER_AGENT}),
+            timeout=timeout,
+        )
+
+    return resp
 
 
 def _open_no_redirect(url: str, cookies: http.cookiejar.MozillaCookieJar,
