@@ -237,3 +237,229 @@ def test_save_non_twitch_url_unchanged(qtbot, player, repo):
         f"Regression: ensure_provider was called with Twitch-derived name {twitch_calls!r} "
         "for a non-twitch URL. Twitch derivation must only apply to twitch.tv URLs."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 89B-03 add-path gap-closure tests (RED until Task 2 lands)
+#
+# These cover the synchronous fetch-and-persist + in-memory provider refresh
+# that _on_save must perform on the FIRST save of a NEW Twitch station, so the
+# avatar resolves without a re-edit (UAT-discovered gap; see
+# .planning/debug/twitch-avatar-fails-on-new-add.md).
+#
+# Patch targets match the helper's import form (Task 2):
+#   from musicstreamer import yt_import, assets as _assets
+# => patch musicstreamer.yt_import.get_avatar_fetcher
+#    and  musicstreamer.assets.write_provider_avatar
+# ---------------------------------------------------------------------------
+
+
+def test_save_add_path_fetches_avatar(qtbot, station_blank_provider, player, repo):
+    """First save of a NEW blank-provider Twitch station must synchronously fetch
+    the avatar bytes and persist them per-provider (gap closure)."""
+    from unittest.mock import patch
+
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+
+    repo.ensure_provider.return_value = 9
+
+    d = EditStationDialog(station_blank_provider, player, repo, parent=None)
+    qtbot.addWidget(d)
+    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    d.provider_combo.setCurrentText("")
+
+    stub_fetcher = MagicMock(return_value=b"PNGDATA")
+
+    with patch(
+        "musicstreamer.yt_import.get_avatar_fetcher",
+        return_value=stub_fetcher,
+    ) as mock_get_fetcher, patch(
+        "musicstreamer.assets.write_provider_avatar",
+        return_value="assets/channel-avatars/9.png",
+    ) as mock_write:
+        d.button_box.accepted.emit()
+
+    # Dispatched through the "twitch" registry key
+    assert mock_get_fetcher.called
+    assert "twitch" in [c.args[0] for c in mock_get_fetcher.call_args_list]
+
+    # Bytes written under the derived provider_id (9)
+    assert mock_write.called, "write_provider_avatar must be called on the add path"
+    write_args = mock_write.call_args[0]
+    assert write_args[0] == 9, f"expected provider_id=9, got {write_args[0]!r}"
+    assert write_args[1] == b"PNGDATA"
+
+    # DB persist of the relative path
+    assert repo.update_provider_avatar_path.called
+    assert repo.update_provider_avatar_path.call_args[0] == (
+        9,
+        "assets/channel-avatars/9.png",
+    )
+
+
+def test_save_add_path_refreshes_in_memory_provider(
+    qtbot, station_blank_provider, player, repo
+):
+    """After ensure_provider, _on_save must refresh the in-memory Station so
+    provider_id / provider_name reflect the derived provider (D-02/D-04)."""
+    from unittest.mock import patch
+
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+
+    repo.ensure_provider.return_value = 9
+
+    d = EditStationDialog(station_blank_provider, player, repo, parent=None)
+    qtbot.addWidget(d)
+    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    d.provider_combo.setCurrentText("")
+
+    stub_fetcher = MagicMock(return_value=b"PNGDATA")
+    with patch(
+        "musicstreamer.yt_import.get_avatar_fetcher", return_value=stub_fetcher
+    ), patch(
+        "musicstreamer.assets.write_provider_avatar",
+        return_value="assets/channel-avatars/9.png",
+    ):
+        d.button_box.accepted.emit()
+
+    assert d._station.provider_id == 9
+    assert d._station.provider_name == "Twitch: twitchdev"
+
+
+def test_save_existing_provider_with_avatar_no_refetch(qtbot, player, repo):
+    """Adding a Twitch station under an EXISTING provider that already has an
+    avatar must NOT trigger a network fetch (D-07 reuse gate)."""
+    from unittest.mock import patch
+
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+
+    station_existing = Station(
+        id=5,
+        name="TwitchDev Stream",
+        provider_id=7,
+        provider_name="Twitch: existing",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=True,
+        provider_avatar_path="assets/channel-avatars/7.png",
+    )
+    repo.ensure_provider.return_value = 7
+
+    d = EditStationDialog(station_existing, player, repo, parent=None)
+    qtbot.addWidget(d)
+    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    d.provider_combo.setCurrentText("Twitch: existing")
+
+    stub_fetcher = MagicMock(return_value=b"PNGDATA")
+    with patch(
+        "musicstreamer.yt_import.get_avatar_fetcher", return_value=stub_fetcher
+    ), patch(
+        "musicstreamer.assets.write_provider_avatar",
+        return_value="assets/channel-avatars/7.png",
+    ) as mock_write:
+        d.button_box.accepted.emit()
+
+    assert not stub_fetcher.called, "D-07: existing avatar must NOT be refetched"
+    assert not mock_write.called
+    assert not repo.update_provider_avatar_path.called
+
+
+def test_save_manual_provider_not_overwritten_still_holds(qtbot, player, repo):
+    """Regression (D-04): a manual provider + twitch URL with no avatar yet must
+    key the fetch on the MANUAL provider_id, never on a derived 'Twitch:' name."""
+    from unittest.mock import patch
+
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+
+    station_manual = Station(
+        id=5,
+        name="TwitchDev Stream",
+        provider_id=2,
+        provider_name="Live Sports",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=True,
+        provider_avatar_path=None,
+    )
+    # ensure_provider("Live Sports") -> the MANUAL provider id
+    repo.ensure_provider.return_value = 2
+
+    d = EditStationDialog(station_manual, player, repo, parent=None)
+    qtbot.addWidget(d)
+    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    d.provider_combo.setCurrentText("Live Sports")
+
+    stub_fetcher = MagicMock(return_value=b"PNGDATA")
+    with patch(
+        "musicstreamer.yt_import.get_avatar_fetcher", return_value=stub_fetcher
+    ), patch(
+        "musicstreamer.assets.write_provider_avatar",
+        return_value="assets/channel-avatars/2.png",
+    ) as mock_write:
+        d.button_box.accepted.emit()
+
+    # Manual provider preserved, never overwritten with "Twitch: twitchdev"
+    ensure_calls = [c.args[0] for c in repo.ensure_provider.call_args_list]
+    assert "Twitch: twitchdev" not in ensure_calls
+    assert "Live Sports" in ensure_calls
+
+    # Fetch keys on the MANUAL provider_id (2), not a derived name
+    if mock_write.called:
+        assert mock_write.call_args[0][0] == 2
+    if repo.update_provider_avatar_path.called:
+        assert repo.update_provider_avatar_path.call_args[0][0] == 2
+
+
+def test_save_fetch_failure_is_nonblocking(qtbot, station_blank_provider, player, repo):
+    """A fetch failure on the add path must be swallowed: no exception, Save still
+    succeeds, accept() runs, and no DB avatar persist occurs (D-07)."""
+    from unittest.mock import patch
+
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+
+    repo.ensure_provider.return_value = 9
+
+    d = EditStationDialog(station_blank_provider, player, repo, parent=None)
+    qtbot.addWidget(d)
+    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    d.provider_combo.setCurrentText("")
+
+    failing_fetcher = MagicMock(side_effect=RuntimeError("no token"))
+    with patch(
+        "musicstreamer.yt_import.get_avatar_fetcher", return_value=failing_fetcher
+    ), patch(
+        "musicstreamer.assets.write_provider_avatar",
+        return_value="assets/channel-avatars/9.png",
+    ) as mock_write:
+        # Must not raise
+        d.button_box.accepted.emit()
+
+    assert d._save_succeeded is True
+    assert not mock_write.called
+    assert not repo.update_provider_avatar_path.called
+
+
+def test_on_save_has_inmemory_provider_assignment():
+    """Drift-guard: _on_save must assign provider_id/provider_name in-memory AFTER
+    the ensure_provider call (non-comment source)."""
+    import importlib.resources
+
+    raw = importlib.resources.files("musicstreamer.ui_qt").joinpath(
+        "edit_station_dialog.py"
+    ).read_text()
+    # Strip comment-only lines so a comment can't satisfy the guard.
+    code = "\n".join(
+        line for line in raw.splitlines() if not line.lstrip().startswith("#")
+    )
+
+    assert "self._station.provider_id = provider_id" in code
+    assert "self._station.provider_name = provider_name" in code
+
+    ensure_idx = code.find("repo.ensure_provider(")
+    assign_idx = code.find("self._station.provider_id = provider_id")
+    assert ensure_idx != -1 and assign_idx != -1
+    assert assign_idx > ensure_idx, (
+        "in-memory provider assignment must appear AFTER repo.ensure_provider()"
+    )
