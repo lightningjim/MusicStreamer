@@ -370,11 +370,13 @@ Plans:
 **Requirements**: ART-AVATAR-04
 **Success Criteria** (what must be TRUE):
 
-  1. `musicstreamer/twitch_helix.py` calls `GET https://api.twitch.tv/helix/users?login=<x>` with the existing Phase 32 `twitch-token.txt` user token (no new OAuth scopes) and stores `profile_image_url` bytes to `~/.local/share/musicstreamer/assets/channel-avatars/<station-id>.png`.
+  1. `musicstreamer/twitch_helix.py` calls `GET https://api.twitch.tv/helix/users?login=<x>` with the existing Phase 32 `twitch-token.txt` user token (no new OAuth scopes) and stores `profile_image_url` bytes to `~/.local/share/musicstreamer/assets/channel-avatars/<provider-id>.png` (per-provider key — supersedes the original `<station-id>.png` wording per Phase 89.1 / CONTEXT D-01).
   2. When a Twitch station has ICY disabled and a stored Twitch avatar, the cover slot displays the avatar via the same circular-crop path as Phase 89 (zero new UI code; integration is a per-provider auto-fetch trigger only).
   3. Helix rate-limit budget is preserved — avatar fetched once per station-create/edit, then cached indefinitely with a manual "Refresh avatar" affordance (no per-play refresh).
 
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 89B-01-PLAN.md — New `musicstreamer/twitch_helix.py` (`fetch_channel_avatar` via Helix `/users`, Bearer + Client-Id, login parse) + register into the per-provider avatar registry (Wave 1)
+- [ ] 89B-02-PLAN.md — EditStationDialog: twitch.tv URL detection + Refresh gate, `_AvatarFetchWorker` registry dispatch, blank-only `Twitch: <login>` provider derivation on save (Wave 2)
 **Research flag**: NO — Helix `/users` is a single GET, pattern is well-established in `aa_live.py` and elsewhere.
 
 #### Phase 89c (INSERTED): Provider Brand-Avatar Cover-Slot Fallback (SomaFM, AudioAddict)
