@@ -150,3 +150,54 @@ def test_channel_avatar_lookup_null_provider_avatar_calls_cb_none():
     cb = MagicMock()
     cover_art_mod._channel_avatar_lookup(station, cb)
     cb.assert_called_once_with(None)
+
+
+# ---------------------------------------------------------------------------
+# ART-AVATAR-12 / D-12: source-grep drift-guard — brand lookup placement
+# ---------------------------------------------------------------------------
+
+
+NOW_PLAYING_SRC = Path(__file__).parent.parent / "musicstreamer" / "ui_qt" / "now_playing_panel.py"
+COVER_ART_PY = Path(__file__).parent.parent / "musicstreamer" / "cover_art.py"
+
+
+def test_brand_lookup_only_in_cover_exhausted_branch():
+    """D-12: _resolve_brand_avatar_fallback fires only from _on_cover_art_ready's
+    if-not-path branch — never from bind_station or fetch_cover_art dispatch chain.
+
+    Source-grep gate: structural contract, not a behavioral mock
+    (per feedback_gstreamer_mock_blind_spot.md convention).
+    """
+    src = NOW_PLAYING_SRC.read_text(encoding="utf-8")
+
+    # 1. _resolve_brand_avatar_fallback must be called within _on_cover_art_ready body.
+    ready_pos = src.find("def _on_cover_art_ready")
+    assert ready_pos != -1, "now_playing_panel.py must define _on_cover_art_ready"
+    # Find next top-level method def after _on_cover_art_ready
+    next_def_pos = src.find("\n    def ", ready_pos + 1)
+    if next_def_pos == -1:
+        next_def_pos = len(src)
+    ready_body = src[ready_pos:next_def_pos]
+    assert "_resolve_brand_avatar_fallback" in ready_body, (
+        "D-07: _resolve_brand_avatar_fallback must be called from _on_cover_art_ready"
+    )
+
+    # 2. _resolve_brand_avatar_fallback must NOT appear in bind_station body.
+    bind_pos = src.find("def bind_station")
+    assert bind_pos != -1, "now_playing_panel.py must define bind_station"
+    bind_next = src.find("\n    def ", bind_pos + 1)
+    if bind_next == -1:
+        bind_next = len(src)
+    bind_body = src[bind_pos:bind_next]
+    assert "_resolve_brand_avatar_fallback" not in bind_body, (
+        "D-07: _resolve_brand_avatar_fallback must NOT appear in bind_station "
+        "(brand lookup is cover-resolution-exhausted only, not icy_disabled bind path)"
+    )
+
+    # 3. brand_avatars.lookup must NOT appear in cover_art.py (D-07 / fetch_cover_art purity).
+    cover_src = COVER_ART_PY.read_text(encoding="utf-8")
+    assert "brand_avatars" not in cover_src, (
+        "D-12: brand_avatars must NOT be imported in cover_art.py — "
+        "the registry lookup belongs exclusively to the resolution-exhausted branch "
+        "in now_playing_panel._on_cover_art_ready"
+    )

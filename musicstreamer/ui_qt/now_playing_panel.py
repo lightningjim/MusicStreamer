@@ -345,6 +345,7 @@ class NowPlayingPanel(QWidget):
         self._current_art_tier: Optional[int] = None
         self._last_cover_path: Optional[str] = None
         self._last_avatar_path: Optional[str] = None   # Phase 89 D-13 — circular avatar tier-replay
+        self._last_brand_avatar: Optional[str] = None  # Phase 89c D-11
         # Phase 67 / R-01: in-memory cache of (same_provider_sample, same_tag_sample)
         # tuples keyed by station id. Populated by _refresh_similar_stations on
         # cache miss; reused on revisit (R-02). Popped by _on_refresh_similar_clicked
@@ -934,6 +935,7 @@ class NowPlayingPanel(QWidget):
         # stations.channel_avatar_path is deprecated — do NOT read it.
         # Reset _last_avatar_path FIRST to avoid stale-station bleed (Pitfall 4 / T-89-12).
         self._last_avatar_path = None
+        self._last_brand_avatar = None  # Phase 89c D-11: stale-station bleed guard
         if getattr(station, "icy_disabled", False):
             _provider_rel = getattr(station, "provider_avatar_path", None)
             if _provider_rel:
@@ -2128,6 +2130,8 @@ class NowPlayingPanel(QWidget):
             self._set_cover_pixmap(self._last_cover_path)
         elif self._last_avatar_path is not None:       # Phase 89 D-06 circular avatar re-render
             self._set_avatar_pixmap_from_path(self._last_avatar_path)
+        elif self._last_brand_avatar is not None:      # Phase 89c D-11 brand avatar re-render
+            self._set_brand_avatar_pixmap(self._last_brand_avatar)
         else:
             self._show_station_logo_in_cover_slot()
 
@@ -2181,7 +2185,7 @@ class NowPlayingPanel(QWidget):
         if token != self._cover_fetch_token:
             return  # stale response — a newer fetch is in flight
         if not path:
-            self._show_station_logo_in_cover_slot()
+            self._resolve_brand_avatar_fallback()   # D-07/D-08: three-tier resolution
             return
         self._set_cover_pixmap(path)
 
@@ -2224,6 +2228,58 @@ class NowPlayingPanel(QWidget):
         circ = _make_circular_pixmap(pix, n)
         self.cover_label.setPixmap(circ)
         self._last_avatar_path = rel_path   # tracks for tier-change replay; NOT _last_cover_path
+
+    def _resolve_brand_avatar_fallback(self) -> None:
+        """Phase 89c D-07/D-08: three-tier resolution at the cover-resolution-exhausted branch.
+
+        Called ONLY from _on_cover_art_ready when not path (the if-not-path gate).
+        Never called from fetch_cover_art dispatch chain (D-12 source-grep drift-guard).
+
+        Resolution order (D-08):
+          1. user-override: providers.avatar_path (Phase 89.1 column)
+          2. bundled brand registry: brand_avatars.lookup(provider_name)
+          3. station-logo fallback: _show_station_logo_in_cover_slot()
+        """
+        # D-08 step 1: user-override via providers.avatar_path (Phase 89.1 column).
+        if self._station is not None:
+            rel = getattr(self._station, "provider_avatar_path", None)
+            if rel:
+                from musicstreamer import paths as _p
+                import os as _os
+                if _os.path.isfile(_os.path.join(_p.data_dir(), rel)):
+                    self._set_avatar_pixmap_from_path(rel)  # sets _last_avatar_path
+                    return
+        # D-08 step 2: bundled brand registry.
+        if self._station is not None:
+            from musicstreamer import brand_avatars
+            abs_path = brand_avatars.lookup(self._station.provider_name or "")
+            if abs_path:
+                self._set_brand_avatar_pixmap(abs_path)  # sets _last_brand_avatar
+                return
+        # D-08 step 3: existing fallback.
+        self._show_station_logo_in_cover_slot()
+
+    def _set_brand_avatar_pixmap(self, abs_path: str) -> None:
+        """Phase 89c D-11: load bundled brand PNG from absolute package-data path.
+
+        Copies _set_avatar_pixmap_from_path shape but takes an already-ABSOLUTE
+        path (do NOT join paths.data_dir() — Phase 89c Pitfall 1) and tracks
+        _last_brand_avatar instead of _last_avatar_path.
+        Does NOT touch _last_cover_path or _last_avatar_path.
+        On load failure, clears _last_brand_avatar = None BEFORE falling back to
+        _show_station_logo_in_cover_slot() (isNull+clear-before-fallback).
+        Main thread only — QPixmap/QPainter are not thread-safe (Phase 89 Pitfall 8).
+        """
+        pix = QPixmap(abs_path)
+        if pix.isNull():
+            # Clear bad path FIRST so subsequent _apply_art_tier skips brand branch.
+            self._last_brand_avatar = None
+            self._show_station_logo_in_cover_slot()
+            return
+        n = self._current_art_tier or 180
+        circ = _make_circular_pixmap(pix, n)
+        self.cover_label.setPixmap(circ)
+        self._last_brand_avatar = abs_path  # absolute path (package data); tracks for replay
 
     # ----------------------------------------------------------------------
     # Public accessor for cover pixmap (used by MainWindow media-keys bridge)

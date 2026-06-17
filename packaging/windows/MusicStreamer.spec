@@ -121,6 +121,7 @@ a = Analysis(
              + _wr_binaries + _wmp_binaries + _wm_binaries + _wss_binaries + _wf_binaries,
     datas=[
         ("../../musicstreamer/ui_qt/icons", "musicstreamer/ui_qt/icons"),  # SVG source
+        ("../../musicstreamer/ui_qt/brand-avatars", "musicstreamer/ui_qt/brand-avatars"),  # Phase 89c D-05
         ("icons/MusicStreamer.ico", "icons"),                              # installed icon
     ] + _cn_datas + _sl_datas + _yt_datas + _ms_datas
       + _wr_datas + _wmp_datas + _wm_datas + _wss_datas + _wf_datas,
