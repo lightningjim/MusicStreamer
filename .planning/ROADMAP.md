@@ -316,7 +316,7 @@ Plans:
 **Depends on:** Phase 87 (reuse by the marquee poller; the shared handler should be available to 87's `GbsMarqueeWorker`). GBS auth infra (`gbs_api`, `oauth_helper --mode gbs`, `paths.gbs_cookies_path`) already exists, so the playlist-load symptom fix can land independently. GBS cluster (Tier 5), pairs with 87/87b.
 **Requirements**: GBS-AUTH-EXP-01 (surface expiry as re-login prompt at playlist load), GBS-AUTH-EXP-02 (shared handler reused by marquee + zero-token), GBS-AUTH-EXP-03 (no silent dead-end on cancel) — finalize during discuss/plan.
 **Note:** Planned milestone feature (not a hotfix); the `(INSERTED)` marker is the tool default. Origin: user-reported symptom 2026-06-12.
-**Plans:** 3 plans across 2 waves
+**Plans:** 4 plans across 3 waves
 
 Plans:
 **Wave 1** *(parallel — disjoint files)*
@@ -327,6 +327,10 @@ Plans:
 **Wave 2** *(blocked on Wave 1)*
 
 - [x] 87.1-03-PLAN.md — Inline non-dismissive expiry prompt in now_playing_panel + relogin slots + poll resume + marquee QueuedConnection wiring (GBS-AUTH-EXP-01/02/03)
+
+**Wave 3** *(GAP CLOSURE — fixes detection that the inline prompt depends on; blocked on Waves 1-2)*
+
+- [ ] 87.1-04-PLAN.md — Fix _open_with_cookies to actually raise GbsAuthExpiredError on 302→/accounts/login/ (default redirect handler was auto-following it → dead-code detection); real-redirect regression test + marquee audit (GBS-AUTH-EXP-01, gap closure from 87.1-HUMAN-UAT)
 
 #### Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap
 
