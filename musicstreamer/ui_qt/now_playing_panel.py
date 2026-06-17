@@ -2240,6 +2240,19 @@ class NowPlayingPanel(QWidget):
           2. bundled brand registry: brand_avatars.lookup(provider_name)
           3. station-logo fallback: _show_station_logo_in_cover_slot()
         """
+        # WR-01: cover resolution is EXHAUSTED for the current track, so any
+        # real-cover / avatar render state left over from a PRIOR track is stale.
+        # Clear all three tier-replay trackers up front, then let the chosen
+        # branch below set exactly one. Otherwise a later tier-crossing
+        # _apply_art_tier (window resize, Ctrl+B compact toggle) re-renders the
+        # previous track's cover or override-avatar over the current fallback
+        # (its precedence is _last_cover_path > _last_avatar_path >
+        # _last_brand_avatar > logo). Mirrors the reset that
+        # _show_station_logo_in_cover_slot already does for _last_cover_path,
+        # extended to the avatar/brand trackers.
+        self._last_cover_path = None
+        self._last_avatar_path = None
+        self._last_brand_avatar = None
         # D-08 step 1: user-override via providers.avatar_path (Phase 89.1 column).
         if self._station is not None:
             rel = getattr(self._station, "provider_avatar_path", None)

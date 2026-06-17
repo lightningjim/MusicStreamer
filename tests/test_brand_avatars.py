@@ -179,3 +179,49 @@ def test_choose_brand_image_uses_provider_keyed_persist():
         "D-09a: _on_choose_brand_image must NOT reference _AvatarFetchWorker "
         "(pick is synchronous, disjoint from YouTube/Twitch auto-fetch path)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Code-review fix drift-guards (89C-REVIEW.md WR-01 / WR-02)
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_brand_avatar_fallback_clears_stale_trackers():
+    """WR-01: the cover-resolution-exhausted path must clear ALL three tier-replay
+    trackers so a later _apply_art_tier resize cannot re-render a prior track's
+    cover or override-avatar over the current fallback.
+
+    Source-grep gate: _resolve_brand_avatar_fallback body must reset
+    _last_cover_path, _last_avatar_path, and _last_brand_avatar to None.
+    """
+    src = NOW_PLAYING_SRC.read_text(encoding="utf-8")
+    pos = src.find("def _resolve_brand_avatar_fallback")
+    assert pos != -1, "now_playing_panel.py must define _resolve_brand_avatar_fallback"
+    next_def_pos = src.find("\n    def ", pos + 1)
+    if next_def_pos == -1:
+        next_def_pos = len(src)
+    body = src[pos:next_def_pos]
+    for tracker in ("_last_cover_path = None", "_last_avatar_path = None", "_last_brand_avatar = None"):
+        assert tracker in body, (
+            f"WR-01: _resolve_brand_avatar_fallback must reset '{tracker}' up front "
+            "so a prior track's render state cannot bleed through _apply_art_tier on resize"
+        )
+
+
+def test_choose_brand_image_never_raises():
+    """WR-02: _on_choose_brand_image is a Qt slot and must never raise — the
+    file-read + write + DB persist must be wrapped in try/except.
+
+    Source-grep gate: the method body must contain both 'try:' and 'except'.
+    """
+    src = EDIT_STATION_SRC.read_text(encoding="utf-8")
+    pos = src.find("def _on_choose_brand_image")
+    assert pos != -1, "edit_station_dialog.py must define _on_choose_brand_image"
+    next_def_pos = src.find("\n    def ", pos + 1)
+    if next_def_pos == -1:
+        next_def_pos = len(src)
+    body = src[pos:next_def_pos]
+    assert "try:" in body and "except" in body, (
+        "WR-02: _on_choose_brand_image must wrap file-read/write/persist in try/except "
+        "(slots-never-raise contract)"
+    )

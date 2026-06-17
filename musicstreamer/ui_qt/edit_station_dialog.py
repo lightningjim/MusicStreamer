@@ -1418,16 +1418,26 @@ class EditStationDialog(QDialog):
         )
         if not path:
             return
-        with open(path, "rb") as f:
-            data = f.read()
-        from musicstreamer import assets as _assets
-        rel_path = _assets.write_provider_avatar(self._station.provider_id, data)
-        # 3-step sequence: in-memory → preview → DB persist (mirrors _on_avatar_fetched).
-        self._station.provider_avatar_path = rel_path
-        self._refresh_avatar_preview()
+        # WR-02: this is a Qt button-click slot — it must never raise (slots-never-raise
+        # contract, mirrors _maybe_fetch_avatar_sync). Reading an arbitrary user-picked
+        # file and persisting can fail on TOCTOU removal, MemoryError on a huge file,
+        # disk-full, or a locked-DB UPDATE; surface those inline instead of propagating.
+        # Order (in-memory → preview → DB persist) matches _on_avatar_fetched; a DB
+        # failure after the file write leaves a self-healing orphan PNG (IN-01) that the
+        # next successful save overwrites and the isfile-guarded lookup ignores.
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+            from musicstreamer import assets as _assets
+            rel_path = _assets.write_provider_avatar(self._station.provider_id, data)
+            self._station.provider_avatar_path = rel_path
+            self._refresh_avatar_preview()
+            # Non-silent-reset single-column UPDATE (Pitfall 5 — not a broad save).
+            self._repo.update_provider_avatar_path(self._station.provider_id, rel_path)
+        except Exception:
+            self._avatar_status.setText("Could not save brand image")
+            return
         self._avatar_status.setText("Brand image saved")
-        # Non-silent-reset single-column UPDATE (Pitfall 5 — not a broad save).
-        self._repo.update_provider_avatar_path(self._station.provider_id, rel_path)
 
     def _on_clear_logo(self) -> None:
         old_path = self._logo_path
