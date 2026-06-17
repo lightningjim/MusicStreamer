@@ -1,5 +1,5 @@
 ---
-status: diagnosed
+status: resolved
 phase: 89B-twitch-channel-avatar-fetch
 source: [89B-VERIFICATION.md]
 started: 2026-06-16
@@ -52,7 +52,8 @@ note: 3/3 scripted tests pass. 1 issue discovered out-of-band on the new-station
   missing: []
 
 - truth: "Adding a NEW Twitch station with a valid URL auto-fetches and shows the streamer avatar on first save (same as editing an existing station)"
-  status: failed
+  status: resolved
+  resolved_by: "89B-03 (commit 29575e49) — synchronous _maybe_fetch_avatar_sync in _on_save + in-memory provider_id/name refresh. RED→GREEN TDD, 13 tests pass, 21-test regression sweep green. Verified 2026-06-17."
   reason: "User reported (2026-06-17 UAT): on new station add, the avatar fails to resolve for a valid station; re-opening the station in edit mode and saving again fetches it correctly."
   severity: major
   test: add-path
