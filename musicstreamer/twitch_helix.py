@@ -18,7 +18,9 @@ Threading: plain synchronous function; called from _AvatarFetchWorker.run()
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from musicstreamer import paths
@@ -45,14 +47,20 @@ def _parse_login(url_or_login: str) -> str:
         https://www.twitch.tv/TwitchDev   -> "twitchdev"
         https://www.twitch.tv/twitchdev?ref=header -> "twitchdev"
         https://www.twitch.tv/twitchdev#x -> "twitchdev"
+        https://www.twitch.tv/user&client_id=x -> "user"
         twitchdev                         -> "twitchdev"
     """
     s = url_or_login.rstrip("/")
     if "/" in s:
         s = s.split("/")[-1]
     # Strip query string and fragment
-    s = s.split("?")[0].split("#")[0].strip()
-    return s.lower()
+    s = s.split("?")[0].split("#")[0].strip().lower()
+    # Twitch logins are [a-z0-9_] only. Clamp to the leading valid run so a
+    # malformed URL segment (e.g. "user&client_id=x") cannot inject characters
+    # into the Helix query string or the persisted "Twitch: <login>" provider
+    # name (WR-01 / T-89b-02).
+    m = re.match(r"[a-z0-9_]+", s)
+    return m.group(0) if m else ""
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +107,7 @@ def fetch_channel_avatar(url: str) -> bytes:
     # Build the Helix /users request — Authorization scoped to this Request object
     # only, NOT a global opener (T-89b-01 / Pitfall 5).
     helix_req = urllib.request.Request(
-        _HELIX_USERS_URL.format(login=login),
+        _HELIX_USERS_URL.format(login=urllib.parse.quote(login, safe="")),
         headers={
             "Authorization": f"Bearer {token}",
             "Client-Id": _CLIENT_ID,

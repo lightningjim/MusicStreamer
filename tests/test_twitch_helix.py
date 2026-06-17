@@ -90,6 +90,16 @@ def test_parse_login():
     assert _parse_login("https://www.twitch.tv/twitchdev#x") == "twitchdev"
     assert _parse_login("https://www.twitch.tv/TwitchDev") == "twitchdev"
     assert _parse_login("twitchdev") == "twitchdev"  # bare login (no slash)
+    assert _parse_login("twitch_dev_99") == "twitch_dev_99"  # underscores/digits kept
+
+    # WR-01 / T-89b-02: a malformed segment with & or = must be clamped to the
+    # leading [a-z0-9_] run so nothing can inject into the Helix query string or
+    # the persisted "Twitch: <login>" provider name.
+    assert _parse_login("https://www.twitch.tv/user&client_id=evil") == "user"
+    assert _parse_login("user=admin") == "user"
+    assert _parse_login("https://www.twitch.tv/a b") == "a"  # space terminates run
+    assert _parse_login("") == ""  # empty input
+    assert _parse_login("#frag") == ""  # nothing before the fragment
 
 
 # ---------------------------------------------------------------------------
@@ -135,11 +145,18 @@ def test_fetch_calls_helix_with_bearer_and_client_id(tmp_path, monkeypatch):
     assert helix_req.get_header("Authorization") == f"Bearer {FAKE_TOKEN}"
     assert helix_req.get_header("Client-id") == "kimne78kx3ncx6brgo4mv6wki5h1ko"
 
-    # Second call (CDN) must NOT carry Authorization — token scope (T-89b-01 / Pitfall 5)
+    # Second call (CDN) must NOT carry Authorization — token scope (T-89b-01 / Pitfall 5).
+    # The CDN download is invoked with a bare URL string, so by construction it can
+    # carry no headers. Assert it is NOT a Request object (which could hold an auth
+    # header) — a live drift-guard: if a future change wraps the CDN download in a
+    # Request that attaches the token, this fails. (The old `if hasattr(...)` form was
+    # dead code — a str has no get_header, so the assertion never ran. WR-02.)
     cdn_req = captured_requests[1]
-    if hasattr(cdn_req, "get_header"):
-        # If it's a Request object, Authorization must be absent
-        assert cdn_req.get_header("Authorization") is None
+    assert isinstance(cdn_req, str), (
+        "CDN image download must use a bare URL string (no Request → no headers → "
+        "no token leak); got a Request object that could carry Authorization"
+    )
+    assert not hasattr(cdn_req, "get_header")
 
 
 # ---------------------------------------------------------------------------
