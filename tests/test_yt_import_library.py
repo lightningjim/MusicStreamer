@@ -442,10 +442,17 @@ def test_fetch_channel_avatar_passes_none_when_unavailable():
     assert opts["js_runtimes"] == {"node": {"path": None}}
 
 
-def test_avatar_registry_twitch_absent_by_default():
-    """D-04: get_avatar_fetcher('twitch') returns None (not registered this phase)."""
+def test_avatar_registry_twitch_registered_in_phase_89b():
+    """Phase 89b (ART-AVATAR-04): get_avatar_fetcher('twitch') resolves the Twitch fetcher.
+
+    Supersedes the Phase 89 precondition (twitch absent). 89B-01 registers
+    twitch_helix.fetch_channel_avatar at module load via register_avatar_fetcher.
+    """
+    from musicstreamer import twitch_helix
     fetcher = yt_import.get_avatar_fetcher("twitch")
-    assert fetcher is None, "twitch fetcher must not be registered in Phase 89"
+    assert fetcher is twitch_helix.fetch_channel_avatar, (
+        "twitch fetcher must be registered in Phase 89b"
+    )
 
 
 def test_avatar_registry_register_and_retrieve():

@@ -2002,11 +2002,14 @@ def test_avatar_fetch_worker_emit_shape(qtbot):
             def on_finished(path, token):
                 received.append((path, token))
 
-            # Patch fetch_channel_avatar to return fake PNG bytes
+            # Phase 89b: _AvatarFetchWorker.run() resolves the fetcher via
+            # yt_import.get_avatar_fetcher(provider_key) (registry dispatch),
+            # so patch that seam rather than the module-level fetch function
+            # (the registry holds a direct reference the old patch never reached).
             fake_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
             with patch(
-                "musicstreamer.yt_import.fetch_channel_avatar",
-                return_value=fake_bytes,
+                "musicstreamer.yt_import.get_avatar_fetcher",
+                return_value=lambda *a, **k: fake_bytes,
             ):
                 worker = _AvatarFetchWorker(
                     url="https://www.youtube.com/@KEXP/live",
