@@ -352,6 +352,14 @@ def _fetch_marquee() -> str | None:
                 _anon_req, timeout=gbs_api._TIMEOUT_READ
             ) as resp:
                 return resp.read().decode("utf-8", errors="replace")
+    except gbs_api.GbsAuthExpiredError:
+        # GBS-AUTH-EXP-02: propagate to GbsMarqueeWorker._on_tick so it can
+        # emit the auth_expired Signal.  Must come BEFORE the generic Exception
+        # handler — GbsAuthExpiredError subclasses GbsApiError → Exception, so
+        # without this narrow re-raise the generic belt-and-suspenders below
+        # would swallow the error and _on_tick's except GbsAuthExpiredError
+        # block would never fire.
+        raise
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         _log.warning(
             "gbs.marquee.fetch_failed url=%s error=%s",

@@ -572,6 +572,33 @@ def test_open_with_cookies_returns_200_json_unchanged(monkeypatch, fake_cookies_
     )
 
 
+def test_fetch_marquee_propagates_auth_expired_error(monkeypatch):
+    """Task 3 (AUDIT): _fetch_marquee must propagate GbsAuthExpiredError so
+    GbsMarqueeWorker._on_tick can emit the auth_expired Signal (GBS-AUTH-EXP-02).
+
+    Without the narrow 'except gbs_api.GbsAuthExpiredError: raise' inserted
+    BEFORE the generic belt-and-suspenders 'except Exception' in _fetch_marquee,
+    the error is swallowed and _on_tick's auth_expired branch is unreachable.
+
+    Uses the same do_open real-chain patch so the full opener chain runs.
+    """
+    from musicstreamer import gbs_marquee
+    from musicstreamer.gbs_api import GbsAuthExpiredError
+
+    fake_resp = _make_fake_302_response(location="/accounts/login/?next=/")
+    def _fake_do_open(self, http_class, req, **kwargs):
+        return fake_resp
+
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+    # Stub load_auth_context so _fetch_marquee takes the authenticated path
+    monkeypatch.setattr(
+        gbs_marquee.gbs_api, "load_auth_context",
+        lambda: http.cookiejar.MozillaCookieJar(),
+    )
+    with pytest.raises(GbsAuthExpiredError):
+        gbs_marquee._fetch_marquee()
+
+
 def test_import_no_field_changes_returns_zero_updated(fake_repo):
     """T6 RED: idempotent re-import (no field changes) must return (0, 0).
 
