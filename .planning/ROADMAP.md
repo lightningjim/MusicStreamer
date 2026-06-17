@@ -37,7 +37,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 88.1: Fix SMTC Media Overlay Absent + Dead Media Keys (Phase 88 UAT G2) (INSERTED)** — Bundle the winrt `.pyd` extensions via `collect_all` so the frozen build's SMTC media session registers; backend selection logged, build/CI guards prevent regression. VM UAT closed via 88-03
 - [x] **Phase 89a: Channel-Avatar DB Migration + Storage Layout** — Foundation column + filesystem layout for YT and Twitch avatars; idempotent additive migration in `repo.py:db_init()`
 - [x] **Phase 87: GBS.FM Marquee + Themed-Day Detection** — Banner widget + themed-logo session swap; establishes the QtWebEngine cookie-persistence-cross-process pattern reused by Phase 89
-- [ ] **Phase 87.1: GBS.FM Session-Expiry Re-login Prompt (INSERTED)** — Surface a clear "GBS session expired — please log in again" prompt that launches the in-app GBS login and refreshes on success, instead of the active playlist silently failing to load (not yet planned)
+- [ ] **Phase 87.1: GBS.FM Session-Expiry Re-login Prompt (INSERTED)** — Surface a clear "GBS session expired — please log in again" prompt that launches the in-app GBS login and refreshes on success, instead of the active playlist silently failing to load (3 plans, 2 waves)
 - [x] **Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap** — ICY-disabled YT stations show the channel avatar (circular) in the cover slot; cover-resolver precedence keeps MB-CAA above avatar
 - [x] **Phase 89.1: Re-key Channel Avatar from Per-Station to Per-Provider (INSERTED)** — Move the YT/Twitch avatar from Station to Provider (add `providers.avatar_path`, key the cached PNG by `provider_id`) so sibling streams of one channel share one fetch + one file; migrate existing per-station avatars and deprecate the old column
 - [x] **Phase 89b: Twitch Channel-Avatar Fetch** — Twitch GQL `profileImageURL` fetch reusing the Phase 32 user token (Helix 404s for this token — pivoted to gql.twitch.tv); shares storage + cover-slot path with Phase 89. Add-path first-save fetch closed via 89B-03 (2026-06-17)
@@ -316,11 +316,17 @@ Plans:
 **Depends on:** Phase 87 (reuse by the marquee poller; the shared handler should be available to 87's `GbsMarqueeWorker`). GBS auth infra (`gbs_api`, `oauth_helper --mode gbs`, `paths.gbs_cookies_path`) already exists, so the playlist-load symptom fix can land independently. GBS cluster (Tier 5), pairs with 87/87b.
 **Requirements**: GBS-AUTH-EXP-01 (surface expiry as re-login prompt at playlist load), GBS-AUTH-EXP-02 (shared handler reused by marquee + zero-token), GBS-AUTH-EXP-03 (no silent dead-end on cancel) — finalize during discuss/plan.
 **Note:** Planned milestone feature (not a hotfix); the `(INSERTED)` marker is the tool default. Origin: user-reported symptom 2026-06-12.
-**Plans:** 0 plans
+**Plans:** 3 plans across 2 waves
 
 Plans:
+**Wave 1** *(parallel — disjoint files)*
 
-- [ ] TBD (run /gsd:plan-phase 87.1 to break down)
+- [ ] 87.1-01-PLAN.md — Shared GbsReloginHandler QObject: single-flight oauth_helper launch + cookie write (0o600) + relogin_succeeded/relogin_failed signals (GBS-AUTH-EXP-02)
+- [ ] 87.1-02-PLAN.md — GbsMarqueeWorker.auth_expired signal feeding the shared handler (GBS-AUTH-EXP-02)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 87.1-03-PLAN.md — Inline non-dismissive expiry prompt in now_playing_panel + relogin slots + poll resume + marquee QueuedConnection wiring (GBS-AUTH-EXP-01/02/03)
 
 #### Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap
 
