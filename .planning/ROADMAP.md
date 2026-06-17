@@ -397,7 +397,7 @@ Plans:
 Plans:
 - [x] 89c-01-PLAN.md — Registry module + asset dir + now_playing_panel wiring + drift-guards + PyInstaller datas
 - [x] 89c-02-PLAN.md — EditStationDialog "Choose brand image…" upload override (D-09/D-09a)
-- [ ] 89c-03-PLAN.md — Gap closure: _populate() refresh avatar preview on dialog open (reuse-on-open, D-07; UAT Test 5)
+- [x] 89c-03-PLAN.md — Gap closure: _populate() refresh avatar preview on dialog open (reuse-on-open, D-07; UAT Test 5)
 **Research flag**: NO — reuses Phase 89 cover-slot swap + circular-crop rendering; source is bundled provider assets, no new network fetch.
 **UI hint**: yes
 
@@ -492,7 +492,7 @@ Plans:
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
-| 89c. Provider Brand-Avatar Fallback (INSERTED) | 2/3 | Gap closure | 2026-06-17 |
+| 89c. Provider Brand-Avatar Fallback (INSERTED) | 3/3 | Complete   | 2026-06-17 |
 | 87b. GBS Zero-Token Add | 0/? | Not started | - |
 | 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
