@@ -1289,6 +1289,14 @@ class NowPlayingPanel(QWidget):
         worker.marquee_ready.connect(
             self._on_marquee_ready, _Qt.QueuedConnection
         )
+        # Phase 87.1 / GBS-AUTH-EXP-02: wire auth_expired from the marquee worker
+        # (QThread) to the shared handler (main thread) with Qt.QueuedConnection
+        # (Pitfall 9 — worker thread emits, main thread receives).
+        if self._gbs_relogin_handler is not None:
+            worker.auth_expired.connect(
+                self._gbs_relogin_handler.notify_expiry_detected,
+                _Qt.QueuedConnection,
+            )
 
     def _refresh_gbs_marquee_cadence(self) -> None:
         """Drive GbsMarqueeWorker cadence from current is_playing state.
@@ -2968,6 +2976,11 @@ class NowPlayingPanel(QWidget):
             self._gbs_poll_cursor = {}
             # Phase 60.3: reset source flag on entry — first writer (ICY tag or /ajax response) sets it.
             self._gbs_label_source = None
+            # Phase 87.1: safety-valve hide for expiry prompt when GBS is re-selected
+            # (D-04 resume path). NOTE: _gbs_ajax_disabled is NOT reset here — WR-02
+            # invariant: same-station re-entry must NOT clobber the auth-expired flag.
+            # The reset happens in _on_gbs_relogin_succeeded (explicit relogin success path).
+            self._gbs_expiry_widget.setVisible(False)
             self._gbs_playlist_widget.clear()
             placeholder = QListWidgetItem("Loading playlist…")
             self._gbs_playlist_widget.addItem(placeholder)
@@ -2978,6 +2991,8 @@ class NowPlayingPanel(QWidget):
         else:
             self._gbs_poll_timer.stop()
             self._gbs_playlist_widget.clear()
+            # Phase 87.1: hide expiry prompt when leaving GBS context (D-02 navigate-away).
+            self._gbs_expiry_widget.setVisible(False)
 
         # Phase 60 D-07: vote buttons share the same auth+provider gate.
         for btn in self._gbs_vote_buttons:
@@ -3150,9 +3165,53 @@ class NowPlayingPanel(QWidget):
             # returns True until the user logs out, but ajax_possible
             # becomes False.
             self._gbs_ajax_disabled = True
+            # Phase 87.1 D-01: show inline expiry prompt in place of playlist widget.
+            self._gbs_expiry_widget.setVisible(True)
+            # Notify shared handler (single-flight de-dup lives there — GBS-AUTH-EXP-02).
+            if self._gbs_relogin_handler is not None:
+                self._gbs_relogin_handler.notify_expiry_detected()
         else:
             # Pitfall 5 + 7: don't retry; just log.
             _log.warning("GBS.FM playlist poll failed: %s", msg)
+
+    # ----------------------------------------------------------------------
+    # Phase 87.1 / GBS-AUTH-EXP-01/02/03: re-login slots
+    # ----------------------------------------------------------------------
+
+    def _on_gbs_relogin_succeeded(self) -> None:
+        """Slot connected to GbsReloginHandler.relogin_succeeded (QA-05).
+
+        D-04: hides the expiry prompt, resets flags, and resumes polling via
+        _refresh_gbs_visibility() which re-checks cookie existence and restarts
+        the 15s poll timer. Also force-polls the marquee worker (GBS-AUTH-EXP-02).
+        """
+        self._gbs_expiry_widget.setVisible(False)
+        self._gbs_relogin_btn.setEnabled(True)
+        self._gbs_ajax_disabled = False
+        self._gbs_label_source = None
+        self._refresh_gbs_visibility()  # re-checks cookie existence → restarts poll
+        if self._gbs_marquee_worker is not None:
+            self._gbs_marquee_worker.force_poll()
+
+    def _on_gbs_relogin_failed(self, reason: str) -> None:
+        """Slot connected to GbsReloginHandler.relogin_failed (QA-05).
+
+        D-02: prompt stays visible (non-dismissive). GBS-AUTH-EXP-03: no silent
+        dead-end — re-enable the button so the user can retry. Timer stays stopped.
+        """
+        _log.warning("GBS re-login failed: %s", reason)
+        self._gbs_relogin_btn.setEnabled(True)  # re-enable for retry
+
+    def _on_gbs_relogin_clicked(self) -> None:
+        """Bound-method slot for the 'Log in again' button (QA-05).
+
+        Pitfall 5: disables the button while in-flight to prevent multiple
+        concurrent subprocess spawns. The handler's single-flight guard is the
+        second layer of defence.
+        """
+        self._gbs_relogin_btn.setEnabled(False)  # Pitfall 5: disable while in-flight
+        if self._gbs_relogin_handler is not None:
+            self._gbs_relogin_handler.notify_expiry_detected()
 
     # ----------------------------------------------------------------------
     # Phase 60 / GBS-01d: vote control handlers (D-07a/D-07b/D-07c/D-07d)

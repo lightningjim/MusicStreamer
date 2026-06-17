@@ -136,7 +136,9 @@ def test_gbs_auth_expired_shows_expiry_prompt(qtbot, tmp_path, monkeypatch):
 
     assert panel._gbs_playlist_widget.isVisible() is False
     assert panel._gbs_poll_timer.isActive() is False
-    assert panel._gbs_expiry_widget.isVisible() is True
+    # isHidden() is used instead of isVisible() for unrealized-window widgets
+    # per the existing test pattern (test_now_playing_panel.py:1367).
+    assert panel._gbs_expiry_widget.isHidden() is False
 
 
 def test_gbs_relogin_succeeded_hides_prompt(qtbot, tmp_path, monkeypatch):
@@ -146,7 +148,7 @@ def test_gbs_relogin_succeeded_hides_prompt(qtbot, tmp_path, monkeypatch):
     """
     panel = _setup_gbs_panel(qtbot, tmp_path, monkeypatch)
     panel._on_gbs_playlist_error(5, "auth_expired")
-    assert panel._gbs_expiry_widget.isVisible() is True
+    assert panel._gbs_expiry_widget.isHidden() is False
 
     panel._on_gbs_relogin_succeeded()
     assert panel._gbs_expiry_widget.isVisible() is False
@@ -181,11 +183,11 @@ def test_gbs_expiry_prompt_stays_on_cancel(qtbot, tmp_path, monkeypatch):
     """
     panel = _setup_gbs_panel(qtbot, tmp_path, monkeypatch)
     panel._on_gbs_playlist_error(5, "auth_expired")
-    assert panel._gbs_expiry_widget.isVisible() is True
+    assert panel._gbs_expiry_widget.isHidden() is False
 
     panel._on_gbs_relogin_failed("Login was cancelled or failed")
 
-    assert panel._gbs_expiry_widget.isVisible() is True
+    assert panel._gbs_expiry_widget.isHidden() is False  # still shown (non-dismissive)
     assert panel._gbs_poll_timer.isActive() is False
     assert panel._gbs_relogin_btn.isEnabled() is True
 
@@ -200,7 +202,7 @@ def test_gbs_expiry_prompt_hides_on_station_change(qtbot, tmp_path, monkeypatch)
     """
     panel = _setup_gbs_panel(qtbot, tmp_path, monkeypatch)
     panel._on_gbs_playlist_error(5, "auth_expired")
-    assert panel._gbs_expiry_widget.isVisible() is True
+    assert panel._gbs_expiry_widget.isHidden() is False
 
     # Navigate away — bind a non-GBS station
     panel.bind_station(_make_gbs_station(provider_name="SomaFM", name="Drone Zone"))
