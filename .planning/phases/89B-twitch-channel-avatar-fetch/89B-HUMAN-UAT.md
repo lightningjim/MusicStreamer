@@ -8,7 +8,10 @@ updated: 2026-06-16
 
 ## Current Test
 
-[awaiting human testing]
+number: 1
+name: Live avatar auto-fetch in EditStationDialog
+result: fix applied (commit ff027cf8) — re-testing in app
+awaiting: user re-test (restart the app to load the GQL fix)
 
 ## Tests
 
@@ -33,3 +36,15 @@ skipped: 0
 blocked: 0
 
 ## Gaps
+
+- truth: "twitch.tv URL in EditStationDialog fetches and shows the streamer avatar"
+  status: fixed
+  reason: "User reported 'No avatar found' despite a real channel avatar."
+  severity: blocker
+  test: 1
+  root_cause: "The web auth-token cookie (client-id kimne78..., legacy v5 scopes) has no Helix REST access — api.twitch.tv/helix/users returns HTTP 404. CONTEXT D-06 / RESEARCH #1 wrongly assumed Bearer-framed Helix would work."
+  fix: "Rewrote twitch_helix.fetch_channel_avatar to query gql.twitch.tv/gql user(login).profileImageURL with Authorization: OAuth + Client-Id (the streamlink credential). Commit ff027cf8. Verified live (twitchdev + lightningjim2 → valid PNGs) and via 40 unit tests."
+  artifacts:
+    - path: "musicstreamer/twitch_helix.py"
+      issue: "Used Helix /users (no access for this token) → 404 → empty emit → 'No avatar found'"
+  missing: []
