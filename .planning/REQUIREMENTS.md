@@ -104,7 +104,7 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 
 ### Phase 58 PLS URL-Fallback (FIX-PLS)
 
-- [ ] **FIX-PLS-01**: PLS auto-resolve gains URL-fallback for codec/bitrate detection — when the PLS title field lacks codec/bitrate info, the resolver inspects the resolved stream URL pattern (e.g., AudioAddict `_aac` / `_mp3` suffixes) to populate the missing fields; resolves the carry-over from pending todo `2026-05-10-pls-codec-bitrate-url-fallback`
+- [x] **FIX-PLS-01**: PLS auto-resolve gains URL-fallback for codec/bitrate detection — when the PLS title field lacks codec/bitrate info, the resolver inspects the resolved stream URL pattern (e.g., AudioAddict `_aac` / `_mp3` suffixes) to populate the missing fields; resolves the carry-over from pending todo `2026-05-10-pls-codec-bitrate-url-fallback`
 
 ### Conditional — Buffer Monitor Follow-Up (MON-BUFFER, CONDITIONAL)
 
@@ -221,7 +221,7 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | FIX-MPRIS-01 | Phase 91 | Complete |
 | FIX-MPRIS-02 | Phase 91 | Complete |
 | FIX-MPRIS-03 | Phase 91 | Complete |
-| FIX-PLS-01 | Phase 92 | Pending |
+| FIX-PLS-01 | Phase 92 | Complete |
 | MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Pending (trigger-gated) |
 
 **Coverage:**

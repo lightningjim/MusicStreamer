@@ -503,7 +503,7 @@ Plans:
 **Research flag**: NO — direct extension of Phase 58 logic.
 
 Plans:
-- [ ] 92-01-PLAN.md — URL-fallback for _extract_codec/_extract_bitrate (title miss -> scan entry URL) + 3 call sites + 4 RED->GREEN tests
+- [x] 92-01-PLAN.md — URL-fallback for _extract_codec/_extract_bitrate (title miss -> scan entry URL) + 3 call sites + 4 RED->GREEN tests
 
 #### Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up
 
@@ -543,7 +543,7 @@ Plans:
 | 87b. GBS Zero-Token Add | 2/2 | Complete   | 2026-06-18 |
 | 90. SomaFM Preroll Instrumentation | 3/3 | Complete    | 2026-06-18 |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
-| 92. FIX-PLS | 0/1 | Planned | - |
+| 92. FIX-PLS | 1/1 | Complete   | 2026-06-18 |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 0/? | Not started | - |

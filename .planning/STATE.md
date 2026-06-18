@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
+status: executing
 stopped_at: Phase 90 COMPLETE (human UAT passed 2026-06-18); Phase 90b closed — not needed
-last_updated: "2026-06-18T20:49:18.993Z"
-last_activity: 2026-06-18
+last_updated: "2026-06-18T21:11:14.945Z"
+last_activity: 2026-06-18 -- Phase 92 execution started
 progress:
   total_phases: 21
-  completed_phases: 18
-  total_plans: 65
-  completed_plans: 65
-  percent: 86
+  completed_phases: 19
+  total_plans: 66
+  completed_plans: 66
+  percent: 90
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 91 — fix mpris phase 77 deferred mpris2 tests
+**Current focus:** Phase 92 — fix-pls-pls-url-fallback-for-codec-bitrate
 
 ## Current Position
 
-Phase: 91
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-18
+Phase: 92 (fix-pls-pls-url-fallback-for-codec-bitrate) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 92
+Last activity: 2026-06-18 -- Phase 92 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -197,10 +197,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 87.1 P04 | 211 | 3 tasks | 3 files |
 | Phase 90-somafm-preroll-instrumentation P01 | 8m | 2 tasks | 5 files |
 | Phase 90 P03 | 8 | 2 tasks | 2 files |
+| Phase 92-fix-pls-pls-url-fallback-for-codec-bitrate P01 | 3m | 3 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-18T20:49:18.982Z
+Last session: 2026-06-18T21:11:14.932Z
 Stopped at: Phase 90 COMPLETE (human UAT passed 2026-06-18); Phase 90b closed — not needed
 Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-VERIFICATION.md
 
