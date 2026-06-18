@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import pytest
+from unittest.mock import MagicMock
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QFormLayout
@@ -3838,7 +3839,12 @@ def test_add_song_button_label(qtbot):
 
 
 def test_add_song_visibility_gbs_logged_in(qtbot, tmp_path, monkeypatch):
-    """D-05: button visible when GBS.FM bound AND logged in (any token count)."""
+    """D-05: button visible when GBS.FM bound AND logged in (any token count).
+
+    Uses isHidden() (explicit visibility flag) not isVisible() — the latter
+    returns False for unrealized widgets even when setVisible(True) was called
+    (same pitfall noted at line 1365 in existing GBS tests).
+    """
     import musicstreamer.paths as paths_mod
     paths_mod._root_override = str(tmp_path)
     try:
@@ -3846,13 +3852,16 @@ def test_add_song_visibility_gbs_logged_in(qtbot, tmp_path, monkeypatch):
         cookies_path = tmp_path / "gbs_cookies.txt"
         cookies_path.write_text("# Netscape HTTP Cookie File\n")
         monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+        monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                            lambda self: None)
+        monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
 
         panel = NowPlayingPanel(FakePlayer(), FakeRepo())
         qtbot.addWidget(panel)
         panel.bind_station(_gbs_station())
-        # _refresh_gbs_visibility is called during bind_station
-        assert panel._gbs_add_btn.isVisible() is True, (
-            "Button must be visible when GBS.FM bound and logged in"
+        # isHidden() checks the explicit visibility flag (not the visibility chain)
+        assert not panel._gbs_add_btn.isHidden(), (
+            "Button must be visible (not hidden) when GBS.FM bound and logged in"
         )
     finally:
         paths_mod._root_override = None
@@ -3871,7 +3880,7 @@ def test_add_song_visibility_non_gbs_station(qtbot, tmp_path, monkeypatch):
         qtbot.addWidget(panel)
         # Bind a non-GBS station
         panel.bind_station(_station(provider="SomaFM"))
-        assert panel._gbs_add_btn.isVisible() is False, (
+        assert panel._gbs_add_btn.isHidden(), (
             "Button must be hidden for non-GBS station"
         )
     finally:
@@ -3890,7 +3899,7 @@ def test_add_song_visibility_not_logged_in(qtbot, tmp_path, monkeypatch):
         panel = NowPlayingPanel(FakePlayer(), FakeRepo())
         qtbot.addWidget(panel)
         panel.bind_station(_gbs_station())
-        assert panel._gbs_add_btn.isVisible() is False, (
+        assert panel._gbs_add_btn.isHidden(), (
             "Button must be hidden when GBS.FM bound but not logged in"
         )
     finally:
@@ -3936,6 +3945,9 @@ def test_add_song_clicked_emits_signal(qtbot, tmp_path, monkeypatch):
         cookies_path = tmp_path / "gbs_cookies.txt"
         cookies_path.write_text("# Netscape HTTP Cookie File\n")
         monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+        monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                            lambda self: None)
+        monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
 
         panel = NowPlayingPanel(FakePlayer(), FakeRepo())
         qtbot.addWidget(panel)
@@ -3957,6 +3969,9 @@ def test_repoll_resets_cursor_and_polls(qtbot, tmp_path, monkeypatch):
         cookies_path = tmp_path / "gbs_cookies.txt"
         cookies_path.write_text("# Netscape HTTP Cookie File\n")
         monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+        monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                            lambda self: None)
+        monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
 
         panel = NowPlayingPanel(FakePlayer(), FakeRepo())
         qtbot.addWidget(panel)
@@ -3966,7 +3981,6 @@ def test_repoll_resets_cursor_and_polls(qtbot, tmp_path, monkeypatch):
         panel._gbs_poll_cursor = {"cursor": "abc"}
 
         tick_calls = {"count": 0}
-        original_tick = panel._on_gbs_poll_tick
 
         def fake_tick():
             tick_calls["count"] += 1
@@ -3994,6 +4008,9 @@ def test_repoll_noop_when_poll_in_flight(qtbot, tmp_path, monkeypatch):
         cookies_path = tmp_path / "gbs_cookies.txt"
         cookies_path.write_text("# Netscape HTTP Cookie File\n")
         monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+        monkeypatch.setattr("musicstreamer.ui_qt.now_playing_panel._GbsPollWorker.start",
+                            lambda self: None)
+        monkeypatch.setattr("musicstreamer.gbs_api.load_auth_context", lambda: MagicMock())
 
         panel = NowPlayingPanel(FakePlayer(), FakeRepo())
         qtbot.addWidget(panel)

@@ -314,6 +314,12 @@ class NowPlayingPanel(QWidget):
     # _on_compact_toggle slot (QA-05 bound method, no lambda).
     compact_mode_toggled = Signal(bool)
 
+    # Phase 87B / GBS-TOKEN-01 / D-04: emitted when the "Add a song" button is
+    # clicked. MainWindow connects to _open_gbs_search_dialog (QA-05 bound
+    # method, D-10 reuse path). Keeps the panel from importing GBSSearchDialog
+    # directly (Option A from 87B-RESEARCH Pattern 2).
+    add_song_requested = Signal()
+
     def __init__(self, player, repo, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self._player = player
@@ -720,6 +726,17 @@ class NowPlayingPanel(QWidget):
 
         self._gbs_expiry_widget.setVisible(False)  # hidden-when-empty pattern
         center.addWidget(self._gbs_expiry_widget)  # immediately after _gbs_playlist_widget
+
+        # Phase 87B / GBS-TOKEN-01 / D-04/D-05/D-06: persistent "Add a song"
+        # button. Visible whenever GBS.FM bound AND logged in (any token count —
+        # D-05 reframe). No stylesheet, no width override, no flat style
+        # (87B-UI-SPEC — matches _gbs_relogin_btn analog at line 717 above).
+        # Order is load-bearing: must precede _gbs_vote_row addition below.
+        self._gbs_add_btn = QPushButton("Add a song", self)
+        self._gbs_add_btn.setToolTip("Add a song to the GBS.FM queue")
+        self._gbs_add_btn.setVisible(False)  # hidden-when-empty; shown by _refresh_gbs_visibility
+        self._gbs_add_btn.clicked.connect(self._on_add_song_clicked)  # QA-05 bound method
+        center.addWidget(self._gbs_add_btn)
 
         # Shared GBS re-login handler (GBS-AUTH-EXP-02): owned here, consumed by
         # the expiry-prompt button + marquee auth_expired signal (wired in
@@ -2995,6 +3012,10 @@ class NowPlayingPanel(QWidget):
             # Phase 87.1: hide expiry prompt when leaving GBS context (D-02 navigate-away).
             self._gbs_expiry_widget.setVisible(False)
 
+        # Phase 87B / D-04/D-05: "Add a song" button — same should_show gate
+        # as vote buttons (GBS.FM bound AND logged in; token-count-independent).
+        self._gbs_add_btn.setVisible(should_show)
+
         # Phase 60 D-07: vote buttons share the same auth+provider gate.
         for btn in self._gbs_vote_buttons:
             btn.setVisible(should_show)
@@ -3201,6 +3222,30 @@ class NowPlayingPanel(QWidget):
         """
         _log.warning("GBS re-login failed: %s", reason)
         self._gbs_relogin_btn.setEnabled(True)  # re-enable for retry
+
+    # ----------------------------------------------------------------------
+    # Phase 87B / GBS-TOKEN-01/D-04: "Add a song" button slot + re-poll
+    # ----------------------------------------------------------------------
+
+    def _on_add_song_clicked(self) -> None:
+        # Phase 87B D-04/D-10: emit add_song_requested so MainWindow can open
+        # the existing GBSSearchDialog via _open_gbs_search_dialog (QA-05
+        # Option A — panel does not import the dialog directly).
+        self.add_song_requested.emit()
+
+    def trigger_gbs_repoll(self) -> None:
+        # Phase 87B D-09: re-poll the GBS active playlist after a successful
+        # add. Called from MainWindow when GBSSearchDialog.submission_completed
+        # fires. Mirrors the direct _on_gbs_poll_tick() call pattern in
+        # _on_gbs_relogin_succeeded (line above). Guard: only polls when the
+        # GBS poll worker is idle and the station is still GBS.FM bound.
+        if (
+            self._station is not None
+            and self._station.provider_name == "GBS.FM"
+            and not self._gbs_poll_in_flight()
+        ):
+            self._gbs_poll_cursor = {}   # force full re-fetch so the new song appears (Pitfall 5)
+            self._on_gbs_poll_tick()
 
     def _on_gbs_relogin_clicked(self) -> None:
         """Bound-method slot for the 'Log in again' button (QA-05).
