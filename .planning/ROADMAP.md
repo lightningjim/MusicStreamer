@@ -464,7 +464,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 90-01-PLAN.md — Logging substrate: preroll_log.py + paths.preroll_events_log_path() + __main__ install + test mirror (Wave 1)
+- [x] 90-01-PLAN.md — Logging substrate: preroll_log.py + paths.preroll_events_log_path() + __main__ install + test mirror (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -538,7 +538,7 @@ Plans:
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 3/3 | Complete   | 2026-06-17 |
 | 87b. GBS Zero-Token Add | 2/2 | Complete   | 2026-06-18 |
-| 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
+| 90. SomaFM Preroll Instrumentation | 1/3 | In Progress|  |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |

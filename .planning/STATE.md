@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 90 context gathered (verify-first reframe; Boot Liquor empirically resolved)
-last_updated: "2026-06-18T18:48:25.954Z"
-last_activity: 2026-06-18 -- Phase 87B execution started
+last_updated: "2026-06-18T18:53:49.887Z"
+last_activity: 2026-06-18 -- Phase 90 execution started
 progress:
   total_phases: 21
   completed_phases: 17
   total_plans: 65
-  completed_plans: 62
+  completed_plans: 63
   percent: 81
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87B — gbs-zero-token-single-song-add
+**Current focus:** Phase 90 — somafm-preroll-instrumentation
 
 ## Current Position
 
-Phase: 87B (gbs-zero-token-single-song-add) — EXECUTING
-Plan: 2 of 2
-Status: Executing Phase 87B
-Last activity: 2026-06-18 -- Phase 87B execution started
+Phase: 90 (somafm-preroll-instrumentation) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 90
+Last activity: 2026-06-18 -- Phase 90 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -195,10 +195,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 89B P03 | 8m | 3 tasks | 2 files |
 | Phase 89c P02 | 8m | 1 tasks | 2 files |
 | Phase 87.1 P04 | 211 | 3 tasks | 3 files |
+| Phase 90-somafm-preroll-instrumentation P01 | 8m | 2 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-06-18T18:20:36.983Z
+Last session: 2026-06-18T18:53:49.876Z
 Stopped at: Phase 90 context gathered (verify-first reframe; Boot Liquor empirically resolved)
 Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-CONTEXT.md
 
