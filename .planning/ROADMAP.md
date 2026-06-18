@@ -435,7 +435,9 @@ Plans:
   4. After a successful add, the affordance hides immediately and re-appears only when `tokens==0 AND queue empty` again (i.e., after the queued song plays out).
   5. Zero-token endpoint spec is fixture-locked in `tests/fixtures/gbs_zero_token/` (per `feedback_mirror_decisions_cite_source.md` — quote the GBS Settings page POST behavior, don't paraphrase).
 
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 87B-01-PLAN.md — Backend: add_song_zero_token() wrapper + no-PII capture hook + provisional fixtures + GBS-TOKEN-02 drift-guard + unit tests (Wave 1)
+- [ ] 87B-02-PLAN.md — UI: persistent 'Add a song' button + visibility + trigger_gbs_repoll wiring + worker call-site + docs amendment + capture-on-use todo (Wave 2)
 **Research flag**: NO — research happens inside Phase 87 spike; Phase 87b consumes it.
 **UI hint**: yes
 
