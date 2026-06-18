@@ -174,6 +174,60 @@ class _SomaImportWorker(QThread):
             self.error.emit(str(exc))
 
 
+class _PrerollRefetchWorker(QThread):
+    """Phase 90 D-07: re-fetch prerolls for SomaFM stations stuck at zero local rows.
+
+    Pattern 4 thread-local Repo (db_connect inside run(), closed in finally).
+    SYNC-05 retention on MainWindow._soma_refetch_worker prevents mid-run GC.
+    Signals: refetch_done(int count) on success; error(str) on exception.
+    Double-click guard: MainWindow._on_preroll_refetch_clicked guards
+    _soma_refetch_worker is not None before creating a new worker.
+    """
+
+    refetch_done = Signal(int)   # count of stations whose prerolls were updated
+    error = Signal(str)
+
+    def run(self) -> None:  # noqa: C901 — complex but deliberate Pattern 4 structure
+        import time
+        con = None
+        try:
+            from musicstreamer.repo import Repo
+            from musicstreamer import soma_import
+            channels = soma_import.fetch_channels()
+            # Build a title→preroll_urls map from the upstream channel list.
+            title_to_prerolls: dict[str, list[str]] = {
+                ch["title"]: ch.get("preroll_urls", [])
+                for ch in channels
+            }
+            con = db_connect()
+            repo = Repo(con)
+            updated = 0
+            for station in repo.list_stations():
+                if station.provider_name != "SomaFM":
+                    continue
+                existing = list(repo.list_prerolls(station.id))
+                if existing:
+                    # Pitfall 4: station already has prerolls — skip silently.
+                    continue
+                preroll_urls = title_to_prerolls.get(station.name, [])
+                if not preroll_urls:
+                    continue
+                for pos, url in enumerate(preroll_urls[:50], start=1):
+                    try:
+                        repo.insert_preroll(station.id, url, pos)
+                    except ValueError:
+                        # T-83-01 scheme gate or T-83-02 position cap — skip this URL.
+                        continue
+                repo.set_prerolls_fetched_at(station.id, int(time.time()))
+                updated += 1
+            self.refetch_done.emit(updated)
+        except Exception as exc:  # noqa: BLE001 — D-04 silent-failure lineage
+            self.error.emit(str(exc))
+        finally:
+            if con is not None:
+                con.close()
+
+
 class MainWindow(QMainWindow):
     """Main application window — station list + now-playing + toast overlay."""
 
@@ -233,6 +287,10 @@ class MainWindow(QMainWindow):
         act_soma_import = self._menu.addAction("Import SomaFM")
         act_soma_import.triggered.connect(self._on_soma_import_clicked)  # QA-05 bound method
 
+        # Phase 90 D-07: manual preroll re-fetch lever
+        act_preroll_refetch = self._menu.addAction("Re-fetch SomaFM prerolls")
+        act_preroll_refetch.triggered.connect(self._on_preroll_refetch_clicked)  # QA-05
+
         # Phase 60 D-08a / GBS-01e: search-and-submit dialog
         act_gbs_search = self._menu.addAction("Search GBS.FM…")  # U+2026 ellipsis
         act_gbs_search.triggered.connect(self._open_gbs_search_dialog)  # QA-05
@@ -288,6 +346,13 @@ class MainWindow(QMainWindow):
         # Worker reference retention (SYNC-05) — prevents GC before thread finishes
         self._export_worker: QThread | None = None
         self._import_preview_worker: QThread | None = None
+
+        # Phase 90 D-05 / SOMA-PRE-02: diagnostics group — open preroll log in OS viewer.
+        # Net-new UI: no existing log-viewer action to mirror; placed in a new diagnostics
+        # group after Group 3 (Export/Import Settings), before the Node-missing indicator.
+        self._menu.addSeparator()
+        act_open_preroll_log = self._menu.addAction("Open preroll log")
+        act_open_preroll_log.triggered.connect(self._on_open_preroll_log_clicked)  # QA-05
 
         # Phase 44 D-13 part 3: persistent Node-missing indicator. Added AFTER
         # existing Group 3 to keep menu order stable; only surfaces when
@@ -363,6 +428,8 @@ class MainWindow(QMainWindow):
         self._gbs_import_worker = None
         # Phase 74 D-07: SomaFM import worker retention (SYNC-05)
         self._soma_import_worker: QThread | None = None
+        # Phase 90 D-07: SomaFM preroll re-fetch worker retention (SYNC-05)
+        self._soma_refetch_worker: QThread | None = None
 
         # ------------------------------------------------------------------
         # Status bar
@@ -1606,3 +1673,58 @@ class MainWindow(QMainWindow):
         self.show_toast(f"SomaFM import failed: {truncated}")
         self._refresh_station_list()
         self._soma_import_worker = None
+
+    # ------------------------------------------------------------------
+    # Phase 90 D-05 / SOMA-PRE-02: Open preroll log in OS default viewer
+    # ------------------------------------------------------------------
+
+    def _on_open_preroll_log_clicked(self) -> None:
+        """Phase 90 D-05 / SOMA-PRE-02: open preroll-events.log in OS default viewer.
+
+        Uses QUrl.fromLocalFile (not bare QUrl(path)) for correct file:// construction
+        on all platforms (Pitfall 5 from 90-PATTERNS.md).
+        Existence-guarded: shows a toast and returns early when the file is not yet
+        created (first run before any SomaFM station has played).
+        """
+        import os
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from musicstreamer import paths
+        log_path = paths.preroll_events_log_path()
+        if not os.path.isfile(log_path):
+            self.show_toast("No preroll log yet — play a SomaFM station first")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(log_path))
+
+    # ------------------------------------------------------------------
+    # Phase 90 D-07: Re-fetch SomaFM prerolls (Pattern-4 _PrerollRefetchWorker)
+    # ------------------------------------------------------------------
+
+    def _on_preroll_refetch_clicked(self) -> None:
+        """Phase 90 D-07: kick _PrerollRefetchWorker for zero-preroll SomaFM stations.
+
+        SYNC-05 double-click guard: if _soma_refetch_worker is not None a run is
+        already in progress — show toast and return without spawning a second worker.
+        """
+        if self._soma_refetch_worker is not None:
+            self.show_toast("Re-fetch already in progress")
+            return
+        self.show_toast("Re-fetching SomaFM prerolls…")
+        self._soma_refetch_worker = _PrerollRefetchWorker(parent=self)  # SYNC-05 retain
+        self._soma_refetch_worker.refetch_done.connect(self._on_preroll_refetch_done)  # QA-05
+        self._soma_refetch_worker.error.connect(self._on_preroll_refetch_error)         # QA-05
+        self._soma_refetch_worker.start()
+
+    def _on_preroll_refetch_done(self, count: int) -> None:
+        """Phase 90 D-07: toast outcome of successful re-fetch run."""
+        if count:
+            self.show_toast(f"Prerolls refreshed for {count} station(s)")
+        else:
+            self.show_toast("Re-fetch: no new prerolls found")
+        self._soma_refetch_worker = None
+
+    def _on_preroll_refetch_error(self, msg: str) -> None:
+        """Phase 90 D-07: silent-failure toast (D-04 lineage) on re-fetch exception."""
+        truncated = (msg[:80] + "…") if len(msg) > 80 else msg
+        self.show_toast(f"Preroll re-fetch failed: {truncated}")
+        self._soma_refetch_worker = None

@@ -365,7 +365,8 @@ def test_open_preroll_log_absent_shows_toast(main_window, monkeypatch, tmp_path)
 
     Monkeypatches paths.preroll_events_log_path to a non-existent path so
     os.path.isfile returns False. Asserts show_toast is called and
-    QDesktopServices.openUrl is NOT called.
+    QDesktopServices.openUrl is NOT called (by monkeypatching PySide6.QtGui.QDesktopServices
+    at the import source, since the handler does a local import).
     """
     from musicstreamer import paths
     # Point the log path to a non-existent file
@@ -376,10 +377,14 @@ def test_open_preroll_log_absent_shows_toast(main_window, monkeypatch, tmp_path)
     monkeypatch.setattr(main_window, "show_toast",
                         lambda text, *a, **kw: captured_toasts.append(text))
 
+    # Patch QDesktopServices at the PySide6.QtGui level so the local import
+    # inside _on_open_preroll_log_clicked picks up the mock.
     open_url_called: list[bool] = []
-    with patch("musicstreamer.ui_qt.main_window.QDesktopServices") as mock_ds:
-        mock_ds.openUrl.side_effect = lambda *a, **kw: open_url_called.append(True)
-        main_window._on_open_preroll_log_clicked()
+    mock_ds = MagicMock()
+    mock_ds.openUrl.side_effect = lambda *a, **kw: open_url_called.append(True)
+    monkeypatch.setattr("PySide6.QtGui.QDesktopServices", mock_ds, raising=False)
+
+    main_window._on_open_preroll_log_clicked()
 
     assert any("No preroll log yet" in t for t in captured_toasts), (
         f"Expected toast containing 'No preroll log yet', got: {captured_toasts}"
