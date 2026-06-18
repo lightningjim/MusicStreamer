@@ -27,6 +27,7 @@ from musicstreamer.gbs_api import (
     GbsAuthExpiredError,
     _decode_django_messages,
     _validate_gbs_cookies,
+    add_song_zero_token,
     fetch_active_playlist,
     fetch_station_metadata,
     fetch_streams,
@@ -1226,3 +1227,87 @@ class TestFetchUserTokens:
         monkeypatch.setattr(gbs_api, "_open_with_cookies", _raise)
         with pytest.raises(GbsAuthExpiredError):
             gbs_api.fetch_user_tokens(fake_cookies_jar)
+
+
+# ---------- Phase 87B: add_song_zero_token tests (GBS-TOKEN-02/03/05 + T-87B-01) ----------
+
+@pytest.fixture
+def gbs_zero_token_fixtures_dir():
+    """Path to tests/fixtures/gbs_zero_token/ — Phase 87B provisional fixture directory."""
+    from pathlib import Path
+    return Path(__file__).parent / "fixtures" / "gbs_zero_token"
+
+
+def _make_zero_token_fake_open(raw_response: str):
+    """Build the fake_open MagicMock from the 48-token fixture text.
+
+    Mirrors the fake_open pattern from test_submit_success_decodes_messages.
+    """
+    def fake_open(url, cookies, timeout=15):
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=cm)
+        cm.__exit__ = MagicMock(return_value=False)
+        cookie_lines = [l for l in raw_response.splitlines()
+                        if l.lower().startswith("set-cookie:") and "messages=" in l]
+        cookie_values = [l.split(":", 1)[1].strip() for l in cookie_lines]
+        location_lines = [l for l in raw_response.splitlines() if l.lower().startswith("location:")]
+        location = location_lines[0].split(":", 1)[1].strip() if location_lines else "/playlist"
+        headers = MagicMock()
+        headers.get = MagicMock(side_effect=lambda k, *_: {"Location": location}.get(k))
+        headers.get_all = MagicMock(return_value=cookie_values)
+        cm.headers = headers
+        cm.close = MagicMock()
+        return cm
+    return fake_open
+
+
+def test_add_song_zero_token_calls_submit(gbs_zero_token_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """GBS-TOKEN-03: add_song_zero_token routes through submit()'s decode path."""
+    raw_response = (gbs_zero_token_fixtures_dir / "add_redirect_response_48tokens.txt").read_text()
+    fake_open = _make_zero_token_fake_open(raw_response)
+    monkeypatch.setattr(gbs_api, "_open_no_redirect", fake_open)
+    result = gbs_api.add_song_zero_token(88135, fake_cookies_jar)
+    assert result, f"add_song_zero_token returned empty string; expected decoded messages text"
+    assert "added" in result.lower() or "track" in result.lower()
+
+
+def test_add_song_zero_token_raises_auth_expired(fake_cookies_jar, monkeypatch):
+    """GBS-TOKEN-03: add_song_zero_token propagates GbsAuthExpiredError from submit()."""
+    def fake_open(url, cookies, timeout=15):
+        cm = MagicMock()
+        cm.__enter__ = MagicMock(return_value=cm)
+        cm.__exit__ = MagicMock(return_value=False)
+        headers = MagicMock()
+        headers.get = MagicMock(return_value="/accounts/login/?next=/add/123")
+        headers.get_all = MagicMock(return_value=[])
+        cm.headers = headers
+        cm.close = MagicMock()
+        return cm
+    monkeypatch.setattr(gbs_api, "_open_no_redirect", fake_open)
+    with pytest.raises(GbsAuthExpiredError):
+        gbs_api.add_song_zero_token(123, fake_cookies_jar)
+
+
+def test_capture_hook_no_pii(gbs_zero_token_fixtures_dir, fake_cookies_jar, monkeypatch):
+    """T-87B-01 / D-02 / D-18: capture hook must not log PII or cookie values."""
+    log_calls = []
+    monkeypatch.setattr(gbs_api._log, "warning",
+                        lambda msg, *args, **kw: log_calls.append((msg, args)))
+    raw_response = (gbs_zero_token_fixtures_dir / "add_redirect_response_48tokens.txt").read_text()
+    fake_open = _make_zero_token_fake_open(raw_response)
+    monkeypatch.setattr(gbs_api, "_open_no_redirect", fake_open)
+    gbs_api.add_song_zero_token(88135, fake_cookies_jar)
+    assert log_calls, "capture hook must emit at least one log call"
+    for msg, args in log_calls:
+        all_text = msg + " ".join(str(a) for a in args)
+        assert "sessionid" not in all_text
+        assert "csrftoken" not in all_text
+        assert "Set-Cookie" not in all_text
+        assert "Authorization" not in all_text
+
+
+def test_zero_token_fixture_exists(gbs_zero_token_fixtures_dir):
+    """GBS-TOKEN-05: provisional fixture is present and non-empty."""
+    fixture_path = gbs_zero_token_fixtures_dir / "add_redirect_response_48tokens.txt"
+    assert fixture_path.exists(), f"Provisional fixture not found: {fixture_path}"
+    assert fixture_path.stat().st_size > 0, f"Provisional fixture is empty: {fixture_path}"
