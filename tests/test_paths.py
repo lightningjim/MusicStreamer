@@ -113,3 +113,16 @@ def test_channel_avatars_dir_does_not_create_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(paths, "_root_override", str(tmp_path))
     result = paths.channel_avatars_dir()
     assert os.path.exists(result) is False
+
+
+def test_preroll_events_log_path_returns_correct_path(monkeypatch, tmp_path):
+    """Phase 90 D-04: preroll-events.log path resolves under the override root."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    assert paths.preroll_events_log_path() == os.path.join(str(tmp_path), "preroll-events.log")
+
+
+def test_preroll_events_log_path_respects_root_override(monkeypatch, tmp_path):
+    """Phase 90 D-04: purity contract — returns a string, does NOT touch disk."""
+    monkeypatch.setattr(paths, "_root_override", str(tmp_path))
+    result = paths.preroll_events_log_path()
+    assert os.path.exists(result) is False

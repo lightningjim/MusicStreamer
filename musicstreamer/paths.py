@@ -70,6 +70,11 @@ def buffer_events_log_path() -> str:
     return os.path.join(_root(), "buffer-events.log")
 
 
+def preroll_events_log_path() -> str:
+    """Phase 90 D-04: path to the size-rotated preroll-event diagnostic log."""
+    return os.path.join(_root(), "preroll-events.log")
+
+
 def accent_css_path() -> str:
     return os.path.join(_root(), "accent.css")
 
