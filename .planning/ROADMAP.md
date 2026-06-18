@@ -443,18 +443,22 @@ Plans:
 
 #### Phase 90: SomaFM Preroll Instrumentation
 
-**Goal**: Wire a non-destructive structured event log + opt-in probe through `player.py:_try_next_stream` and `_on_preroll_about_to_finish` so 1-2 days of real listening identifies why Boot Liquor and similar stations miss prerolls that Groove Salad / Drone Zone / Beat Blender consistently receive.
+**Goal**: Wire a non-destructive structured preroll event log + a prerolls re-fetch lever through `player.py`'s SomaFM preroll path so the user can confirm — via a manual all-stations run-through cross-checked against `preroll-events.log` — that the reported missing-preroll symptom (Boot Liquor) is resolved, and so any future recurrence is both legible (logged) and recoverable (re-fetch). REFRAMED 2026-06-18 (see 90-CONTEXT.md, authoritative): empirical verification showed Boot Liquor already resolved at the data+logic layer; the opt-in 30s network probe (SOMA-PRE-03) and the 1-2 day passive harvest (SOMA-PRE-04 harvest half) are DEFERRED to conditional Phase 90b. Building the fix for a still-broken station is Phase 90b, not this phase.
 **Depends on**: Nothing inside v2.2 (parallel-eligible; carry-over investigation)
 **Requirements**: SOMA-PRE-01, SOMA-PRE-02, SOMA-PRE-03, SOMA-PRE-04, SOMA-PRE-05
-**Success Criteria** (what must be TRUE):
+**Success Criteria** (what must be TRUE — REFRAMED per 90-CONTEXT.md; supersedes original probe/harvest criteria):
 
-  1. New `musicstreamer/preroll_log.py` writes size-rotated structured events (`preroll_start`, `preroll_skipped_throttle`, `preroll_skipped_empty`, `preroll_handoff_complete`, `preroll_error`) to `~/.local/share/musicstreamer/preroll-events.log`; hamburger-menu "Open preroll log" mirrors the Phase 78 buffer-events log entry.
-  2. Instrumentation adds at decision-point boundaries in `player.py` with zero behavior change; Phase 84 D-11 acceptance test (12-event harvest replay) re-runs clean before merge (Pitfall 12 mitigated).
-  3. Opt-in "Probe SomaFM preroll" hamburger-menu action performs `requests.get(stream_url, stream=True, headers={'Icy-MetaData': '1'})` for 30 seconds against the current SomaFM station + 4 known-good baselines (Groove Salad, Drone Zone, Beat Blender, + one more); never spawns a second `playbin3` pipeline (Pitfall 11 mitigated).
-  4. Source-grep drift-guard pins `_set_uri` ordering in `_try_next_stream` after any stage-and-apply marker (Phase 84 buffer adaptation regression-proof).
-  5. After 1-2 days of real-listening harvest, log + probe data identify the root cause for at least one missing-preroll station (Boot Liquor target); conditional Phase 90b decision criteria documented (atomic catalog gap vs. throttle-window leakage vs. "no signal — closed").
+  1. New `musicstreamer/preroll_log.py` writes size-rotated structured events (`preroll_start` incl. chosen URL, `preroll_skipped_throttle`, `preroll_skipped_empty`, `preroll_handoff_complete`; `preroll_error` reserved) to `~/.local/share/musicstreamer/preroll-events.log`; hamburger-menu "Open preroll log" surfaces it (net-new UI — no existing buffer-log entry to mirror).
+  2. Instrumentation adds at `_try_next_stream` + `_on_preroll_about_to_finish` decision boundaries with zero behavior change; Phase 84 D-11 acceptance test (12-event replay, `tests/test_player_buffer_growth.py`) re-runs clean before merge; source drift-guard pins `_set_uri` ordering (SOMA-PRE-05).
+  3. Recovery lever (D-07/D-08): a manual "Re-fetch SomaFM prerolls" hamburger action + automatic staleness re-fetch close the latent "fetched-with-0 never re-fetches" trap; re-fetch reuses single-flight + Pattern-4 thread-local Repo + scheme-validated `insert_preroll`.
+  4. `random.choice(urls)` selection is UNCHANGED (D-06); the logged chosen-URL is the run-through's per-bind rotation/reachability evidence.
+  5. SOMA-PRE-04 verify half is satisfied by the structured log + a user-owned manual all-stations run-through; SOMA-PRE-03 (30s probe) + the passive harvest half are DEFERRED to conditional Phase 90b.
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 90-01-PLAN.md — Logging substrate: preroll_log.py + paths.preroll_events_log_path() + __main__ install + test mirror (Wave 1)
+- [ ] 90-02-PLAN.md — Wire additive preroll log calls into player.py gate+handoff + D-08 auto-staleness re-fetch; D-11 regression gate (Wave 2)
+- [ ] 90-03-PLAN.md — Hamburger UI: "Open preroll log" + "Re-fetch SomaFM prerolls" (_PrerollRefetchWorker) (Wave 2)
 **Research flag**: NO — Phase 78/84 ship+monitor pattern is the established template.
 
 #### Phase 90b (CONDITIONAL): SomaFM Preroll Fix
