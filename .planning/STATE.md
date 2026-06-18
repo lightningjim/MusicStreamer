@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 90 context gathered (verify-first reframe; Boot Liquor empirically resolved)
-last_updated: "2026-06-18T18:53:49.887Z"
+last_updated: "2026-06-18T19:01:25.459Z"
 last_activity: 2026-06-18 -- Phase 90 execution started
 progress:
   total_phases: 21
   completed_phases: 17
   total_plans: 65
-  completed_plans: 63
+  completed_plans: 64
   percent: 81
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 ## Current Position
 
 Phase: 90 (somafm-preroll-instrumentation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Executing Phase 90
 Last activity: 2026-06-18 -- Phase 90 execution started
 
@@ -199,7 +199,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-18T18:53:49.876Z
+Last session: 2026-06-18T19:01:25.446Z
 Stopped at: Phase 90 context gathered (verify-first reframe; Boot Liquor empirically resolved)
 Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-CONTEXT.md
 

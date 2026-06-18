@@ -92,9 +92,9 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 - [x] **SOMA-PRE-01**: New module `musicstreamer/preroll_log.py` mirrors `musicstreamer/buffer_log.py` (Phase 78 size-rotated structured event log); wires at `player.py:_try_next_stream` and `_on_preroll_about_to_finish` decision points with NO behavior change
 - [ ] **SOMA-PRE-02**: Hamburger-menu gains "Open preroll log" entry mirroring the existing "Open buffer-events log" entry (Phase 78)
 - [ ] **SOMA-PRE-03** _(DEFERRED to Phase 90b — reframed 2026-06-18, see 90-CONTEXT.md D-06)_: A new opt-in (hamburger-menu) "Probe SomaFM preroll" action runs a non-destructive `requests.get(stream_url, stream=True, headers={'Icy-MetaData': '1'})` for 30 seconds against the currently-bound SomaFM station and the 4 known-good baselines (Groove Salad, Drone Zone, Beat Blender, + one more); records to a separate `preroll-probe.log`. **Deferred:** the network probe is only needed if a station proves truly still broken; Phase 90 instead ships structured logging + a manual all-stations run-through.
-- [ ] **SOMA-PRE-04** _(re-scoped to verify-half in Phase 90; harvest/probe half deferred to Phase 90b)_: The structured preroll event log + a user-owned manual all-stations run-through identify whether any station is still missing prerolls (Boot Liquor empirically already resolved as of 2026-06-18); conditional Phase 90b ships a fix only if a clear atomic root cause surfaces
-- [ ] **SOMA-PRE-05**: Instrumentation MUST NOT regress Phase 84 buffer adaptation — Phase 84 D-11 acceptance test (12-event harvest replay) re-runs clean before merge; source-grep drift-guard pins `_set_uri` order
-- [ ] **SOMA-PRE-06** _(added Phase 90, 2026-06-18 — authorizes 90-CONTEXT.md D-07/D-08)_: A prerolls re-fetch lever — a manual hamburger-menu "Re-fetch SomaFM prerolls" action (re-runs the synchronous `soma_import` capture for SomaFM stations with no local prerolls) AND an automatic staleness re-fetch (when `prerolls_fetched_at` is set but local rows=0 and stale) — closes the latent "fetched-with-0 never re-fetches" trap; reuses single-flight + Pattern-4 thread-local Repo, silent on failure
+- [x] **SOMA-PRE-04** _(re-scoped to verify-half in Phase 90; harvest/probe half deferred to Phase 90b)_: The structured preroll event log + a user-owned manual all-stations run-through identify whether any station is still missing prerolls (Boot Liquor empirically already resolved as of 2026-06-18); conditional Phase 90b ships a fix only if a clear atomic root cause surfaces
+- [x] **SOMA-PRE-05**: Instrumentation MUST NOT regress Phase 84 buffer adaptation — Phase 84 D-11 acceptance test (12-event harvest replay) re-runs clean before merge; source-grep drift-guard pins `_set_uri` order
+- [x] **SOMA-PRE-06** _(added Phase 90, 2026-06-18 — authorizes 90-CONTEXT.md D-07/D-08)_: A prerolls re-fetch lever — a manual hamburger-menu "Re-fetch SomaFM prerolls" action (re-runs the synchronous `soma_import` capture for SomaFM stations with no local prerolls) AND an automatic staleness re-fetch (when `prerolls_fetched_at` is set but local rows=0 and stale) — closes the latent "fetched-with-0 never re-fetches" trap; reuses single-flight + Pattern-4 thread-local Repo, silent on failure
 
 ### Phase 77 MPRIS2 Test Repair (FIX-MPRIS)
 
@@ -215,9 +215,9 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | SOMA-PRE-01 | Phase 90 | Complete |
 | SOMA-PRE-02 | Phase 90 | Pending |
 | SOMA-PRE-03 | Phase 90b (CONDITIONAL — deferred from Phase 90) | Deferred |
-| SOMA-PRE-04 | Phase 90 (verify-half); Phase 90b (CONDITIONAL fix) | Pending |
-| SOMA-PRE-05 | Phase 90 | Pending |
-| SOMA-PRE-06 | Phase 90 | Pending |
+| SOMA-PRE-04 | Phase 90 (verify-half); Phase 90b (CONDITIONAL fix) | Complete |
+| SOMA-PRE-05 | Phase 90 | Complete |
+| SOMA-PRE-06 | Phase 90 | Complete |
 | FIX-MPRIS-01 | Phase 91 | Complete |
 | FIX-MPRIS-02 | Phase 91 | Complete |
 | FIX-MPRIS-03 | Phase 91 | Complete |
