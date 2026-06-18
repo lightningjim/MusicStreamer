@@ -426,3 +426,73 @@ def test_extract_codec_wma_mp3():
     """WMA and MP3 tokens recognized."""
     assert _extract_codec("WMA 64k Windows") == "WMA"
     assert _extract_codec("Classic MP3 128k") == "MP3"
+
+
+# ---------------------------------------------------------------------------
+# URL-fallback tests (Phase 92 / FIX-PLS-01)
+# ---------------------------------------------------------------------------
+
+# SomaFM-style PLS: prose title with no codec/bitrate token; codec and bitrate
+# live only in the URL (groovesalad-256-mp3).
+_PLS_SOMAFM_GROOVESALAD = """\
+[playlist]
+NumberOfEntries=1
+File1=https://ice2.somafm.com/groovesalad-256-mp3
+Title1=SomaFM: Groove Salad (#1): A nicely chilled plate of ambient/downtempo beats and grooves.
+Length1=-1
+Version=2
+"""
+
+# PLS where the title DOES carry codec/bitrate; the URL also encodes them
+# (different values) — title must win.
+_PLS_TITLE_WINS = """\
+[playlist]
+NumberOfEntries=1
+File1=http://example.com/stream-256-mp3
+Title1=AudioAddict 128k AAC
+Length1=-1
+Version=2
+"""
+
+# PLS entries whose URLs have no delimiter-bounded digit run (path-only digits).
+_PLS_NO_DELIMITED_BITRATE = """\
+[playlist]
+NumberOfEntries=2
+File1=http://host/v2/api/path/stream
+Title1=
+File2=http://host/stream-128k-aac
+Title2=
+"""
+
+
+def test_pls_codec_extracted_from_url_when_title_blank():
+    """SomaFM prose title carries no codec token; codec derives from URL path."""
+    result = parse_playlist(_PLS_SOMAFM_GROOVESALAD, url_hint="x.pls")
+    assert len(result) == 1
+    assert result[0]["codec"] == "MP3"
+
+
+def test_pls_bitrate_extracted_from_url_when_title_blank():
+    """SomaFM prose title carries no bitrate token; bitrate derives from URL path."""
+    result = parse_playlist(_PLS_SOMAFM_GROOVESALAD, url_hint="x.pls")
+    assert len(result) == 1
+    assert result[0]["bitrate_kbps"] == 256
+
+
+def test_url_fallback_does_not_override_title_match():
+    """When the title has codec/bitrate, title-derived values win; URL never consulted."""
+    result = parse_playlist(_PLS_TITLE_WINS, url_hint="x.pls")
+    assert len(result) == 1
+    # Title says "128k AAC" -> title wins over URL's "-256-mp3"
+    assert result[0]["bitrate_kbps"] == 128
+    assert result[0]["codec"] == "AAC"
+
+
+def test_url_bitrate_only_matches_with_delimiters():
+    """URL bitrate regex requires >=2 digits with delimiters; arbitrary path digits don't match."""
+    result = parse_playlist(_PLS_NO_DELIMITED_BITRATE, url_hint="x.pls")
+    assert len(result) == 2
+    # File1: /v2/api/path/stream — no delimiter-bounded 2+ digit run -> 0
+    assert result[0]["bitrate_kbps"] == 0
+    # File2: /stream-128k-aac — delimiter-bounded "128" with trailing k -> 128
+    assert result[1]["bitrate_kbps"] == 128
