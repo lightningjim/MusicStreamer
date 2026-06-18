@@ -8,6 +8,7 @@ Public API:
   vote_now_playing(entryid, vote, cookies) -> dict
   search(query, page, cookies) -> dict
   submit(songid, cookies) -> str
+  add_song_zero_token(songid, cookies) -> str
   load_auth_context() -> http.cookiejar.MozillaCookieJar | None
   _validate_gbs_cookies(text) -> bool
   _decode_django_messages(cookie_value) -> list[str]
@@ -1150,6 +1151,30 @@ def submit(songid: int, cookies: http.cookiejar.MozillaCookieJar) -> str:
             resp.close()
         except Exception:
             pass
+
+
+def add_song_zero_token(songid: int, cookies: http.cookiejar.MozillaCookieJar) -> str:
+    # GBS_TOKEN_03: named add path, provisional contract per 87B-CONTEXT D-02.
+    # Wraps submit() with a no-PII capture hook (D-02 item 4 / 87B-CONTEXT D-18).
+    # The server enforces any single-at-a-time limit via the messages cookie
+    # (surfaced verbatim by the caller per D-07 / Pitfall 8).
+    # Raises GbsAuthExpiredError on session expiry (mirrors submit()).
+    # Returns "" if no messages cookie set (no message from server = success).
+    result = submit(songid, cookies)
+    _capture_add_shape(songid=songid, message=result)
+    return result
+
+
+def _capture_add_shape(songid: int, message: str) -> None:
+    # No-PII structured WARN log for D-02 capture hook.
+    # Logs: endpoint shape, message length/category.
+    # MUST NOT log: cookies, session values, raw cookie headers.
+    _log.warning(
+        "gbs.add.zero_token_capture endpoint=/add/%s message_len=%d message_category=%s",
+        int(songid),
+        len(message),
+        "empty" if not message else ("error" if "not enough" in message.lower() else "success"),
+    )
 
 
 # ---------- Import orchestrator (D-01, D-02a) ----------
