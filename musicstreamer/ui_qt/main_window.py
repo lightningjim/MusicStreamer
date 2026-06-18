@@ -210,16 +210,25 @@ class _PrerollRefetchWorker(QThread):
                     # Pitfall 4: station already has prerolls — skip silently.
                     continue
                 preroll_urls = title_to_prerolls.get(station.name, [])
-                if not preroll_urls:
-                    continue
+                inserted_any = False
                 for pos, url in enumerate(preroll_urls[:50], start=1):
                     try:
                         repo.insert_preroll(station.id, url, pos)
+                        inserted_any = True
                     except ValueError:
                         # T-83-01 scheme gate or T-83-02 position cap — skip this URL.
                         continue
+                # WR-01 / D-04 / D-08: mark fetched regardless of count, mirroring
+                # the daemon path (player._preroll_backfill_worker). A genuinely-empty
+                # upstream channel must advance prerolls_fetched_at so the D-08
+                # staleness branch in player.play() stops re-scheduling on every play
+                # and the manual lever converges instead of re-attempting forever.
                 repo.set_prerolls_fetched_at(station.id, int(time.time()))
-                updated += 1
+                # WR-02: only count a station as "updated" when at least one preroll
+                # actually landed — every-URL-scheme-rejected runs must not inflate
+                # the success toast (T-83-01).
+                if inserted_any:
+                    updated += 1
             self.refetch_done.emit(updated)
         except Exception as exc:  # noqa: BLE001 — D-04 silent-failure lineage
             self.error.emit(str(exc))
