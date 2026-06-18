@@ -260,6 +260,15 @@ def _run_gui(argv: list[str]) -> int:
     from musicstreamer.buffer_log import install_buffer_events_handler
     install_buffer_events_handler()
 
+    # Phase 90 / SOMA-PRE-01: install rotating file handler on the
+    # musicstreamer.preroll logger so preroll gate INFO lines also land at
+    # ~/.local/share/musicstreamer/preroll-events.log regardless of launch
+    # context (.desktop vs terminal). MUST run AFTER migration.run_migration()
+    # so DATA_DIR exists (Pitfall 1 — RotatingFileHandler opens eagerly). The
+    # install function is idempotent so re-entry / hot-reload is safe.
+    from musicstreamer.preroll_log import install_preroll_events_handler
+    install_preroll_events_handler()
+
     from PySide6.QtWidgets import QApplication
     from musicstreamer.ui_qt import icons_rc  # noqa: F401  (D-24 side-effect resource import)
     from musicstreamer.ui_qt.main_window import MainWindow
