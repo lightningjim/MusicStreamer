@@ -2093,6 +2093,15 @@ class Player(QObject):
                 station_id, station_name, exc,
             )
         finally:
+            # WR-03: cross-thread mutation. add()/membership-test run on the main
+            # thread (play()); this discard() runs on the daemon worker thread.
+            # set.discard / set.add / `in` are each atomic under CPython's GIL
+            # (Pattern 2 — same justification as the _preroll_in_flight / _preroll_seq
+            # cross-thread reads), so the set never corrupts. The check-then-add in
+            # play() is not lock-held, but both schedule sites run on the main thread
+            # and cannot race each other; the only cross-thread writer is this discard,
+            # whose worst case is a benign duplicate worker if it fires before a
+            # second play's check. This relies on schedule staying main-thread-only.
             self._backfill_in_flight.discard(station_id)
 
     # ------------------------------------------------------------------ #
