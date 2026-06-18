@@ -396,9 +396,11 @@ Plans:
   3. Helix rate-limit budget is preserved — avatar fetched once per station-create/edit, then cached indefinitely with a manual "Refresh avatar" affordance (no per-play refresh).
 
 **Plans**: 3 plans
+
 - [x] 89B-01-PLAN.md — New `musicstreamer/twitch_helix.py` (`fetch_channel_avatar` via Helix `/users`, Bearer + Client-Id, login parse) + register into the per-provider avatar registry (Wave 1)
 - [x] 89B-02-PLAN.md — EditStationDialog: twitch.tv URL detection + Refresh gate, `_AvatarFetchWorker` registry dispatch, blank-only `Twitch: <login>` provider derivation on save (Wave 2)
 - [x] 89B-03-PLAN.md — Gap closure: refresh in-memory provider_id/provider_name + synchronous fetch-and-persist of the Twitch avatar in `_on_save` before `accept()` so a NEW Twitch station fetches its avatar on FIRST save (UAT add-path gap) (Wave 1)
+
 **Research flag**: NO — Helix `/users` is a single GET, pattern is well-established in `aa_live.py` and elsewhere.
 
 #### Phase 89c (INSERTED): Provider Brand-Avatar Cover-Slot Fallback (SomaFM, AudioAddict)
@@ -416,9 +418,11 @@ Plans:
 
 **Plans**: 3 plans
 Plans:
+
 - [x] 89c-01-PLAN.md — Registry module + asset dir + now_playing_panel wiring + drift-guards + PyInstaller datas
 - [x] 89c-02-PLAN.md — EditStationDialog "Choose brand image…" upload override (D-09/D-09a)
 - [x] 89c-03-PLAN.md — Gap closure: _populate() refresh avatar preview on dialog open (reuse-on-open, D-07; UAT Test 5)
+
 **Research flag**: NO — reuses Phase 89 cover-slot swap + circular-crop rendering; source is bundled provider assets, no new network fetch.
 **UI hint**: yes
 
@@ -436,8 +440,10 @@ Plans:
   5. The observable /add shape is fixture-locked under `tests/fixtures/gbs_zero_token/` now (provisional 48-token capture); the real tokens==0 fixture is captured on first live use via the no-PII capture hook and confirmed via the capture-on-use follow-up todo (AMENDED per 87B-CONTEXT D-03 — defers live tokens==0 observation to capture-on-use).
 
 **Plans**: 2 plans
+
 - [x] 87B-01-PLAN.md — Backend: add_song_zero_token() wrapper + no-PII capture hook + provisional fixtures + GBS-TOKEN-02 drift-guard + unit tests (Wave 1)
 - [x] 87B-02-PLAN.md — UI: persistent 'Add a song' button + visibility + trigger_gbs_repoll wiring + worker call-site + docs amendment + capture-on-use todo (Wave 2)
+
 **Research flag**: NO — research happens inside Phase 87 spike; Phase 87b consumes it.
 **UI hint**: yes
 
@@ -456,9 +462,15 @@ Plans:
 
 **Plans**: 3 plans
 Plans:
+**Wave 1**
+
 - [ ] 90-01-PLAN.md — Logging substrate: preroll_log.py + paths.preroll_events_log_path() + __main__ install + test mirror (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 90-02-PLAN.md — Wire additive preroll log calls into player.py gate+handoff + D-08 auto-staleness re-fetch; D-11 regression gate (Wave 2)
 - [ ] 90-03-PLAN.md — Hamburger UI: "Open preroll log" + "Re-fetch SomaFM prerolls" (_PrerollRefetchWorker) (Wave 2)
+
 **Research flag**: NO — Phase 78/84 ship+monitor pattern is the established template.
 
 #### Phase 90b (CONDITIONAL): SomaFM Preroll Fix
