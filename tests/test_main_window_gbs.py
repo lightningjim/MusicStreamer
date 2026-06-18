@@ -198,3 +198,76 @@ def test_no_self_capturing_lambda_in_gbs_action():
         assert "lambda" not in m, f"QA-05 violation: {m!r}"
         assert m.strip().startswith("self."), \
             f"QA-05 expects bound method starting with 'self.', got: {m!r}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 87B / GBS-TOKEN-01/D-09/D-10: dialog launch + re-poll wiring
+# ---------------------------------------------------------------------------
+
+
+def test_submission_completed_wired_to_repoll(main_window, monkeypatch):
+    """D-09: _open_gbs_search_dialog connects submission_completed → trigger_gbs_repoll.
+
+    Stubs GBSSearchDialog.exec() to avoid Qt modal loop; captures the
+    trigger_gbs_repoll call on the panel.
+    """
+    from musicstreamer.ui_qt.gbs_search_dialog import GBSSearchDialog
+
+    repoll_called = {"count": 0}
+    # Stub trigger_gbs_repoll on the panel
+    monkeypatch.setattr(main_window.now_playing, "trigger_gbs_repoll",
+                        lambda: repoll_called.__setitem__("count", repoll_called["count"] + 1))
+
+    # Capture the dialog instance and emit submission_completed from it
+    dialog_ref = {}
+
+    def fake_exec(self):
+        dialog_ref["dlg"] = self
+        # Simulate successful add → emit submission_completed
+        self.submission_completed.emit()
+
+    monkeypatch.setattr(GBSSearchDialog, "exec", fake_exec)
+
+    main_window._open_gbs_search_dialog()
+
+    assert repoll_called["count"] == 1, (
+        "submission_completed must trigger trigger_gbs_repoll on the panel (D-09)"
+    )
+
+
+def test_add_song_requested_opens_dialog(main_window, monkeypatch):
+    """D-10: emitting panel.add_song_requested invokes _open_gbs_search_dialog."""
+    calls = {"count": 0}
+    monkeypatch.setattr(main_window, "_open_gbs_search_dialog",
+                        lambda: calls.__setitem__("count", calls["count"] + 1))
+
+    main_window.now_playing.add_song_requested.emit()
+    assert calls["count"] == 1, (
+        "add_song_requested signal must invoke _open_gbs_search_dialog (D-10)"
+    )
+
+
+def test_stale_submission_docstring_gone(main_window):
+    """D-09: the stale 'submission_completed is not connected here' line must be removed."""
+    import inspect
+    doc = inspect.getdoc(main_window._open_gbs_search_dialog) or ""
+    assert "submission_completed is not connected here" not in doc, (
+        "Stale docstring must be removed from _open_gbs_search_dialog"
+    )
+
+
+def test_submit_worker_calls_add_song_zero_token():
+    """GBS-TOKEN-03: _GbsSubmitWorker.run must call add_song_zero_token, not bare submit."""
+    from pathlib import Path
+    src = Path("musicstreamer/ui_qt/gbs_search_dialog.py").read_text(encoding="utf-8")
+    # Find _GbsSubmitWorker.run body
+    m = re.search(r"def run\(self\).*?(?=\n    def |\nclass |\Z)", src, re.S)
+    assert m, "_GbsSubmitWorker.run not found in gbs_search_dialog.py"
+    run_body = m.group(0)
+    assert "add_song_zero_token" in run_body, (
+        "GBS-TOKEN-03: _GbsSubmitWorker.run must call gbs_api.add_song_zero_token()"
+    )
+    # Ensure no bare gbs_api.submit( call remains in _GbsSubmitWorker.run
+    assert "gbs_api.submit(" not in run_body, (
+        "Bare gbs_api.submit() must be replaced by add_song_zero_token() in _GbsSubmitWorker.run"
+    )
