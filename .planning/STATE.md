@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: planning
-stopped_at: Phase 87b context gathered
-last_updated: "2026-06-18T15:28:27.818Z"
+stopped_at: Phase 87b UI-SPEC approved
+last_updated: "2026-06-18T15:43:36.061Z"
 last_activity: 2026-06-18 -- Phase 87.1 marked complete
 progress:
   total_phases: 21
@@ -198,9 +198,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-18T15:28:27.808Z
-Stopped at: Phase 87b context gathered
-Resume file: .planning/phases/87B-gbs-zero-token-single-song-add/87B-CONTEXT.md
+Last session: 2026-06-18T15:43:36.052Z
+Stopped at: Phase 87b UI-SPEC approved
+Resume file: .planning/phases/87B-gbs-zero-token-single-song-add/87B-UI-SPEC.md
 
 ## Operator Next Steps
 
