@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
+status: executing
 stopped_at: Phase 87b UI-SPEC approved
-last_updated: "2026-06-18T15:59:34.965Z"
-last_activity: 2026-06-18 -- Phase 87.1 marked complete
+last_updated: "2026-06-18T16:06:56.875Z"
+last_activity: 2026-06-18 -- Phase 87B execution started
 progress:
   total_phases: 21
   completed_phases: 16
   total_plans: 62
-  completed_plans: 60
+  completed_plans: 61
   percent: 76
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87.1 complete — next open v2.2 phases: 87b, 90, 92, 95 (90b conditional)
+**Current focus:** Phase 87B — gbs-zero-token-single-song-add
 
 ## Current Position
 
-Phase: 87.1 complete — no phase selected (Phase 88 already closed 2026-06-13)
-Plan: Not started
-Status: Ready to plan — pick next via /gsd:next or /gsd:progress
-Last activity: 2026-06-18 -- Phase 87.1 marked complete
+Phase: 87B (gbs-zero-token-single-song-add) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 87B
+Last activity: 2026-06-18 -- Phase 87B execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -198,7 +198,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-18T15:43:36.052Z
+Last session: 2026-06-18T16:06:56.864Z
 Stopped at: Phase 87b UI-SPEC approved
 Resume file: .planning/phases/87B-gbs-zero-token-single-song-add/87B-UI-SPEC.md
 

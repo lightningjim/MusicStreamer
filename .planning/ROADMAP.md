@@ -436,7 +436,7 @@ Plans:
   5. Zero-token endpoint spec is fixture-locked in `tests/fixtures/gbs_zero_token/` (per `feedback_mirror_decisions_cite_source.md` — quote the GBS Settings page POST behavior, don't paraphrase).
 
 **Plans**: 2 plans
-- [ ] 87B-01-PLAN.md — Backend: add_song_zero_token() wrapper + no-PII capture hook + provisional fixtures + GBS-TOKEN-02 drift-guard + unit tests (Wave 1)
+- [x] 87B-01-PLAN.md — Backend: add_song_zero_token() wrapper + no-PII capture hook + provisional fixtures + GBS-TOKEN-02 drift-guard + unit tests (Wave 1)
 - [ ] 87B-02-PLAN.md — UI: persistent 'Add a song' button + visibility + trigger_gbs_repoll wiring + worker call-site + docs amendment + capture-on-use todo (Wave 2)
 **Research flag**: NO — research happens inside Phase 87 spike; Phase 87b consumes it.
 **UI hint**: yes
@@ -521,7 +521,7 @@ Plans:
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 3/3 | Complete   | 2026-06-17 |
-| 87b. GBS Zero-Token Add | 0/? | Not started | - |
+| 87b. GBS Zero-Token Add | 1/2 | In Progress|  |
 | 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
