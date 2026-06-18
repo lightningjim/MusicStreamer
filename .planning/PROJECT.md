@@ -173,6 +173,7 @@ Requirements for v2.2 will live in a fresh `.planning/REQUIREMENTS.md` once the 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| GBS re-login is user-gated, non-dismissive (Phase 87.1) | Auth-expiry detection (playlist error + marquee `auth_expired`) reveals an inline prompt only; the `oauth_helper` login subprocess launches solely on the explicit "Log in again" click — never auto-launches on detection | ✓ Good — UAT 2/2 pass 2026-06-18; reusable by 87 marquee + 87b |
 | Search + dropdowns for filtering | User explicitly chose this over sidebar/chips | ✓ Good — clean UX, easy to compose |
 | ICY metadata via GStreamer TAG bus | Already flowing in pipeline | ✓ Good — zero extra dependencies |
 | Cover art via iTunes Search API | Free, no key required | ✓ Good — works for most western music |

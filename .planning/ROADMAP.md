@@ -37,7 +37,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 88.1: Fix SMTC Media Overlay Absent + Dead Media Keys (Phase 88 UAT G2) (INSERTED)** — Bundle the winrt `.pyd` extensions via `collect_all` so the frozen build's SMTC media session registers; backend selection logged, build/CI guards prevent regression. VM UAT closed via 88-03
 - [x] **Phase 89a: Channel-Avatar DB Migration + Storage Layout** — Foundation column + filesystem layout for YT and Twitch avatars; idempotent additive migration in `repo.py:db_init()`
 - [x] **Phase 87: GBS.FM Marquee + Themed-Day Detection** — Banner widget + themed-logo session swap; establishes the QtWebEngine cookie-persistence-cross-process pattern reused by Phase 89
-- [ ] **Phase 87.1: GBS.FM Session-Expiry Re-login Prompt (INSERTED)** — Surface a clear "GBS session expired — please log in again" prompt that launches the in-app GBS login and refreshes on success, instead of the active playlist silently failing to load (3 plans, 2 waves)
+- [x] **Phase 87.1: GBS.FM Session-Expiry Re-login Prompt (INSERTED)** — Surface a clear "GBS session expired — please log in again" prompt that launches the in-app GBS login and refreshes on success, instead of the active playlist silently failing to load (5 plans, complete 2026-06-18)
 - [x] **Phase 89: YouTube Channel-Avatar Fetch + Cover-Slot Swap** — ICY-disabled YT stations show the channel avatar (circular) in the cover slot; cover-resolver precedence keeps MB-CAA above avatar
 - [x] **Phase 89.1: Re-key Channel Avatar from Per-Station to Per-Provider (INSERTED)** — Move the YT/Twitch avatar from Station to Provider (add `providers.avatar_path`, key the cached PNG by `provider_id`) so sibling streams of one channel share one fetch + one file; migrate existing per-station avatars and deprecate the old column
 - [x] **Phase 89b: Twitch Channel-Avatar Fetch** — Twitch GQL `profileImageURL` fetch reusing the Phase 32 user token (Helix 404s for this token — pivoted to gql.twitch.tv); shares storage + cover-slot path with Phase 89. Add-path first-save fetch closed via 89B-03 (2026-06-17)
@@ -514,7 +514,7 @@ Plans:
 | 88.1. Fix SMTC + Media Keys (G2) (INSERTED) | 2/2 | Complete   | 2026-06-09 |
 | 89a. Channel-Avatar DB Migration | 2/2 | Complete   | 2026-06-13 |
 | 87. GBS Marquee + Themed-Day | 7/7 | Complete    | 2026-06-15 |
-| 87.1. GBS Session-Expiry Re-login (INSERTED) | 5/5 | Complete   | 2026-06-17 |
+| 87.1. GBS Session-Expiry Re-login (INSERTED) | 5/5 | Complete    | 2026-06-18 |
 | 89. YT Channel-Avatar | 5/5 | Complete    | 2026-06-16 |
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |

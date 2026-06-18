@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: "Phase 87.1 executed — automated verification passed (14/14); 2 human UAT items pending; /gsd:secure-phase recommended"
-last_updated: "2026-06-17T23:07:17.335Z"
-last_activity: 2026-06-17 -- Phase 87.1 execution started
+status: ready_to_plan
+stopped_at: Phase 87.1 complete (5/5) — Phase 88 already closed; remaining v2.2 phases are 87b, 90, 90b (conditional), 92, 95. Use /gsd:next or /gsd:progress to pick.
+last_updated: 2026-06-18T14:47:14.585Z
+last_activity: 2026-06-18 -- Phase 87.1 marked complete
 progress:
   total_phases: 21
   completed_phases: 16
   total_plans: 60
-  completed_plans: 60
+  completed_plans: 63
   percent: 76
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 87.1 — gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired
+**Current focus:** Phase 87.1 complete — next open v2.2 phases: 87b, 90, 92, 95 (90b conditional)
 
 ## Current Position
 
-Phase: 87.1 (gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired) — EXECUTING
-Plan: 2 of 5
-Status: Executing Phase 87.1
-Last activity: 2026-06-17 -- Phase 87.1 execution started
+Phase: 87.1 complete — no phase selected (Phase 88 already closed 2026-06-13)
+Plan: Not started
+Status: Ready to plan — pick next via /gsd:next or /gsd:progress
+Last activity: 2026-06-18 -- Phase 87.1 marked complete
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 230+ (v1.0–v2.1 combined)
+- Total plans completed: 235+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
@@ -198,9 +198,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-17T23:07:17.324Z
-Stopped at: Phase 87.1 executed — automated verification passed (14/14); 2 human UAT items pending; /gsd:secure-phase recommended
-Resume file: .planning/phases/87.1-gbs-fm-session-expiry-re-login-prompt-surface-gbsauthexpired/87.1-HUMAN-UAT.md
+Last session: 2026-06-18
+Stopped at: Phase 87.1 complete — code review fixes applied (WR-01/02/03), security 15/15 closed, human UAT 2/2 passed. Ready to plan next phase.
+Resume file: None
 
 ## Operator Next Steps
 
