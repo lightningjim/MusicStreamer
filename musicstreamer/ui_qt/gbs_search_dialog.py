@@ -136,7 +136,10 @@ class _GbsSubmitWorker(QThread):
 
     def run(self):
         try:
-            msg = gbs_api.submit(self._songid, self._cookies)
+            # Phase 87B / GBS-TOKEN-03: route through the named add path so the
+            # no-PII capture hook fires on every GBS add (D-02/D-10 reuse).
+            # GbsAuthExpiredError propagates unchanged through add_song_zero_token.
+            msg = gbs_api.add_song_zero_token(self._songid, self._cookies)
             self.finished.emit(msg, self._row_idx)
         except Exception as exc:
             if isinstance(exc, gbs_api.GbsAuthExpiredError):

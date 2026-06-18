@@ -432,6 +432,11 @@ class MainWindow(QMainWindow):
         self.now_playing.similar_activated.connect(self._on_similar_activated)  # QA-05
         # Phase 60 D-07a: forward vote-error toasts from NowPlayingPanel to show_toast (QA-05).
         self.now_playing.gbs_vote_error_toast.connect(self.show_toast)
+        # Phase 87B / D-10: "Add a song" button in NowPlayingPanel → open the existing
+        # GBSSearchDialog via the same launch path used by the hamburger menu (D-10 reuse).
+        self.now_playing.add_song_requested.connect(
+            self._open_gbs_search_dialog  # QA-05 bound method
+        )
         # Phase 68 / T-01: forward live-status transition toasts (T-01a/b/c)
         # from NowPlayingPanel to show_toast (QA-05 — bound method).
         self.now_playing.live_status_toast.connect(self.show_toast)
@@ -1544,11 +1549,15 @@ class MainWindow(QMainWindow):
 
         Mirrors _open_discovery_dialog at line 704 (drops the player arg per
         CONTEXT.md "Phase 60's search dialog does NOT need preview play").
-        submission_completed is not connected here — submitting a song does not
-        touch the local library, so no station-list refresh is needed.
+        Phase 87B D-09: submission_completed is now connected to
+        now_playing.trigger_gbs_repoll so the GBS playlist widget re-polls
+        after a successful song add (dialog-close + re-poll per D-08/D-09).
         """
         from musicstreamer.ui_qt.gbs_search_dialog import GBSSearchDialog
         dlg = GBSSearchDialog(self._repo, self.show_toast, parent=self)
+        dlg.submission_completed.connect(
+            self.now_playing.trigger_gbs_repoll  # QA-05 bound method — D-09 post-add re-poll
+        )
         dlg.exec()
 
     # ------------------------------------------------------------------

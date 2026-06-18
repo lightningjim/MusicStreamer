@@ -260,10 +260,16 @@ def test_submit_worker_calls_add_song_zero_token():
     """GBS-TOKEN-03: _GbsSubmitWorker.run must call add_song_zero_token, not bare submit."""
     from pathlib import Path
     src = Path("musicstreamer/ui_qt/gbs_search_dialog.py").read_text(encoding="utf-8")
-    # Find _GbsSubmitWorker.run body
-    m = re.search(r"def run\(self\).*?(?=\n    def |\nclass |\Z)", src, re.S)
-    assert m, "_GbsSubmitWorker.run not found in gbs_search_dialog.py"
-    run_body = m.group(0)
+    # Find the _GbsSubmitWorker class body, then extract its run() method
+    cls_m = re.search(
+        r"class _GbsSubmitWorker\b.*?(?=\nclass |\Z)", src, re.S
+    )
+    assert cls_m, "_GbsSubmitWorker class not found in gbs_search_dialog.py"
+    cls_body = cls_m.group(0)
+    # Find run() within the class body
+    run_m = re.search(r"def run\(self\).*?(?=\n    def |\Z)", cls_body, re.S)
+    assert run_m, "_GbsSubmitWorker.run not found"
+    run_body = run_m.group(0)
     assert "add_song_zero_token" in run_body, (
         "GBS-TOKEN-03: _GbsSubmitWorker.run must call gbs_api.add_song_zero_token()"
     )
