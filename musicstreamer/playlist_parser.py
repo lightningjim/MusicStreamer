@@ -26,6 +26,13 @@ import xml.etree.ElementTree as ET
 
 _BITRATE_RE = re.compile(r"(\d+)\s*k(?:b(?:ps)?)?\b", re.IGNORECASE)
 
+# URL-specific bitrate regex: more restrictive than _BITRATE_RE to avoid matching
+# arbitrary path digits (e.g. /v2/api/path-2/stream).
+# Requires a 2-to-4 digit run preceded by a delimiter ([-/_]) and followed by
+# another delimiter or end-of-string. Also accepts trailing 'k' (e.g. -128k-).
+# groovesalad-256-mp3 -> 256; -128k- -> 128; /v2/path-2/ -> no match.
+_URL_BITRATE_RE = re.compile(r"[-/_](\d{2,4})k?(?:[-/_]|$)", re.IGNORECASE)
+
 # Priority order matters: HE-AAC scanned before AAC+ before AAC so that
 # "DI.fm HE-AAC 64kbps" returns "HE-AAC", not the substring "AAC".
 # Known acceptable gaps (RESEARCH Findings 3, 4, 5):
@@ -209,26 +216,41 @@ def _parse_xspf(body: bytes) -> list[dict]:
 # Bitrate / codec extractors (D-11 / D-15)
 # ---------------------------------------------------------------------------
 
-def _extract_bitrate(title: str) -> int:
-    """Return bitrate in kbps from a title string, or 0 if no match.
+def _extract_bitrate(title: str, url: str = "") -> int:
+    """Return bitrate in kbps from title (or URL fallback), or 0 if no match.
 
-    D-11 regex: (\\d+)\\s*k(?:b(?:ps)?)?\\b case-insensitive.
+    D-11 regex: (\\d+)\\s*k(?:b(?:ps)?)?\\b case-insensitive applied to title.
+    On title miss, if url is provided, _URL_BITRATE_RE (delimiter-bounded, 2-4
+    digits) is applied to the URL. Title-derived value always wins when present.
     Known minor over-match accepted: "Some 2k station" -> 2 (RESEARCH Finding 1).
     D-16: callers render bitrate_kbps=0 as empty string downstream.
     """
     m = _BITRATE_RE.search(title)
-    return int(m.group(1)) if m else 0
+    if m:
+        return int(m.group(1))
+    if url:
+        m = _URL_BITRATE_RE.search(url)
+        if m:
+            return int(m.group(1))
+    return 0
 
 
-def _extract_codec(title: str) -> str:
-    """Return canonical codec token from a title string, or '' if no match (D-15).
+def _extract_codec(title: str, url: str = "") -> str:
+    """Return canonical codec token from title (or URL fallback), or '' if no match.
 
     Priority order matters — HE-AAC before AAC+ before AAC so that
     "HE-AAC 64k" returns "HE-AAC", not the substring "AAC".
+    On title miss, if url is provided, url.upper() is scanned against
+    _CODEC_TOKENS in the same priority order. Title-derived value always wins.
     D-15: blank ('') is the correct sentinel — never 'unknown', never None.
     """
     upper = title.upper()
     for token in _CODEC_TOKENS:
         if token in upper:
             return token
+    if url:
+        url_upper = url.upper()
+        for token in _CODEC_TOKENS:
+            if token in url_upper:
+                return token
     return ""
