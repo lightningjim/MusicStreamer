@@ -142,8 +142,8 @@ def _parse_pls(body: str) -> list[dict]:
         result.append({
             "url": url_dict[idx],
             "title": title,
-            "bitrate_kbps": _extract_bitrate(title),
-            "codec": _extract_codec(title),
+            "bitrate_kbps": _extract_bitrate(title, url_dict[idx]),
+            "codec": _extract_codec(title, url_dict[idx]),
         })
     return result
 
@@ -177,8 +177,8 @@ def _parse_m3u(body: str) -> list[dict]:
         result.append({
             "url": line,
             "title": title,
-            "bitrate_kbps": _extract_bitrate(title),
-            "codec": _extract_codec(title),
+            "bitrate_kbps": _extract_bitrate(title, line),
+            "codec": _extract_codec(title, line),
         })
         prev_extinf = None
     return result
@@ -206,8 +206,8 @@ def _parse_xspf(body: bytes) -> list[dict]:
         result.append({
             "url": url,
             "title": title,
-            "bitrate_kbps": _extract_bitrate(title),
-            "codec": _extract_codec(title),
+            "bitrate_kbps": _extract_bitrate(title, url),
+            "codec": _extract_codec(title, url),
         })
     return result
 
