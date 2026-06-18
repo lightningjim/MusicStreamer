@@ -479,3 +479,133 @@ def test_refetch_worker_skips_stations_with_prerolls(monkeypatch):
 
     # Worker must emit refetch_done
     assert done_values, "D-07: _PrerollRefetchWorker must emit refetch_done signal"
+
+
+def test_refetch_worker_marks_fetched_for_empty_upstream_channel(monkeypatch):
+    """WR-01 / D-08: the manual lever advances prerolls_fetched_at even when the
+    upstream SomaFM channel yields zero preroll URLs.
+
+    Mirrors the daemon path (_preroll_backfill_worker) "mark fetched regardless
+    of count" behavior so a genuinely-empty channel does not stay ancient and
+    keep re-triggering the D-08 staleness re-fetch on every play. Without the fix
+    the worker `continue`s before set_prerolls_fetched_at and the trap never closes.
+    """
+    import sqlite3
+    from types import SimpleNamespace
+    from musicstreamer.ui_qt.main_window import _PrerollRefetchWorker
+
+    # Zero-preroll SomaFM station whose upstream channel has an EMPTY preroll list.
+    empty_station = SimpleNamespace(id=7, name="Drone Zone", provider_name="SomaFM")
+    fake_channels = [
+        {"id": "dronezone", "title": "Drone Zone", "preroll_urls": []},
+    ]
+
+    insert_calls: list[tuple] = []
+    set_fetched_calls: list[int] = []
+
+    class FakeRepo:
+        def list_stations(self):
+            return [empty_station]
+
+        def list_prerolls(self, station_id):
+            return []  # no existing prerolls → not skipped by Pitfall 4
+
+        def insert_preroll(self, station_id, url, pos):
+            insert_calls.append((station_id, url, pos))
+            return len(insert_calls)
+
+        def set_prerolls_fetched_at(self, station_id, ts):
+            set_fetched_calls.append(station_id)
+
+    import musicstreamer.soma_import as soma_import
+    monkeypatch.setattr(soma_import, "fetch_channels", lambda: fake_channels)
+
+    import musicstreamer.ui_qt.main_window as mw_mod
+    monkeypatch.setattr(mw_mod, "db_connect", lambda: sqlite3.connect(":memory:"))
+    from musicstreamer import repo as repo_mod
+    monkeypatch.setattr(repo_mod, "Repo", lambda con: FakeRepo())
+
+    worker = _PrerollRefetchWorker()
+    done_values: list[int] = []
+    worker.refetch_done.connect(lambda n: done_values.append(n))
+
+    worker.run()
+
+    # Empty upstream → no inserts, but fetched_at MUST be advanced (WR-01).
+    assert insert_calls == [], (
+        f"empty upstream channel must not insert any prerolls; got {insert_calls}"
+    )
+    assert set_fetched_calls == [7], (
+        "WR-01 / D-08: set_prerolls_fetched_at must be called for the empty-upstream "
+        f"SomaFM station to close the staleness trap; got {set_fetched_calls}"
+    )
+    # WR-02: zero inserts → count must stay 0 (no false-success toast).
+    assert done_values == [0], (
+        f"WR-02: empty-upstream run must report 0 updated stations; got {done_values}"
+    )
+
+
+def test_refetch_worker_does_not_count_all_scheme_rejected_inserts(monkeypatch):
+    """WR-02 / T-83-01: when every insert_preroll raises ValueError (scheme gate),
+    the 'updated' count stays 0 so _on_preroll_refetch_done shows the no-new-prerolls
+    toast instead of a false 'Prerolls refreshed for N station(s)' success.
+
+    Also asserts fetched_at is still advanced (WR-01) — a hostile/garbage upstream
+    must not be re-attempted forever.
+    """
+    import sqlite3
+    from types import SimpleNamespace
+    from musicstreamer.ui_qt.main_window import _PrerollRefetchWorker
+
+    rejected_station = SimpleNamespace(id=9, name="Beat Blender", provider_name="SomaFM")
+    fake_channels = [
+        {"id": "beatblender", "title": "Beat Blender",
+         "preroll_urls": ["ftp://evil.example/x.mp3", "javascript:alert(1)"]},
+    ]
+
+    insert_attempts: list[tuple] = []
+    set_fetched_calls: list[int] = []
+
+    class FakeRepo:
+        def list_stations(self):
+            return [rejected_station]
+
+        def list_prerolls(self, station_id):
+            return []
+
+        def insert_preroll(self, station_id, url, pos):
+            # T-83-01: every URL rejected by the scheme gate.
+            insert_attempts.append((station_id, url, pos))
+            raise ValueError(f"non-http(s) scheme rejected: {url}")
+
+        def set_prerolls_fetched_at(self, station_id, ts):
+            set_fetched_calls.append(station_id)
+
+    import musicstreamer.soma_import as soma_import
+    monkeypatch.setattr(soma_import, "fetch_channels", lambda: fake_channels)
+
+    import musicstreamer.ui_qt.main_window as mw_mod
+    monkeypatch.setattr(mw_mod, "db_connect", lambda: sqlite3.connect(":memory:"))
+    from musicstreamer import repo as repo_mod
+    monkeypatch.setattr(repo_mod, "Repo", lambda con: FakeRepo())
+
+    worker = _PrerollRefetchWorker()
+    done_values: list[int] = []
+    worker.refetch_done.connect(lambda n: done_values.append(n))
+
+    worker.run()
+
+    # Both URLs were attempted (then rejected) — proves the gate, not an early skip.
+    assert len(insert_attempts) == 2, (
+        f"both upstream URLs should reach insert_preroll before rejection; got {insert_attempts}"
+    )
+    # WR-02: every insert rejected → count must NOT increment (no false success).
+    assert done_values == [0], (
+        "WR-02 / T-83-01: when all inserts are scheme-rejected the updated count "
+        f"must stay 0 (no false-success toast); got {done_values}"
+    )
+    # WR-01: fetched_at still advanced so the garbage upstream is not re-attempted forever.
+    assert set_fetched_calls == [9], (
+        "WR-01: fetched_at must still be advanced even when all inserts are rejected; "
+        f"got {set_fetched_calls}"
+    )
