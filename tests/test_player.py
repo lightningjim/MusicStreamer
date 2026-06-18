@@ -1828,3 +1828,327 @@ def test_cr01_stale_slot_from_prior_play_rejected(qtbot):
         "WR-03: stale about-to-finish slot from prior play() must NOT pop "
         "the new station's _streams_queue."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 90 SOMA-PRE-01 / D-03 / D-06: preroll event log emission tests (RED)
+#
+# These tests assert on the `musicstreamer.preroll` logger — using a
+# manually-attached ListHandler to capture log records without file I/O.
+# All tests are PURELY additive (zero behavior change): they only assert that
+# log lines are emitted; they do NOT assert on pipeline.set_property or other
+# state that the existing Phase 83 / Phase 84 tests already pin.
+# ---------------------------------------------------------------------------
+
+
+import contextlib as _contextlib
+import logging as _logging
+
+
+class _ListHandler(_logging.Handler):
+    """Minimal in-memory logging handler for test assertions."""
+
+    def __init__(self):
+        super().__init__()
+        self.records: list[_logging.LogRecord] = []
+
+    def emit(self, record: _logging.LogRecord) -> None:
+        self.records.append(record)
+
+    def messages(self) -> list[str]:
+        return [self.format(record) for record in self.records]
+
+
+@_contextlib.contextmanager
+def _capture_preroll_log():
+    """Context manager: attach a ListHandler to musicstreamer.preroll, yield it,
+    then clean up. Sets level to INFO so that INFO records are not swallowed."""
+    log = _logging.getLogger("musicstreamer.preroll")
+    handler = _ListHandler()
+    handler.setLevel(_logging.INFO)
+    log.setLevel(_logging.INFO)
+    log.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        log.removeHandler(handler)
+
+
+def test_preroll_log_start_event_includes_url_and_station(qtbot):
+    """Phase 90 D-03 / SOMA-PRE-01 (RED): playing a SomaFM station with a non-empty
+    preroll list emits a `preroll_start` log record on the `musicstreamer.preroll`
+    logger that includes the chosen URL verbatim and the station name/id.
+    The URL logged must be the value chosen by random.choice(urls) (D-06)."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    preroll_urls = ["https://somafm.com/preroll1.m4a", "https://somafm.com/preroll2.m4a"]
+    station = _make_station_ph83(
+        [s], id_=7, name="Groove Salad",
+        prerolls=preroll_urls, prerolls_fetched_at=12345,
+    )
+    with _capture_preroll_log() as handler, \
+         patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    # Must have at least one preroll_start record.
+    start_msgs = [
+        r.getMessage() for r in handler.records
+        if r.getMessage().startswith("preroll_start")
+    ]
+    assert start_msgs, (
+        "Phase 90 D-03: preroll_start log record must be emitted on "
+        "musicstreamer.preroll when a SomaFM station with prerolls plays. "
+        f"Records captured: {[r.getMessage() for r in handler.records]!r}"
+    )
+    msg = start_msgs[0]
+    assert "station_name=" in msg, (
+        f"Phase 90 D-03: preroll_start must include station_name=; got {msg!r}"
+    )
+    assert "station_id=" in msg, (
+        f"Phase 90 D-03: preroll_start must include station_id=; got {msg!r}"
+    )
+    assert "url=" in msg, (
+        f"Phase 90 D-03: preroll_start must include url=; got {msg!r}"
+    )
+    # URL in log must be one of the actual preroll URLs (D-06 — selection unchanged).
+    assert any(url in msg for url in preroll_urls), (
+        f"Phase 90 D-06: preroll_start url= must match the randomly-chosen "
+        f"preroll URL from the list; got {msg!r}"
+    )
+
+
+def test_preroll_log_skipped_throttle_event(qtbot):
+    """Phase 90 D-03 / SOMA-PRE-01 (RED): when the 600s throttle window is
+    active (a preroll was recently attempted), playing a SomaFM station emits
+    `preroll_skipped_throttle` on the `musicstreamer.preroll` logger with
+    station_name, station_id, and remaining_s fields."""
+    import time
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], id_=3, name="Beat Blender",
+        prerolls=["https://somafm.com/preroll.m4a"], prerolls_fetched_at=1,
+    )
+    # Set throttle window active (just played a preroll).
+    p._last_preroll_played_at = time.monotonic()
+    with _capture_preroll_log() as handler, \
+         patch.object(p, "_set_uri"):
+        p.play(station)
+    throttle_msgs = [
+        r.getMessage() for r in handler.records
+        if r.getMessage().startswith("preroll_skipped_throttle")
+    ]
+    assert throttle_msgs, (
+        "Phase 90 D-03: preroll_skipped_throttle log record must be emitted "
+        "when the 600s throttle window is active. "
+        f"Records captured: {[r.getMessage() for r in handler.records]!r}"
+    )
+    msg = throttle_msgs[0]
+    assert "station_name=" in msg, (
+        f"Phase 90 D-03: preroll_skipped_throttle must include station_name=; got {msg!r}"
+    )
+    assert "station_id=" in msg, (
+        f"Phase 90 D-03: preroll_skipped_throttle must include station_id=; got {msg!r}"
+    )
+    assert "remaining_s=" in msg, (
+        f"Phase 90 D-03: preroll_skipped_throttle must include remaining_s=; got {msg!r}"
+    )
+
+
+def test_preroll_log_skipped_empty_fetched(qtbot):
+    """Phase 90 D-03 / SOMA-PRE-01 (RED): playing a SomaFM station whose preroll
+    list was fetched but came back empty emits `preroll_skipped_empty` on the
+    `musicstreamer.preroll` logger with reason=fetched_empty."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], id_=5, name="Drone Zone",
+        prerolls=[], prerolls_fetched_at=99999,  # fetched, but empty
+    )
+    with _capture_preroll_log() as handler, \
+         patch.object(p, "_set_uri"):
+        p.play(station)
+    empty_msgs = [
+        r.getMessage() for r in handler.records
+        if "preroll_skipped_empty" in r.getMessage() and "fetched_empty" in r.getMessage()
+    ]
+    assert empty_msgs, (
+        "Phase 90 D-03: preroll_skipped_empty reason=fetched_empty must be emitted "
+        "when prerolls_fetched_at is set but prerolls==[]. "
+        f"Records captured: {[r.getMessage() for r in handler.records]!r}"
+    )
+
+
+def test_preroll_log_handoff_complete_event(qtbot):
+    """Phase 90 D-03 / SOMA-PRE-01 (RED): when the gapless preroll handoff completes
+    (_on_preroll_about_to_finish), `preroll_handoff_complete` is emitted on the
+    `musicstreamer.preroll` logger with station_name and station_id fields.
+    The log call fires AFTER _preroll_in_flight is cleared (additive, no behavior change)."""
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    station = _make_station_ph83(
+        [s], id_=9, name="Groove Salad",
+        prerolls=["https://somafm.com/p.m4a"], prerolls_fetched_at=1,
+    )
+    # Set station context so the log call can read it.
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    assert p._preroll_in_flight is True
+    seq = p._preroll_seq
+    with _capture_preroll_log() as handler, \
+         patch.object(p, "_tracker", MagicMock()), \
+         patch.object(p, "_underrun_dwell_timer", MagicMock()), \
+         patch.object(p, "_failover_timer", MagicMock()), \
+         patch.object(p, "_elapsed_timer", MagicMock()):
+        p._on_preroll_about_to_finish(seq)
+    handoff_msgs = [
+        r.getMessage() for r in handler.records
+        if r.getMessage().startswith("preroll_handoff_complete")
+    ]
+    assert handoff_msgs, (
+        "Phase 90 D-03: preroll_handoff_complete log record must be emitted "
+        "in _on_preroll_about_to_finish. "
+        f"Records captured: {[r.getMessage() for r in handler.records]!r}"
+    )
+    msg = handoff_msgs[0]
+    assert "station_name=" in msg, (
+        f"Phase 90 D-03: preroll_handoff_complete must include station_name=; got {msg!r}"
+    )
+    assert "station_id=" in msg, (
+        f"Phase 90 D-03: preroll_handoff_complete must include station_id=; got {msg!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 90 D-08 / SOMA-PRE-04: auto-staleness re-fetch tests (RED)
+#
+# These three tests assert on the D-08 branch: when a SomaFM station was
+# fetched (prerolls_fetched_at IS NOT NULL) but returned 0 prerolls and the
+# fetch is older than _PREROLL_STALE_THRESHOLD_S, the player schedules a
+# re-fetch via _preroll_backfill_worker on a daemon thread (Pattern 4).
+# ---------------------------------------------------------------------------
+
+
+def test_auto_staleness_refetch_triggers_for_old_empty_station(qtbot, monkeypatch):
+    """Phase 90 D-08 (RED): A SomaFM station with prerolls_fetched_at set (NOT None),
+    zero prerolls, and age > _PREROLL_STALE_THRESHOLD_S schedules
+    _preroll_backfill_worker on a daemon thread and adds the id to _backfill_in_flight."""
+    import musicstreamer.player as player_mod
+    from musicstreamer.player import _PREROLL_STALE_THRESHOLD_S
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    # fetched_at is ancient (10 days ago simulated via fixed time.time)
+    stale_epoch = 1_000_000
+    fetched_at = stale_epoch - (_PREROLL_STALE_THRESHOLD_S + 100)
+    station = _make_station_ph83(
+        [s], id_=42, name="Groove Salad",
+        prerolls=[], prerolls_fetched_at=fetched_at,
+    )
+    # Patch time.time so now - fetched_at > threshold
+    monkeypatch.setattr(player_mod.time, "time", lambda: float(stale_epoch))
+    captured = {}
+
+    class MockThread:
+        def __init__(self, target=None, args=(), daemon=None, **kwargs):
+            captured["target"] = target
+            captured["args"] = args
+            captured["daemon"] = daemon
+
+        def start(self):
+            captured["started"] = True
+
+    monkeypatch.setattr(player_mod.threading, "Thread", MockThread)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    assert captured.get("target") == p._preroll_backfill_worker, (
+        "Phase 90 D-08: Thread target must be _preroll_backfill_worker for "
+        f"stale empty station; got {captured.get('target')!r}"
+    )
+    assert captured.get("daemon") is True, (
+        "Phase 90 D-08: staleness re-fetch Thread must be daemon=True; "
+        f"got {captured.get('daemon')!r}"
+    )
+    assert captured.get("args") == (42, "Groove Salad"), (
+        f"Phase 90 D-08: Thread args must be (station_id, station_name); "
+        f"got {captured.get('args')!r}"
+    )
+    assert captured.get("started") is True, (
+        "Phase 90 D-08: Thread.start() must be called for stale re-fetch."
+    )
+    assert 42 in p._backfill_in_flight, (
+        "Phase 90 D-08: station.id must be added to _backfill_in_flight "
+        "before Thread.start (D-09 single-flight)."
+    )
+
+
+def test_auto_staleness_no_refetch_when_prerolls_exist(qtbot, monkeypatch):
+    """Phase 90 D-08 (RED): A station WITH prerolls (non-empty) must never trigger
+    the staleness re-fetch — it plays a preroll instead."""
+    import musicstreamer.player as player_mod
+    from musicstreamer.player import _PREROLL_STALE_THRESHOLD_S
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    stale_epoch = 1_000_000
+    fetched_at = stale_epoch - (_PREROLL_STALE_THRESHOLD_S + 100)
+    station = _make_station_ph83(
+        [s], id_=43, name="Drone Zone",
+        prerolls=["https://somafm.com/preroll.m4a"], prerolls_fetched_at=fetched_at,
+    )
+    monkeypatch.setattr(player_mod.time, "time", lambda: float(stale_epoch))
+    thread_started = []
+
+    class MockThread:
+        def __init__(self, target=None, args=(), daemon=None, **kwargs):
+            thread_started.append(target)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(player_mod.threading, "Thread", MockThread)
+    with patch.object(p, "_set_uri"), \
+         patch.object(p, "_try_next_stream"):
+        p.play(station)
+    # If prerolls exist, the gate took the `if urls:` branch (start_preroll),
+    # NOT the staleness branch. The thread may be started for the preroll
+    # setup, but the backfill worker must NOT be the target.
+    backfill_targets = [t for t in thread_started if t == p._preroll_backfill_worker]
+    assert not backfill_targets, (
+        "Phase 90 D-08: staleness re-fetch must NOT fire when prerolls exist; "
+        f"thread targets observed: {thread_started!r}"
+    )
+
+
+def test_auto_staleness_no_refetch_when_recently_fetched(qtbot, monkeypatch):
+    """Phase 90 D-08 (RED): A station fetched-empty but recently (age <= threshold)
+    does NOT trigger the staleness re-fetch branch."""
+    import musicstreamer.player as player_mod
+    from musicstreamer.player import _PREROLL_STALE_THRESHOLD_S
+    p = _make_player_mock(qtbot)
+    s = _make_stream_ph82(1, 1, "hi", "http://stream.test/")
+    fresh_epoch = 1_000_000
+    # fetched just 1 second ago — well within threshold
+    fetched_at = fresh_epoch - 1
+    station = _make_station_ph83(
+        [s], id_=44, name="Suburbs of Goa",
+        prerolls=[], prerolls_fetched_at=fetched_at,
+    )
+    monkeypatch.setattr(player_mod.time, "time", lambda: float(fresh_epoch))
+    thread_started = []
+
+    class MockThread:
+        def __init__(self, target=None, args=(), daemon=None, **kwargs):
+            thread_started.append(target)
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(player_mod.threading, "Thread", MockThread)
+    with patch.object(p, "_set_uri"):
+        p.play(station)
+    backfill_targets = [t for t in thread_started if t == p._preroll_backfill_worker]
+    assert not backfill_targets, (
+        "Phase 90 D-08: staleness re-fetch must NOT fire when fetch is recent "
+        f"(age={fresh_epoch - fetched_at}s < threshold={_PREROLL_STALE_THRESHOLD_S}s); "
+        f"thread targets: {thread_started!r}"
+    )
