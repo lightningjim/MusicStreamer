@@ -3802,3 +3802,230 @@ def test_avatar_real_cover_wins_over_avatar_in_apply_art_tier(qtbot, tmp_path):
         )
     finally:
         paths_mod._root_override = None
+
+
+# ---------------------------------------------------------------------------
+# Phase 87B / GBS-TOKEN-01/D-04/D-05/D-06/D-09: "Add a song" button + trigger_gbs_repoll
+# ---------------------------------------------------------------------------
+
+
+def _gbs_station(name: str = "GBS.FM") -> Station:
+    """Factory for a GBS.FM-bound station (provider_name == 'GBS.FM')."""
+    return Station(
+        id=99,
+        name=name,
+        provider_id=99,
+        provider_name="GBS.FM",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[StationStream(id=99, station_id=99, url="http://gbs.fm/s", label="hi",
+                               quality="hi", position=1, stream_type="shoutcast",
+                               codec="MP3")],
+    )
+
+
+def test_add_song_button_label(qtbot):
+    """D-06: label is exactly 'Add a song'; tooltip is exactly the GBS.FM queue phrase.
+
+    Neither string contains the affordance-economics word (GBS-TOKEN-02).
+    """
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+    qtbot.addWidget(panel)
+    assert panel._gbs_add_btn.text() == "Add a song"
+    assert panel._gbs_add_btn.toolTip() == "Add a song to the GBS.FM queue"
+
+
+def test_add_song_visibility_gbs_logged_in(qtbot, tmp_path, monkeypatch):
+    """D-05: button visible when GBS.FM bound AND logged in (any token count)."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        # Simulate cookies file present (= logged in)
+        cookies_path = tmp_path / "gbs_cookies.txt"
+        cookies_path.write_text("# Netscape HTTP Cookie File\n")
+        monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        panel.bind_station(_gbs_station())
+        # _refresh_gbs_visibility is called during bind_station
+        assert panel._gbs_add_btn.isVisible() is True, (
+            "Button must be visible when GBS.FM bound and logged in"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_add_song_visibility_non_gbs_station(qtbot, tmp_path, monkeypatch):
+    """D-05: button hidden when non-GBS station is bound."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        cookies_path = tmp_path / "gbs_cookies.txt"
+        cookies_path.write_text("# Netscape HTTP Cookie File\n")
+        monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        # Bind a non-GBS station
+        panel.bind_station(_station(provider="SomaFM"))
+        assert panel._gbs_add_btn.isVisible() is False, (
+            "Button must be hidden for non-GBS station"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_add_song_visibility_not_logged_in(qtbot, tmp_path, monkeypatch):
+    """D-05: button hidden when GBS.FM bound but NOT logged in (no cookies file)."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        # No cookies file = not logged in
+        monkeypatch.setattr(paths_mod, "gbs_cookies_path",
+                            lambda: str(tmp_path / "no_such_file.txt"))
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        panel.bind_station(_gbs_station())
+        assert panel._gbs_add_btn.isVisible() is False, (
+            "Button must be hidden when GBS.FM bound but not logged in"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_add_song_visibility_no_fetch_user_tokens(qtbot, monkeypatch):
+    """D-05 Pitfall 2: visibility path must NOT call fetch_user_tokens.
+
+    The button is token-count-independent.
+    """
+    from musicstreamer import gbs_api
+    called = {"fetch_user_tokens": False}
+
+    def fake_fetch_tokens(*args, **kwargs):
+        called["fetch_user_tokens"] = True
+        return 0
+
+    monkeypatch.setattr(gbs_api, "fetch_user_tokens", fake_fetch_tokens)
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+    qtbot.addWidget(panel)
+    # Trigger visibility update
+    panel._refresh_gbs_visibility()
+    assert called["fetch_user_tokens"] is False, (
+        "D-05 Pitfall 2: _refresh_gbs_visibility must NOT call fetch_user_tokens"
+    )
+
+
+def test_add_song_signal_declared(qtbot):
+    """D-04: add_song_requested Signal is declared on NowPlayingPanel."""
+    panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+    qtbot.addWidget(panel)
+    assert hasattr(panel, "add_song_requested"), (
+        "NowPlayingPanel must have add_song_requested signal"
+    )
+
+
+def test_add_song_clicked_emits_signal(qtbot, tmp_path, monkeypatch):
+    """D-04: clicking _gbs_add_btn emits add_song_requested."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        cookies_path = tmp_path / "gbs_cookies.txt"
+        cookies_path.write_text("# Netscape HTTP Cookie File\n")
+        monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        panel.bind_station(_gbs_station())
+
+        emitted = {"count": 0}
+        panel.add_song_requested.connect(lambda: emitted.__setitem__("count", emitted["count"] + 1))
+        panel._gbs_add_btn.click()
+        assert emitted["count"] == 1, "add_song_requested must emit once on button click"
+    finally:
+        paths_mod._root_override = None
+
+
+def test_repoll_resets_cursor_and_polls(qtbot, tmp_path, monkeypatch):
+    """D-09: trigger_gbs_repoll() resets _gbs_poll_cursor to {} and calls _on_gbs_poll_tick."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        cookies_path = tmp_path / "gbs_cookies.txt"
+        cookies_path.write_text("# Netscape HTTP Cookie File\n")
+        monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        panel.bind_station(_gbs_station())
+
+        # Set a non-empty cursor to verify it is reset
+        panel._gbs_poll_cursor = {"cursor": "abc"}
+
+        tick_calls = {"count": 0}
+        original_tick = panel._on_gbs_poll_tick
+
+        def fake_tick():
+            tick_calls["count"] += 1
+
+        monkeypatch.setattr(panel, "_on_gbs_poll_tick", fake_tick)
+        monkeypatch.setattr(panel, "_gbs_poll_in_flight", lambda: False)
+
+        panel.trigger_gbs_repoll()
+
+        assert panel._gbs_poll_cursor == {}, (
+            "trigger_gbs_repoll must reset _gbs_poll_cursor to {}"
+        )
+        assert tick_calls["count"] == 1, (
+            "trigger_gbs_repoll must call _on_gbs_poll_tick() once"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_repoll_noop_when_poll_in_flight(qtbot, tmp_path, monkeypatch):
+    """D-09: trigger_gbs_repoll() is a no-op if a poll is already in flight."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        cookies_path = tmp_path / "gbs_cookies.txt"
+        cookies_path.write_text("# Netscape HTTP Cookie File\n")
+        monkeypatch.setattr(paths_mod, "gbs_cookies_path", lambda: str(cookies_path))
+
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        panel.bind_station(_gbs_station())
+
+        tick_calls = {"count": 0}
+        monkeypatch.setattr(panel, "_on_gbs_poll_tick", lambda: tick_calls.__setitem__("count", tick_calls["count"] + 1))
+        monkeypatch.setattr(panel, "_gbs_poll_in_flight", lambda: True)
+
+        panel.trigger_gbs_repoll()
+        assert tick_calls["count"] == 0, (
+            "trigger_gbs_repoll must not call _on_gbs_poll_tick when poll in flight"
+        )
+    finally:
+        paths_mod._root_override = None
+
+
+def test_repoll_noop_for_non_gbs_station(qtbot, tmp_path, monkeypatch):
+    """D-09: trigger_gbs_repoll() is a no-op for non-GBS stations."""
+    import musicstreamer.paths as paths_mod
+    paths_mod._root_override = str(tmp_path)
+    try:
+        panel = NowPlayingPanel(FakePlayer(), FakeRepo())
+        qtbot.addWidget(panel)
+        panel.bind_station(_station(provider="SomaFM"))
+
+        tick_calls = {"count": 0}
+        monkeypatch.setattr(panel, "_on_gbs_poll_tick", lambda: tick_calls.__setitem__("count", tick_calls["count"] + 1))
+
+        panel.trigger_gbs_repoll()
+        assert tick_calls["count"] == 0, (
+            "trigger_gbs_repoll must not poll for non-GBS station"
+        )
+    finally:
+        paths_mod._root_override = None
