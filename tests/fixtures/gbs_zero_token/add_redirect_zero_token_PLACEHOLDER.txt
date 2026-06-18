@@ -1,0 +1,3 @@
+# PLACEHOLDER — reserved for first-live-use capture (resolves_phase: 87B)
+# Populated on first observed tokens==0 add per 87B-CONTEXT D-03.
+# Do NOT commit real session/cookie values here.
