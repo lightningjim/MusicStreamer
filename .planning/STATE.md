@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: planning
 stopped_at: Phase 87b UI-SPEC approved
-last_updated: "2026-06-18T15:43:36.061Z"
+last_updated: "2026-06-18T15:59:34.965Z"
 last_activity: 2026-06-18 -- Phase 87.1 marked complete
 progress:
   total_phases: 21
   completed_phases: 16
-  total_plans: 60
+  total_plans: 62
   completed_plans: 60
   percent: 76
 ---
