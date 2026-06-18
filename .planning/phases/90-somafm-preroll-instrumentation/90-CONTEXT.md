@@ -45,14 +45,16 @@ lever, rather than passively harvest to discover a now-already-fixed cause.
 ## Implementation Decisions
 
 ### Phase reframe — verify + recovery lever, not diagnostic harvest
-- **D-01:** Phase 90 is a verification + hardening pass, not a 1-2 day passive
+- **D-01 [informational]:** Phase 90 is a verification + hardening pass, not a 1-2 day passive
   harvest. The instrumentation existed only to find an unknown cause; the cause is
   effectively resolved but unexplained. Keep light logging (legibility) + add a
-  re-fetch lever (recoverability); drop the heavy harvest/probe.
-- **D-02:** Original miss mechanism and resolution mechanism are both UNKNOWN and
+  re-fetch lever (recoverability); drop the heavy harvest/probe. (Framing decision —
+  realized across all plans collectively, not a single buildable artifact.)
+- **D-02 [informational]:** Original miss mechanism and resolution mechanism are both UNKNOWN and
   accepted as such. Do not speculate a fix in this phase. If the run-through
   surfaces a station that is *truly still broken* (real miss with prerolls
-  present), that triggers conditional Phase 90b.
+  present), that triggers conditional Phase 90b. (Non-action constraint — no
+  buildable artifact; enforced by the absence of any speculative fix in the plans.)
 
 ### Instrumentation (light) — SOMA-PRE-01, SOMA-PRE-02
 - **D-03:** Build `musicstreamer/preroll_log.py` mirroring `musicstreamer/buffer_log.py`

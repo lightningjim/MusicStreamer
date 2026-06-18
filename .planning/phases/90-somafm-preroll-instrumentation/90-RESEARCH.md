@@ -505,7 +505,7 @@ logging.getLogger("musicstreamer.preroll").info(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`_preroll_refetch_worker` — reuse existing `_preroll_backfill_worker` or add new method?**
    - What we know: `_preroll_backfill_worker` takes `(station_id, station_name)` and is called from `_try_next_stream`. The auto-staleness trigger can reuse it directly.
