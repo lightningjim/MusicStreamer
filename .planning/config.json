@@ -11,6 +11,7 @@
     "nyquist_validation": true,
     "_auto_chain_active": false,
     "auto_advance": false,
-    "auto_version_bump": true
+    "auto_version_bump": true,
+    "use_worktrees": false
   }
 }

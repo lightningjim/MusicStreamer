@@ -1,5 +1,5 @@
 ---
-status: ready
+status: passed
 session: 88-03 (consolidated Win11 VM — Option C)
 covers:
   - phase 88   (G1 UAT-17, G5 UAT-15/16)
