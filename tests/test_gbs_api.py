@@ -572,6 +572,39 @@ def test_open_with_cookies_returns_200_json_unchanged(monkeypatch, fake_cookies_
     )
 
 
+def test_open_with_cookies_non_login_3xx_does_not_re_issue(monkeypatch, fake_cookies_jar):
+    """WR-01 contract: a non-login 3xx must NOT trigger a second outbound request.
+
+    Pitfall 7 (GET-with-side-effects, NO retries): callers like vote_now_playing
+    reach _open_with_cookies.  An earlier implementation blind-re-issued the same
+    URL through a redirect-following opener on a non-login 3xx — firing a SECOND
+    identical GET (a vote cast twice).  The fix returns the STOPPED response
+    instead.  This test pins that contract by counting do_open invocations: it
+    MUST be exactly one, and the returned response MUST be the stopped 302 (so the
+    JSON caller fails loud rather than the helper silently double-firing).
+    """
+    call_count = {"n": 0}
+    def _fake_do_open(self, http_class, req, **kwargs):
+        call_count["n"] += 1
+        # Fresh response per call so a (wrong) re-issue could not reuse a
+        # consumed socket buffer — any second call would be observable here.
+        return _make_fake_302_response(location="/somewhere-else")
+    monkeypatch.setattr(urllib.request.AbstractHTTPHandler, "do_open", _fake_do_open)
+
+    resp = gbs_api._open_with_cookies("https://gbs.fm/ajax?position=0", fake_cookies_jar)
+
+    assert call_count["n"] == 1, (
+        f"_open_with_cookies must issue exactly ONE request for a non-login 3xx "
+        f"(Pitfall 7 no-retry); observed {call_count['n']} do_open calls — the "
+        f"re-issue/double-fetch regression is back."
+    )
+    assert getattr(resp, "status", None) == 302, (
+        "non-login 3xx must be returned as the stopped redirect response, not "
+        "re-followed to a 200"
+    )
+    assert resp.headers.get("Location") == "/somewhere-else"
+
+
 def test_fetch_marquee_propagates_auth_expired_error(monkeypatch):
     """Task 3 (AUDIT): _fetch_marquee must propagate GbsAuthExpiredError so
     GbsMarqueeWorker._on_tick can emit the auth_expired Signal (GBS-AUTH-EXP-02).
