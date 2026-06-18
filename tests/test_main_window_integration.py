@@ -411,15 +411,17 @@ def test_hamburger_menu_actions(window):
 
 
 def test_hamburger_menu_separators(window):
-    """Phase 65 D-02 / VER-02-E: hamburger menu has 4 separators (was 3).
+    """Phase 90 SOMA-PRE-02: hamburger menu has 5 separators (was 4).
 
     Phase 47.1 brought the count to 3 (4 groups: New/Discovery/Import/GBS,
-    Settings, Stats, Export/Import-Settings). Phase 65 D-02 adds a 4th
-    separator immediately before the version footer.
+    Settings, Stats, Export/Import-Settings). Phase 65 D-02 added a 4th
+    separator immediately before the version footer. Phase 90 adds a 5th:
+    the diagnostics group ("Open preroll log") is fenced off after the
+    Export/Import-Settings group.
     """
     menu = window._menu
     separators = [a for a in menu.actions() if a.isSeparator()]
-    assert len(separators) == 4
+    assert len(separators) == 5
 
 
 def test_version_action_is_disabled_and_last(window):
