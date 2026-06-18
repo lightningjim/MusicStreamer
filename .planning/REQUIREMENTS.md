@@ -66,11 +66,11 @@ Requirements for v2.2. Each maps to roadmap phases. IDs continue the existing ca
 
 ### GBS.FM — Zero-Token Single-Song Add (GBS-TOKEN)
 
-- [ ] **GBS-TOKEN-01**: When the bound station is GBS.FM AND `tokens_available_count == 0` AND the user's queued-song count is 0, the now-playing panel renders an "Add a song" affordance (Phase 60.4 token-count state coupling)
-- [ ] **GBS-TOKEN-02**: UI never uses the word "token" anywhere in the zero-token affordance label, tooltip, or surrounding text (per PROJECT.md milestone goal; honors that this is one-shot, not a token grant)
-- [ ] **GBS-TOKEN-03**: Activating the affordance opens the existing GBS search-drill-down dialog (Phase 60.1/60.2); confirming a song calls `gbs_api.add_song_zero_token()` which posts to the GBS one-shot endpoint
-- [ ] **GBS-TOKEN-04**: After a successful add, the affordance hides immediately and re-appears only when `tokens_available_count == 0 AND queue empty` again (i.e., after the queued song plays out)
-- [ ] **GBS-TOKEN-05**: Backend exposes the zero-token endpoint spec via Phase 87 spike research (live observation of the GBS Settings page POST behavior when tokens==0); spec is fixture-locked in `tests/fixtures/gbs_zero_token/`
+- [x] **GBS-TOKEN-01**: When the bound station is GBS.FM AND the user is logged in, the now-playing panel renders a persistent "Add a song" affordance regardless of token count or queue state (AMENDED per 87B-CONTEXT D-05 — supersedes the original tokens==0 AND queue==0 gating)
+- [x] **GBS-TOKEN-02**: UI never uses the word "token" anywhere in the zero-token affordance label, tooltip, or surrounding text (per PROJECT.md milestone goal; honors that this is one-shot, not a token grant)
+- [x] **GBS-TOKEN-03**: Activating the affordance opens the existing GBS search-drill-down dialog (Phase 60.1/60.2); confirming a song calls `gbs_api.add_song_zero_token()` which posts to the GBS one-shot endpoint
+- [x] **GBS-TOKEN-04**: The "Add a song" button persists (no hide-after-add); after a successful add the dialog closes and the now-playing GBS playlist widget re-polls (AMENDED per 87B-CONTEXT D-08 — supersedes the original hide/re-appear behavior)
+- [x] **GBS-TOKEN-05**: The observable /add request/response shape is fixture-locked now under tests/fixtures/gbs_zero_token/; the real tokens==0 payload is captured on first live use via the no-PII capture hook (RELAXED per 87B-CONTEXT D-03 — the original 'live tokens==0 POST observed via spike' is deferred to capture-on-use)
 
 ### Cover Art — Channel Avatar Fallback (ART-AVATAR)
 
@@ -194,11 +194,11 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | GBS-MARQ-05 | Phase 87 | Complete |
 | GBS-MARQ-06 | Phase 87 | Complete |
 | GBS-MARQ-07 | Phase 87 | Complete |
-| GBS-TOKEN-01 | Phase 87b | Pending |
-| GBS-TOKEN-02 | Phase 87b | Pending |
-| GBS-TOKEN-03 | Phase 87b | Pending |
-| GBS-TOKEN-04 | Phase 87b | Pending |
-| GBS-TOKEN-05 | Phase 87b | Pending |
+| GBS-TOKEN-01 | Phase 87b | Complete |
+| GBS-TOKEN-02 | Phase 87b | Complete |
+| GBS-TOKEN-03 | Phase 87b | Complete |
+| GBS-TOKEN-04 | Phase 87b | Complete |
+| GBS-TOKEN-05 | Phase 87b | Complete |
 | ART-AVATAR-01 | Phase 89a | Pending |
 | ART-AVATAR-02 | Phase 89a | Pending |
 | ART-AVATAR-03 | Phase 89 | Complete |

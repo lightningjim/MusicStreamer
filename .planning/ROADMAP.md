@@ -42,7 +42,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 89.1: Re-key Channel Avatar from Per-Station to Per-Provider (INSERTED)** — Move the YT/Twitch avatar from Station to Provider (add `providers.avatar_path`, key the cached PNG by `provider_id`) so sibling streams of one channel share one fetch + one file; migrate existing per-station avatars and deprecate the old column
 - [x] **Phase 89b: Twitch Channel-Avatar Fetch** — Twitch GQL `profileImageURL` fetch reusing the Phase 32 user token (Helix 404s for this token — pivoted to gql.twitch.tv); shares storage + cover-slot path with Phase 89. Add-path first-save fetch closed via 89B-03 (2026-06-17)
 - [x] **Phase 89c: Provider Brand-Avatar Cover-Slot Fallback (INSERTED)** — SomaFM/AudioAddict brand mark (circular) in the cover slot on cover-resolution-exhausted (distinct from the duplicated station logo); bundled per-provider PNGs + EditStationDialog upload override. Verified + secured 2026-06-17
-- [ ] **Phase 87b: GBS Zero-Token Single-Song Add** — Conditional "Add a song" affordance gated on tokens==0 AND queue empty; UX never frames as "1 token"
+- [ ] **Phase 87b: GBS Zero-Token Single-Song Add** — Persistent "Add a song" button visible whenever GBS.FM is bound and logged in (any token count); UX never frames as a token grant
 - [ ] **Phase 90: SomaFM Preroll Instrumentation** — Size-rotated `preroll-events.log` + hamburger-menu probe; ship+monitor pattern, no behavior change
 - [ ] **Phase 90b (CONDITIONAL): SomaFM Preroll Fix** — Fires only if Phase 90's harvest identifies a clear, atomic root cause for the Boot Liquor / missing-preroll target
 - [ ] **Phase 92: FIX-PLS — PLS URL-Fallback for Codec/Bitrate** — Carry-over from Phase 58 pending-todo: detect codec/bitrate from resolved URL pattern when PLS title metadata is missing
@@ -424,20 +424,20 @@ Plans:
 
 #### Phase 87b: GBS Zero-Token Single-Song Add
 
-**Goal**: When the bound GBS.FM station has `tokens_available_count == 0` AND the queued-song count is 0, the now-playing panel renders an "Add a song" affordance that the user can activate to add exactly one song via the GBS zero-token endpoint. UX never frames the action as "1 token".
-**Depends on**: Phase 87 (token-count state coupling + GBS marquee infrastructure)
+**Goal**: The now-playing panel renders a persistent "Add a song" button whenever the bound station is GBS.FM and the user is logged in (any token count). The button opens the existing GBS search-drill-down dialog; confirming a song adds it via `gbs_api.add_song_zero_token()`. UX never frames the action as a token grant.
+**Depends on**: Phase 87 (GBS marquee infrastructure; zero-token UI is independent of token-count state — D-05 reframe)
 **Requirements**: GBS-TOKEN-01, GBS-TOKEN-02, GBS-TOKEN-03, GBS-TOKEN-04, GBS-TOKEN-05
 **Success Criteria** (what must be TRUE):
 
-  1. Affordance renders only when `provider_name == "GBS.FM"` AND `tokens_available_count == 0` AND queued-song count is 0; in all other states it is hidden.
-  2. UI text (label, tooltip, surrounding copy) never contains the word "token" — source-grep test on the new module enforces this; recommended wording is "Add a song".
-  3. Activating the affordance opens the existing Phase 60.1/60.2 GBS search-drill-down dialog; confirming a song calls `gbs_api.add_song_zero_token()` which posts to the GBS one-shot endpoint observed via Phase 87 spike research.
-  4. After a successful add, the affordance hides immediately and re-appears only when `tokens==0 AND queue empty` again (i.e., after the queued song plays out).
-  5. Zero-token endpoint spec is fixture-locked in `tests/fixtures/gbs_zero_token/` (per `feedback_mirror_decisions_cite_source.md` — quote the GBS Settings page POST behavior, don't paraphrase).
+  1. Button renders whenever `provider_name == "GBS.FM"` AND the user is logged in, regardless of token count or queue state (AMENDED per 87B-CONTEXT D-05 — supersedes the original tokens==0+queue==0 gating).
+  2. UI text (label, tooltip, surrounding copy) never contains the word "token" — source-grep test on the new module enforces this; exact wording is "Add a song" / "Add a song to the GBS.FM queue".
+  3. Activating the button opens the existing Phase 60.1/60.2 GBS search-drill-down dialog; confirming a song calls `gbs_api.add_song_zero_token()` which posts to the provisional /add reuse endpoint (server-gated per D-02 — not a separately-observed one-shot endpoint).
+  4. The button persists after a successful add (no hide); post-add behavior is dialog-close + now-playing GBS playlist re-poll via `trigger_gbs_repoll()` (AMENDED per 87B-CONTEXT D-08 — supersedes the original hide/re-appear gating).
+  5. The observable /add shape is fixture-locked under `tests/fixtures/gbs_zero_token/` now (provisional 48-token capture); the real tokens==0 fixture is captured on first live use via the no-PII capture hook and confirmed via the capture-on-use follow-up todo (AMENDED per 87B-CONTEXT D-03 — defers live tokens==0 observation to capture-on-use).
 
 **Plans**: 2 plans
 - [x] 87B-01-PLAN.md — Backend: add_song_zero_token() wrapper + no-PII capture hook + provisional fixtures + GBS-TOKEN-02 drift-guard + unit tests (Wave 1)
-- [ ] 87B-02-PLAN.md — UI: persistent 'Add a song' button + visibility + trigger_gbs_repoll wiring + worker call-site + docs amendment + capture-on-use todo (Wave 2)
+- [x] 87B-02-PLAN.md — UI: persistent 'Add a song' button + visibility + trigger_gbs_repoll wiring + worker call-site + docs amendment + capture-on-use todo (Wave 2)
 **Research flag**: NO — research happens inside Phase 87 spike; Phase 87b consumes it.
 **UI hint**: yes
 
@@ -521,7 +521,7 @@ Plans:
 | 89.1. Re-key Avatar Per-Provider (INSERTED) | 2/2 | Complete    | 2026-06-16 |
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 3/3 | Complete   | 2026-06-17 |
-| 87b. GBS Zero-Token Add | 1/2 | In Progress|  |
+| 87b. GBS Zero-Token Add | 2/2 | Complete   | 2026-06-18 |
 | 90. SomaFM Preroll Instrumentation | 0/? | Not started | - |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
