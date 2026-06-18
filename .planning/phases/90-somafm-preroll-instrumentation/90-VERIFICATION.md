@@ -1,7 +1,8 @@
 ---
 phase: 90-somafm-preroll-instrumentation
 verified: 2026-06-18T19:23:04Z
-status: human_needed
+status: passed
+human_uat: passed 2026-06-18 — user confirmed audible preroll on bind (Boot Liquor + others previously missing now play) + random rotation; no station truly broken → Phase 90b not needed
 score: 9/9 must-haves verified
 overrides_applied: 0
 human_verification:

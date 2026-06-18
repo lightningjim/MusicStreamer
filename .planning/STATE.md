@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 90 executed (3 plans, all automated gates GREEN); awaiting human UAT (3 items)
-last_updated: "2026-06-18T19:25:47.251Z"
-last_activity: 2026-06-18 -- Phase 90 execution started
+status: planning
+stopped_at: Phase 90 COMPLETE (human UAT passed 2026-06-18); Phase 90b closed — not needed
+last_updated: "2026-06-18T20:49:18.993Z"
+last_activity: 2026-06-18
 progress:
   total_phases: 21
   completed_phases: 18
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 90 — somafm-preroll-instrumentation
+**Current focus:** Phase 91 — fix mpris phase 77 deferred mpris2 tests
 
 ## Current Position
 
-Phase: 90 (somafm-preroll-instrumentation) — EXECUTING
-Plan: 3 of 3
-Status: Executing Phase 90
-Last activity: 2026-06-18 -- Phase 90 execution started
+Phase: 91
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-18
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 235+ (v1.0–v2.1 combined)
+- Total plans completed: 238+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
@@ -200,9 +200,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-18T19:25:47.240Z
-Stopped at: Phase 90 executed (3 plans, all automated gates GREEN); awaiting human UAT (3 items)
-Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-HUMAN-UAT.md
+Last session: 2026-06-18T20:49:18.982Z
+Stopped at: Phase 90 COMPLETE (human UAT passed 2026-06-18); Phase 90b closed — not needed
+Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-VERIFICATION.md
 
 ## Operator Next Steps
 

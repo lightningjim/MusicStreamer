@@ -43,8 +43,8 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 89b: Twitch Channel-Avatar Fetch** — Twitch GQL `profileImageURL` fetch reusing the Phase 32 user token (Helix 404s for this token — pivoted to gql.twitch.tv); shares storage + cover-slot path with Phase 89. Add-path first-save fetch closed via 89B-03 (2026-06-17)
 - [x] **Phase 89c: Provider Brand-Avatar Cover-Slot Fallback (INSERTED)** — SomaFM/AudioAddict brand mark (circular) in the cover slot on cover-resolution-exhausted (distinct from the duplicated station logo); bundled per-provider PNGs + EditStationDialog upload override. Verified + secured 2026-06-17
 - [ ] **Phase 87b: GBS Zero-Token Single-Song Add** — Persistent "Add a song" button visible whenever GBS.FM is bound and logged in (any token count); UX never frames as a token grant
-- [ ] **Phase 90: SomaFM Preroll Instrumentation** — Size-rotated `preroll-events.log` + hamburger-menu probe; ship+monitor pattern, no behavior change
-- [ ] **Phase 90b (CONDITIONAL): SomaFM Preroll Fix** — Fires only if Phase 90's harvest identifies a clear, atomic root cause for the Boot Liquor / missing-preroll target
+- [x] **Phase 90: SomaFM Preroll Instrumentation** — Size-rotated `preroll-events.log` + "Open preroll log" + re-fetch lever; no behavior change. Verified 2026-06-18 (human UAT): Boot Liquor + others that previously missed prerolls now play them with intended random rotation. Reframed verify-first — the symptom was incidentally fixed by unrelated changes between phase creation and execution.
+- [x] **Phase 90b (CONDITIONAL): SomaFM Preroll Fix** — CONDITION DID NOT FIRE — not needed (closed 2026-06-18). Phase 90's human UAT found no station truly still broken; the missing-preroll symptom self-resolved, so there is no atomic root cause to fix. SOMA-PRE-03 (probe) + the passive-harvest half are closed-as-unnecessary, not pending.
 - [ ] **Phase 92: FIX-PLS — PLS URL-Fallback for Codec/Bitrate** — Carry-over from Phase 58 pending-todo: detect codec/bitrate from resolved URL pattern when PLS title metadata is missing
 - [x] **Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up** — Condition FIRED (all 3 triggers); closed-via-deviation 2026-06-15. YouTube live-edge starvation fixed out-of-band (commit f716f083, DVR seek); SomaFM/network residual closed as no-action. See 93-VERIFICATION.md
 - [x] **Phase 94: Sidebar Logo Thumbnail Optimization** — Investigate sidebar scroll slowdown on large lists (e.g., DI.fm); generate pre-scaled small logo variants for sidebar use while preserving full-res for Now Playing
@@ -538,7 +538,7 @@ Plans:
 | 89b. Twitch Channel-Avatar | 3/3 | Complete   | 2026-06-17 |
 | 89c. Provider Brand-Avatar Fallback (INSERTED) | 3/3 | Complete   | 2026-06-17 |
 | 87b. GBS Zero-Token Add | 2/2 | Complete   | 2026-06-18 |
-| 90. SomaFM Preroll Instrumentation | 3/3 | Complete   | 2026-06-18 |
+| 90. SomaFM Preroll Instrumentation | 3/3 | Complete    | 2026-06-18 |
 | 90b. SomaFM Preroll Fix (CONDITIONAL) | 0/? | Not started | - |
 | 92. FIX-PLS | 0/? | Not started | - |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
