@@ -499,8 +499,11 @@ Plans:
   2. AudioAddict + Radio-Browser + other PLS-sourced stations that previously had blank codec/bitrate now show populated values in `station_streams` after a re-import or refresh.
   3. Stream-ordering correctness (`stream_ordering._CODEC_RANK`) is preserved — codec rank still wins over bitrate, lossless stays above lossy.
 
-**Plans**: TBD
+**Plans**: 1 plan
 **Research flag**: NO — direct extension of Phase 58 logic.
+
+Plans:
+- [ ] 92-01-PLAN.md — URL-fallback for _extract_codec/_extract_bitrate (title miss -> scan entry URL) + 3 call sites + 4 RED->GREEN tests
 
 #### Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up
 
