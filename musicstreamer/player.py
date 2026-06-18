@@ -81,6 +81,12 @@ def _fix_icy_encoding(s: str) -> str:
 # Surfaced at INFO via __main__.py per-logger setLevel — see Plan 03.
 _log = logging.getLogger(__name__)
 
+# Phase 90 D-08: staleness threshold for the "fetched-with-0 never re-fetches" trap.
+# RESEARCH A1 rationale: SomaFM preroll catalogs are stable (weekly cadence);
+# 7 days is long enough to avoid hammering the API on every play of a stuck
+# station while short enough to self-heal within a week. Claude's Discretion.
+_PREROLL_STALE_THRESHOLD_S: int = 7 * 24 * 3600
+
 
 # ---------------------------------------------------------------------- #
 # Phase 62 / BUG-09: buffer-underrun cycle state machine.
@@ -746,6 +752,20 @@ class Player(QObject):
         # without revisiting D-12. Test test_wr05_throttle_documents_attempted_semantics
         # explicitly locks the start-attempt semantics so a "fix" that moves
         # the timestamp to handoff fails loudly.
+        # Phase 90 D-03: throttle-skip probe (additive — no state change).
+        # Separate read-only check fires ONLY for the suppress path (when
+        # the combined gate below short-circuits on throttle). DO NOT
+        # restructure the existing gate condition below this block.
+        if (
+            station.provider_name == "SomaFM"
+            and self._last_preroll_played_at is not None
+            and time.monotonic() - self._last_preroll_played_at <= 600
+        ):
+            logging.getLogger("musicstreamer.preroll").info(
+                "preroll_skipped_throttle station_name=%r station_id=%d remaining_s=%.0f",
+                station.name, station.id,
+                600 - (time.monotonic() - self._last_preroll_played_at),
+            )
         if (
             station.provider_name == "SomaFM"
             and (self._last_preroll_played_at is None
@@ -753,7 +773,11 @@ class Player(QObject):
         ):
             urls = list(getattr(station, "prerolls", []) or [])
             if urls:
-                preroll_url = random.choice(urls)
+                preroll_url = random.choice(urls)        # D-06 — UNCHANGED
+                logging.getLogger("musicstreamer.preroll").info(
+                    "preroll_start station_name=%r station_id=%d url=%r",
+                    station.name, station.id, preroll_url,
+                )
                 self._start_preroll(preroll_url)
                 return  # _on_preroll_about_to_finish triggers _try_next_stream
             elif (
@@ -762,13 +786,37 @@ class Player(QObject):
             ):
                 # D-13 lazy backfill; non-blocking. Worker discards station.id from
                 # _backfill_in_flight in its finally clause (T-83-10 single-flight).
+                logging.getLogger("musicstreamer.preroll").info(
+                    "preroll_skipped_empty station_name=%r station_id=%d reason=unfetched",
+                    station.name, station.id,
+                )
                 self._backfill_in_flight.add(station.id)
                 threading.Thread(
                     target=self._preroll_backfill_worker,
                     args=(station.id, station.name),
                     daemon=True,
                 ).start()
-            # else (D-04 / Pitfall 5): fetched, genuinely-empty channel — skip silently.
+            else:
+                # D-04 / Pitfall 5: fetched, genuinely-empty channel.
+                logging.getLogger("musicstreamer.preroll").info(
+                    "preroll_skipped_empty station_name=%r station_id=%d reason=fetched_empty",
+                    station.name, station.id,
+                )
+                # D-08 (Phase 90): close the "fetched-with-0 never re-fetches" trap.
+                # Fires ONLY when fetched_at IS NOT NULL (mutually exclusive with D-13
+                # branch above which requires fetched_at IS NULL). Worker discards
+                # station.id from _backfill_in_flight in its finally (T-83-10 D-09).
+                if (
+                    getattr(station, "prerolls_fetched_at", None) is not None
+                    and int(time.time()) - station.prerolls_fetched_at > _PREROLL_STALE_THRESHOLD_S
+                    and station.id not in self._backfill_in_flight
+                ):
+                    self._backfill_in_flight.add(station.id)
+                    threading.Thread(
+                        target=self._preroll_backfill_worker,
+                        args=(station.id, station.name),
+                        daemon=True,
+                    ).start()
         self._try_next_stream()
 
     def play_stream(self, stream: StationStream, on_title=None,
@@ -1575,6 +1623,11 @@ class Player(QObject):
                 pass  # already disconnected (e.g. bus-error path took it)
             self._preroll_handler_id = 0
         self._preroll_in_flight = False
+        # Phase 90 D-03: log handoff completion (additive — before queue check).
+        logging.getLogger("musicstreamer.preroll").info(
+            "preroll_handoff_complete station_name=%r station_id=%d",
+            self._current_station_name, self._current_station_id,
+        )
         # Empty-queue defensive: fall back to legacy path (emits failover(None)).
         if not self._streams_queue:
             self._try_next_stream()
