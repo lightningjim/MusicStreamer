@@ -164,9 +164,18 @@ def _open_with_cookies(url: str, cookies: http.cookiejar.MozillaCookieJar,
     Detection strategy (mirrors _open_no_redirect): install a _NoRedirect handler
     that returns fp (the raw response) instead of following any redirect, then
     inspect the returned response.  If Location contains "/accounts/login/" the
-    session has expired; raise GbsAuthExpiredError.  For any OTHER 3xx, re-issue
-    the request with a redirect-following opener so legitimate redirects and the
-    200-JSON happy path are unaffected.
+    session has expired; raise GbsAuthExpiredError.  For any OTHER 3xx, return the
+    STOPPED response unchanged (do NOT re-issue / re-follow it).
+
+    Why no re-follow on a non-login 3xx (Pitfall 7 — GET-with-side-effects, NO
+    retries): callers like vote_now_playing and fetch_active_playlist reach this
+    helper.  Blind-re-issuing the same URL through a redirect-following opener
+    would fire a SECOND identical GET — casting a vote twice, or double-polling
+    /ajax — which violates the documented no-retry invariant.  The 200-JSON happy
+    path is unaffected (it never enters the 3xx branch); a genuine non-login
+    redirect simply surfaces as a JSON-decode failure in the caller (fail loud),
+    which is the correct degraded behavior for an endpoint that today returns 200
+    or a login-302.
 
     The previous implementation relied on the default HTTPRedirectHandler, which
     auto-follows 302 → /accounts/login/ and returns the 200 login page; the
@@ -210,19 +219,14 @@ def _open_with_cookies(url: str, cookies: http.cookiejar.MozillaCookieJar,
             except Exception:
                 pass
             raise GbsAuthExpiredError(f"Session expired (302→login from {url})")
-        # Non-login redirect: re-follow using the default redirect-following opener
-        # so legitimate redirects work as before.  Use a fresh opener without the
-        # _NoRedirect handler.
-        try:
-            resp.close()
-        except Exception:
-            pass
-        follow_opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(cookies)
-        )
-        return follow_opener.open(
-            urllib.request.Request(url, headers={"User-Agent": _USER_AGENT}),
-            timeout=timeout,
+        # Non-login 3xx: return the STOPPED response unchanged.  Do NOT re-issue
+        # the request through a redirect-following opener — that would fire a
+        # second identical GET and violate Pitfall 7 (GET-with-side-effects, NO
+        # retries) for the vote/ajax callers.  The caller will surface the
+        # unexpected redirect as a JSON-decode failure (fail loud).
+        _log.warning(
+            "_open_with_cookies: non-login %s redirect to %r for %s (not followed)",
+            getattr(resp, "status", None), location, url,
         )
 
     return resp
