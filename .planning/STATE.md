@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 87b executed (2 plans, 241 tests green); awaiting human UAT
-last_updated: "2026-06-18T16:28:04.400Z"
+stopped_at: Phase 90 context gathered (verify-first reframe; Boot Liquor empirically resolved)
+last_updated: "2026-06-18T18:20:36.994Z"
 last_activity: 2026-06-18 -- Phase 87B execution started
 progress:
   total_phases: 21
@@ -198,9 +198,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-18T16:28:04.386Z
-Stopped at: Phase 87b executed (2 plans, 241 tests green); awaiting human UAT
-Resume file: .planning/phases/87B-gbs-zero-token-single-song-add/87B-HUMAN-UAT.md
+Last session: 2026-06-18T18:20:36.983Z
+Stopped at: Phase 90 context gathered (verify-first reframe; Boot Liquor empirically resolved)
+Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-CONTEXT.md
 
 ## Operator Next Steps
 
