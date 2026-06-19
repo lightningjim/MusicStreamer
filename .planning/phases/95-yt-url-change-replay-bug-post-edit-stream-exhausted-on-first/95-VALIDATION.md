@@ -45,6 +45,8 @@ created: 2026-06-18
 | 95-01-01 (RED) | 01 | 1 | V1-V7,V10 (RED) | — | N/A | unit+integration | `.venv/bin/python -m pytest tests/test_player_edit_invalidation.py -x -q` | ⬜ created in task | ⬜ pending |
 | 95-01-02 (GREEN) | 01 | 1 | V1-V6,V10 + V9 (parity) | T-95-02 | seq-guard no-ops stale YT resolution (CPython-atomic int, queued Signal) | unit | `.venv/bin/python -m pytest tests/test_player_edit_invalidation.py tests/test_fake_player_signal_parity.py -x -q` | ✅ | ⬜ pending |
 | 95-01-03 (wire) | 01 | 1 | V7 + V8 (regression) | T-95-01 | restart reuses existing play()→_set_uri path; no new input surface | integration | `.venv/bin/python -m pytest tests/test_main_window_integration.py -k "sync or edit or invalidate" -x -q` | ✅ | ⬜ pending |
+| 95-02-01 (RED) | 02 | 2 | V11,V12,V13 (RED) | — | N/A | unit | `.venv/bin/python -m pytest tests/test_player_edit_invalidation.py -k "v11 or v12 or v13" -x -q` | ✅ | ⬜ pending |
+| 95-02-02 (GREEN) | 02 | 2 | V11,V12,V13 + parity | T-95-03,T-95-04 | recovery-gen seq-guard no-ops stale pre-restart recovery (CPython-atomic int, queued Signal); -1 sentinel preserves no-arg callers; genuine current-gen exhaustion still toasts | unit | `.venv/bin/python -m pytest tests/test_player_edit_invalidation.py tests/test_fake_player_signal_parity.py -x -q` | ✅ | ⬜ pending |
 
 ---
 
