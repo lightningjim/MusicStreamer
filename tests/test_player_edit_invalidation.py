@@ -317,3 +317,129 @@ def test_unrelated_station_edit_is_noop_beyond_seq_bump(qtbot):
     assert p._streams_queue == [playing]
     # Generation still bumped (harmless; any unrelated in-flight resolve no-ops).
     assert p._youtube_resolve_seq > seq_before
+
+
+# ---------------------------------------------------------------------------
+# V11 (Phase 95-02 gap-closure): stale pre-restart recovery MUST be suppressed
+# ---------------------------------------------------------------------------
+
+def test_v11_stale_recovery_suppressed_after_edit_restart(qtbot):
+    """A queued _error_recovery_requested from BEFORE an edit-restart must no-op.
+
+    Reproduces the race: old YT stream exhausts (error posted to bus), user
+    edits the URL (D-01 restart via play()), then the queued stale recovery
+    runs on the main loop with an empty queue — it must NOT emit failover(None).
+
+    The _recovery_seq guard (Phase 95-02) is the fix: the stale delivery
+    carries a stamp captured before the restart, which is < the current
+    _recovery_seq after play() bumped it, so the handler early-returns.
+
+    The EXPLICIT stale_recovery_seq argument (not the -1 default) is essential:
+    it exercises the real checked branch of the staleness guard.
+    """
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    # Capture the stamp a bus-thread error would have carried BEFORE the edit.
+    stale_recovery_seq = p._recovery_seq
+
+    # Emulate the edit-restart: bump _recovery_seq (as play() entry will do),
+    # then set the post-restart state (empty queue, guard cleared — exactly
+    # what play() + _play_youtube leave during async YT resolution).
+    p._recovery_seq += 1  # play() entry bump supersedes the stale delivery
+    p._streams_queue = []
+    p._recovery_in_flight = False
+
+    # Deliver the stale recovery (explicit stamp < current _recovery_seq).
+    # Must NOT call _try_next_stream() — the queue is empty and would emit
+    # failover(None) → "Stream exhausted" toast (the spurious toast gap).
+    with patch.object(p, "_try_next_stream", MagicMock()) as mock_try_next:
+        p._handle_gst_error_recovery(stale_recovery_seq)
+        mock_try_next.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# V12 (Phase 95-02 hard constraint): GENUINE current-gen exhaustion STILL toasts
+# ---------------------------------------------------------------------------
+
+def test_v12_genuine_current_gen_exhaustion_still_toasts(qtbot):
+    """A recovery carrying the CURRENT _recovery_seq must still reach
+    _try_next_stream() and emit failover(None) on an empty queue.
+
+    This is the hard constraint: the guard must suppress ONLY stale (pre-restart)
+    recoveries, never a genuine current-generation exhaustion whose error was
+    posted AFTER the latest restart.
+
+    The EXPLICIT current-seq argument (not the -1 default) is required so this
+    genuinely exercises the pass-through branch of the staleness check rather
+    than the sentinel bypass.
+    """
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    # Empty queue + guard clear: post-restart state before resolution arrives.
+    p._streams_queue = []
+    p._recovery_in_flight = False
+
+    # Part A: explicit current-seq MUST call _try_next_stream (pass-through).
+    with patch.object(p, "_try_next_stream", MagicMock()) as mock_try_next:
+        p._handle_gst_error_recovery(p._recovery_seq)
+        mock_try_next.assert_called_once()
+
+    # Part B: explicit current-seq on an empty queue MUST emit failover(None).
+    p._recovery_in_flight = False  # reset after Part A
+    with qtbot.waitSignal(p.failover, timeout=1000) as blocker:
+        p._handle_gst_error_recovery(p._recovery_seq)
+    assert blocker.args == [None]
+
+
+# ---------------------------------------------------------------------------
+# V13 (Phase 95-02): metadata-only edit does NOT suppress a legitimate recovery
+# ---------------------------------------------------------------------------
+
+def test_v13_metadata_only_edit_leaves_recovery_unaffected(qtbot):
+    """A metadata-only edit (URL unchanged, quality changed) must NOT bump
+    _recovery_seq in a way that rejects a legitimate current-generation recovery.
+
+    D-02 (no restart): invalidate_for_edit returns without calling play(),
+    so _recovery_seq must stay at the same value and a genuine same-session
+    recovery (explicit current-seq stamp) still advances the queue normally.
+
+    The EXPLICIT current-seq argument exercises the real checked branch.
+    """
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/same")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    recovery_seq_before = p._recovery_seq
+
+    # Metadata-only edit: same URL, quality changed -> D-02 path (no restart).
+    meta = StationStream(
+        id=10, station_id=1, url=old.url, quality="low", position=1
+    )
+    updated = make_station_with_streams([meta])
+
+    with patch.object(p, "play", MagicMock()) as play_spy:
+        p.invalidate_for_edit(updated, is_playing=True)
+
+    play_spy.assert_not_called()  # D-02: no restart for metadata-only edit
+
+    # _recovery_seq must not have been bumped by the metadata-only path
+    # (the D-02 branch does NOT call play(), so _recovery_seq is unchanged).
+    assert p._recovery_seq == recovery_seq_before
+
+    # A legitimate current-generation recovery with an explicit current-seq
+    # stamp must still advance normally (non-empty queue scenario).
+    sibling = make_stream(11, position=2, quality="low", url="http://yt/fallback")
+    p._streams_queue = [sibling]
+    p._recovery_in_flight = False
+
+    with patch.object(p, "_set_uri", MagicMock()) as set_uri_spy:
+        p._handle_gst_error_recovery(p._recovery_seq)
+        # The recovery should have advanced to the sibling stream.
+        set_uri_spy.assert_called_once()
