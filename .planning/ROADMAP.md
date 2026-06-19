@@ -546,7 +546,7 @@ Plans:
 | 92. FIX-PLS | 1/1 | Complete   | 2026-06-18 |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
-| 95. YT URL-Change Replay Bug | 1/1 | Complete   | 2026-06-19 |
+| 95. YT URL-Change Replay Bug | 1/2 | Gap closure planned (95-02) | - |
 
 ### Dependency Graph (Tier Summary)
 
@@ -622,14 +622,15 @@ Plans:
 
 ### Phase 95: YT URL-change replay bug: post-edit 'stream exhausted' on first play, second play picks up new URL
 
-**Goal:** First play after editing a station's stream URL always uses the saved URL (no "stream exhausted"), by invalidating the Player's stale cached state (`_streams_queue`/`_current_stream`/loaded URI/in-flight YouTube resolution) on edit and restarting immediately when the actively-playing stream's URL changed (D-01..D-05).
+**Goal:** First play after editing a station's stream URL always uses the saved URL (no "stream exhausted"), by invalidating the Player's stale cached state (`_streams_queue`/`_current_stream`/loaded URI/in-flight YouTube resolution) on edit and restarting immediately when the actively-playing stream's URL changed (D-01..D-05). No spurious "Stream exhausted" toast flashes during the edit->restart transition (a stale pre-restart error-recovery from the OLD exhausted stream is suppressed).
 **Requirements**: none mapped (TBD); behavior contract is D-01..D-05 in 95-CONTEXT.md
 **Depends on:** Phase 94
-**Plans:** 1 plan
+**Plans:** 2 plans
 
 Plans:
 
 - [x] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
+- [ ] 95-02-PLAN.md — gap closure: _recovery_seq generation guard on the error-recovery path, suppressing the stale pre-restart "Stream exhausted" toast (TDD, 2 tasks)
 
 ---
 
