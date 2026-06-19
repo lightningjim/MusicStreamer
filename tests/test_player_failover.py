@@ -263,9 +263,11 @@ def test_youtube_resolve_success_sets_uri_and_arms_failover(qtbot):
         # Call worker directly so the signal fires synchronously in tests
         with qtbot.waitSignal(p.youtube_resolved, timeout=3000) as blocker:
             p._youtube_resolve_worker("https://www.youtube.com/watch?v=test")
-        # youtube_resolved is Signal(str, bool): (resolved_url, is_live)
-        # FakeYDL does not set is_live so it defaults to False.
-        assert blocker.args == ["http://resolved.example/stream.m3u8", False]
+        # Phase 95: youtube_resolved is Signal(str, bool, int):
+        # (resolved_url, is_live, resolve_seq). FakeYDL does not set is_live so
+        # it defaults to False; the worker carries seq=0 (the construction-time
+        # _youtube_resolve_seq, no play()/invalidate bump in this test).
+        assert blocker.args == ["http://resolved.example/stream.m3u8", False, 0]
         # The queued slot runs on the main thread via qtbot's event processing
         qtbot.wait(50)
 

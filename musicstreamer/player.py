@@ -270,7 +270,7 @@ class Player(QObject):
     failover                   = Signal(object)  # StationStream | None
     offline                    = Signal(str)     # Twitch channel name
     twitch_resolved            = Signal(str)     # internal: resolved Twitch HLS URL -- queued back to main thread
-    youtube_resolved           = Signal(str, bool)  # internal: (resolved_url, is_live) -- queued back to main thread
+    youtube_resolved           = Signal(str, bool, int)  # internal: (resolved_url, is_live, resolve_seq) -- queued back to main thread; int carries the _youtube_resolve_seq generation guard (Phase 95 / Pitfall 1)
     youtube_resolution_failed  = Signal(str)     # internal: yt-dlp error message -- queued back to main thread
     playback_error             = Signal(str)     # GStreamer error text
     cookies_cleared            = Signal(str)     # Phase 999.7: advisory toast — cookies.txt auto-cleared due to yt-dlp corruption
@@ -581,6 +581,14 @@ class Player(QObject):
         # delivery whose stamp != _preroll_seq. Cross-thread int read is
         # atomic in CPython (same justification as _preroll_in_flight).
         self._preroll_seq: int = 0
+        # Phase 95 / Pitfall 1: monotonic YouTube-resolve generation counter,
+        # mirroring _preroll_seq. Bumped by play() and invalidate_for_edit() so
+        # any in-flight resolution started BEFORE an edit/restart no-ops when it
+        # finally delivers (the worker captures _youtube_resolve_seq at spawn
+        # time; _on_youtube_resolved rejects deliveries whose stamp !=
+        # _youtube_resolve_seq). Cross-thread int read is atomic in CPython
+        # (same justification as _preroll_seq / _preroll_in_flight).
+        self._youtube_resolve_seq: int = 0
         self._backfill_in_flight: set[int] = set()  # D-13 single-flight guard (T-83-10)
 
         # Phase 62 / BUG-09: cycle-tracker instance + station_id field.
@@ -1865,11 +1873,15 @@ class Player(QObject):
         # Fallback title shows the station name immediately while the resolver runs.
         if self._current_station_name:
             self.title_changed.emit(self._current_station_name)
+        # Phase 95 / Pitfall 1: capture the current resolve generation at spawn
+        # time and carry it through to the queued youtube_resolved Signal so a
+        # resolution started before an edit/restart no-ops on delivery.
+        seq = self._youtube_resolve_seq
         threading.Thread(
-            target=self._youtube_resolve_worker, args=(url,), daemon=True
+            target=self._youtube_resolve_worker, args=(url, seq), daemon=True
         ).start()
 
-    def _youtube_resolve_worker(self, url: str) -> None:
+    def _youtube_resolve_worker(self, url: str, seq: int = 0) -> None:
         """Call yt_dlp.YoutubeDL.extract_info on a worker thread. Emits
         youtube_resolved or youtube_resolution_failed (both queued to main).
 
@@ -1950,11 +1962,11 @@ class Player(QObject):
                 self.youtube_resolution_failed.emit("No video formats returned")
                 return
             is_live = bool((info or {}).get("is_live", False))
-            self.youtube_resolved.emit(resolved, is_live)
+            self.youtube_resolved.emit(resolved, is_live, seq)
         except Exception as e:  # noqa: BLE001 — daemon worker must surface ALL failures
             self.youtube_resolution_failed.emit(f"youtube resolve crashed: {e!r}")
 
-    def _on_youtube_resolved(self, resolved_url: str, is_live: bool) -> None:
+    def _on_youtube_resolved(self, resolved_url: str, is_live: bool, seq: int = 0) -> None:
         """Main-thread handler: hand the resolved HLS URL to playbin3 and arm
         the failover timer like any other direct stream.
 
@@ -1962,7 +1974,16 @@ class Player(QObject):
         so _on_playbin_state_changed will issue a one-shot DVR-window seek after
         the pipeline first prerolls.  This positions playback ~30 s behind the
         live edge (see _apply_live_dvr_seek / _LIVE_DVR_SEEK_OFFSET_S).
+
+        Phase 95 / Pitfall 1 / V5: ``seq`` is the resolve generation captured at
+        worker-spawn time. Any delivery whose stamp != the current
+        ``_youtube_resolve_seq`` is stale (an edit/restart superseded it) and is
+        ignored so the OLD resolved URL never clobbers ``_set_uri``. Defaults to
+        0 so synchronous test calls (no prior play()) still pass the guard,
+        mirroring the _preroll_seq idiom.
         """
+        if seq != self._youtube_resolve_seq:
+            return  # Phase 95: stale resolution — an edit/restart superseded it
         self._pending_live_dvr_seek = is_live
         self._set_uri(resolved_url)
         self._failover_timer.start(self._current_buffer_duration_s * 1000)
@@ -1972,6 +1993,92 @@ class Player(QObject):
         queue."""
         self.playback_error.emit(f"YouTube resolve failed: {msg}")
         self._try_next_stream()
+
+    # ------------------------------------------------------------------ #
+    # Phase 95 -- stream-edit invalidation (D-01..D-05 + YT resolve-seq guard)
+    # ------------------------------------------------------------------ #
+
+    def invalidate_for_edit(self, station: "Station", is_playing: bool) -> None:
+        """Invalidate stale player state after a station's streams were edited.
+
+        Called on the MAIN thread from MainWindow._sync_now_playing_station for
+        every committed edit. The Player decides the action so id-match logic
+        lives in one place (RESEARCH "pass-and-let-player-decide"):
+
+          - D-01/D-03 (V1): the currently-playing stream's URL changed (or the
+            playing stream was deleted, Q2/V10) while audio is live -> re-issue
+            ``self.play(station)`` (the full rebuild path: _cancel_timers,
+            _streams_queue reset, _is_first_attempt, order_streams, no-streams
+            guard) so the FIRST play uses the new URL.
+          - D-02 (V2) / same-URL (V4): only metadata changed on the playing
+            stream -> no-op beyond the generation bump; audio continues.
+          - D-04 (V3): a NON-playing stream of the playing station changed ->
+            invalidate ``_streams_queue`` so later failover rebuilds from fresh
+            URLs, but do NOT restart audio / set_state(NULL).
+          - D-05 (V6): the player last loaded this station but is not playing
+            (idle/paused/stopped) -> clear ``_streams_queue``/``_current_stream``
+            so the next play() rebuilds fresh; do NOT restart audio.
+          - Different station the player never loaded -> no-op beyond the bump.
+
+        URL comparison uses raw ``.strip()`` equality on the STORED
+        ``StationStream.url`` (Pitfall 3 — never the resolved playbin3 URI).
+        """
+        # Always bump the resolve generation first: any in-flight YouTube
+        # resolution from BEFORE this edit now no-ops (D-03 / V5 race guard).
+        # Harmless for metadata-only edits (no resolution is pending then).
+        self._youtube_resolve_seq += 1
+
+        # Not the station the player last loaded -> nothing playing-related to
+        # invalidate here; that station's next play() already rebuilds fresh.
+        if self._current_station_id != station.id:
+            return
+
+        playing = self._current_stream
+        # No playing stream recorded -> treat as not-playing for this station:
+        # clear any stale queue so the next play() rebuilds fresh (D-05).
+        if playing is None:
+            self._streams_queue = []
+            return
+
+        # Locate the playing stream in the updated station by id.
+        match = next((s for s in station.streams if s.id == playing.id), None)
+        playing_changed = (
+            match is None  # deleted (Q2/V10)
+            or match.url.strip() != (playing.url or "").strip()  # URL changed
+        )
+
+        if playing_changed:
+            if is_playing:
+                # D-01 / Q2 / V10: restart immediately on the new URL. Reuse the
+                # full rebuild path; the surviving stream is picked for the
+                # deleted case, and play()'s no-streams guard handles all-deleted.
+                self.play(station)
+            else:
+                # D-05 / Pitfall 2: idle/paused/stopped — no audio to interrupt.
+                # Clear cached state so the next play() rebuilds from fresh DB.
+                self._streams_queue = []
+                self._current_stream = None
+            return
+
+        # Playing stream URL UNCHANGED.
+        if is_playing:
+            # Did a DIFFERENT (non-playing) stream change? Coarse check: if any
+            # stream other than the playing one differs in URL, or the stream
+            # set changed, invalidate the queue so later failover rebuilds fresh
+            # (D-04). Do NOT restart audio.
+            others_changed = len(station.streams) != len(self._streams_queue) or any(
+                (s.url or "").strip()
+                != next(
+                    ((q.url or "") for q in self._streams_queue if q.id == s.id), None
+                )
+                for s in station.streams
+                if s.id != playing.id
+            )
+            if others_changed:
+                self._streams_queue = []
+            # else: D-02 metadata-only / V4 same-URL -> no-op beyond the bump.
+        # is_playing False with unchanged playing-stream URL: nothing to do
+        # beyond the generation bump (next play() rebuilds fresh anyway).
 
     # ------------------------------------------------------------------ #
     # Twitch -- streamlink library API (D-18)
