@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: phase_complete
-stopped_at: Phase 92 COMPLETE (verification passed 2026-06-18, 7/7 must-haves, 39/39 tests)
-last_updated: "2026-06-18T21:11:14.945Z"
-last_activity: 2026-06-18 -- Phase 92 executed + verified (FIX-PLS-01)
+status: verifying
+stopped_at: Phase 95 context gathered
+last_updated: "2026-06-19T00:33:52.414Z"
+last_activity: 2026-06-18 -- Phase 92 execution started
 progress:
   total_phases: 21
-  completed_phases: 20
-  total_plans: 67
-  completed_plans: 67
-  percent: 95
+  completed_phases: 19
+  total_plans: 66
+  completed_plans: 66
+  percent: 90
 ---
 
 # Project State
@@ -201,9 +201,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-18T21:11:14.932Z
-Stopped at: Phase 90 COMPLETE (human UAT passed 2026-06-18); Phase 90b closed — not needed
-Resume file: .planning/phases/90-somafm-preroll-instrumentation/90-VERIFICATION.md
+Last session: 2026-06-19T00:33:52.407Z
+Stopped at: Phase 95 context gathered
+Resume file: .planning/phases/95-yt-url-change-replay-bug-post-edit-stream-exhausted-on-first/95-CONTEXT.md
 
 ## Operator Next Steps
 
