@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 95 executed + automated verification passed (7/7 must-haves); 1 manual UAT pending
-last_updated: "2026-06-19T01:05:13.606Z"
+last_updated: "2026-06-19T13:24:37.567Z"
 last_activity: 2026-06-19 -- Phase 95 execution started
 progress:
   total_phases: 21
   completed_phases: 20
-  total_plans: 67
-  completed_plans: 67
+  total_plans: 68
+  completed_plans: 68
   percent: 95
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 ## Current Position
 
 Phase: 95 (yt-url-change-replay-bug-post-edit-stream-exhausted-on-first) — EXECUTING
-Plan: 1 of 1
+Plan: 2 of 2
 Status: Executing Phase 95
 Last activity: 2026-06-19 -- Phase 95 execution started
 
@@ -202,10 +202,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 90 P03 | 8 | 2 tasks | 2 files |
 | Phase 92-fix-pls-pls-url-fallback-for-codec-bitrate P01 | 3m | 3 tasks | 2 files |
 | Phase 95 P01 | 25min | 3 tasks | 5 files |
+| Phase 95 P02 | 4m | 2 tasks | 3 files |
 
 ## Session Continuity
 
-Last session: 2026-06-19T01:05:13.595Z
+Last session: 2026-06-19T13:24:37.556Z
 Stopped at: Phase 95 executed + automated verification passed (7/7 must-haves); 1 manual UAT pending
 Resume file: .planning/phases/95-yt-url-change-replay-bug-post-edit-stream-exhausted-on-first/95-HUMAN-UAT.md
 
