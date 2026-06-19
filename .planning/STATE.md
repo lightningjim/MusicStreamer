@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: verifying
+status: executing
 stopped_at: Phase 95 context gathered
-last_updated: "2026-06-19T00:51:10.075Z"
-last_activity: 2026-06-18 -- Phase 92 execution started
+last_updated: "2026-06-19T01:00:28.659Z"
+last_activity: 2026-06-19 -- Phase 95 execution started
 progress:
   total_phases: 21
-  completed_phases: 19
+  completed_phases: 20
   total_plans: 67
-  completed_plans: 66
-  percent: 90
+  completed_plans: 67
+  percent: 95
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 92 — fix-pls-pls-url-fallback-for-codec-bitrate
+**Current focus:** Phase 95 — yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
 
 ## Current Position
 
-Phase: 92 (fix-pls-pls-url-fallback-for-codec-bitrate) — COMPLETE (verified 2026-06-18)
-Plan: 1 of 1 complete
-Status: Phase 92 verified — FIX-PLS-01 satisfied
-Last activity: 2026-06-18 -- Phase 92 execution started
+Phase: 95 (yt-url-change-replay-bug-post-edit-stream-exhausted-on-first) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 95
+Last activity: 2026-06-19 -- Phase 95 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -143,6 +143,9 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: [Phase 89B Plan 03]: _on_save refreshes self._station.provider_id/provider_name after ensure_provider for both derived-Twitch and manual cases; the sync helper provider_id None-check is a distinct call site, not a duplicate of the line-1331 Pitfall-7 guard
 - [Phase ?]: Phase 89c Plan 02
 - [Phase ?]: Phase 89c Plan 02
+- [Phase ?]: Phase 95: invalidate_for_edit reuses Player.play(station) for the D-01 restart — no hand-rolled queue reset
+- [Phase ?]: Phase 95: edit URL-change detection compares stored StationStream.url .strip(), never the resolved playbin3 URI
+- [Phase ?]: Phase 95: youtube_resolved widened to Signal(str, bool, int); _youtube_resolve_seq guard no-ops stale YT resolutions
 
 ### Decisions (v2.1, preserved for context)
 
@@ -198,10 +201,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 90-somafm-preroll-instrumentation P01 | 8m | 2 tasks | 5 files |
 | Phase 90 P03 | 8 | 2 tasks | 2 files |
 | Phase 92-fix-pls-pls-url-fallback-for-codec-bitrate P01 | 3m | 3 tasks | 2 files |
+| Phase 95 P01 | 25min | 3 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-06-19T00:33:52.407Z
+Last session: 2026-06-19T01:00:12.417Z
 Stopped at: Phase 95 context gathered
 Resume file: .planning/phases/95-yt-url-change-replay-bug-post-edit-stream-exhausted-on-first/95-CONTEXT.md
 

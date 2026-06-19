@@ -132,6 +132,13 @@ None - no external service configuration required.
 - The YT URL-change replay bug fix is complete end-to-end (unit V1-V6/V10 + integration V7 + parity V9). Manual end-to-end verification (95-VALIDATION.md Manual-Only): play a YouTube station, edit its URL to a different valid source, save → new audio should start immediately with no "stream exhausted" toast and no second play.
 - No blockers for downstream work. The pre-existing integration-module teardown abort is a candidate for a separate test-hygiene cleanup.
 
+## Self-Check: PASSED
+
+- FOUND: tests/test_player_edit_invalidation.py
+- FOUND: .planning/phases/95-.../95-01-SUMMARY.md
+- FOUND commits: 96488e0f (RED), 9f1ccdd3 (GREEN), ac6028b3 (wire), b19950c1 (SUMMARY)
+- FOUND in player.py: invalidate_for_edit, _youtube_resolve_seq, Signal(str, bool, int)
+
 ---
 *Phase: 95-yt-url-change-replay-bug-post-edit-stream-exhausted-on-first*
 *Completed: 2026-06-18*

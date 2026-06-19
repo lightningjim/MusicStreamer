@@ -546,7 +546,7 @@ Plans:
 | 92. FIX-PLS | 1/1 | Complete   | 2026-06-18 |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
-| 95. YT URL-Change Replay Bug | 0/? | Not started | - |
+| 95. YT URL-Change Replay Bug | 1/1 | Complete   | 2026-06-19 |
 
 ### Dependency Graph (Tier Summary)
 
@@ -629,7 +629,7 @@ Plans:
 
 Plans:
 
-- [ ] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
+- [x] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
 
 ---
 
