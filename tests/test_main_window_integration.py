@@ -771,6 +771,46 @@ def test_new_station_save_does_not_auto_play(
 
 
 # ---------------------------------------------------------------------------
+# Phase 95 V7 — edit→sync junction notifies the Player to invalidate stale state
+# ---------------------------------------------------------------------------
+
+def test_v7_sync_now_playing_invokes_player_invalidate(qtbot, fake_player, fake_repo):
+    """V7: _sync_now_playing_station for the currently-bound station must call
+    self._player.invalidate_for_edit(updated_station, is_playing=panel.is_playing)
+    exactly once with the updated station (FakePlayer records the call)."""
+    from musicstreamer.models import StationStream
+
+    station = Station(
+        id=1,
+        name="YT Station",
+        provider_id=None,
+        provider_name="YouTube",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[StationStream(id=10, station_id=1, url="http://yt/new", quality="hi", position=1)],
+        last_played_at=None,
+    )
+    fake_repo._stations = [station]
+
+    w = MainWindow(fake_player, fake_repo)
+    qtbot.addWidget(w)
+
+    # Bind the now-playing panel to this station and mark it playing.
+    w.now_playing.bind_station(station)
+    w.now_playing.on_playing_state_changed(True)
+
+    w._sync_now_playing_station(station.id)
+
+    assert len(fake_player.invalidate_calls) == 1, \
+        f"expected exactly one invalidate_for_edit call; got {fake_player.invalidate_calls!r}"
+    called_station, called_is_playing = fake_player.invalidate_calls[0]
+    assert called_station is station
+    assert called_is_playing is True
+
+
+# ---------------------------------------------------------------------------
 # Phase 44 Plan 03 — Node-missing YT-fail toast branch (D-13 part 2)
 # ---------------------------------------------------------------------------
 

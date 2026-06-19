@@ -61,7 +61,7 @@ class FakePlayer(QObject):
     failover                   = Signal(object)
     offline                    = Signal(str)
     twitch_resolved            = Signal(str)
-    youtube_resolved           = Signal(str, bool)  # BUG-YT-LIVE-BUFFER D-02: (resolved_url, is_live)
+    youtube_resolved           = Signal(str, bool, int)  # Phase 95: (resolved_url, is_live, resolve_seq) — int carries the _youtube_resolve_seq generation guard (mirrors _preroll_about_to_finish_requested)
     youtube_resolution_failed  = Signal(str)
     playback_error             = Signal(str)
     cookies_cleared            = Signal(str)
@@ -104,6 +104,10 @@ class FakePlayer(QObject):
         self.stop_called: bool = False
         self.pause_called: bool = False
         self.calls: list[tuple] = []  # EQ toggle tracking: ("enabled", bool) tuples
+        # Phase 95: records (station, is_playing) tuples for invalidate_for_edit
+        # so MainWindow edit→sync wiring tests (V7) can assert the player was
+        # notified exactly once with the updated station.
+        self.invalidate_calls: list[tuple] = []
 
     # ------------------------------------------------------------------
     # Method stubs — API surface consumed by MainWindow / test consumers
@@ -127,6 +131,12 @@ class FakePlayer(QObject):
     def play_stream(self, stream) -> None:
         """Phase 72.1: NowPlayingPanel calls player.play_stream(s) on picker selection."""
         self.play_calls.append(stream)
+
+    def invalidate_for_edit(self, station, is_playing: bool = False, **kwargs) -> None:
+        """Phase 95: MainWindow._sync_now_playing_station notifies the player on
+        every committed edit so stale stream state cannot survive a URL change.
+        Records the call for the V7 integration assertion."""
+        self.invalidate_calls.append((station, is_playing))
 
     # Phase 47.2: EQ API stubs — MainWindow calls restore_eq_from_settings
     # from __init__; the others are referenced by EqualizerDialog.
