@@ -798,8 +798,11 @@ def test_v7_sync_now_playing_invokes_player_invalidate(qtbot, fake_player, fake_
     qtbot.addWidget(w)
 
     # Bind the now-playing panel to this station and mark it playing.
+    # Set the playing flag directly (the is_playing property reads _is_playing)
+    # rather than via on_playing_state_changed, which would spin up the GBS
+    # marquee worker QThread and crash on teardown — irrelevant to V7.
     w.now_playing.bind_station(station)
-    w.now_playing.on_playing_state_changed(True)
+    w.now_playing._is_playing = True
 
     w._sync_now_playing_station(station.id)
 
@@ -808,6 +811,10 @@ def test_v7_sync_now_playing_invokes_player_invalidate(qtbot, fake_player, fake_
     called_station, called_is_playing = fake_player.invalidate_calls[0]
     assert called_station is station
     assert called_is_playing is True
+
+    # Stop the GBS marquee QThread cleanly (closeEvent at main_window.py:853);
+    # leaving it running aborts the interpreter at teardown.
+    w.close()
 
 
 # ---------------------------------------------------------------------------

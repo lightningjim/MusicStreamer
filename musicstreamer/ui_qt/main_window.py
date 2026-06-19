@@ -1437,6 +1437,15 @@ class MainWindow(QMainWindow):
         updated_station = self._repo.get_station(station_id)
         if updated_station is None:
             return
+        # Phase 95 (V7): notify the Player so stale stream state (queue / loaded
+        # URI / in-flight YouTube resolution) cannot survive a URL edit. The
+        # Player checks _current_station_id itself and no-ops for unrelated
+        # stations, so call unconditionally on a valid updated_station — this
+        # preserves D-05 even when the panel is bound elsewhere. The slot runs
+        # on the main thread (Qt signal), so the direct call is safe (RESEARCH A3).
+        self._player.invalidate_for_edit(
+            updated_station, is_playing=self.now_playing.is_playing
+        )
         current = getattr(self.now_playing, "_station", None)
         if current is not None and current.id == updated_station.id:
             self.now_playing.bind_station(updated_station)
