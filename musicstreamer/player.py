@@ -283,7 +283,7 @@ class Player(QObject):
     # call onto the main thread, identical to how `title_changed` already
     # crosses the same boundary.
     _cancel_timers_requested   = Signal()        # bus-loop → main: stop failover timer
-    _error_recovery_requested  = Signal()        # bus-loop → main: run _handle_gst_error_recovery
+    _error_recovery_requested  = Signal(int)     # bus-loop → main: run _handle_gst_error_recovery; int = _recovery_seq captured at error-POST time (Phase 95-02 generation guard)
     # Worker threads (twitch/youtube resolve) have no Qt event loop, so
     # QTimer.singleShot(0, ...) from those threads posts to a nonexistent loop
     # and the callback never runs. Queued signal marshals _try_next_stream
@@ -589,6 +589,19 @@ class Player(QObject):
         # _youtube_resolve_seq). Cross-thread int read is atomic in CPython
         # (same justification as _preroll_seq / _preroll_in_flight).
         self._youtube_resolve_seq: int = 0
+        # Phase 95-02 / gap-closure: monotonic error-recovery generation counter,
+        # mirroring _preroll_seq and _youtube_resolve_seq. Bumped at the TOP of
+        # play() (every restart, including invalidate_for_edit's self.play(station)
+        # delegation) so any _error_recovery_requested POSTED before the restart is
+        # stale. The bus-thread captures self._recovery_seq at emit time
+        # (_on_gst_error) and carries it on the Signal payload; the main-thread
+        # slot (_handle_gst_error_recovery) rejects deliveries whose stamp !=
+        # current _recovery_seq. Cross-thread int read is atomic in CPython
+        # (same justification as _preroll_seq / _preroll_in_flight).
+        # D-04/D-05 no-restart branches of invalidate_for_edit do NOT bump this —
+        # they leave the current generation valid so a legitimate same-session
+        # recovery still toasts.
+        self._recovery_seq: int = 0
         self._backfill_in_flight: set[int] = set()  # D-13 single-flight guard (T-83-10)
 
         # Phase 62 / BUG-09: cycle-tracker instance + station_id field.
@@ -685,6 +698,14 @@ class Player(QObject):
         self._cancel_timers()
         self._streams_queue = []
         self._recovery_in_flight = False
+        # Phase 95-02: bump the recovery generation so any _error_recovery_requested
+        # that was POSTED (from the bus thread) BEFORE this restart is now stale.
+        # Any delivery carrying the old _recovery_seq will no-op in
+        # _handle_gst_error_recovery, preventing the spurious "Stream exhausted"
+        # toast against the freshly-emptied queue of the new (async-resolving) URL.
+        # invalidate_for_edit's restart branch delegates to play() (D-01), so
+        # this single bump covers every restart path — no redundant bump elsewhere.
+        self._recovery_seq += 1
         # WR-02 (Phase 83 code review): tear down any leaked preroll handler
         # from a prior play()/stop() sequence so this play() starts from a
         # clean preroll state. Without this, a second SomaFM station play
@@ -988,9 +1009,35 @@ class Player(QObject):
         self._tracker.note_error_in_cycle()
         # Marshal recovery onto the main thread via queued signal. Bus-loop
         # thread has no Qt event loop, so QTimer.singleShot from here vanishes.
-        self._error_recovery_requested.emit()
+        # Phase 95-02: carry the recovery generation captured at POST time.
+        # An int read on the bus thread is atomic in CPython (same justification
+        # as _preroll_seq / _preroll_about_to_finish_requested). The stamp is
+        # compared at RUN time in _handle_gst_error_recovery to reject stale
+        # (pre-restart) deliveries.
+        self._error_recovery_requested.emit(self._recovery_seq)
 
-    def _handle_gst_error_recovery(self) -> None:
+    def _handle_gst_error_recovery(self, recovery_seq: int = -1) -> None:
+        # Phase 95-02 generation guard — MUST sit ABOVE the _recovery_in_flight
+        # coalescing check so a stale pre-restart recovery never reaches
+        # _try_next_stream() with the freshly-emptied queue.
+        #
+        # The two-part guard:
+        #   (a) `recovery_seq != -1` — the -1 sentinel is the default for no-arg
+        #       direct callers (tests, internal calls without a stamp). It means
+        #       "no explicit generation → treat as current → SKIP the staleness
+        #       check". This preserves every existing direct test caller even when
+        #       play() has already bumped _recovery_seq to ≥1 before the no-arg
+        #       call (a default of 0 would evaluate `0 != 1` → True → early-return
+        #       and regress those tests).
+        #   (b) `recovery_seq != self._recovery_seq` — an explicitly-stamped
+        #       delivery whose stamp < current was POSTED before the most recent
+        #       play()/invalidate restart; the OLD exhausted stream's error. Ignoring
+        #       it prevents the spurious "Stream exhausted" toast against the
+        #       freshly-emptied queue of the new (still-resolving) URL. A genuine
+        #       current-generation exhaustion's error is posted AFTER the restart,
+        #       so its stamp == _recovery_seq and it falls through to _try_next_stream.
+        if recovery_seq != -1 and recovery_seq != self._recovery_seq:
+            return
         # Gap-05 fix: coalesce cascading bus errors for a single failing URL.
         # playbin3 may emit N errors (source + demuxer + decoder) during
         # pipeline teardown for one broken stream. Without this guard each
