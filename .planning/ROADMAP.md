@@ -622,14 +622,14 @@ Plans:
 
 ### Phase 95: YT URL-change replay bug: post-edit 'stream exhausted' on first play, second play picks up new URL
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** First play after editing a station's stream URL always uses the saved URL (no "stream exhausted"), by invalidating the Player's stale cached state (`_streams_queue`/`_current_stream`/loaded URI/in-flight YouTube resolution) on edit and restarting immediately when the actively-playing stream's URL changed (D-01..D-05).
+**Requirements**: none mapped (TBD); behavior contract is D-01..D-05 in 95-CONTEXT.md
 **Depends on:** Phase 94
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 95 to break down)
+- [ ] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
 
 ---
 

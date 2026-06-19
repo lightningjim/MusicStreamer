@@ -2,8 +2,8 @@
 phase: 95
 slug: yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-06-18
 ---
 
@@ -40,9 +40,11 @@ created: 2026-06-18
 
 *Filled by the planner once tasks are defined. Each task maps to one or more of the validation behaviors V1–V10 from 95-RESEARCH.md "Validation Architecture".*
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 95-01-01 | 01 | 1 | (no mapped REQ-ID) | — | N/A | unit | `.venv/bin/python -m pytest tests/test_player.py -q` | ✅ | ⬜ pending |
+| Task ID | Plan | Wave | Behaviors | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-----------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 95-01-01 (RED) | 01 | 1 | V1-V7,V10 (RED) | — | N/A | unit+integration | `.venv/bin/python -m pytest tests/test_player_edit_invalidation.py -x -q` | ⬜ created in task | ⬜ pending |
+| 95-01-02 (GREEN) | 01 | 1 | V1-V6,V10 + V9 (parity) | T-95-02 | seq-guard no-ops stale YT resolution (CPython-atomic int, queued Signal) | unit | `.venv/bin/python -m pytest tests/test_player_edit_invalidation.py tests/test_fake_player_signal_parity.py -x -q` | ✅ | ⬜ pending |
+| 95-01-03 (wire) | 01 | 1 | V7 + V8 (regression) | T-95-01 | restart reuses existing play()→_set_uri path; no new input surface | integration | `.venv/bin/python -m pytest tests/test_main_window_integration.py -k "sync or edit or invalidate" -x -q` | ✅ | ⬜ pending |
 
 ---
 
