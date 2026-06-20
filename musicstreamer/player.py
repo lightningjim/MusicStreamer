@@ -271,7 +271,7 @@ class Player(QObject):
     offline                    = Signal(str)     # Twitch channel name
     twitch_resolved            = Signal(str)     # internal: resolved Twitch HLS URL -- queued back to main thread
     youtube_resolved           = Signal(str, bool, int)  # internal: (resolved_url, is_live, resolve_seq) -- queued back to main thread; int carries the _youtube_resolve_seq generation guard (Phase 95 / Pitfall 1)
-    youtube_resolution_failed  = Signal(str)     # internal: yt-dlp error message -- queued back to main thread
+    youtube_resolution_failed  = Signal(str, int) # internal: (msg, resolve_seq) -- queued back to main thread; int carries the per-worker generation stamp (Phase 95-04 / CR-01 fix, mirrors youtube_resolved success path)
     playback_error             = Signal(str)     # GStreamer error text
     cookies_cleared            = Signal(str)     # Phase 999.7: advisory toast — cookies.txt auto-cleared due to yt-dlp corruption
     elapsed_updated            = Signal(int)     # wall-clock seconds since play began (40.1-06)
@@ -613,12 +613,10 @@ class Player(QObject):
         # Additive to the _recovery_seq (95-02) and _youtube_resolve_seq (95-01) guards;
         # NOT a generation counter — a plain bool cleared on settle.
         self._youtube_resolve_in_flight: bool = False
-        # Phase 95-03: generation stamp captured at YouTube worker spawn alongside
-        # _youtube_resolve_in_flight. Compared in _on_youtube_resolution_failed to
-        # detect stale (old-generation) failure deliveries so they do NOT clear a
-        # fresh in-flight gate or call _try_next_stream. Uses the instance-attribute
-        # stamp approach (no Signal arity change, no FakePlayer parity edit required).
-        self._youtube_resolve_in_flight_seq: int = 0
+        # Phase 95-04: _youtube_resolve_in_flight_seq (instance-attribute stamp) removed.
+        # Staleness is now keyed off the carried seq on the youtube_resolution_failed
+        # Signal (str, int) — the same pattern used by youtube_resolved (str, bool, int).
+        # The overwrite-prone instance attribute is gone; no cross-call mutation risk.
         self._backfill_in_flight: set[int] = set()  # D-13 single-flight guard (T-83-10)
 
         # Phase 62 / BUG-09: cycle-tracker instance + station_id field.
@@ -723,6 +721,14 @@ class Player(QObject):
         # invalidate_for_edit's restart branch delegates to play() (D-01), so
         # this single bump covers every restart path — no redundant bump elsewhere.
         self._recovery_seq += 1
+        # Phase 95-04 / CR-01: bump the YouTube resolve generation on every restart
+        # (not only on edits via invalidate_for_edit) so a plain station A->B switch
+        # also invalidates an in-flight A-resolve for BOTH the success guard
+        # (_on_youtube_resolved :2072) and the failure guard (_on_youtube_resolution_failed).
+        # invalidate_for_edit bumps _youtube_resolve_seq before delegating here, so
+        # the edit path double-bumps; that is harmless (monotonic counter, equality
+        # compare at both ends, no off-by-one risk) — do NOT de-duplicate it.
+        self._youtube_resolve_seq += 1
         # WR-02 (Phase 83 code review): tear down any leaked preroll handler
         # from a prior play()/stop() sequence so this play() starts from a
         # clean preroll state. Without this, a second SomaFM station play
@@ -919,6 +925,15 @@ class Player(QObject):
         self._elapsed_seconds = 0
         self._streams_queue = []
         self._recovery_in_flight = False
+        # Phase 95-04 / CR-01: clear the YouTube-resolve-in-flight gate on stop() so
+        # a gate stranded True by a prior _play_youtube (e.g. user stops before the
+        # worker delivers) does not silently suppress future failover.emit(None).
+        # Also bump _youtube_resolve_seq so a YouTube worker still in flight when
+        # stop() is called has its seq superseded; its late failure delivery carries
+        # the old seq, is rejected as stale, and does NOT reach _try_next_stream to
+        # emit a spurious failover(None) into the stopped player (closes IN-01).
+        self._youtube_resolve_in_flight = False
+        self._youtube_resolve_seq += 1
         # WR-02 (Phase 83 code review): tear down any in-flight preroll
         # cleanly so a subsequent play() does not inherit a leaked handler-id
         # (which would fire double about-to-finish slots — one for the dead
@@ -1589,6 +1604,14 @@ class Player(QObject):
             self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
     def _set_uri(self, uri: str) -> None:
+        # Phase 95-04 / CR-01: _set_uri is the direct/non-YouTube URI funnel.
+        # Clear the in-flight gate here so a YouTube->direct restart mid-resolve cannot
+        # leave the gate stranded True. _on_youtube_resolved already clears the gate
+        # before calling _set_uri (:2076), so this is an idempotent no-op for the
+        # success path; it only matters for the direct-stream-restart path that bypasses
+        # _play_youtube entirely. The _try_next_stream gate consult runs BEFORE _set_uri,
+        # so clearing here does not suppress a legitimate gate-guarded wait.
+        self._youtube_resolve_in_flight = False
         uri = aa_normalize_stream_url(uri)  # WIN-01 / D-01: DI.fm HTTPS->HTTP at URI funnel
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
@@ -1960,10 +1983,10 @@ class Player(QObject):
         seq = self._youtube_resolve_seq
         # Phase 95-03: set the in-flight gate BEFORE spawning the worker (on the
         # main thread) so there is no race between the worker delivery and the gate
-        # check. Also stamp the in-flight generation for the resolution-failed
-        # staleness check (instance-attribute approach — no Signal arity change).
+        # check. Phase 95-04: the instance-attribute stamp (_youtube_resolve_in_flight_seq)
+        # is removed; staleness is now carried on the Signal payload (youtube_resolution_failed
+        # Signal(str, int)) — the same pattern as the success path (youtube_resolved).
         self._youtube_resolve_in_flight = True
-        self._youtube_resolve_in_flight_seq = seq
         threading.Thread(
             target=self._youtube_resolve_worker, args=(url, seq), daemon=True
         ).start()
@@ -2037,7 +2060,7 @@ class Player(QObject):
                     with yt_dlp.YoutubeDL(opts) as ydl:
                         info = ydl.extract_info(url, download=False)
                 except Exception as e:
-                    self.youtube_resolution_failed.emit(str(e))
+                    self.youtube_resolution_failed.emit(str(e), seq)  # Phase 95-04: carry seq
                     return
 
             resolved = (info or {}).get("url") or ""
@@ -2046,12 +2069,12 @@ class Player(QObject):
                 if formats:
                     resolved = formats[-1].get("url") or ""
             if not resolved:
-                self.youtube_resolution_failed.emit("No video formats returned")
+                self.youtube_resolution_failed.emit("No video formats returned", seq)  # Phase 95-04: carry seq
                 return
             is_live = bool((info or {}).get("is_live", False))
             self.youtube_resolved.emit(resolved, is_live, seq)
         except Exception as e:  # noqa: BLE001 — daemon worker must surface ALL failures
-            self.youtube_resolution_failed.emit(f"youtube resolve crashed: {e!r}")
+            self.youtube_resolution_failed.emit(f"youtube resolve crashed: {e!r}", seq)  # Phase 95-04: carry seq
 
     def _on_youtube_resolved(self, resolved_url: str, is_live: bool, seq: int = 0) -> None:
         """Main-thread handler: hand the resolved HLS URL to playbin3 and arm
@@ -2078,25 +2101,37 @@ class Player(QObject):
         self._set_uri(resolved_url)
         self._failover_timer.start(self._current_buffer_duration_s * 1000)
 
-    def _on_youtube_resolution_failed(self, msg: str) -> None:
-        """Main-thread handler: surface the error and advance the failover
-        queue.
+    def _on_youtube_resolution_failed(self, msg: str, seq: int = -1) -> None:
+        """Main-thread handler: surface the error and advance the failover queue.
 
-        Phase 95-03: uses the instance-attribute stamp approach to detect stale
-        (old-generation) failure deliveries without changing the Signal arity or
-        the FakePlayer parity contract. _youtube_resolve_in_flight_seq is captured
-        at worker-spawn time in _play_youtube alongside the gate; if it no longer
-        matches _youtube_resolve_seq, this delivery was superseded by a newer
-        edit/restart and must be ignored.
+        Phase 95-04 / CR-01: rewritten to use the CARRIED per-worker generation
+        stamp (``seq``) instead of the overwrite-prone instance attribute
+        ``_youtube_resolve_in_flight_seq`` (now removed). Mirrors the staleness
+        guard pattern in ``_on_youtube_resolved``:
+
+          - ``seq == -1`` (default): no-arg / direct test callers — pass the guard
+            unconditionally (same idiom as ``_on_youtube_resolved``'s ``seq=0``
+            default which is never != 0 without a prior restart).
+          - ``seq != -1 and seq != self._youtube_resolve_seq``: stale generation
+            (a newer edit/restart/stop superseded this worker) — early return;
+            do NOT clear the fresh gate and do NOT call ``_try_next_stream``.
+          - ``seq == self._youtube_resolve_seq``: current generation — clear the
+            gate BEFORE ``_try_next_stream`` so legitimate exhaustion
+            (empty queue → ``failover(None)``) is still reachable.
+
+        The ``-1`` sentinel lets unit tests call the slot without a seq argument
+        and still pass the guard (mirrors V16c / the original V14/V15 bool-poke
+        tests that directly call the handler without going through the Signal).
         """
-        # Phase 95-03: stale-failure guard (instance-attribute stamp approach).
-        # A stale delivery belongs to an old generation that was superseded; do NOT
-        # clear the fresh gate and do NOT call _try_next_stream (which would emit
-        # spurious failover(None) on the new generation's transiently-empty queue).
-        if self._youtube_resolve_in_flight_seq != self._youtube_resolve_seq:
-            return  # stale generation — superseded by a newer edit/restart
-        # Current generation failed: clear the gate BEFORE _try_next_stream so the
-        # legitimate exhaustion path (empty queue → failover(None)) is reachable.
+        # Phase 95-04: carried-seq staleness guard (mirrors _on_youtube_resolved).
+        # A stale delivery belongs to an old generation superseded by a newer
+        # edit/restart/stop; do NOT clear the fresh gate and do NOT call
+        # _try_next_stream (which would emit spurious failover(None) on the new
+        # generation's transiently-empty queue).
+        if seq != -1 and seq != self._youtube_resolve_seq:
+            return  # stale generation — superseded
+        # Current generation (or no-arg caller) failed: clear the gate BEFORE
+        # _try_next_stream so the legitimate exhaustion path is reachable.
         self._youtube_resolve_in_flight = False
         self.playback_error.emit(f"YouTube resolve failed: {msg}")
         self._try_next_stream()

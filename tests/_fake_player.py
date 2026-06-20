@@ -62,7 +62,7 @@ class FakePlayer(QObject):
     offline                    = Signal(str)
     twitch_resolved            = Signal(str)
     youtube_resolved           = Signal(str, bool, int)  # Phase 95: (resolved_url, is_live, resolve_seq) — int carries the _youtube_resolve_seq generation guard (mirrors _preroll_about_to_finish_requested)
-    youtube_resolution_failed  = Signal(str)
+    youtube_resolution_failed  = Signal(str, int)  # Phase 95-04: widened to (msg, resolve_seq) — mirrors youtube_resolved stamp pattern (CR-01 fix)
     playback_error             = Signal(str)
     cookies_cleared            = Signal(str)
     elapsed_updated            = Signal(int)

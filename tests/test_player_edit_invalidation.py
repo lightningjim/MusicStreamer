@@ -644,10 +644,13 @@ def test_v16_stale_resolution_failed_does_not_clear_gate_or_advance(qtbot):
         p._play_youtube("http://yt/station-a")
     stale_seq = p._youtube_resolve_seq  # capture the OLD generation's seq
 
-    # Start a new generation (simulating an edit-restart or a second _play_youtube).
+    # Simulate a new generation started by play() (which bumps _youtube_resolve_seq
+    # before calling _try_next_stream which eventually calls _play_youtube).
+    # In production, play() bumps the seq; _play_youtube does not bump it itself.
+    p._youtube_resolve_seq += 1  # simulate play()'s bump advancing the generation
     with patch("musicstreamer.player.threading.Thread"):
         p._play_youtube("http://yt/station-a-v2")
-    # Now _youtube_resolve_seq > stale_seq and the fresh gate is set.
+    # Now _youtube_resolve_seq > stale_seq and the fresh gate is set for the new gen.
 
     p._streams_queue = []  # empty — stale failure must NOT exhaust this
 
