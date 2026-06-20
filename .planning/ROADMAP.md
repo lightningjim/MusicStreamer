@@ -625,12 +625,13 @@ Plans:
 **Goal:** First play after editing a station's stream URL always uses the saved URL (no "stream exhausted"), by invalidating the Player's stale cached state (`_streams_queue`/`_current_stream`/loaded URI/in-flight YouTube resolution) on edit and restarting immediately when the actively-playing stream's URL changed (D-01..D-05). No spurious "Stream exhausted" toast flashes during the edit->restart transition (a stale pre-restart error-recovery from the OLD exhausted stream is suppressed).
 **Requirements**: none mapped (TBD); behavior contract is D-01..D-05 in 95-CONTEXT.md
 **Depends on:** Phase 94
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
 
 - [x] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
 - [x] 95-02-PLAN.md — gap closure: _recovery_seq generation guard on the error-recovery path, suppressing the stale pre-restart "Stream exhausted" toast (TDD, 2 tasks)
+- [ ] 95-03-PLAN.md — gap closure: _youtube_resolve_in_flight gate suppressing the residual current-generation "Stream exhausted" toast during an in-flight async YouTube resolve (TDD, 2 tasks)
 
 ### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
 
