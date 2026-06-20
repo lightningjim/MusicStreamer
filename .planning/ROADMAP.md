@@ -753,9 +753,9 @@ Phase directories: `.planning/milestones/v2.1-phases/`
 
 **Goal:** When a settings backup `.zip` fails to open (`zipfile.BadZipFile` in `settings_export.preview_import`, currently the generic "Not a valid ZIP archive"), detect the signature of a text-mode/CRLF-corrupted transfer (starts with `PK` zip magic but raises `BadZipFile`, with injected `0x0D 0x0A` runs) and surface an actionable message: "This backup looks corrupted by a text-mode file transfer. Re-copy it in binary mode and try again." Scope is DETECTION + GUIDANCE ONLY — no auto-repair (collapsing `0x0D0A`→`0x0A` would clobber legitimate binary byte pairs = data-loss footgun). Origin: Phase 88 Win11 VM UAT Gap G4 (Linux→Windows backup failed import; root cause was the VM share transferring in text mode, not a build defect). Export/import code is OS-agnostic stdlib `zipfile`; this is purely UX/error-clarity. Likely a small change in `musicstreamer/settings_export.py:256-258`. Non-blocking enhancement.
 **Requirements:** REQ-999.1-DETECT, REQ-999.1-FALLBACK, REQ-999.1-DIALOG
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
 - [x] 999.1-01-PLAN.md — Detect text-mode CRLF corruption in preview_import (TextModeCorruptionError + two-tier fallback) with unit tests
-- [ ] 999.1-02-PLAN.md — Surface the D-05 recovery modal via the sentinel discriminator in the import-preview worker + handler
+- [x] 999.1-02-PLAN.md — Surface the D-05 recovery modal via the sentinel discriminator in the import-preview worker + handler
