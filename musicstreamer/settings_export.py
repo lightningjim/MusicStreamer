@@ -26,6 +26,49 @@ from musicstreamer.models import Favorite, Station
 from musicstreamer.repo import VALID_COVER_ART_SOURCES, Repo
 
 
+class TextModeCorruptionError(ValueError):
+    """Raised when a ZIP backup fails to open and shows CRLF-injection signs.
+
+    Indicates the file was transferred in text mode (LF -> CRLF conversion by
+    the transfer layer). Recovery: re-copy the file in binary mode.
+
+    Subclasses ValueError so existing broad handlers still treat it as an
+    import-validation error (D-03).
+    """
+
+
+def _is_text_mode_corrupted_zip(path: str) -> bool:
+    """Return True iff the file at *path* has the fingerprint of a ZIP that
+    was corrupted by a text-mode file transfer (LF 0x0A rewritten to CRLF
+    0x0D 0x0A by the transfer layer).
+
+    Detection requires ALL of:
+    - First 4 bytes are the ZIP local-file-header signature 0x50 0x4B 0x03 0x04.
+      (Bytes 2-3 are 0x03/0x04 — neither is 0x0A — so text-mode never alters
+      the magic. The signature is thus reliable post-corruption.)
+    - The file contains at least one 0x0D 0x0A byte pair (injected by the
+      LF->CRLF conversion).
+
+    This function is called only after zipfile.BadZipFile is raised, so a
+    legitimate binary ZIP that happens to contain 0x0D0A in its compressed
+    payload cannot reach here (it would have opened successfully).
+
+    The full file is read because DEFLATE output for small payloads may place
+    the first 0x0A byte past the 512-byte mark. Settings ZIPs are small
+    (typically <500 KB) so this is not a performance concern.
+
+    SECURITY (T-999.1-01, T-999.1-02): this is a RAW-byte scan only — it does
+    NOT call zipfile, decompress, or otherwise parse the attacker-controlled
+    zip internals. No byte-rewriting or auto-repair is performed (D-01).
+    """
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read()
+    except OSError:
+        return False
+    return data[:4] == b"PK\x03\x04" and b"\x0d\x0a" in data
+
+
 def _coerce_cover_art_source(raw: object) -> str:
     """WR-03 (Phase 73): coerce an imported cover_art_source value into a
     valid enum string. Unknown/typo'd values fall back to 'auto' rather
@@ -255,7 +298,11 @@ def preview_import(zip_path: str, repo: Repo) -> ImportPreview:
     try:
         zf_handle = zipfile.ZipFile(zip_path, "r")
     except zipfile.BadZipFile:
-        raise ValueError("Not a valid ZIP archive")
+        if _is_text_mode_corrupted_zip(zip_path):
+            raise TextModeCorruptionError("TEXT_MODE_ZIP")
+        raise ValueError(
+            "Not a valid ZIP archive — the file may be incomplete or corrupted."
+        )
 
     with zf_handle as zf:
         # Security: reject path traversal members (WR-02 helper)
