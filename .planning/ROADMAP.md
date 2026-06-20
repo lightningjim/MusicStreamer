@@ -632,6 +632,16 @@ Plans:
 - [x] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
 - [x] 95-02-PLAN.md — gap closure: _recovery_seq generation guard on the error-recovery path, suppressing the stale pre-restart "Stream exhausted" toast (TDD, 2 tasks)
 
+### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 96
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 97 to break down)
+
 ---
 
 ## Historical Phases (Collapsed)
