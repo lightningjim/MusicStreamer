@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: milestone_complete
-stopped_at: Milestone complete (Phase 999.1 was final phase)
-last_updated: 2026-06-20T03:37:09.497Z
-last_activity: 2026-06-20 -- Phase 999.1 execution started
+status: executing
+stopped_at: "Phase 999.1 verified — UAT 2/2 passed, verification status: passed (8/8). Security review (no SECURITY.md) gating final completion."
+last_updated: "2026-06-20T18:35:41.247Z"
+last_activity: 2026-06-20 -- Phase 95 execution started
 progress:
   total_phases: 22
   completed_phases: 21
-  total_plans: 70
-  completed_plans: 73
+  total_plans: 71
+  completed_plans: 71
   percent: 95
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Milestone complete
+**Current focus:** Phase 95 — yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Milestone complete
-Last activity: 2026-06-20
+Phase: 95 (yt-url-change-replay-bug-post-edit-stream-exhausted-on-first) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 95
+Last activity: 2026-06-20 -- Phase 95 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -206,10 +206,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 95 P01 | 25min | 3 tasks | 5 files |
 | Phase 95 P02 | 4m | 2 tasks | 3 files |
 | Phase 999.1 P02 | 6m | 2 tasks | 1 files |
+| Phase 95 P03 | 3m | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-20T03:32:04.317Z
+Last session: 2026-06-20T18:35:41.236Z
 Stopped at: Phase 999.1 verified — UAT 2/2 passed, verification status: passed (8/8). Security review (no SECURITY.md) gating final completion.
 Resume file: .planning/phases/999.1-friendlier-settings-import-error-for-text-mode-corrupted-zip/999.1-VERIFICATION.md
 
