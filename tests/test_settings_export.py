@@ -1476,6 +1476,22 @@ def test_crlf_detection_non_zip(tmp_path):
     assert _is_text_mode_corrupted_zip(str(non_zip)) is False
 
 
+def test_text_mode_error_is_value_error_subclass():
+    """IN-01: TextModeCorruptionError MUST remain a ValueError subclass so existing
+    broad `except ValueError` import handlers still treat it as a validation error (D-03)."""
+    assert issubclass(TextModeCorruptionError, ValueError)
+
+
+def test_detection_bounded_read_large_file(tmp_path):
+    """T-999.1-01: detection reads a bounded prefix — a huge non-text-mode file is
+    classified False without reading the whole file into RAM (regression guard for WR-01)."""
+    # 5 MiB > the 4 MiB read cap; starts with PK magic but contains no 0x0D0A pair,
+    # so detection must return False (and must not depend on reading past the cap).
+    big = tmp_path / "huge.bin"
+    big.write_bytes(b"PK\x03\x04" + b"\x41" * (5 * 1024 * 1024))
+    assert _is_text_mode_corrupted_zip(str(big)) is False
+
+
 def test_preview_raises_text_mode_error(repo, tmp_path):
     """RAISE-01: preview_import raises TextModeCorruptionError for a text-mode-corrupted zip."""
     # Build a valid minimal zip, then mangle it so zipfile.BadZipFile is triggered

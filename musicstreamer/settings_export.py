@@ -53,17 +53,23 @@ def _is_text_mode_corrupted_zip(path: str) -> bool:
     legitimate binary ZIP that happens to contain 0x0D0A in its compressed
     payload cannot reach here (it would have opened successfully).
 
-    The full file is read because DEFLATE output for small payloads may place
-    the first 0x0A byte past the 512-byte mark. Settings ZIPs are small
-    (typically <500 KB) so this is not a performance concern.
+    A bounded prefix is read (not the whole file): DEFLATE output for small
+    payloads may place the first 0x0A byte past the 512-byte mark, so a small
+    window is too narrow, but settings ZIPs are small (typically <500 KB). The
+    4 MiB cap comfortably covers any real backup while preventing the process
+    from pulling a pathological multi-GB file (e.g. an ISO mis-selected via the
+    advisory *.zip picker) fully into RAM (T-999.1-01 bounded-read mitigation).
 
     SECURITY (T-999.1-01, T-999.1-02): this is a RAW-byte scan only — it does
     NOT call zipfile, decompress, or otherwise parse the attacker-controlled
     zip internals. No byte-rewriting or auto-repair is performed (D-01).
     """
+    # Bounded read (T-999.1-01): cap at 4 MiB so a mis-selected huge file cannot
+    # OOM the process. Far larger than any real settings backup.
+    _DETECT_READ_CAP = 4 * 1024 * 1024
     try:
         with open(path, "rb") as fh:
-            data = fh.read()
+            data = fh.read(_DETECT_READ_CAP)
     except OSError:
         return False
     return data[:4] == b"PK\x03\x04" and b"\x0d\x0a" in data
