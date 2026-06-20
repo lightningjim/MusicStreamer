@@ -546,7 +546,7 @@ Plans:
 | 92. FIX-PLS | 1/1 | Complete   | 2026-06-18 |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
-| 95. YT URL-Change Replay Bug | 3/3 | Blocked (CR-01: gate leak; plan 95-04) | 2026-06-20 |
+| 95. YT URL-Change Replay Bug | 4/4 | Complete   | 2026-06-20 |
 
 ### Dependency Graph (Tier Summary)
 
@@ -632,7 +632,7 @@ Plans:
 - [x] 95-01-PLAN.md — Player.invalidate_for_edit + YT resolve-seq guard + MainWindow edit-junction wiring (TDD, 3 tasks)
 - [x] 95-02-PLAN.md — gap closure: _recovery_seq generation guard on the error-recovery path, suppressing the stale pre-restart "Stream exhausted" toast (TDD, 2 tasks)
 - [x] 95-03-PLAN.md — gap closure: _youtube_resolve_in_flight gate suppressing the residual current-generation "Stream exhausted" toast during an in-flight async YouTube resolve (TDD, 2 tasks)
-- [ ] 95-04-PLAN.md — gap closure (CR-01): carried-seq stamp on youtube_resolution_failed + play() resolve-seq bump + clear gate on _set_uri/stop() — fixes the in-flight gate leak (YouTube->direct restart) and spurious same-gen A->B exhaustion (TDD, 2 tasks)
+- [x] 95-04-PLAN.md — gap closure (CR-01): carried-seq stamp on youtube_resolution_failed + play() resolve-seq bump + clear gate on _set_uri/stop() — fixes the in-flight gate leak (YouTube->direct restart) and spurious same-gen A->B exhaustion (TDD, 2 tasks)
 
 ### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
 
