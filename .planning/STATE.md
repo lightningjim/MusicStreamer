@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 999.1 context gathered
-last_updated: "2026-06-20T02:53:16.070Z"
-last_activity: 2026-06-19 -- Phase 95 execution started
+last_updated: "2026-06-20T02:58:25.215Z"
+last_activity: 2026-06-20 -- Phase 999.1 execution started
 progress:
   total_phases: 22
   completed_phases: 20
   total_plans: 70
-  completed_plans: 68
+  completed_plans: 69
   percent: 91
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 95 — yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
+**Current focus:** Phase 999.1 — friendlier-settings-import-error-for-text-mode-corrupted-zip
 
 ## Current Position
 
-Phase: 95 (yt-url-change-replay-bug-post-edit-stream-exhausted-on-first) — EXECUTING
+Phase: 999.1 (friendlier-settings-import-error-for-text-mode-corrupted-zip) — EXECUTING
 Plan: 2 of 2
-Status: Executing Phase 95
-Last activity: 2026-06-19 -- Phase 95 execution started
+Status: Executing Phase 999.1
+Last activity: 2026-06-20 -- Phase 999.1 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -146,6 +146,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: Phase 95: invalidate_for_edit reuses Player.play(station) for the D-01 restart — no hand-rolled queue reset
 - [Phase ?]: Phase 95: edit URL-change detection compares stored StationStream.url .strip(), never the resolved playbin3 URI
 - [Phase ?]: Phase 95: youtube_resolved widened to Signal(str, bool, int); _youtube_resolve_seq guard no-ops stale YT resolutions
+- [Phase ?]: Phase 999.1 Plan 01: extended BadZipFile except scope to cover member-read site
 
 ### Decisions (v2.1, preserved for context)
 
@@ -207,7 +208,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-20T02:34:01.500Z
+Last session: 2026-06-20T02:58:11.331Z
 Stopped at: Phase 999.1 context gathered
 Resume file: .planning/phases/999.1-friendlier-settings-import-error-for-text-mode-corrupted-zip/999.1-CONTEXT.md
 
