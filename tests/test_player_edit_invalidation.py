@@ -366,24 +366,30 @@ def test_v11_stale_recovery_suppressed_after_edit_restart(qtbot):
 
 def test_v12_genuine_current_gen_exhaustion_still_toasts(qtbot):
     """A recovery carrying the CURRENT _recovery_seq must still reach
-    _try_next_stream() and emit failover(None) on an empty queue.
+    _try_next_stream() and emit failover(None) on an empty queue, when no
+    YouTube resolve is in flight (genuine exhaustion, not a transient race).
 
     This is the hard constraint: the guard must suppress ONLY stale (pre-restart)
     recoveries, never a genuine current-generation exhaustion whose error was
-    posted AFTER the latest restart.
+    posted AFTER the latest restart AND no async YouTube resolve is pending.
 
     The EXPLICIT current-seq argument (not the -1 default) is required so this
     genuinely exercises the pass-through branch of the staleness check rather
     than the sentinel bypass.
+
+    Reconciled for Phase 95-03: explicitly sets _youtube_resolve_in_flight=False
+    (genuine exhaustion — no resolve in flight) so the assertions still hold under
+    the new in-flight gate. When a resolve IS in flight, V14/V15 cover that case.
     """
     p = make_player(qtbot)
     old = make_stream(10, position=1, quality="hi", url="http://yt/old")
     station = make_station_with_streams([old])
     _simulate_playing(p, station, old)
 
-    # Empty queue + guard clear: post-restart state before resolution arrives.
+    # Empty queue + guard clear + NO resolve in flight: genuine exhaustion state.
     p._streams_queue = []
     p._recovery_in_flight = False
+    p._youtube_resolve_in_flight = False  # Phase 95-03: explicit — genuine exhaustion
 
     # Part A: explicit current-seq MUST call _try_next_stream (pass-through).
     with patch.object(p, "_try_next_stream", MagicMock()) as mock_try_next:
@@ -392,6 +398,7 @@ def test_v12_genuine_current_gen_exhaustion_still_toasts(qtbot):
 
     # Part B: explicit current-seq on an empty queue MUST emit failover(None).
     p._recovery_in_flight = False  # reset after Part A
+    p._youtube_resolve_in_flight = False  # ensure gate still clear for Part B
     with qtbot.waitSignal(p.failover, timeout=1000) as blocker:
         p._handle_gst_error_recovery(p._recovery_seq)
     assert blocker.args == [None]
@@ -443,3 +450,201 @@ def test_v13_metadata_only_edit_leaves_recovery_unaffected(qtbot):
         p._handle_gst_error_recovery(p._recovery_seq)
         # The recovery should have advanced to the sibling stream.
         set_uri_spy.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# V14 (Phase 95-03): resolve-in-flight gate suppresses transient false exhaustion
+# ---------------------------------------------------------------------------
+
+def test_v14_resolve_in_flight_gates_false_exhaustion(qtbot):
+    """While a YouTube resolve is in flight, neither _handle_gst_error_recovery
+    nor a direct _try_next_stream() call may emit failover(None).
+
+    Reproduces the residual Phase 95 UAT bug: the old stream's bus error arrives
+    AFTER the edit-restart (carrying the CURRENT _recovery_seq), so the 95-02
+    _recovery_seq guard cannot block it. The new 95-03 _youtube_resolve_in_flight
+    gate is the fix: the pending async resolve owns the next state transition.
+
+    Part (a): _handle_gst_error_recovery with current-gen stamp, gate set ->
+              _try_next_stream NOT called (gate early-returns).
+    Part (b): direct _try_next_stream() call, gate set, empty queue ->
+              failover.emit(None) NOT emitted (the gate short-circuits before
+              the failover line).
+    """
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    # Post-restart state: empty queue, guard clear, but resolve IS in flight.
+    p._streams_queue = []
+    p._recovery_in_flight = False
+    p._youtube_resolve_in_flight = True  # Phase 95-03: resolve pending
+
+    # Part (a): current-gen recovery must NOT advance to _try_next_stream.
+    with patch.object(p, "_try_next_stream", MagicMock()) as mock_try_next:
+        p._handle_gst_error_recovery(p._recovery_seq)
+        mock_try_next.assert_not_called()  # gate must short-circuit before advance
+
+    # Part (b): direct _try_next_stream() with gate set must NOT emit failover(None).
+    p._youtube_resolve_in_flight = True  # still in flight for Part (b)
+    failover_emitted = []
+
+    def _record_failover(station_or_none):
+        failover_emitted.append(station_or_none)
+
+    p.failover.connect(_record_failover)
+    p._try_next_stream()
+    p.failover.disconnect(_record_failover)
+    assert failover_emitted == [], (
+        f"failover.emit(None) fired while resolve in flight: {failover_emitted}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# V15 (Phase 95-03): genuine exhaustion still toasts when no resolve in flight
+# ---------------------------------------------------------------------------
+
+def test_v15_genuine_exhaustion_toasts_when_no_resolve_in_flight(qtbot):
+    """When the resolve-in-flight gate is clear AND the queue is empty, a
+    current-generation error MUST still emit failover(None) exactly once.
+
+    Hard constraint (D-03): the in-flight gate must not over-suppress. An
+    all-streams-failed exhaustion must still surface as "Stream exhausted".
+
+    Uses qtbot.waitSignal for deterministic signal assertion (mirrors V12 Part B).
+    """
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    # Post-restart state: empty queue, guard clear, resolve settled (gate False).
+    p._streams_queue = []
+    p._recovery_in_flight = False
+    p._youtube_resolve_in_flight = False  # gate clear -> genuine exhaustion path
+
+    # Current-gen error recovery -> _try_next_stream -> failover(None) exactly once.
+    with qtbot.waitSignal(p.failover, timeout=1000) as blocker:
+        p._handle_gst_error_recovery(p._recovery_seq)
+    assert blocker.args == [None], (
+        f"Expected failover(None), got: {blocker.args}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# V16 (Phase 95-03): gate lifecycle — set on spawn, seq-matched clear, stale no-ops
+# ---------------------------------------------------------------------------
+
+def test_v16_gate_cleared_by_current_gen_resolved_success(qtbot):
+    """_on_youtube_resolved with the CURRENT generation clears the in-flight gate
+    (current generation settled — success path)."""
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    p._youtube_resolve_in_flight = True  # gate set as if _play_youtube was called
+
+    # Patch pipeline-touching helpers so no real GStreamer calls occur.
+    with patch.object(p, "_set_uri", MagicMock()), \
+         patch.object(p, "_failover_timer", MagicMock()):
+        # Deliver current-generation success.
+        p._on_youtube_resolved("http://yt/RESOLVED", False, p._youtube_resolve_seq)
+
+    assert p._youtube_resolve_in_flight is False, (
+        "Gate must be cleared by a current-generation _on_youtube_resolved"
+    )
+
+
+def test_v16_gate_not_cleared_by_stale_resolved_success(qtbot):
+    """_on_youtube_resolved with a STALE generation must NOT clear the in-flight gate
+    and must NOT call _set_uri (re-uses the 95-01 V5 staleness idiom)."""
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    # Capture a stale seq, then bump the current generation (simulating an edit).
+    stale_seq = p._youtube_resolve_seq
+    p._youtube_resolve_seq += 1  # new generation started
+
+    p._youtube_resolve_in_flight = True  # fresh gate set for the new generation
+
+    with patch.object(p, "_set_uri", MagicMock()) as set_uri_spy:
+        # Deliver a stale resolution (old generation).
+        p._on_youtube_resolved("http://yt/STALE", False, stale_seq)
+        set_uri_spy.assert_not_called()  # stale -> ignored, _set_uri NOT called
+
+    assert p._youtube_resolve_in_flight is True, (
+        "Gate must NOT be cleared by a stale (old-generation) _on_youtube_resolved"
+    )
+
+
+def test_v16_gate_cleared_by_current_gen_resolution_failed(qtbot):
+    """_on_youtube_resolution_failed for the CURRENT generation clears the gate
+    (failure path) AND allows _try_next_stream to run (legitimate advance/exhaust)."""
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    p._streams_queue = []  # empty -> _try_next_stream will exhaust to failover(None)
+    p._youtube_resolve_in_flight = True  # gate set as if resolve was pending
+
+    # Deliver current-generation failure.
+    # After the gate clears, _try_next_stream -> failover(None) (legitimate exhaust).
+    with qtbot.waitSignal(p.failover, timeout=1000) as blocker:
+        p._on_youtube_resolution_failed("timed out")
+
+    assert p._youtube_resolve_in_flight is False, (
+        "Gate must be cleared by a current-generation _on_youtube_resolution_failed"
+    )
+    assert blocker.args == [None], (
+        f"Expected failover(None) after current-gen failure, got: {blocker.args}"
+    )
+
+
+def test_v16_stale_resolution_failed_does_not_clear_gate_or_advance(qtbot):
+    """A STALE (old-generation) _on_youtube_resolution_failed delivery must NOT
+    clear the in-flight gate and must NOT call _try_next_stream.
+
+    This guards against a race where the old generation's failure callback arrives
+    after the new generation's resolve has already been spawned — the stale failure
+    must not declare exhaustion on the new generation's transiently-empty queue."""
+    p = make_player(qtbot)
+    old = make_stream(10, position=1, quality="hi", url="http://yt/old")
+    station = make_station_with_streams([old])
+    _simulate_playing(p, station, old)
+
+    # Simulate: old generation failed in flight (stale), new generation spawned.
+    # The gate was set for the NEW generation when _play_youtube was called.
+    p._youtube_resolve_seq += 1  # new generation started (simulating edit-restart)
+    p._youtube_resolve_in_flight = True  # gate set for the new generation
+
+    p._streams_queue = []  # empty — stale failure must NOT exhaust this
+
+    with patch.object(p, "_try_next_stream", MagicMock()) as mock_try_next:
+        # The _youtube_resolve_in_flight_seq stored at spawn time is the old gen.
+        # Deliver a stale failure (old generation stamp via instance attr).
+        # We simulate staleness by temporarily forcing the stored in-flight seq
+        # to the OLD generation value before calling the slot.
+        # Per the RECOMMENDED instance-attribute approach, the player stores the
+        # in-flight generation when setting the gate; we directly manipulate that
+        # attr here to produce the stale-delivery scenario.
+        if hasattr(p, "_youtube_resolve_in_flight_seq"):
+            # Instance-attribute stamp approach: the stale delivery seq != current.
+            old_stored = p._youtube_resolve_in_flight_seq
+            # The slot will compare _youtube_resolve_in_flight_seq vs _youtube_resolve_seq
+            # Since they now differ (stale stored != current), it should no-op.
+            p._on_youtube_resolution_failed("old stream ended")
+        else:
+            # Fallback: if the implementation uses a different mechanism,
+            # this test should still verify the gate remains True.
+            p._on_youtube_resolution_failed("old stream ended")
+
+        mock_try_next.assert_not_called()  # stale failure must NOT advance queue
+
+    assert p._youtube_resolve_in_flight is True, (
+        "Gate must NOT be cleared by a stale _on_youtube_resolution_failed"
+    )
