@@ -4,7 +4,7 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: "Phase 999.1 verified — UAT 2/2 passed, verification status: passed (8/8). Security review (no SECURITY.md) gating final completion."
-last_updated: "2026-06-20T19:25:48.904Z"
+last_updated: "2026-06-20T19:36:25.893Z"
 last_activity: 2026-06-20 -- Phase 95 execution started
 progress:
   total_phases: 22
@@ -177,7 +177,6 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 85a (Linux spike) is HIGH-RISK gate: linuxdeploy-plugin-gstreamer + conda paths feasibility must be verified BEFORE Phase 85 recipe lock
 - Phase 86 (Flatpak) depends on Phase 91 (FIX-MPRIS) closure for in-sandbox MPRIS verification
 - Open user-input questions (from research SUMMARY.md §Open Questions): AppImage zsync update URL host, themed-day visual treatment scope (logo-only vs accent retint), zero-token wording final pick
-- Phase 95 NOT complete despite 3/3 plans executed. Code review (95-REVIEW.md, CR-01 BLOCKER, verified against source 2026-06-20) found the 95-03 _youtube_resolve_in_flight gate has correctness holes: (1) PERMANENT LEAK — gate set True in _play_youtube (player.py:1965), cleared only at :2076/:2100 behind the seq-match guard; play()/_set_uri/stop/_cancel_timers never reset it, so editing a playing YouTube station to a non-YouTube/direct URL mid-resolve strands the gate True for the session and silently suppresses ALL future 'Stream exhausted' failovers; (2) SPURIOUS EXHAUSTION — play() does not bump _youtube_resolve_seq (only invalidate_for_edit does, :2136) and youtube_resolution_failed=Signal(str) (:274) carries no stamp, so a same-generation YouTube A->B switch mis-classifies the old worker failure as current, clears B's fresh gate and emits failover.emit(None). V16 test is false-green (bumps seq without calling _play_youtube). FIX (plan as 95-04 gap closure): add seq to youtube_resolution_failed Signal, bump generation in play(), clear gate on restart paths that bypass _play_youtube, add a test that drives _play_youtube's arming. Original exact UAT repro (edit -> new working YouTube URL -> success) IS fixed.
 
 ## Deferred Items
 
