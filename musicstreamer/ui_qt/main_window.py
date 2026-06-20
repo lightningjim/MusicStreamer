@@ -117,6 +117,11 @@ class _ImportPreviewWorker(QThread):
             repo = Repo(db_connect())
             result = settings_export.preview_import(self._zip_path, repo)
             self.preview_finished.emit(result)
+        except settings_export.TextModeCorruptionError:
+            # D-02: emit the sentinel so _on_import_preview_error shows a modal
+            # dialog instead of the truncating toast.  Mirrors the "auth_expired"
+            # idiom in _GbsImportWorker (main_window.py:147-148).
+            self.error.emit("TEXT_MODE_ZIP")
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -1527,6 +1532,17 @@ class MainWindow(QMainWindow):
 
     def _on_import_preview_error(self, msg: str) -> None:
         self._end_busy()
+        # D-02/D-05: text-mode-corrupted ZIP gets a modal dialog (not the toast)
+        # so the full recovery instruction is readable and must be acknowledged.
+        # Sentinel emitted by _ImportPreviewWorker.run() mirrors "auth_expired" idiom.
+        if msg == "TEXT_MODE_ZIP":
+            QMessageBox.warning(
+                self,
+                "Settings import failed",
+                "This backup looks corrupted by a text-mode file transfer. "
+                "Re-copy it in binary mode and try again.",
+            )
+            return
         # IN-01: include the specific ValueError detail (truncated) so the user
         # can distinguish between "Unsupported version: 99", "Missing
         # settings.json", "Unsafe path in archive: ...", etc.
