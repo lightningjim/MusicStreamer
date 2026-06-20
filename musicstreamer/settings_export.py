@@ -297,21 +297,22 @@ def preview_import(zip_path: str, repo: Repo) -> ImportPreview:
     """
     try:
         zf_handle = zipfile.ZipFile(zip_path, "r")
+        with zf_handle as zf:
+            # Security: reject path traversal members (WR-02 helper)
+            _validate_zip_members(zf)
+
+            if "settings.json" not in zf.namelist():
+                raise ValueError("Missing settings.json")
+
+            payload = json.loads(zf.read("settings.json"))
+    except (ValueError, KeyError):
+        raise
     except zipfile.BadZipFile:
         if _is_text_mode_corrupted_zip(zip_path):
             raise TextModeCorruptionError("TEXT_MODE_ZIP")
         raise ValueError(
             "Not a valid ZIP archive — the file may be incomplete or corrupted."
         )
-
-    with zf_handle as zf:
-        # Security: reject path traversal members (WR-02 helper)
-        _validate_zip_members(zf)
-
-        if "settings.json" not in zf.namelist():
-            raise ValueError("Missing settings.json")
-
-        payload = json.loads(zf.read("settings.json"))
 
     if payload.get("version") != 1:
         raise ValueError(f"Unsupported version: {payload.get('version')}")

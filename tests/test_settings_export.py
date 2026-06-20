@@ -15,6 +15,8 @@ from musicstreamer.repo import Repo, db_init
 from musicstreamer.settings_export import (
     ImportDetailRow,
     ImportPreview,
+    TextModeCorruptionError,
+    _is_text_mode_corrupted_zip,
     build_zip,
     commit_import,
     preview_import,
@@ -1416,3 +1418,75 @@ def test_import_replace_missing_cover_art_source_defaults_to_auto(repo, tmp_path
     stations = repo.list_stations()
     s = next(x for x in stations if x.name == "Replace Me")
     assert s.cover_art_source == "auto"
+
+
+# ---------------------------------------------------------------------------
+# Text-mode corruption detection tests (Phase 999.1)
+# No PySide6 / Qt imports — pure stdlib, headless-safe.
+# ---------------------------------------------------------------------------
+
+
+def _make_crlf_mangled(src_bytes: bytes) -> bytes:
+    """Replace each lone 0x0A (not already preceded by 0x0D) with 0x0D 0x0A.
+
+    Mirrors what a text-mode file transfer does to a binary file: every bare
+    LF is rewritten as CRLF, injecting 0x0D bytes that corrupt binary ZIP
+    structure.
+    """
+    result = bytearray()
+    for i, byte in enumerate(src_bytes):
+        if byte == 0x0A and (i == 0 or src_bytes[i - 1] != 0x0D):
+            result.append(0x0D)
+        result.append(byte)
+    return bytes(result)
+
+
+def test_crlf_detection_text_mode_zip(tmp_path):
+    """DET-01: _is_text_mode_corrupted_zip returns True for PK-magic zip with CRLF injected."""
+    # Build a valid minimal zip
+    valid_zip = _make_import_zip(tmp_path, _default_payload())
+    original_bytes = valid_zip.read_bytes()
+
+    # Mangle: replace lone LF -> CRLF (as a text-mode transfer would)
+    mangled_bytes = _make_crlf_mangled(original_bytes)
+
+    mangled_path = tmp_path / "mangled.zip"
+    mangled_path.write_bytes(mangled_bytes)
+
+    assert _is_text_mode_corrupted_zip(str(mangled_path)) is True
+
+
+def test_crlf_detection_truncated_zip(tmp_path):
+    """DET-02: _is_text_mode_corrupted_zip returns False for PK-magic bytes with no CRLF pair."""
+    # Starts with PK magic but contains no 0x0D 0x0A pair (simulates a truncated/broken zip)
+    fake_zip = tmp_path / "truncated.zip"
+    # Construct bytes: PK\x03\x04 header + filler that contains no 0x0D0A
+    data = b"PK\x03\x04" + b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0b\x0c\x0e\x0f"
+    fake_zip.write_bytes(data)
+
+    assert _is_text_mode_corrupted_zip(str(fake_zip)) is False
+
+
+def test_crlf_detection_non_zip(tmp_path):
+    """DET-03: _is_text_mode_corrupted_zip returns False for a file with CRLF but no PK magic."""
+    # Contains 0x0D 0x0A but does not start with the ZIP local-file-header magic
+    non_zip = tmp_path / "textfile.txt"
+    non_zip.write_bytes(b"This is a text file\x0d\x0a with CRLF line endings\x0d\x0a but no ZIP magic.")
+
+    assert _is_text_mode_corrupted_zip(str(non_zip)) is False
+
+
+def test_preview_raises_text_mode_error(repo, tmp_path):
+    """RAISE-01: preview_import raises TextModeCorruptionError for a text-mode-corrupted zip."""
+    # Build a valid minimal zip, then mangle it so zipfile.BadZipFile is triggered
+    # and _is_text_mode_corrupted_zip returns True
+    valid_zip = _make_import_zip(tmp_path, _default_payload())
+    original_bytes = valid_zip.read_bytes()
+
+    mangled_bytes = _make_crlf_mangled(original_bytes)
+
+    mangled_path = tmp_path / "mangled_preview.zip"
+    mangled_path.write_bytes(mangled_bytes)
+
+    with pytest.raises(TextModeCorruptionError):
+        preview_import(str(mangled_path), repo)
