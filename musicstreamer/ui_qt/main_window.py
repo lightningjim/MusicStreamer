@@ -78,6 +78,7 @@ from musicstreamer.ui_qt.accounts_dialog import AccountsDialog
 from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
 from musicstreamer.ui_qt.discovery_dialog import DiscoveryDialog
 from musicstreamer.ui_qt.import_dialog import ImportDialog
+from musicstreamer.ui_qt.live_refresh_dialog import LiveRefreshDialog  # Phase 96 D-04
 from musicstreamer.ui_qt.now_playing_panel import NowPlayingPanel
 from musicstreamer.ui_qt.station_list_panel import StationListPanel
 from musicstreamer.ui_qt.station_list_peek_overlay import StationListPeekOverlay
@@ -400,7 +401,7 @@ class MainWindow(QMainWindow):
         self._splitter = QSplitter(Qt.Horizontal, self)
         self._splitter.setChildrenCollapsible(False)
 
-        self.station_panel = StationListPanel(repo, parent=self._splitter)
+        self.station_panel = StationListPanel(repo, parent=self._splitter, node_runtime=self._node_runtime)  # Phase 96 D-09
         self.station_panel.setMinimumWidth(280)
 
         self.now_playing = NowPlayingPanel(player, repo, parent=self._splitter)
@@ -548,6 +549,8 @@ class MainWindow(QMainWindow):
         self.station_panel.edit_requested.connect(self._on_edit_requested)
         # Phase 999.1 D-02: "+" button in panel header shares MainWindow slot
         self.station_panel.new_station_requested.connect(self._on_new_station_clicked)
+        # Phase 96 D-04: provider right-click "Refresh live streams…"
+        self.station_panel.provider_refresh_requested.connect(self._on_provider_refresh_requested)
 
         # Plan 39: failover → stream picker sync
         self._player.failover.connect(self.now_playing._sync_stream_picker)
@@ -1348,6 +1351,37 @@ class MainWindow(QMainWindow):
         # Phase 51 / D-09: re-open editor for sibling when user clicks "Also on:" link.
         dlg.navigate_to_sibling.connect(self._on_navigate_to_sibling)
         dlg.sibling_toast.connect(self.show_toast)   # Phase 71 / D-14 / D-11
+        dlg.exec()
+
+    def _on_provider_refresh_requested(self, provider_id: int, provider_name: str) -> None:
+        """Phase 96 D-04/D-09/D-10: Open LiveRefreshDialog scoped to the provider.
+
+        Resolves channel_scan_url from list_providers(); if absent, shows a
+        toast prompting the user to set the URL via Edit Station (RESEARCH Open
+        Question 3). Otherwise constructs LiveRefreshDialog with node_runtime
+        threaded end-to-end and reloads the station list on apply (D-10).
+        """
+        channel_scan_url = None
+        for prov in self._repo.list_providers():
+            if prov.id == provider_id:
+                channel_scan_url = prov.channel_scan_url
+                break
+        if not channel_scan_url:
+            self.show_toast(
+                f"No refresh channel URL set for {provider_name or 'this provider'}. "
+                "Enable 'Re-sync live URL from channel' via Edit Station and enter the channel URL."
+            )
+            return
+        dlg = LiveRefreshDialog(
+            self._repo,
+            provider_id,
+            provider_name,
+            channel_scan_url,
+            node_runtime=self._node_runtime,
+            toast_callback=self.show_toast,
+            parent=self,
+        )
+        dlg.refresh_complete.connect(self._refresh_station_list)
         dlg.exec()
 
     def _on_station_deleted(self, station_id: int) -> None:

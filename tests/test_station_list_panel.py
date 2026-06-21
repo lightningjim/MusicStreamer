@@ -921,3 +921,135 @@ def test_hi_res_chip_toggle_calls_proxy_set_hi_res_only(qtbot):
 
     # Toggle fires once per state change.
     assert calls == [True, False]
+
+
+# ---------------------------------------------------------------------------
+# Phase 96 D-04/D-09/D-10: provider-refresh wiring test (W3)
+# ---------------------------------------------------------------------------
+
+def test_provider_refresh_wiring(qtbot, monkeypatch):
+    """Phase 96 Plan 05: end-to-end wiring of the provider right-click refresh.
+
+    Asserts three properties required by D-04/D-09/D-10:
+
+    (a) StationListPanel accepts a node_runtime kwarg and stores it as
+        _node_runtime — closes the .desktop-launcher node-runtime landmine
+        (D-09 / MEMORY.md yt-dlp-callsites-need-resolved-node-runtime).
+
+    (b) StationListPanel exposes a provider_refresh_requested Signal(int, str)
+        (D-04 provider context menu).
+
+    (c) MainWindow._on_provider_refresh_requested is a real method that
+        constructs LiveRefreshDialog with node_runtime and channel_scan_url
+        when the provider has a channel_scan_url set (D-04/D-09). An empty
+        channel_scan_url shows a toast and does NOT open the dialog (RESEARCH
+        Open Question 3).
+    """
+    from musicstreamer.models import Provider
+    from musicstreamer.ui_qt.main_window import MainWindow
+    from tests._fake_player import FakePlayer
+
+    # (a) StationListPanel accepts node_runtime kwarg and stores it
+    sentinel = object()
+    panel = StationListPanel(_sample_repo(), node_runtime=sentinel)
+    qtbot.addWidget(panel)
+    assert panel._node_runtime is sentinel, (
+        "_node_runtime not stored — node_runtime threading gap (D-09 / Pitfall 3)"
+    )
+
+    # (b) provider_refresh_requested Signal exists
+    assert hasattr(panel, "provider_refresh_requested"), (
+        "provider_refresh_requested Signal missing from StationListPanel (D-04)"
+    )
+
+    # (c) MainWindow._on_provider_refresh_requested constructs LiveRefreshDialog
+    #     with node_runtime + channel_scan_url (monkeypatched to capture call).
+    FAKE_PROVIDER_ID = 42
+    FAKE_PROVIDER_NAME = "Yellow Brick Cinema"
+    FAKE_CHANNEL_URL = "https://youtube.com/@YellowBrickCinema/streams"
+    # node_runtime must expose .available (MainWindow checks it for the
+    # "Node missing" menu indicator). Use a minimal fake object.
+    FAKE_NODE_RUNTIME = type("_FakeNodeRuntime", (), {"available": True})()
+
+    class _FakeRepoForWiring(FakeRepo):
+        def list_providers(self):
+            return [
+                Provider(
+                    id=FAKE_PROVIDER_ID,
+                    name=FAKE_PROVIDER_NAME,
+                    channel_scan_url=FAKE_CHANNEL_URL,
+                )
+            ]
+
+        def get_setting(self, key, default=None):
+            return default
+
+        def set_setting(self, key, value):
+            pass
+
+        def list_favorite_stations(self):
+            return []
+
+        def is_favorite_station(self, station_id):
+            return False
+
+    constructed: list[dict] = []
+
+    class _FakeLiveRefreshDialog:
+        """Capture constructor args; .exec() is a no-op."""
+        refresh_complete = type("_Sig", (), {
+            "connect": lambda self, slot: None,
+        })()
+
+        def __init__(self, repo, provider_id, provider_name, channel_scan_url,
+                     *, node_runtime=None, toast_callback=None, parent=None):
+            constructed.append({
+                "provider_id": provider_id,
+                "provider_name": provider_name,
+                "channel_scan_url": channel_scan_url,
+                "node_runtime": node_runtime,
+            })
+
+        def exec(self):
+            pass
+
+    import musicstreamer.ui_qt.main_window as _mw_mod
+    monkeypatch.setattr(_mw_mod, "LiveRefreshDialog", _FakeLiveRefreshDialog)
+
+    fake_player = FakePlayer()
+    fake_repo = _FakeRepoForWiring(stations=[], recent=[])
+    w = MainWindow(fake_player, fake_repo, node_runtime=FAKE_NODE_RUNTIME)
+    qtbot.addWidget(w)
+
+    # _on_provider_refresh_requested must exist as a real method (not a stub)
+    assert hasattr(w, "_on_provider_refresh_requested"), (
+        "_on_provider_refresh_requested missing from MainWindow (D-04)"
+    )
+    assert callable(w._on_provider_refresh_requested), (
+        "_on_provider_refresh_requested is not callable"
+    )
+
+    # Call it for a provider WITH a channel_scan_url — dialog must be constructed
+    w._on_provider_refresh_requested(FAKE_PROVIDER_ID, FAKE_PROVIDER_NAME)
+    assert len(constructed) == 1, (
+        "LiveRefreshDialog not constructed for a provider with channel_scan_url set"
+    )
+    call = constructed[0]
+    assert call["provider_id"] == FAKE_PROVIDER_ID
+    assert call["channel_scan_url"] == FAKE_CHANNEL_URL
+    assert call["node_runtime"] == FAKE_NODE_RUNTIME, (
+        f"node_runtime not threaded to LiveRefreshDialog — got {call['node_runtime']!r} "
+        f"(expected {FAKE_NODE_RUNTIME!r}). D-09 landmine not closed."
+    )
+
+    # Call it for a provider WITHOUT a channel_scan_url — dialog must NOT be constructed
+    toasts: list[str] = []
+    w.show_toast = lambda text, duration_ms=3000: toasts.append(text)
+    constructed.clear()
+    w._on_provider_refresh_requested(999, "Unknown Provider")
+    assert len(constructed) == 0, (
+        "LiveRefreshDialog constructed for a provider with no channel_scan_url (should toast instead)"
+    )
+    assert len(toasts) == 1, (
+        "No toast shown when channel_scan_url is missing (RESEARCH Open Question 3)"
+    )
