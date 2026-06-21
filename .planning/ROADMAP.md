@@ -654,7 +654,7 @@ Plans:
 **Wave 2** *(parallel; disjoint files; both depend on 96-02)*
 
 - [x] 96-03-PLAN.md — EditStationDialog live-resync checkbox + companion channel-URL field + YouTube-only gate + dedicated-setter persist; _TreeNode.provider_id (D-01/D-02/D-03/D-04)
-- [ ] 96-04-PLAN.md — NEW live_refresh_dialog.py: _LiveRefreshScanWorker + LiveRefreshDialog two-panel review + pure apply helper (remap/replace/drop/add, conservative defaults) (D-05/D-06/D-07/D-08/D-09/D-10)
+- [x] 96-04-PLAN.md — NEW live_refresh_dialog.py: _LiveRefreshScanWorker + LiveRefreshDialog two-panel review + pure apply helper (remap/replace/drop/add, conservative defaults) (D-05/D-06/D-07/D-08/D-09/D-10)
 
 **Wave 3** *(integration; depends on 96-03 + 96-04)*
 
