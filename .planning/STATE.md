@@ -4,13 +4,13 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
 stopped_at: Phase 96 context gathered
-last_updated: "2026-06-21T17:46:16.033Z"
+last_updated: "2026-06-21T17:54:42.332Z"
 last_activity: 2026-06-21 -- Phase 96 execution started
 progress:
   total_phases: 23
   completed_phases: 21
   total_plans: 77
-  completed_plans: 73
+  completed_plans: 74
   percent: 91
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 ## Current Position
 
 Phase: 96 (manual-refresh-of-yellow-brick-cinema-provider-with-what-is-) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Executing Phase 96
 Last activity: 2026-06-21 -- Phase 96 execution started
 
@@ -210,7 +210,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-21T17:46:16.023Z
+Last session: 2026-06-21T17:54:42.323Z
 Stopped at: Phase 96 context gathered
 Resume file: .planning/phases/96-manual-refresh-of-yellow-brick-cinema-provider-with-what-is-/96-CONTEXT.md
 

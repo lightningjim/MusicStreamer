@@ -649,7 +649,7 @@ Plans:
 
 **Wave 1** *(data layer; unblocks all)*
 
-- [ ] 96-02-PLAN.md — repo.py 3 additive migrations + models fields + 3 setters + list_flagged_stations_for_provider + four-query field carry (D-01/D-03/D-04/D-06)
+- [x] 96-02-PLAN.md — repo.py 3 additive migrations + models fields + 3 setters + list_flagged_stations_for_provider + four-query field carry (D-01/D-03/D-04/D-06)
 
 **Wave 2** *(parallel; disjoint files; both depend on 96-02)*
 
