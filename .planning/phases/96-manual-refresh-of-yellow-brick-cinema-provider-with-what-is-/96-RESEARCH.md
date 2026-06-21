@@ -666,22 +666,25 @@ self._live_resync_channel_url_edit.setVisible(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Channel scan URL derivation: user-supplied vs. async-resolved?**
    - What we know: The channel scan URL (`@Channel/streams`) is not stored today. It can be entered by the user or auto-resolved from a `watch?v=` URL via yt-dlp (which extracts `channel_url`/`uploader_url`).
    - What's unclear: D-03 says to capture the title anchor at flag-set time but doesn't specify whether the scan URL is also resolved automatically then.
    - Recommendation: Use the user-supplied companion field approach (no async call at flag-set time). It's simpler, avoids a second yt-dlp call during `EditStationDialog`, and the user importing from a channel already knows their channel URL.
+   - RESOLVED: Channel scan URL is a user-supplied companion field in EditStationDialog (no async yt-dlp resolution at flag-set time). Enacted by Plan 03 (companion field + `set_provider_channel_scan_url`) and consumed by Plan 05 (`channel_scan_url` resolved from `repo.list_providers()` at refresh time).
 
 2. **Provider context menu on Ungrouped stations**
    - What we know: Stations with no provider have `provider_id=None` and group under "Ungrouped" in the tree.
    - What's unclear: Should right-clicking "Ungrouped" show a disabled "Refresh live streams" item, or no menu at all?
    - Recommendation: Show no menu for the Ungrouped provider row (gate on `node.provider_id is not None`). Ungrouped YouTube stations are an edge case; the user can set a provider first via EditStationDialog.
+   - RESOLVED: Ungrouped / null-provider rows get NO context menu at all (the provider branch in `_on_tree_context_menu` gates on `node.provider_id is not None`). Enacted by Plan 05 Task 1 and guarded by the Plan 01 `test_tree_node_carries_provider_id` Ungrouped assertion.
 
 3. **What happens when flagged_stations_for_provider returns empty?**
    - What we know: The user can right-click any provider, not just YouTube providers with flagged stations.
    - What's unclear: D-04 doesn't specify the UX for a provider with no flagged stations.
    - Recommendation: Show a toast or dialog message: "No stations in this provider are marked for live URL re-sync. Enable the flag on a station via Edit Station."
+   - RESOLVED: An empty `list_flagged_stations_for_provider` result shows an informational toast ("No stations marked for live URL re-sync — enable the flag via Edit Station") and opens nothing. Enacted by Plan 04 Task 1 (empty-flagged message path) and Plan 05's empty-flagged guard.
 
 ---
 
