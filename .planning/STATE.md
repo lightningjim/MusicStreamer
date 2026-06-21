@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Completed Phase 96 Plan 05 (96-05-PLAN.md) — plan 5/5 done, phase complete
-last_updated: "2026-06-21T19:46:31.866Z"
+status: ready_to_plan
+stopped_at: Phase 96 complete (5/5) — ready to discuss Phase 97
+last_updated: 2026-06-21T20:10:05.137Z
 last_activity: 2026-06-21 -- Phase 96 execution started
 progress:
   total_phases: 23
   completed_phases: 22
   total_plans: 77
-  completed_plans: 77
+  completed_plans: 80
   percent: 96
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 96 — manual-refresh-of-yellow-brick-cinema-provider-with-what-is-
+**Current focus:** Phase 97 — resolve station url duplication between the top level standa
 
 ## Current Position
 
-Phase: 96 (manual-refresh-of-yellow-brick-cinema-provider-with-what-is-) — EXECUTING
-Plan: 5 of 5
-Status: Executing Phase 96
-Last activity: 2026-06-21 -- Phase 96 execution started
+Phase: 97
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-21
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 240+ (v1.0–v2.1 combined)
+- Total plans completed: 245+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
