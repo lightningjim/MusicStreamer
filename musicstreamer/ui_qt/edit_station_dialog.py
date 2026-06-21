@@ -520,6 +520,21 @@ class EditStationDialog(QDialog):
         avatar_row.addWidget(self._choose_brand_image_btn)
         self._choose_brand_image_btn.clicked.connect(self._on_choose_brand_image)
 
+        # Phase 96 D-02: live-resync opt-in — YouTube stations only.
+        # Checkbox disabled by default; gated on YouTube URL in _on_url_text_changed.
+        self._live_resync_checkbox = QCheckBox("Re-sync live URL from channel")
+        self._live_resync_checkbox.setEnabled(False)
+        self._live_resync_checkbox.toggled.connect(self._on_live_resync_toggled)
+        form.addRow("Live resync:", self._live_resync_checkbox)
+
+        # Phase 96 D-04: companion channel scan URL — hidden until checkbox is checked.
+        self._live_resync_channel_url_edit = QLineEdit()
+        self._live_resync_channel_url_edit.setPlaceholderText(
+            "https://youtube.com/@Channel/streams"
+        )
+        self._live_resync_channel_url_edit.setVisible(False)
+        form.addRow("Channel scan URL:", self._live_resync_channel_url_edit)
+
         # Streams table
         streams_container = QWidget()
         streams_vbox = QVBoxLayout(streams_container)
@@ -648,6 +663,18 @@ class EditStationDialog(QDialog):
 
         # ICY
         self.icy_checkbox.setChecked(bool(station.icy_disabled))
+
+        # Phase 96 D-01/D-02: pre-populate live-resync checkbox from station flag.
+        # Gating is enforced in _on_url_text_changed; here we just restore the saved state.
+        live_flag = getattr(station, "live_url_syncs_from_channel", False)
+        self._live_resync_checkbox.setChecked(bool(live_flag))
+
+        # Phase 96 D-04: pre-populate companion channel-URL field from provider if available.
+        if station.provider_id is not None:
+            providers = {p.id: p for p in self._repo.list_providers()}
+            prov = providers.get(station.provider_id)
+            if prov is not None and getattr(prov, "channel_scan_url", None):
+                self._live_resync_channel_url_edit.setText(prov.channel_scan_url)
 
         # Phase 73-04 / D-06: populate cover-art-source combo from station.
         # The `or "auto"` defensive default handles a legacy Station built
@@ -1293,6 +1320,21 @@ class EditStationDialog(QDialog):
         is_yt = "youtube.com" in lower or "youtu.be" in lower
         is_twitch = "twitch.tv" in lower
         self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
+        # Phase 96 D-02: live-resync flag checkbox enabled ONLY for YouTube URLs (not Twitch).
+        self._live_resync_checkbox.setEnabled(is_yt)
+        if not is_yt:
+            self._live_resync_checkbox.setChecked(False)
+        # Companion channel-URL field visible only when checkbox is enabled and checked.
+        self._live_resync_channel_url_edit.setVisible(
+            is_yt and self._live_resync_checkbox.isChecked()
+        )
+
+    def _on_live_resync_toggled(self, checked: bool) -> None:
+        """Phase 96 D-02: toggle visibility of the companion channel-URL field."""
+        url = self.url_edit.text().strip()
+        lower = url.lower()
+        is_yt = "youtube.com" in lower or "youtu.be" in lower
+        self._live_resync_channel_url_edit.setVisible(is_yt and checked)
 
     def _on_url_timer_timeout(self) -> None:
         """Debounced: kick off a _LogoFetchWorker (and optionally _AvatarFetchWorker)
@@ -1834,6 +1876,31 @@ class EditStationDialog(QDialog):
         repo.prune_streams(station.id, ordered_ids)
         if ordered_ids:
             repo.reorder_streams(station.id, ordered_ids)
+
+        # Phase 96 D-01/D-03/D-04: persist live-resync flag, title anchor, and
+        # channel scan URL via dedicated single-column setters (NEVER update_station
+        # — Pitfall 1). Ordered: flag first, then anchor, then validated scan URL.
+        flag = self._live_resync_checkbox.isChecked()
+        repo.set_live_url_syncs_from_channel(station.id, flag)
+        if flag:
+            # D-03: anchor = first stream's label, or fall back to station name.
+            streams = repo.list_streams(station.id)
+            anchor = (streams[0].label if streams else "") or station.name
+            repo.set_live_url_title_anchor(station.id, anchor)
+            # D-04: validate + persist companion channel URL (T-96-06 SSRF mitigation).
+            channel_url = self._live_resync_channel_url_edit.text().strip()
+            if channel_url and station.provider_id is not None:
+                from musicstreamer.yt_import import is_yt_playlist_url
+                if is_yt_playlist_url(channel_url):
+                    repo.set_provider_channel_scan_url(station.provider_id, channel_url)
+                else:
+                    QMessageBox.warning(
+                        self,
+                        "Invalid channel URL",
+                        "The channel scan URL must be a YouTube channel or playlist URL "
+                        "(e.g. https://youtube.com/@Channel/streams). "
+                        "The URL was not saved.",
+                    )
 
         self.station_saved.emit()
         # Phase 89B-03 (gap closure): synchronously fetch-and-persist the channel
