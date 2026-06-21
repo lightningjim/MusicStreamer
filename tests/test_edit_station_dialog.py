@@ -2257,3 +2257,51 @@ def test_refresh_btn_wired_to_fetch_path(qtbot, dialog):
     with patch.object(dialog, "_on_url_timer_timeout") as mock_timeout:
         dialog._on_refresh_avatar_clicked()
         mock_timeout.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Phase 96 D-02 — Wave 0 Nyquist test scaffolding
+# ---------------------------------------------------------------------------
+
+
+def test_live_resync_checkbox_gating(qtbot, station, player, repo):
+    """Phase 96 D-02: _live_resync_checkbox enabled only for YouTube URLs.
+
+    Twitch URLs and non-provider URLs must disable the checkbox AND uncheck it.
+    This is the YouTube-ONLY gate — Twitch is explicitly excluded (distinct from
+    the avatar gate which allows Twitch).
+
+    Tests MUST be RED until Plan 03 adds _live_resync_checkbox to EditStationDialog.
+    """
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    # --- YouTube URL: checkbox must be enabled ---
+    d.url_edit.setText("https://www.youtube.com/@YellowBrickCinema/streams")
+    d._on_url_text_changed()
+    assert d._live_resync_checkbox.isEnabled(), (
+        "Checkbox must be ENABLED for youtube.com URLs"
+    )
+
+    # --- Twitch URL: checkbox must be disabled (YouTube-only gate, D-02) ---
+    d.url_edit.setText("https://www.twitch.tv/somechannel")
+    d._on_url_text_changed()
+    assert not d._live_resync_checkbox.isEnabled(), (
+        "Checkbox must be DISABLED for twitch.tv URLs (YouTube-only gate)"
+    )
+
+    # --- Non-YT/non-Twitch URL: disabled AND unchecked ---
+    # First enable + check it for a YT URL
+    d.url_edit.setText("https://www.youtube.com/@Channel/live")
+    d._on_url_text_changed()
+    d._live_resync_checkbox.setChecked(True)
+
+    # Now switch to a non-provider URL
+    d.url_edit.setText("http://icecast.example.com/stream.mp3")
+    d._on_url_text_changed()
+    assert not d._live_resync_checkbox.isEnabled(), (
+        "Checkbox must be DISABLED for non-YT/non-Twitch URLs"
+    )
+    assert not d._live_resync_checkbox.isChecked(), (
+        "Checkbox must be UNCHECKED when disabled for non-YT URLs"
+    )

@@ -179,3 +179,70 @@ def test_provider_name_at_after_refresh_reflects_new_data(qtbot):
 
     model.refresh([make_station(2, "Chillout", "DI.fm")])
     assert model.provider_name_at(0) == "DI.fm"
+
+
+# ---------------------------------------------------------------------------
+# Phase 96 D-04 — Wave 0 Nyquist test scaffolding
+# ---------------------------------------------------------------------------
+
+
+def test_tree_node_carries_provider_id(qtbot):
+    """Phase 96 D-04: _TreeNode.provider_id is set to the station's provider_id.
+
+    Build a StationTreeModel from stations that have provider_id set; locate the
+    provider _TreeNode for that group; assert node.provider_id equals the
+    station's provider_id. Also assert an Ungrouped (provider_id=None) group's
+    node has provider_id None.
+
+    Guards Pitfall 4: the provider context-menu branch in station_list_panel.py
+    reads node.provider_id — if the field is absent the menu item never fires.
+
+    Tests MUST be RED until Plan 03 adds provider_id to _TreeNode and _populate().
+    """
+    # Station with a known provider_id
+    st_with_provider = Station(
+        id=1,
+        name="Groove Salad",
+        provider_id=42,
+        provider_name="SomaFM",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[],
+        last_played_at=None,
+    )
+    # Station with no provider (Ungrouped)
+    st_no_provider = Station(
+        id=2,
+        name="Mystery FM",
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        icy_disabled=False,
+        streams=[],
+        last_played_at=None,
+    )
+
+    model = StationTreeModel([st_with_provider, st_no_provider])
+
+    # Find the provider _TreeNode for "SomaFM" (provider_id=42)
+    root_children = model._root.children
+    soma_node = next(
+        (n for n in root_children if n.provider_name == "SomaFM"), None
+    )
+    assert soma_node is not None, "Expected a 'SomaFM' provider node"
+    assert soma_node.provider_id == 42, (
+        f"Expected provider_id=42; got {soma_node.provider_id!r}"
+    )
+
+    # Ungrouped node must have provider_id=None
+    ungrouped_node = next(
+        (n for n in root_children if n.provider_name == "Ungrouped"), None
+    )
+    assert ungrouped_node is not None, "Expected an 'Ungrouped' provider node"
+    assert ungrouped_node.provider_id is None, (
+        f"Ungrouped node must have provider_id=None; got {ungrouped_node.provider_id!r}"
+    )
