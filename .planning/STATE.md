@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 96 context gathered
-last_updated: "2026-06-21T18:17:14.517Z"
+stopped_at: Completed Phase 96 Plan 05 (96-05-PLAN.md) — plan 5/5 done, phase complete
+last_updated: "2026-06-21T19:46:31.866Z"
 last_activity: 2026-06-21 -- Phase 96 execution started
 progress:
   total_phases: 23
@@ -147,6 +147,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: Phase 95: edit URL-change detection compares stored StationStream.url .strip(), never the resolved playbin3 URI
 - [Phase ?]: Phase 95: youtube_resolved widened to Signal(str, bool, int); _youtube_resolve_seq guard no-ops stale YT resolutions
 - [Phase ?]: Phase 999.1 Plan 01: extended BadZipFile except scope to cover member-read site
+- [Phase ?]: Phase 96 D-04/D-09/D-10: provider_refresh_requested signal + node_runtime threading wired end-to-end; human-verified with real YBC channel
 
 ### Decisions (v2.1, preserved for context)
 
@@ -209,12 +210,13 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 95 P03 | 3m | 2 tasks | 2 files |
 | Phase 96 P03 | 10 minutes | 2 tasks | 2 files |
 | Phase 96 P04 | 12 minutes | 2 tasks | 1 files |
+| Phase 96 P05 | 40 | 3 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-06-21T18:17:14.506Z
-Stopped at: Phase 96 context gathered
-Resume file: .planning/phases/96-manual-refresh-of-yellow-brick-cinema-provider-with-what-is-/96-CONTEXT.md
+Last session: 2026-06-21T19:46:31.855Z
+Stopped at: Completed Phase 96 Plan 05 (96-05-PLAN.md) — plan 5/5 done, phase complete
+Resume file: None
 
 ## Operator Next Steps
 
