@@ -35,13 +35,30 @@ def is_yt_playlist_url(url: str) -> bool:
 
 def _entry_is_live(entry: dict) -> bool:
     """RESEARCH.md Pitfall 1 — extract_flat may leave is_live as None for sparse
-    entries. Prefer live_status, fall back to is_live."""
+    entries. Prefer live_status, fall back to is_live.
+
+    Phase 96: extract_flat='in_playlist' on a channel ``/streams`` tab leaves
+    BOTH ``live_status`` and ``is_live`` as None for *every* entry, so the
+    explicit-status checks can never fire and a channel scan would return zero
+    currently-live streams. When no explicit signal is present, fall back to
+    ``duration``: a finished VOD always carries a concrete duration, whereas a
+    currently-live or scheduled stream has ``duration=None``. Upcoming streams
+    also lack a duration and are intentionally included as candidates — the
+    refresh dialog is manual review-and-confirm (D-05..D-10), and distinguishing
+    live-now from scheduled requires fragile per-video resolution.
+    """
     status = entry.get("live_status")
     if status == "is_live":
         return True
     if status in ("was_live", "not_live", "post_live"):
         return False
-    return entry.get("is_live") is True
+    if entry.get("is_live") is True:
+        return True
+    # Flat channel-tab fallback: no explicit live signal at all. Treat an entry
+    # with no duration as a live/upcoming stream; a real duration means a VOD.
+    if status is None and entry.get("is_live") is None:
+        return entry.get("duration") is None
+    return False
 
 
 def scan_playlist(

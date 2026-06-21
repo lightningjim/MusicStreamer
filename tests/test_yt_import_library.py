@@ -89,6 +89,38 @@ def test_scan_playlist_uses_live_status_when_is_live_missing():
     assert result[0]["title"] == "A"
 
 
+def test_scan_playlist_flat_channel_tab_falls_back_to_duration():
+    """Phase 96 — extract_flat on a channel /streams tab leaves BOTH live_status
+    and is_live as None for every entry. Without a duration fallback the scan
+    returns zero live streams (the live-refresh-finds-nothing bug). A real
+    duration marks a finished VOD; duration=None marks a live/upcoming stream."""
+    info = {
+        "entries": [
+            {  # currently-live: no explicit signal, no duration
+                "title": "Live 24/7",
+                "url": "https://x/live",
+                "is_live": None,
+                "live_status": None,
+                "duration": None,
+                "playlist_uploader": "Uploader",
+            },
+            {  # finished VOD: no explicit signal, but has a real duration
+                "title": "12 Hour VOD",
+                "url": "https://x/vod",
+                "is_live": None,
+                "live_status": None,
+                "duration": 42896.0,
+            },
+        ]
+    }
+    p, _, _ = _patch_youtubedl(extract_info_return=info)
+    with p:
+        result = yt_import.scan_playlist("https://youtube.com/@ybc/streams")
+    assert result == [
+        {"title": "Live 24/7", "url": "https://x/live", "provider": "Uploader"},
+    ]
+
+
 def test_scan_playlist_private_raises_valueerror():
     err = yt_dlp.utils.DownloadError("Video is private")
     p, _, _ = _patch_youtubedl(extract_info_side_effect=err)
