@@ -1755,3 +1755,135 @@ def test_provider_avatar_path_in_all_mappers(repo):
     fav = repo.list_favorite_stations()
     m_fav = next(s for s in fav if s.id == sid)
     assert m_fav.provider_avatar_path == rel, f"list_favorite_stations missing: {m_fav.provider_avatar_path!r}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 96 D-01/D-03/D-04/D-06 — Wave 0 Nyquist test scaffolding
+# ---------------------------------------------------------------------------
+
+
+def test_live_url_syncs_from_channel_migration_idempotent(repo):
+    """Phase 96 D-01: db_init twice must not raise; column present with DEFAULT 0.
+
+    Mirrors test_cover_art_source_migration_idempotent (lines 229-253).
+    Tests MUST be RED until Plan 02 adds the migration to db_init.
+    """
+    db_init(repo.con)
+    db_init(repo.con)  # third call for paranoia; still idempotent
+
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "live_url_syncs_from_channel" in by_name, (
+        f"live_url_syncs_from_channel column missing; got {sorted(by_name)}"
+    )
+    col = by_name["live_url_syncs_from_channel"]
+    # type idx=2, notnull idx=3, dflt_value idx=4
+    assert col[2] == "INTEGER"
+    assert col[3] == 1, "must be NOT NULL"
+    assert col[4] == "0", f"DEFAULT 0 expected; got {col[4]!r}"
+
+
+def test_live_url_syncs_from_channel_round_trip(repo):
+    """Phase 96 D-01: set_live_url_syncs_from_channel round-trips via get_station.
+
+    Tests MUST be RED until Plan 02 adds the column + setter to repo.
+    """
+    sid = repo.create_station()
+    assert repo.get_station(sid).live_url_syncs_from_channel is False
+    repo.set_live_url_syncs_from_channel(sid, True)
+    assert repo.get_station(sid).live_url_syncs_from_channel is True
+    repo.set_live_url_syncs_from_channel(sid, False)
+    assert repo.get_station(sid).live_url_syncs_from_channel is False
+
+
+def test_station_live_flag_loaded_from_db(repo):
+    """Phase 96 D-01: flag is visible via BOTH get_station AND list_stations.
+
+    Guards Pitfall 2: all four Station-building queries must include the new field.
+    Tests MUST be RED until Plan 02 adds the column + field to all queries.
+    """
+    sid = repo.create_station()
+    repo.set_live_url_syncs_from_channel(sid, True)
+
+    # get_station path
+    assert repo.get_station(sid).live_url_syncs_from_channel is True, (
+        "get_station did not return live_url_syncs_from_channel=True"
+    )
+
+    # list_stations path
+    all_stations = repo.list_stations()
+    matching = next(s for s in all_stations if s.id == sid)
+    assert matching.live_url_syncs_from_channel is True, (
+        "list_stations did not return live_url_syncs_from_channel=True"
+    )
+
+
+def test_live_url_title_anchor_migration_idempotent(repo):
+    """Phase 96 D-03: db_init twice must not raise; column present and nullable.
+
+    Tests MUST be RED until Plan 02 adds the migration to db_init.
+    """
+    db_init(repo.con)
+    db_init(repo.con)  # third call for paranoia; still idempotent
+
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "live_url_title_anchor" in by_name, (
+        f"live_url_title_anchor column missing; got {sorted(by_name)}"
+    )
+    col = by_name["live_url_title_anchor"]
+    assert col[2] == "TEXT"
+    assert col[3] == 0, "live_url_title_anchor must be nullable (NOT NULL = 0)"
+
+
+def test_live_url_title_anchor_round_trip(repo):
+    """Phase 96 D-03: set_live_url_title_anchor persists and loads via get_station.
+
+    Tests MUST be RED until Plan 02 adds the column + setter.
+    """
+    sid = repo.create_station()
+    repo.set_live_url_title_anchor(sid, "Anchor")
+    assert repo.get_station(sid).live_url_title_anchor == "Anchor"
+    repo.set_live_url_title_anchor(sid, None)
+    assert repo.get_station(sid).live_url_title_anchor is None
+
+
+def test_provider_channel_scan_url_migration_idempotent(repo):
+    """Phase 96 D-04: db_init twice must not raise; providers.channel_scan_url present and nullable.
+
+    Tests MUST be RED until Plan 02 adds the migration to db_init.
+    """
+    db_init(repo.con)
+    db_init(repo.con)  # third call for paranoia; still idempotent
+
+    cols = repo.con.execute("PRAGMA table_info('providers')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "channel_scan_url" in by_name, (
+        f"channel_scan_url column missing from providers; got {sorted(by_name)}"
+    )
+    col = by_name["channel_scan_url"]
+    assert col[2] == "TEXT"
+    assert col[3] == 0, "channel_scan_url must be nullable (NOT NULL = 0)"
+
+
+def test_list_flagged_stations_for_provider(repo):
+    """Phase 96 D-06: list_flagged_stations_for_provider returns only flagged stations.
+
+    Creates two stations under the same provider, flags one, and asserts only
+    the flagged station is returned.
+    Tests MUST be RED until Plan 02 adds the method + column.
+    """
+    provider_id = repo.ensure_provider("Test Channel")
+
+    # Insert two stations under the provider
+    sid1 = repo.insert_station("Station A", "http://example.com/a", "Test Channel", "")
+    sid2 = repo.insert_station("Station B", "http://example.com/b", "Test Channel", "")
+
+    # Flag only station 1
+    repo.set_live_url_syncs_from_channel(sid1, True)
+
+    flagged = repo.list_flagged_stations_for_provider(provider_id)
+    flagged_ids = {s.id for s in flagged}
+    assert sid1 in flagged_ids, "Flagged station sid1 must be in result"
+    assert sid2 not in flagged_ids, "Unflagged station sid2 must NOT be in result"
+    assert len(flagged) == 1, f"Expected 1 flagged station; got {len(flagged)}"
