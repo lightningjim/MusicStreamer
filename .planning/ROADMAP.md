@@ -658,7 +658,7 @@ Plans:
 
 **Wave 3** *(integration; depends on 96-03 + 96-04)*
 
-- [ ] 96-05-PLAN.md — Provider context-menu branch + provider_refresh_requested signal + node_runtime threading + MainWindow wiring + reload-on-apply + human-verify checkpoint (D-04/D-09/D-10)
+- [x] 96-05-PLAN.md — Provider context-menu branch + provider_refresh_requested signal + node_runtime threading + MainWindow wiring + reload-on-apply + human-verify checkpoint (D-04/D-09/D-10)
 
 **Research flag**: NO — research + patterns mapped every analog; zero new packages.
 **UI hint**: yes
