@@ -88,10 +88,12 @@ class StationListPanel(QWidget):
     station_favorited = Signal(Station, bool)  # (station, is_now_favorite)
     edit_requested = Signal(Station)
     new_station_requested = Signal()  # D-02: "+" button in panel header
+    provider_refresh_requested = Signal(int, str)  # Phase 96 D-04: provider_id, provider_name
 
-    def __init__(self, repo, parent: QWidget | None = None) -> None:
+    def __init__(self, repo, parent: QWidget | None = None, *, node_runtime=None) -> None:
         super().__init__(parent)
         self._repo = repo
+        self._node_runtime = node_runtime  # Phase 96 D-09: passed to LiveRefreshDialog
         self.setMinimumWidth(280)  # UI-SPEC component inventory
 
         layout = QVBoxLayout(self)
@@ -684,6 +686,21 @@ class StationListPanel(QWidget):
         if not index.isValid():
             return
         source_idx = self._proxy.mapToSource(index)
+
+        # Phase 96 D-04: detect provider row via internalPointer().kind.
+        # Ungrouped provider rows have provider_id=None and get no menu (Pitfall 4).
+        node = source_idx.internalPointer()
+        if node is not None and node.kind == "provider" and node.provider_id is not None:
+            menu = QMenu(self)
+            refresh_action = menu.addAction("Refresh live streams…")
+            action = menu.exec(self.tree.viewport().mapToGlobal(pos))
+            if action is refresh_action:
+                self.provider_refresh_requested.emit(
+                    node.provider_id,
+                    node.provider_name or "",
+                )
+            return
+
         station = self.model.station_for_index(source_idx)
         if station is None:
             return
