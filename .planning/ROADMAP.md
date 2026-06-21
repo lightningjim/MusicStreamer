@@ -546,7 +546,7 @@ Plans:
 | 92. FIX-PLS | 1/1 | Complete   | 2026-06-18 |
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
-| 95. YT URL-Change Replay Bug | 4/4 | Executed — CR-01 closed, awaiting human UAT | 2026-06-20 |
+| 95. YT URL-Change Replay Bug | 4/4 | Verified (UAT 4/4) — security review pending | 2026-06-20 |
 
 ### Dependency Graph (Tier Summary)
 
