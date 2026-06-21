@@ -333,6 +333,38 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent
 
+    # Phase 96 D-01 — per-station opt-in live URL re-sync flag; INTEGER NOT NULL DEFAULT 0.
+    # Existing rows default to 0 (OFF) automatically. MUST land AFTER the legacy
+    # URL-column rebuild block (Pitfall 8): the rebuild's CREATE TABLE stations_new /
+    # INSERT SELECT does not carry dynamically-added columns, so placing the ALTER here
+    # ensures the column lands on the rebuilt (or fresh) table. Idempotent via the same
+    # try/except sqlite3.OperationalError idiom as the Phase 73/82/83/89A blocks above.
+    try:
+        con.execute(
+            "ALTER TABLE stations ADD COLUMN live_url_syncs_from_channel INTEGER NOT NULL DEFAULT 0"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
+    # Phase 96 D-03 — per-station title anchor from live stream; nullable TEXT no DEFAULT.
+    # NULL means flag is ON but anchor not yet captured. MUST land AFTER the legacy
+    # URL-column rebuild block for the same Pitfall 8 reason as D-01 above.
+    try:
+        con.execute("ALTER TABLE stations ADD COLUMN live_url_title_anchor TEXT")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
+    # Phase 96 D-04 — per-provider channel scan URL; nullable TEXT no DEFAULT.
+    # providers has NO legacy rebuild block — safe to add at any position after
+    # the Phase 89.1 providers ALTER above. Idempotent via same try/except idiom.
+    try:
+        con.execute("ALTER TABLE providers ADD COLUMN channel_scan_url TEXT")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
     # Phase 89.1 D-01/D-02/D-03: one-time idempotent backfill.
     # Copy the most-recently-updated per-station PNG to the provider-keyed location
     # and record the path in providers.avatar_path. Old per-station files deleted

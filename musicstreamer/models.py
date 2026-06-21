@@ -6,6 +6,7 @@ from typing import Optional, List, Literal
 class Provider:
     id: int
     name: str
+    channel_scan_url: Optional[str] = None      # Phase 96 D-04
 
 
 @dataclass
@@ -42,6 +43,8 @@ class Station:
     prerolls_fetched_at: Optional[int] = None                      # Phase 83 D-04
     channel_avatar_path: Optional[str] = None                      # Phase 89 D-13 — deprecated Phase 89.1 (use provider_avatar_path)
     provider_avatar_path: Optional[str] = None                     # Phase 89.1 D-11
+    live_url_syncs_from_channel: bool = False                      # Phase 96 D-01
+    live_url_title_anchor: Optional[str] = None                    # Phase 96 D-03
 
 
 @dataclass
