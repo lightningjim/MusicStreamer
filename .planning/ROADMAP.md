@@ -634,6 +634,35 @@ Plans:
 - [x] 95-03-PLAN.md — gap closure: _youtube_resolve_in_flight gate suppressing the residual current-generation "Stream exhausted" toast during an in-flight async YouTube resolve (TDD, 2 tasks)
 - [x] 95-04-PLAN.md — gap closure (CR-01): carried-seq stamp on youtube_resolution_failed + play() resolve-seq bump + clear gate on _set_uri/stop() — fixes the in-flight gate leak (YouTube->direct restart) and spurious same-gen A->B exhaustion (TDD, 2 tasks)
 
+### Phase 96: Manual refresh of live-stream URLs from channel (YBC / Cafe BGM and other churning YouTube live channels)
+
+**Goal:** A user can mark a YouTube live station as "re-sync live URL from channel" (per-station opt-in, default OFF, YouTube-only), supply the channel's `/streams` scan URL once per provider, then right-click the provider row to open a review-and-confirm dialog that re-scans the channel's currently-live streams and lets them manually map / replace / drop / add their flagged stations against reality — updating churned `watch?v=` URLs in place (no duplicate-import) with conservative, opt-in destructive defaults.
+**Requirements**: none mapped in ROADMAP; behavior contract is D-01..D-10 in 96-CONTEXT.md
+**Depends on:** Phase 95 (proactive counterpart to Phase 95's post-edit stale-URL fix)
+**Plans:** 5 plans across 4 waves
+
+Plans:
+
+**Wave 0** *(Nyquist test scaffolding)*
+
+- [ ] 96-01-PLAN.md — Wave 0 tests: 4 test files/additions encoding D-01..D-10 (repo migrations/setters/query, tree-model provider_id, EditStationDialog gating, NEW live_refresh_dialog logic)
+
+**Wave 1** *(data layer; unblocks all)*
+
+- [ ] 96-02-PLAN.md — repo.py 3 additive migrations + models fields + 3 setters + list_flagged_stations_for_provider + four-query field carry (D-01/D-03/D-04/D-06)
+
+**Wave 2** *(parallel; disjoint files; both depend on 96-02)*
+
+- [ ] 96-03-PLAN.md — EditStationDialog live-resync checkbox + companion channel-URL field + YouTube-only gate + dedicated-setter persist; _TreeNode.provider_id (D-01/D-02/D-03/D-04)
+- [ ] 96-04-PLAN.md — NEW live_refresh_dialog.py: _LiveRefreshScanWorker + LiveRefreshDialog two-panel review + pure apply helper (remap/replace/drop/add, conservative defaults) (D-05/D-06/D-07/D-08/D-09/D-10)
+
+**Wave 3** *(integration; depends on 96-03 + 96-04)*
+
+- [ ] 96-05-PLAN.md — Provider context-menu branch + provider_refresh_requested signal + node_runtime threading + MainWindow wiring + reload-on-apply + human-verify checkpoint (D-04/D-09/D-10)
+
+**Research flag**: NO — research + patterns mapped every analog; zero new packages.
+**UI hint**: yes
+
 ### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
 
 **Goal:** [To be planned]
