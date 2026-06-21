@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: ready_to_plan
-stopped_at: Phase 96 complete (5/5) — ready to discuss Phase 97
-last_updated: 2026-06-21T20:10:05.137Z
-last_activity: 2026-06-21 -- Phase 96 execution started
+status: planning
+stopped_at: Phase 96.1 context gathered
+last_updated: "2026-06-21T21:33:17.635Z"
+last_activity: 2026-06-21
 progress:
-  total_phases: 23
+  total_phases: 24
   completed_phases: 22
   total_plans: 77
-  completed_plans: 80
-  percent: 96
+  completed_plans: 77
+  percent: 92
 ---
 
 # Project State
@@ -21,11 +21,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 97 — resolve station url duplication between the top level standa
+**Current focus:** Phase 96.1 — show currently-live stream titles for newly-discovered streams (URGENT insertion before Phase 97)
 
 ## Current Position
 
-Phase: 97
+Phase: 96.1
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-06-21
@@ -167,6 +167,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 87.1 inserted after Phase 87: GBS.FM session-expiry re-login prompt — surface GbsAuthExpiredError as a re-login affordance instead of silent playlist-load failure (user-reported symptom 2026-06-12; planned feature, GBS cluster, reusable by 87 marquee + 87b)
 - Phase 89c inserted after Phase 89b: Provider brand-avatar cover-slot fallback (SomaFM, AudioAddict) — distinct brand avatar when per-track art resolution is exhausted, trigger is resolution-exhausted not icy_disabled (URGENT)
 - Phase 89.1 inserted after Phase 89: Re-key channel avatar from per-station to per-provider (channel) — dedupe fetch + storage across sibling YT streams of the same channel (URGENT)
+- Phase 96.1 inserted after Phase 96: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (URGENT)
 
 ### Pending Todos
 
@@ -214,9 +215,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-21T19:46:31.855Z
-Stopped at: Completed Phase 96 Plan 05 (96-05-PLAN.md) — plan 5/5 done, phase complete
-Resume file: None
+Last session: 2026-06-21T21:33:17.621Z
+Stopped at: Phase 96.1 context gathered
+Resume file: .planning/phases/96.1-show-currently-live-stream-titles-for-newly-discovered-strea/96.1-CONTEXT.md
 
 ## Operator Next Steps
 
