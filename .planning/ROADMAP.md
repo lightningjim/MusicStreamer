@@ -645,7 +645,7 @@ Plans:
 
 **Wave 0** *(Nyquist test scaffolding)*
 
-- [ ] 96-01-PLAN.md — Wave 0 tests: 4 test files/additions encoding D-01..D-10 (repo migrations/setters/query, tree-model provider_id, EditStationDialog gating, NEW live_refresh_dialog logic)
+- [x] 96-01-PLAN.md — Wave 0 tests: 4 test files/additions encoding D-01..D-10 (repo migrations/setters/query, tree-model provider_id, EditStationDialog gating, NEW live_refresh_dialog logic)
 
 **Wave 1** *(data layer; unblocks all)*
 

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: completed
+status: executing
 stopped_at: Phase 96 context gathered
-last_updated: "2026-06-21T03:15:57.161Z"
-last_activity: 2026-06-21 -- Phase 95 marked complete
+last_updated: "2026-06-21T17:46:16.033Z"
+last_activity: 2026-06-21 -- Phase 96 execution started
 progress:
   total_phases: 23
   completed_phases: 21
   total_plans: 77
-  completed_plans: 72
+  completed_plans: 73
   percent: 91
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 95 — yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
+**Current focus:** Phase 96 — manual-refresh-of-yellow-brick-cinema-provider-with-what-is-
 
 ## Current Position
 
-Phase: 95 — COMPLETE
-Plan: 2 of 4
-Status: Phase 95 complete
-Last activity: 2026-06-21 -- Phase 95 marked complete
+Phase: 96 (manual-refresh-of-yellow-brick-cinema-provider-with-what-is-) — EXECUTING
+Plan: 2 of 5
+Status: Executing Phase 96
+Last activity: 2026-06-21 -- Phase 96 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -210,7 +210,7 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-21T01:06:46.004Z
+Last session: 2026-06-21T17:46:16.023Z
 Stopped at: Phase 96 context gathered
 Resume file: .planning/phases/96-manual-refresh-of-yellow-brick-cinema-provider-with-what-is-/96-CONTEXT.md
 
