@@ -15,10 +15,14 @@ LIVE_ENTRY = {
     "playlist_uploader": "Lofi Girl",
 }
 
+# A finished VOD: extract_flat omits live_status/is_live, but a past upload
+# always carries a concrete duration. _entry_is_live uses that duration to tell
+# a VOD apart from a live stream (which has duration=None). Phase 96 fix.
 NON_LIVE_ENTRY = {
     "title": "Old Video",
     "url": "https://www.youtube.com/watch?v=xyz789",
     "is_live": None,
+    "duration": 612.0,
     "playlist_channel": "Lofi Girl",
     "playlist_uploader": "Lofi Girl",
 }
