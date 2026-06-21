@@ -249,6 +249,35 @@ def test_apply_remap_preserves_metadata(db_repo):
     mock_repo.set_live_url_title_anchor.assert_called_once_with(1, scan_result["title"])
 
 
+def test_apply_refresh_rejects_duplicate_targets():
+    """WR-03: two stations mapped to the SAME live URL in one Apply must be
+    rejected BEFORE any mutation — stations must not silently collapse onto one
+    stream just because every combo defaults to the anchor-closest match."""
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import apply_refresh  # type: ignore[attr-defined]
+
+    mock_repo = MagicMock()
+    same_url = "https://youtu.be/dup_live_id"
+    staged = [
+        {
+            "action": "remap", "station_id": 1, "stream_id": 10,
+            "scan_result": {"title": "A", "url": same_url, "provider": "YBC"},
+        },
+        {
+            "action": "remap", "station_id": 2, "stream_id": 20,
+            "scan_result": {"title": "B", "url": same_url, "provider": "YBC"},
+        },
+    ]
+    with pytest.raises(ValueError, match="same live stream"):
+        apply_refresh(mock_repo, staged)
+
+    # Fail closed: NO repo mutation may have occurred.
+    mock_repo.update_stream.assert_not_called()
+    mock_repo.delete_station.assert_not_called()
+    mock_repo.insert_station.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # D-07 — Drop and add actions
 # ---------------------------------------------------------------------------

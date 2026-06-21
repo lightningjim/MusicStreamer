@@ -203,6 +203,24 @@ def apply_refresh(repo: Repo, staged_changes: list) -> None:
     if not staged_changes:
         return  # D-10 empty-apply guard: zero mutations
 
+    # WR-03 duplicate-target guard: remap/add rows each point a station at a
+    # chosen live stream. Because every combo defaults to the anchor-closest
+    # match, a careless Apply could silently collapse several stations onto the
+    # same URL. Fail closed BEFORE any mutation so the user re-maps instead.
+    target_urls = [
+        change["scan_result"].get("url")
+        for change in staged_changes
+        if change.get("action") in ("remap", "add")
+        and isinstance(change.get("scan_result"), dict)
+    ]
+    target_urls = [url for url in target_urls if url]
+    dupes = sorted({url for url in target_urls if target_urls.count(url) > 1})
+    if dupes:
+        raise ValueError(
+            "Multiple stations are mapped to the same live stream "
+            f"({', '.join(dupes)}). Each station must map to a distinct stream."
+        )
+
     for change in staged_changes:
         action = change.get("action")
 

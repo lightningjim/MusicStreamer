@@ -1889,7 +1889,11 @@ class EditStationDialog(QDialog):
             repo.set_live_url_title_anchor(station.id, anchor)
             # D-04: validate + persist companion channel URL (T-96-06 SSRF mitigation).
             channel_url = self._live_resync_channel_url_edit.text().strip()
-            if channel_url and station.provider_id is not None:
+            if station.provider_id is not None and not channel_url:
+                # WR-04: an emptied field must be able to clear a previously-saved
+                # URL — the old `if channel_url` guard made clearing impossible.
+                repo.set_provider_channel_scan_url(station.provider_id, None)
+            elif channel_url and station.provider_id is not None:
                 from musicstreamer.yt_import import is_yt_playlist_url
                 if is_yt_playlist_url(channel_url):
                     repo.set_provider_channel_scan_url(station.provider_id, channel_url)
