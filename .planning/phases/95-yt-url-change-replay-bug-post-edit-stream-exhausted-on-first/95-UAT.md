@@ -1,9 +1,10 @@
 ---
-status: diagnosed
+status: resolved
 phase: 95-yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
 source: [95-01-SUMMARY.md]
 started: 2026-06-18
-updated: 2026-06-19
+updated: 2026-06-20
+resolved_by: "95-03 + 95-04 (CR-01 closure); superseded by 95-HUMAN-UAT.md 4/4 pass 2026-06-20"
 ---
 
 ## Current Test

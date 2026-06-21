@@ -1,9 +1,10 @@
 ---
 phase: 95-yt-url-change-replay-bug-post-edit-stream-exhausted-on-first
-verified: 2026-06-20T21:00:00Z
-status: human_needed
-score: 6/6 must-haves verified
+verified: 2026-06-20T22:30:00Z
+status: passed
+score: 6/6 must-haves verified (automated) + 4/4 human UAT passed
 has_blocking_gaps: false
+human_uat: "4/4 passed 2026-06-20 (95-HUMAN-UAT.md): D-01 edit-no-toast, CR-01 leak (dead station still toasts after edit-to-direct), CR-01 spurious A->B (both timing variants clean), D-03 genuine exhaustion toasts once"
 overrides_applied: 0
 re_verification:
   previous_status: human_needed
