@@ -34,6 +34,7 @@ class _TreeNode:
     children: list["_TreeNode"] = field(default_factory=list)
     station: Optional[Station] = None
     provider_name: Optional[str] = None  # raw, never gets the " (N)" label suffix (Phase 55 / BUG-06)
+    provider_id: Optional[int] = None  # Phase 96 D-04: for provider context-menu refresh
 
 
 class StationTreeModel(QAbstractItemModel):
@@ -217,6 +218,7 @@ class StationTreeModel(QAbstractItemModel):
                     label=pname,
                     parent=self._root,
                     provider_name=pname,  # Phase 55 / BUG-06: round-tripable key for capture/restore
+                    provider_id=st.provider_id,  # Phase 96 D-04: first station of group sets the id
                 )
                 self._root.children.append(grp)
                 groups[pname] = grp
