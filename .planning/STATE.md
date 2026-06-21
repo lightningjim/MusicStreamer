@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: completed
-stopped_at: "Phase 999.1 verified — UAT 2/2 passed, verification status: passed (8/8). Security review (no SECURITY.md) gating final completion."
-last_updated: "2026-06-21T00:20:03.385Z"
+stopped_at: Phase 96 context gathered
+last_updated: "2026-06-21T01:06:46.016Z"
 last_activity: 2026-06-21 -- Phase 95 marked complete
 progress:
   total_phases: 22
@@ -210,9 +210,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-20T19:25:48.891Z
-Stopped at: Phase 999.1 verified — UAT 2/2 passed, verification status: passed (8/8). Security review (no SECURITY.md) gating final completion.
-Resume file: .planning/phases/999.1-friendlier-settings-import-error-for-text-mode-corrupted-zip/999.1-VERIFICATION.md
+Last session: 2026-06-21T01:06:46.004Z
+Stopped at: Phase 96 context gathered
+Resume file: .planning/phases/96-manual-refresh-of-yellow-brick-cinema-provider-with-what-is-/96-CONTEXT.md
 
 ## Operator Next Steps
 
