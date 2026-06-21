@@ -298,11 +298,17 @@ class _RowWidget(QWidget):
         left.addWidget(action_label)
 
         if station is not None:
+            # T-39-01: station metadata and scan-derived anchors are untrusted —
+            # force Qt.PlainText so a title like "<img src=http://attacker/x>"
+            # cannot trigger rich-text / remote-resource injection (CR-01).
             station_label = QLabel(station.name)
+            station_label.setTextFormat(Qt.PlainText)
             station_label.setWordWrap(True)
             left.addWidget(station_label)
             if station.live_url_title_anchor:
-                anchor_label = QLabel(f"<i>Anchor: {station.live_url_title_anchor}</i>")
+                anchor_label = QLabel(f"Anchor: {station.live_url_title_anchor}")
+                anchor_label.setTextFormat(Qt.PlainText)
+                anchor_label.setStyleSheet("font-style: italic;")
                 anchor_label.setWordWrap(True)
                 left.addWidget(anchor_label)
         left_widget = QWidget()

@@ -333,6 +333,38 @@ def test_name_field_prepopulation():
 
 
 # ---------------------------------------------------------------------------
+# CR-01 / T-39-01 — rich-text injection guard
+# ---------------------------------------------------------------------------
+
+
+def test_row_labels_use_plaintext_against_injection(qtbot):
+    """CR-01 / T-39-01: a row renders untrusted station names and scan-derived
+    title anchors. Those labels MUST be Qt.PlainText so a title like
+    '<img src=http://attacker/x.png>' cannot trigger a rich-text remote-resource
+    load when the row paints."""
+    _require_module()
+
+    from types import SimpleNamespace
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _RowWidget  # type: ignore[attr-defined]
+
+    evil = "<img src=http://attacker/x.png>"
+    station = SimpleNamespace(name=evil, live_url_title_anchor=evil)
+    row = _RowWidget("remap", station, [], "YBC")
+    qtbot.addWidget(row)
+
+    untrusted = [lb for lb in row.findChildren(QLabel) if evil in lb.text()]
+    assert untrusted, "expected labels rendering the untrusted station name/anchor"
+    for lb in untrusted:
+        assert lb.textFormat() == Qt.PlainText, (
+            f"untrusted label {lb.text()!r} must be Qt.PlainText (T-39-01/CR-01)"
+        )
+
+
+# ---------------------------------------------------------------------------
 # D-10 — Conservative defaults + empty-apply guard
 # ---------------------------------------------------------------------------
 
