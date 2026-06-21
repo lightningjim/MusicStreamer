@@ -507,8 +507,13 @@ class Repo:
         self.con = con
 
     def list_providers(self) -> List[Provider]:
-        rows = self.con.execute("SELECT id, name FROM providers ORDER BY name").fetchall()
-        return [Provider(id=r["id"], name=r["name"]) for r in rows]
+        rows = self.con.execute(
+            "SELECT id, name, channel_scan_url FROM providers ORDER BY name"
+        ).fetchall()
+        return [
+            Provider(id=r["id"], name=r["name"], channel_scan_url=r["channel_scan_url"])
+            for r in rows
+        ]
 
     def ensure_provider(self, name: str) -> Optional[int]:
         name = (name or "").strip()
@@ -700,6 +705,8 @@ class Repo:
                     prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
                     channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
                     provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
+                    live_url_syncs_from_channel=bool(r["live_url_syncs_from_channel"]),  # Phase 96 D-01
+                    live_url_title_anchor=r["live_url_title_anchor"],      # Phase 96 D-03
                 )
             )
         return out
@@ -741,6 +748,8 @@ class Repo:
             prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
             channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
             provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
+            live_url_syncs_from_channel=bool(r["live_url_syncs_from_channel"]),  # Phase 96 D-01
+            live_url_title_anchor=r["live_url_title_anchor"],      # Phase 96 D-03
         )
 
     def delete_station(self, station_id: int):
@@ -852,6 +861,8 @@ class Repo:
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
                 channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
                 provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
+                live_url_syncs_from_channel=bool(r["live_url_syncs_from_channel"]),  # Phase 96 D-01
+                live_url_title_anchor=r["live_url_title_anchor"],      # Phase 96 D-03
             )
             for r in rows
         ]
@@ -969,6 +980,8 @@ class Repo:
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
                 channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
                 provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
+                live_url_syncs_from_channel=bool(r["live_url_syncs_from_channel"]),  # Phase 96 D-01
+                live_url_title_anchor=r["live_url_title_anchor"],      # Phase 96 D-03
             )
             for r in rows
         ]
@@ -1006,3 +1019,91 @@ class Repo:
             (path, provider_id),
         )
         self.con.commit()
+
+    def set_live_url_syncs_from_channel(self, station_id: int, value: bool) -> None:
+        """Phase 96 D-01: set per-station live URL re-sync flag.
+
+        Not routed through update_station — that method does not include this
+        column (Pitfall 1: adding new columns to update_station risks silent-reset
+        on saves that omit the kwarg). Dedicated single-column UPDATE only.
+        Stores as INTEGER (0/1); callers receive bool via Station dataclass.
+        """
+        self.con.execute(
+            "UPDATE stations SET live_url_syncs_from_channel = ? WHERE id = ?",
+            (int(value), station_id),
+        )
+        self.con.commit()
+
+    def set_live_url_title_anchor(self, station_id: int, title: Optional[str]) -> None:
+        """Phase 96 D-03: write/clear the live URL title anchor.
+
+        Not routed through update_station for the same Pitfall 1 reason as
+        set_live_url_syncs_from_channel. NULL clears the anchor.
+        Security T-96-03: caps title at 500 chars before persist to guard against
+        oversized/malicious titles from yt-dlp scan results.
+        Parameterized SQL prevents injection (same idiom as all other Repo setters).
+        """
+        if title is not None:
+            title = title[:500]
+        self.con.execute(
+            "UPDATE stations SET live_url_title_anchor = ? WHERE id = ?",
+            (title, station_id),
+        )
+        self.con.commit()
+
+    def set_provider_channel_scan_url(self, provider_id: int, url: Optional[str]) -> None:
+        """Phase 96 D-04: write the channel scan URL for a provider.
+
+        Not routed through a broad provider update to avoid silent-reset of other
+        columns (same Pitfall 5 rationale as update_provider_avatar_path).
+        Dedicated single-column UPDATE only. NULL clears the scan URL.
+        """
+        self.con.execute(
+            "UPDATE providers SET channel_scan_url = ? WHERE id = ?",
+            (url, provider_id),
+        )
+        self.con.commit()
+
+    def list_flagged_stations_for_provider(self, provider_id: int) -> List[Station]:
+        """Phase 96 D-06: stations for this provider where live_url_syncs_from_channel=1.
+
+        Mirrors list_recently_played's Station-building loop but scoped to a single
+        provider and the live-sync flag. Used by LiveRefreshDialog (Plan 04) to find
+        which stations need their live URL checked against the channel.
+        ORDER BY s.name COLLATE NOCASE for deterministic display ordering.
+        """
+        rows = self.con.execute(
+            """
+            SELECT s.*, p.name AS provider_name, p.avatar_path AS provider_avatar_path
+            FROM stations s
+            LEFT JOIN providers p ON p.id = s.provider_id
+            WHERE s.provider_id = ?
+              AND s.live_url_syncs_from_channel = 1
+            ORDER BY s.name COLLATE NOCASE
+            """,
+            (provider_id,),
+        ).fetchall()
+        return [
+            Station(
+                id=r["id"],
+                name=r["name"],
+                provider_id=r["provider_id"],
+                provider_name=r["provider_name"],
+                tags=r["tags"] or "",
+                station_art_path=r["station_art_path"],
+                album_fallback_path=r["album_fallback_path"],
+                icy_disabled=bool(r["icy_disabled"]),
+                cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
+                last_played_at=r["last_played_at"],
+                is_favorite=bool(r["is_favorite"]),
+                preferred_stream_id=r["preferred_stream_id"],
+                streams=self.list_streams(r["id"]),
+                prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
+                prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
+                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
+                provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
+                live_url_syncs_from_channel=bool(r["live_url_syncs_from_channel"]),  # Phase 96 D-01
+                live_url_title_anchor=r["live_url_title_anchor"],      # Phase 96 D-03
+            )
+            for r in rows
+        ]
