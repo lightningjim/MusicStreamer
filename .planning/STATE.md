@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
+status: completed
 stopped_at: "Phase 999.1 verified — UAT 2/2 passed, verification status: passed (8/8). Security review (no SECURITY.md) gating final completion."
-last_updated: "2026-06-20T19:36:25.893Z"
-last_activity: 2026-06-20 -- Phase 95 execution started
+last_updated: "2026-06-21T00:20:03.385Z"
+last_activity: 2026-06-21 -- Phase 95 marked complete
 progress:
   total_phases: 22
   completed_phases: 21
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 95 (yt-url-change-replay-bug-post-edit-stream-exhausted-on-first) — EXECUTING
+Phase: 95 — COMPLETE
 Plan: 2 of 4
-Status: Executing Phase 95
-Last activity: 2026-06-20 -- Phase 95 execution started
+Status: Phase 95 complete
+Last activity: 2026-06-21 -- Phase 95 marked complete
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
