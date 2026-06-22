@@ -315,6 +315,75 @@ def fetch_channel_avatar(
 
 
 # ---------------------------------------------------------------------------
+# Phase 96.1: Per-video title resolution for blank flat-scan entries (D-01)
+# ---------------------------------------------------------------------------
+
+
+def resolve_live_title(
+    url: str,
+    *,
+    node_runtime: "NodeRuntime | None" = None,
+) -> str:
+    """Resolve the real current title for a live stream URL via a per-video fetch.
+
+    Used when scan_playlist's flat extract returns a blank/"Untitled" title for
+    a live entry (D-01 root cause). Mirrors fetch_channel_avatar but omits
+    ``playlist_items`` and ``extract_flat`` to get full per-video metadata.
+
+    D-02 LANDMINE: ``js_runtimes`` is always passed via
+    ``yt_dlp_opts.build_js_runtimes(node_runtime)`` — never an inline dict.
+    This is required so .desktop launchers (which strip the shell PATH) can
+    resolve the JS runtime for the EarlyJS/ejs:github challenge.
+
+    D-03 fallback: on any failure, or when the resolved title is still blank,
+    returns ``_fallback_title(url)`` — never a bare blank string.
+
+    Thread safety: ``cookie_utils.temp_cookies_copy()`` wraps yt-dlp so
+    save_cookies() side effects land on a temp copy, never the canonical file
+    (T-96.1-03 / Phase 999.7 pattern).
+
+    Truncation is handled downstream by repo.set_live_url_title_anchor
+    (500-char cap, T-96.1-04 / RESEARCH Security Domain). Not re-truncated here.
+    """
+    node_path = node_runtime.path if node_runtime else None
+    _log.info("resolve_live_title: url=%s node_path=%s", url, node_path)
+
+    opts = {
+        # OMIT extract_flat — it suppresses per-video metadata resolution (Pitfall 1).
+        # OMIT playlist_items — we need the per-video title, not channel metadata.
+        # T-96.1-02: socket_timeout=10 bounds the network op so the worker thread
+        # cannot hang indefinitely on a stalled connection (mirrors fetch_channel_avatar).
+        "socket_timeout": 10,
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        # D-02 LANDMINE: thread the resolved absolute Node path so .desktop-stripped
+        # PATH launches can find the JS runtime for the EarlyJS channel challenge.
+        # Single source of truth via build_js_runtimes — never an inline dict.
+        # Mirrors scan_playlist and fetch_channel_avatar (BUG-11 / D-02).
+        "js_runtimes": yt_dlp_opts.build_js_runtimes(node_runtime),
+        # BUG-YT-COOKIES: yt-dlp 2026.03.17+ requires the EJS remote component
+        # when YouTube account cookies are detected (authenticated code path).
+        "remote_components": {"ejs:github"},
+    }
+
+    with cookie_utils.temp_cookies_copy() as cookiefile:
+        if cookiefile is not None:
+            opts["cookiefile"] = cookiefile
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception as e:
+            _log.warning("resolve_live_title: extraction failed for %s: %s", url, e)
+            return _fallback_title(url)
+
+    title = (info or {}).get("title", "")
+    if title and title.strip():
+        return title.strip()
+    return _fallback_title(url)
+
+
+# ---------------------------------------------------------------------------
 # Per-provider avatar fetcher registry (D-04)
 # ---------------------------------------------------------------------------
 
