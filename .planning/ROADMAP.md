@@ -547,6 +547,8 @@ Plans:
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 4/4 | Complete | 2026-06-20 |
+| 96. Manual Refresh of Live-Stream URLs | 5/5 | Complete | 2026-06-21 |
+| 96.1. Live Titles for Newly-Discovered Streams (INSERTED) | 0/3 | Planning | - |
 
 ### Dependency Graph (Tier Summary)
 
@@ -662,6 +664,26 @@ Plans:
 
 **Research flag**: NO — research + patterns mapped every analog; zero new packages.
 **UI hint**: yes
+
+### Phase 96.1: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (INSERTED)
+
+**Goal:** Newly-discovered currently-live streams on a provider's channel that the flat scan returns blank/"Untitled" for are surfaced in the LiveRefreshDialog with a reliable, identifiable title (resolved via a targeted per-video fetch) and can be either added as a new station or mapped/merged onto an existing flagged station whose primary stream URL has gone stale.
+**Requirements**: None mapped in ROADMAP — the behavior contract is CONTEXT.md locked decisions D-01..D-08 (the authoritative requirement set for this phase).
+**Depends on:** Phase 96
+**Plans:** 3 plans across 3 waves
+
+Plans:
+**Wave 1** *(test stubs — RED)*
+
+- [ ] 96.1-01-PLAN.md — Wave 0 test stubs: 6 RED stubs in tests/test_yt_import_library.py (D-01/D-02/D-03) + 7 RED stubs in tests/test_live_refresh_dialog.py (D-02/D-04/D-05/D-06/D-07/D-08)
+
+**Wave 2** *(yt_import backend — blocked on 96.1-01)*
+
+- [ ] 96.1-02-PLAN.md — yt_import._is_blank_title + _fallback_title + resolve_live_title (per-video fetch, node-runtime threading, no-extract_flat, temp_cookies_copy, socket_timeout=10, D-03 fallback)
+
+**Wave 3** *(dialog UI — blocked on 96.1-02)*
+
+- [ ] 96.1-03-PLAN.md — _LiveRefreshScanWorker.run() blank-title resolution off-thread (D-02) + _DiscoverRowWidget (read-only Qt.PlainText title + add/map toggle + flagged dropdown, unchecked default, D-04/D-06/D-07/D-08) + _populate_rows "Newly discovered on channel" section, no dedup (D-05)
 
 ### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
 
