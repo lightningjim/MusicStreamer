@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
+status: executing
 stopped_at: Phase 96.1 context gathered
-last_updated: "2026-06-22T02:47:54.047Z"
-last_activity: 2026-06-22 -- Phase 96.1 planning complete
+last_updated: "2026-06-22T03:30:40.033Z"
+last_activity: 2026-06-22 -- Phase 96.1 execution started
 progress:
   total_phases: 24
   completed_phases: 22
   total_plans: 80
-  completed_plans: 77
+  completed_plans: 78
   percent: 92
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 96.1 — show currently-live stream titles for newly-discovered streams (URGENT insertion before Phase 97)
+**Current focus:** Phase 96.1 — Show currently-live stream titles for newly-discovered streams
 
 ## Current Position
 
-Phase: 96.1
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-22 -- Phase 96.1 planning complete
+Phase: 96.1 (Show currently-live stream titles for newly-discovered streams) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 96.1
+Last activity: 2026-06-22 -- Phase 96.1 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -212,10 +212,11 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 96 P03 | 10 minutes | 2 tasks | 2 files |
 | Phase 96 P04 | 12 minutes | 2 tasks | 1 files |
 | Phase 96 P05 | 40 | 3 tasks | 5 files |
+| Phase 96.1 P01 | 8m | 2 tasks | 2 files |
 
 ## Session Continuity
 
-Last session: 2026-06-21T21:33:17.621Z
+Last session: 2026-06-22T03:30:40.020Z
 Stopped at: Phase 96.1 context gathered
 Resume file: .planning/phases/96.1-show-currently-live-stream-titles-for-newly-discovered-strea/96.1-CONTEXT.md
 

@@ -547,7 +547,7 @@ Plans:
 | 93. BUFFER-MONITOR (CONDITIONAL) | 1/1 | Complete (deviation close) | 2026-06-15 |
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 4/4 | Complete | 2026-06-20 |
-| 96. Manual Refresh of Live-Stream URLs | 5/5 | Complete | 2026-06-21 |
+| 96. Manual Refresh of Live-Stream URLs | 5/5 | Complete   | 2026-06-22 |
 | 96.1. Live Titles for Newly-Discovered Streams (INSERTED) | 0/3 | Planning | - |
 
 ### Dependency Graph (Tier Summary)
