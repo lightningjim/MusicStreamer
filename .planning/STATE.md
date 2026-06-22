@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: planning
 stopped_at: Phase 96.1 context gathered
-last_updated: "2026-06-21T21:33:17.635Z"
-last_activity: 2026-06-21
+last_updated: "2026-06-22T02:47:54.047Z"
+last_activity: 2026-06-22 -- Phase 96.1 planning complete
 progress:
   total_phases: 24
   completed_phases: 22
-  total_plans: 77
+  total_plans: 80
   completed_plans: 77
   percent: 92
 ---
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 Phase: 96.1
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-06-21
+Last activity: 2026-06-22 -- Phase 96.1 planning complete
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
