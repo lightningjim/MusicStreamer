@@ -91,6 +91,16 @@ class _LiveRefreshScanWorker(QThread):
                 toast_callback=self._toast,
                 node_runtime=self._node_runtime,
             )
+            # D-02: resolve blank/Untitled live-entry titles off the UI thread,
+            # threading self._node_runtime into resolve_live_title.
+            # Entries with a real (non-blank) title are NOT re-resolved (D-01).
+            # Emit Signals only — MUST NOT touch any widget (Pitfall 5 / T-96.1-06).
+            for entry in results:
+                if yt_import._is_blank_title(entry.get("title", "")):
+                    entry["title"] = yt_import.resolve_live_title(
+                        entry["url"],
+                        node_runtime=self._node_runtime,  # D-02 LANDMINE: must thread
+                    )
             self.finished.emit(results)
         except Exception as exc:
             self.error.emit(str(exc))
