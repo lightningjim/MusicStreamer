@@ -506,3 +506,106 @@ def test_avatar_registry_register_and_retrieve():
 def test_avatar_registry_unknown_provider_returns_none():
     """D-04: unknown provider returns None."""
     assert yt_import.get_avatar_fetcher("unknown_provider_xyz") is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 96.1 Wave 0 RED stubs — D-01, D-02, D-03, Pitfall 1
+# These tests fail with AttributeError until Plan 02 adds the production symbols.
+# ---------------------------------------------------------------------------
+
+
+def test_is_blank_title_predicate():
+    """D-01: _is_blank_title identifies titles that need per-video resolution.
+
+    Wave 0 RED — yt_import._is_blank_title does not exist yet.
+    """
+    assert yt_import._is_blank_title("") is True, "empty string must be blank"
+    assert yt_import._is_blank_title("Untitled") is True, "'Untitled' must be blank"
+    assert yt_import._is_blank_title("  ") is True, "whitespace-only must be blank"
+    assert yt_import._is_blank_title("UNTITLED") is True, "case-insensitive: 'UNTITLED' must be blank"
+    assert yt_import._is_blank_title("Lofi beats 24/7") is False, "real title must NOT be blank"
+
+
+def test_resolve_live_title_returns_resolved():
+    """D-01: resolve_live_title returns the real title from a per-video fetch.
+
+    Wave 0 RED — yt_import.resolve_live_title does not exist yet.
+    """
+    p, _, _ = _patch_youtubedl(extract_info_return={"title": "Real Live Title"})
+    with p:
+        result = yt_import.resolve_live_title("https://www.youtube.com/watch?v=abc123")
+    assert result == "Real Live Title"
+
+
+def test_resolve_live_title_threads_node_runtime():
+    """D-02 LANDMINE: resolve_live_title must forward node_runtime to yt-dlp opts.
+
+    Guards the MEMORY.md yt-dlp-callsites-need-resolved-node-runtime landmine:
+    YouTube extraction fails silently under .desktop launchers unless an absolute
+    node path is passed via build_js_runtimes.
+
+    Wave 0 RED — yt_import.resolve_live_title does not exist yet.
+    """
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return={"title": "Live Title"})
+    with p:
+        yt_import.resolve_live_title(
+            "https://www.youtube.com/watch?v=abc123",
+            node_runtime=NodeRuntime(available=True, path="/fake/node"),
+        )
+    opts = youtubedl_cls.call_args[0][0]
+    assert opts["js_runtimes"] == {"node": {"path": "/fake/node"}}, (
+        "resolve_live_title must pass node_runtime into js_runtimes "
+        "(mirrors test_scan_playlist_passes_node_path_when_available; D-02 LANDMINE)"
+    )
+
+
+def test_resolve_live_title_no_extract_flat():
+    """Pitfall 1: resolve_live_title must NOT include extract_flat in opts.
+
+    extract_flat suppresses per-video metadata resolution — including it would
+    return the same blank title as the flat scan. The per-video resolve must
+    use fetch_channel_avatar opts as its template, NOT scan_playlist opts.
+
+    Wave 0 RED — yt_import.resolve_live_title does not exist yet.
+    """
+    p, youtubedl_cls, _ = _patch_youtubedl(extract_info_return={"title": "Live Title"})
+    with p:
+        yt_import.resolve_live_title("https://www.youtube.com/watch?v=abc123")
+    opts = youtubedl_cls.call_args[0][0]
+    assert "extract_flat" not in opts, (
+        "extract_flat must NOT be in resolve_live_title opts (Pitfall 1 anti-pattern)"
+    )
+
+
+def test_resolve_live_title_fallback_on_error():
+    """D-03: resolve_live_title returns fallback string on any yt-dlp error.
+
+    No exception must escape; the fallback is "Untitled — watch?v=<id>"
+    (em dash U+2014).
+
+    Wave 0 RED — yt_import.resolve_live_title does not exist yet.
+    """
+    p, _, _ = _patch_youtubedl(extract_info_side_effect=Exception("boom"))
+    with p:
+        result = yt_import.resolve_live_title("https://www.youtube.com/watch?v=abc123")
+    assert result == "Untitled — watch?v=abc123", (
+        f"fallback must be 'Untitled — watch?v=abc123'; got {result!r}"
+    )
+
+
+def test_fallback_title_includes_video_id():
+    """D-03: _fallback_title extracts the watch?v= video ID from the URL.
+
+    The em dash (U+2014) separates 'Untitled' from the ID fragment.
+    For URLs with no v= parameter the fallback still starts with 'Untitled — '.
+
+    Wave 0 RED — yt_import._fallback_title does not exist yet.
+    """
+    result = yt_import._fallback_title("https://www.youtube.com/watch?v=abc123")
+    assert result == "Untitled — watch?v=abc123", (
+        f"_fallback_title with v= param must yield 'Untitled — watch?v=abc123'; got {result!r}"
+    )
+    no_vid = yt_import._fallback_title("https://www.youtube.com/live/some-path")
+    assert no_vid.startswith("Untitled — "), (
+        f"_fallback_title without v= must start with 'Untitled — '; got {no_vid!r}"
+    )
