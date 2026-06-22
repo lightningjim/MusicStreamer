@@ -1,33 +1,21 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-21T01:14:56.661Z",
-  "phase": "96",
-  "phase_name": "manual-refresh-of-yellow-brick-cinema-provider-with-what-is-",
-  "phase_dir": ".planning/phases/96-manual-refresh-of-yellow-brick-cinema-provider-with-what-is-",
+  "timestamp": "2026-06-22T18:16:08.502Z",
+  "source": "auto-postool",
+  "partial": true,
+  "phase": null,
+  "phase_name": null,
+  "phase_dir": null,
   "plan": null,
   "task": null,
   "total_tasks": null,
-  "status": "paused",
-  "completed_tasks": [
-    {"id": 1, "name": "discuss-phase 96 (interactive, --chain): scope reframed from YBC-specific to generic per-station opt-in flag", "status": "done", "commit": "913f6a24"},
-    {"id": 2, "name": "Wrote 96-CONTEXT.md (D-01..D-10) + 96-DISCUSSION-LOG.md", "status": "done", "commit": "913f6a24"},
-    {"id": 3, "name": "Recorded context session in STATE.md; set workflow._auto_chain_active=true", "status": "done", "commit": "4156de1f"},
-    {"id": 4, "name": "plan-phase 96 init: validated phase (Pending), loaded config (research/checker/nyquist/security on; UI gate skipped — no roadmap detail section), fetched agent-skills (empty)", "status": "done", "commit": null},
-    {"id": 5, "name": "Spawn gsd-phase-researcher for Phase 96", "status": "interrupted", "progress": "Researcher Agent call was rejected/paused BEFORE it ran — no RESEARCH.md written, nothing partial to clean up"}
-  ],
-  "remaining_tasks": [
-    {"id": 6, "name": "Run research -> plan -> verify for Phase 96 (resume plan-phase)", "status": "not_started"},
-    {"id": 7, "name": "Execute Phase 96 plans (auto-advance is armed via _auto_chain_active=true)", "status": "not_started"}
-  ],
+  "status": "auto-checkpoint",
+  "completed_tasks": [],
+  "remaining_tasks": [],
   "blockers": [],
   "human_actions_pending": [],
-  "decisions": [
-    {"decision": "Generalize beyond Yellow Brick Cinema to a per-station opt-in flag (default OFF), YouTube-scoped", "rationale": "Cafe BGM and other channels have the same live-stream URL-churn problem; YBC is just the motivating case", "phase": "96"},
-    {"decision": "Always-manual mapping in a provider-level review/resolve dialog with drop/replace/add actions, editable per-row names, conservative review-and-confirm apply", "rationale": "Old streams can vanish and be replaced by unrelated new ones with no title connection; user wants explicit control and no accidental deletes (D-05..D-10)", "phase": "96"},
-    {"decision": "Provider-row sidebar context menu is the trigger (Claude's discretion); flag + hidden YouTube-title anchor stored on station", "rationale": "Display name is user-customizable so cannot be the match key; anchor only pre-orders dialog suggestions (D-03, D-04)", "phase": "96"},
-    {"decision": "Deferred to v3: pluggable, custom-site-aware live-URL resolver (Twitch + arbitrary sites), config-driven", "rationale": "No HTTP-stream visibility for Twitch/others without a plugin process; out of scope for YouTube-only Phase 96", "phase": "96"}
-  ],
-  "uncommitted_files": [".planning/HANDOFF.json"],
-  "next_action": "Re-run /gsd:plan-phase 96 --auto (or /gsd:plan-phase 96). It auto-loads 96-CONTEXT.md and runs research -> plan -> verify. Because workflow._auto_chain_active=true, it will then auto-advance into execute-phase. The researcher had NOT started, so there is no partial RESEARCH.md to reconcile.",
-  "context_notes": "Mid plan-phase 96, immediately after init/config-gathering, about to spawn gsd-phase-researcher (sonnet). The research prompt was fully drafted (covers: db_init additive migration for the opt-in flag + title anchor, update-in-place path that bypasses URL-dedup-as-duplicate, check_node node-runtime threading landmine, provider/channel scoping to derive the @handle channel URL, provider-row context-menu wiring in station_list_panel.py, yt-dlp live_status reliability, a Nyquist Validation Architecture section, and an ASVS-L1 threat surface). CONTEXT_WINDOW=200000 so no cross-phase enrichment. Pattern-mapper + plan-checker + nyquist + security gates all still pending. UI-SPEC intentionally skipped (PySide6 desktop dialog reusing import_dialog.py patterns; roadmap has no Phase 96 detail section so the UI keyword gate found nothing). Key landmine to carry into planning: yt-dlp call sites need a resolved node runtime under .desktop launchers."
+  "decisions": [],
+  "uncommitted_files": [],
+  "next_action": null,
+  "context_notes": ""
 }

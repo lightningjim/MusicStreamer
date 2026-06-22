@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 96.1 context gathered
-last_updated: "2026-06-22T03:39:52.435Z"
-last_activity: 2026-06-22 -- Phase 96.1 execution started
+stopped_at: Phase 96.1 complete (verified pass)
+last_updated: "2026-06-22T18:15:31.517Z"
+last_activity: 2026-06-22 -- Phase 96.1 closed out (verification pass, 8/8); next: plan 96.2
 progress:
-  total_phases: 24
-  completed_phases: 23
-  total_plans: 80
-  completed_plans: 80
-  percent: 96
+  total_phases: 26
+  completed_phases: 24
+  total_plans: 83
+  completed_plans: 83
+  percent: 92
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 96.1 — Show currently-live stream titles for newly-discovered streams
+**Current focus:** Phase 96.2 — Fix Newly-Discovered merge dropdown (planning)
 
 ## Current Position
 
-Phase: 96.1 (Show currently-live stream titles for newly-discovered streams) — EXECUTING
-Plan: 3 of 3
-Status: Executing Phase 96.1
-Last activity: 2026-06-22 -- Phase 96.1 execution started
+Phase: 96.2 (Fix Newly-Discovered merge dropdown only offering one of the 19 saved streams) — NOT PLANNED
+Plan: 0 of 0 (awaiting /gsd:plan-phase 96.2)
+Status: Phase 96.1 complete (verified pass, 8/8 must-haves); 96.2 inserted, ready to plan
+Last activity: 2026-06-22 -- Phase 96.1 closed out; next: plan 96.2
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -168,6 +168,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 89c inserted after Phase 89b: Provider brand-avatar cover-slot fallback (SomaFM, AudioAddict) — distinct brand avatar when per-track art resolution is exhausted, trigger is resolution-exhausted not icy_disabled (URGENT)
 - Phase 89.1 inserted after Phase 89: Re-key channel avatar from per-station to per-provider (channel) — dedupe fetch + storage across sibling YT streams of the same channel (URGENT)
 - Phase 96.1 inserted after Phase 96: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (URGENT)
+- Phase 96.2 inserted after Phase 96: Fix Newly-Discovered merge dropdown only offering one of the 19 saved streams (URGENT)
 
 ### Pending Todos
 

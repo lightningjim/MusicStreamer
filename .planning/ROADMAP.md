@@ -665,6 +665,16 @@ Plans:
 **Research flag**: NO — research + patterns mapped every analog; zero new packages.
 **UI hint**: yes
 
+### Phase 96.2: Fix Newly-Discovered merge dropdown only offering one of the 19 saved streams (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 96
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 96.2 to break down)
+
 ### Phase 96.1: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (INSERTED)
 
 **Goal:** Newly-discovered currently-live streams on a provider's channel that the flat scan returns blank/"Untitled" for are surfaced in the LiveRefreshDialog with a reliable, identifiable title (resolved via a targeted per-video fetch) and can be either added as a new station or mapped/merged onto an existing flagged station whose primary stream URL has gone stale.
