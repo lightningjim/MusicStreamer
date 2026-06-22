@@ -36,12 +36,10 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QProgressBar,
-    QPushButton,
     QRadioButton,
     QScrollArea,
     QSizePolicy,
@@ -231,6 +229,29 @@ def apply_refresh(repo: Repo, staged_changes: list) -> None:
         raise ValueError(
             "Multiple stations are mapped to the same live stream "
             f"({', '.join(dupes)}). Each station must map to a distinct stream."
+        )
+
+    # WR-01 (Phase 96.1 D-07): the discover MAP path is a second way to point an
+    # existing flagged station at a live stream, so two remap rows can target the
+    # SAME station_id with DIFFERENT URLs (e.g. a default-checked REMAP row plus a
+    # discover MAP row onto that station). The URL guard above misses that — both
+    # pass and run sequential update_stream calls on the same primary stream
+    # (silent last-write-wins). D-07 requires "same target station" double-maps to
+    # fail closed too, so dedup by station_id before any mutation.
+    target_station_ids = [
+        change.get("station_id")
+        for change in staged_changes
+        if change.get("action") == "remap"
+    ]
+    target_station_ids = [sid for sid in target_station_ids if sid is not None]
+    station_dupes = sorted(
+        {sid for sid in target_station_ids if target_station_ids.count(sid) > 1}
+    )
+    if station_dupes:
+        raise ValueError(
+            "Multiple rows map onto the same station "
+            f"({', '.join(str(s) for s in station_dupes)}). "
+            "Each station can be mapped by only one row per Apply."
         )
 
     for change in staged_changes:

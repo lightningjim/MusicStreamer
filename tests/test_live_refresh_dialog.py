@@ -278,6 +278,37 @@ def test_apply_refresh_rejects_duplicate_targets():
     mock_repo.insert_station.assert_not_called()
 
 
+def test_apply_refresh_rejects_duplicate_station_targets():
+    """WR-01 (Phase 96.1 D-07): two remap rows targeting the SAME station_id with
+    DIFFERENT live URLs (a REMAP row plus a discover MAP row onto that station)
+    must fail closed BEFORE any mutation. The URL-only guard misses this because
+    the URLs differ; without a station_id guard both run sequential update_stream
+    calls on the same primary stream (silent last-write-wins)."""
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import apply_refresh  # type: ignore[attr-defined]
+
+    mock_repo = MagicMock()
+    staged = [
+        {
+            "action": "remap", "station_id": 7, "stream_id": 70,
+            "scan_result": {"title": "A", "url": "https://youtu.be/url_a", "provider": "YBC"},
+        },
+        {
+            "action": "remap", "station_id": 7, "stream_id": 70,
+            "scan_result": {"title": "B", "url": "https://youtu.be/url_b", "provider": "YBC"},
+        },
+    ]
+    with pytest.raises(ValueError, match="same station"):
+        apply_refresh(mock_repo, staged)
+
+    # Fail closed: NO repo mutation may have occurred.
+    mock_repo.update_stream.assert_not_called()
+    mock_repo.set_live_url_title_anchor.assert_not_called()
+    mock_repo.delete_station.assert_not_called()
+    mock_repo.insert_station.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # D-07 — Drop and add actions
 # ---------------------------------------------------------------------------
