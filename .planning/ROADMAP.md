@@ -548,7 +548,7 @@ Plans:
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 4/4 | Complete | 2026-06-20 |
 | 96. Manual Refresh of Live-Stream URLs | 5/5 | Complete   | 2026-06-22 |
-| 96.1. Live Titles for Newly-Discovered Streams (INSERTED) | 2/3 | In Progress|  |
+| 96.1. Live Titles for Newly-Discovered Streams (INSERTED) | 3/3 | Complete   | 2026-06-22 |
 
 ### Dependency Graph (Tier Summary)
 
@@ -683,7 +683,7 @@ Plans:
 
 **Wave 3** *(dialog UI — blocked on 96.1-02)*
 
-- [ ] 96.1-03-PLAN.md — _LiveRefreshScanWorker.run() blank-title resolution off-thread (D-02) + _DiscoverRowWidget (read-only Qt.PlainText title + add/map toggle + flagged dropdown, unchecked default, D-04/D-06/D-07/D-08) + _populate_rows "Newly discovered on channel" section, no dedup (D-05)
+- [x] 96.1-03-PLAN.md — _LiveRefreshScanWorker.run() blank-title resolution off-thread (D-02) + _DiscoverRowWidget (read-only Qt.PlainText title + add/map toggle + flagged dropdown, unchecked default, D-04/D-06/D-07/D-08) + _populate_rows "Newly discovered on channel" section, no dedup (D-05)
 
 ### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
 
