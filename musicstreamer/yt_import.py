@@ -8,6 +8,9 @@ Public API:
   fetch_channel_avatar(channel_url) -> bytes
   register_avatar_fetcher(provider, fetcher) -> None
   get_avatar_fetcher(provider) -> Optional[Callable[[str], bytes]]
+  resolve_live_title(url) -> str     # per-video title fetch for blank flat-scan entries (D-01)
+
+Internal helpers: _is_blank_title (D-01 predicate), _fallback_title (D-03 fallback).
 
 Uses the yt_dlp Python library API directly (PORT-09 / D-17). No subprocess.
 """
@@ -59,6 +62,41 @@ def _entry_is_live(entry: dict) -> bool:
     if status is None and entry.get("is_live") is None:
         return entry.get("duration") is None
     return False
+
+
+# ---------------------------------------------------------------------------
+# D-01 blank-title predicate + D-03 fallback helper
+# ---------------------------------------------------------------------------
+
+_BLANK_TITLES: frozenset[str] = frozenset({"", "untitled"})
+
+
+def _is_blank_title(title: str) -> bool:
+    """Return True when a flat-scan title needs per-video resolution (D-01).
+
+    Matches the empty string, whitespace-only strings, and any case variant of
+    "Untitled" — the placeholder scan_playlist injects when yt-dlp returns no
+    title for a live entry (line below: entry.get("title", "Untitled")).
+    """
+    return not title or title.strip().lower() in _BLANK_TITLES
+
+
+def _fallback_title(url: str) -> str:
+    """Return the D-03 fallback title string for a YouTube watch URL.
+
+    Derives the video ID via ``urllib.parse`` (function-local import to keep
+    the module-level import list unchanged). Returns "Untitled — watch?v=<id>"
+    when a ``v=`` query param exists, else "Untitled — <url>".
+    Uses the em dash character (U+2014) to match D-03 wording exactly.
+    """
+    import urllib.parse as _urlparse  # function-local; urllib.request already imported above
+
+    parsed = _urlparse.urlparse(url)
+    params = _urlparse.parse_qs(parsed.query)
+    video_ids = params.get("v")
+    if video_ids:
+        return f"Untitled — watch?v={video_ids[0]}"
+    return f"Untitled — {url}"
 
 
 def scan_playlist(
