@@ -31,6 +31,7 @@ from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -41,6 +42,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -435,6 +437,172 @@ class _RowWidget(QWidget):
             "station_id": sid,
             "stream_id": primary_stream_id,
             "scan_result": selected_entry,
+        }
+
+
+class _DiscoverRowWidget(QWidget):
+    """One row in the 'Newly discovered on channel' section — represents a single
+    newly-discovered live stream that is NOT an existing flagged station.
+
+    Constructor signature:
+        _DiscoverRowWidget(entry, flagged_stations, provider_name, parent=None)
+
+    Exposes the same duck-type interface as _RowWidget so _on_apply can iterate
+    self._row_widgets without special-casing:
+        - ._station: None (add mode) or the chosen Station (map mode)
+        - is_staged() -> bool
+        - build_staged_change(station_id=None) -> Optional[dict]
+
+    Security:
+        D-04 / CR-01 / T-39-01: the read-only title label MUST use Qt.PlainText —
+        scan-derived titles are untrusted (attacker-controllable) and could contain
+        HTML like '<img src=http://attacker/x.png>' that Qt AutoText would render.
+
+    Defaults:
+        D-08: unchecked by default (conservative — explicit user opt-in required).
+    """
+
+    def __init__(
+        self,
+        entry: dict,
+        flagged_stations: list,
+        provider_name: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._entry = entry
+        self._provider_name = provider_name
+        self._station: Optional[Station] = None  # updated when map mode + station chosen
+
+        row_layout = QHBoxLayout(self)
+        row_layout.setContentsMargins(4, 4, 4, 4)
+
+        # Check box — unchecked by default (D-08; default_check_state("discover") == False)
+        self._check = QCheckBox()
+        self._check.setChecked(default_check_state("discover"))  # False
+        row_layout.addWidget(self._check)
+
+        # Left: read-only title label from entry["title"]
+        # T-39-01: scan-derived title is untrusted — MUST call setTextFormat(Qt.PlainText)
+        # so a title like "<img src=http://attacker/x.png>" cannot load a remote resource.
+        # Copy lines 322-331 idiom from _RowWidget verbatim (CR-01).
+        left = QVBoxLayout()
+        title_text = entry.get("title", "")
+        title_label = QLabel(title_text)
+        title_label.setTextFormat(Qt.PlainText)  # CR-01 / T-39-01 MANDATORY
+        title_label.setWordWrap(True)
+        left.addWidget(title_label)
+        left_widget = QWidget()
+        left_widget.setLayout(left)
+        left_widget.setFixedWidth(200)
+        row_layout.addWidget(left_widget)
+
+        # Middle: editable name QLineEdit pre-filled with entry title (add default — D-04)
+        self._name_edit = QLineEdit()
+        self._name_edit.setText(entry.get("title", ""))
+        name_container = QVBoxLayout()
+        name_container.addWidget(QLabel("Name:"))
+        name_container.addWidget(self._name_edit)
+        name_widget = QWidget()
+        name_widget.setLayout(name_container)
+        name_widget.setFixedWidth(180)
+        row_layout.addWidget(name_widget)
+
+        # Right: action toggle (Add vs Map) + map dropdown
+        action_container = QVBoxLayout()
+
+        # Action radio buttons in a button group (D-06)
+        self._action_group = QButtonGroup(self)
+        self._action_add_radio = QRadioButton("Add as new station")
+        self._action_map_radio = QRadioButton("Map onto existing station")
+        self._action_add_radio.setChecked(True)  # Add is default
+        self._action_group.addButton(self._action_add_radio)
+        self._action_group.addButton(self._action_map_radio)
+        action_container.addWidget(self._action_add_radio)
+        action_container.addWidget(self._action_map_radio)
+
+        # Map combo — populated from flagged_stations (D-07)
+        # Each item's userData is the Station object (QComboBox userData pattern)
+        self._map_combo = QComboBox()
+        self._map_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        for station in flagged_stations:
+            self._map_combo.addItem(station.name, userData=station)
+        if not flagged_stations:
+            self._map_combo.addItem("(no flagged stations)", userData=None)
+            self._action_map_radio.setEnabled(False)
+
+        # When map mode selected and station chosen, update self._station
+        self._map_combo.currentIndexChanged.connect(self._on_map_combo_changed)
+        self._action_map_radio.toggled.connect(self._on_action_toggled)
+
+        action_container.addWidget(QLabel("Map target:"))
+        action_container.addWidget(self._map_combo)
+        action_widget = QWidget()
+        action_widget.setLayout(action_container)
+        row_layout.addWidget(action_widget)
+
+        # Initialize _station from current map combo selection
+        self._on_action_toggled(False)  # add mode is default
+
+    def _on_action_toggled(self, map_checked: bool) -> None:
+        """Update self._station when the action radio selection changes."""
+        if map_checked or self._action_map_radio.isChecked():
+            chosen = self._map_combo.currentData(Qt.UserRole)
+            self._station = chosen if isinstance(chosen, Station) else None
+        else:
+            self._station = None
+
+    def _on_map_combo_changed(self, _index: int) -> None:
+        """Update self._station when the map combo selection changes."""
+        if self._action_map_radio.isChecked():
+            chosen = self._map_combo.currentData(Qt.UserRole)
+            self._station = chosen if isinstance(chosen, Station) else None
+
+    def is_staged(self) -> bool:
+        """Return True if this row is checked (staged for apply)."""
+        return self._check.isChecked()
+
+    def build_staged_change(self, station_id: Optional[int] = None) -> Optional[dict]:
+        """Build a staged-change record for apply_refresh, or None if unchecked/invalid.
+
+        Add mode (default):
+            {"action": "add", "name": ..., "scan_result": entry, "provider_name": ...}
+
+        Map mode (user switched to map and chose a station):
+            {"action": "remap", "station_id": ..., "stream_id": ..., "scan_result": entry}
+        """
+        if not self.is_staged():
+            return None
+
+        name = self._name_edit.text().strip() or self._entry.get("title", "")
+
+        if self._action_map_radio.isChecked():
+            # Map mode — emit remap shape (D-06/D-07)
+            chosen = self._map_combo.currentData(Qt.UserRole)
+            if chosen is None or not isinstance(chosen, Station):
+                return None
+            # Mirror _RowWidget lines 414-428 exactly (Pitfall 4: stream_id MUST be present)
+            primary_stream_id: Optional[int] = None
+            if hasattr(chosen, "streams"):
+                for s in chosen.streams:
+                    if s.position == 1:
+                        primary_stream_id = s.id
+                        break
+                if primary_stream_id is None and chosen.streams:
+                    primary_stream_id = chosen.streams[0].id
+            return {
+                "action": "remap",
+                "station_id": chosen.id,
+                "stream_id": primary_stream_id,
+                "scan_result": self._entry,
+            }
+
+        # Add mode (default) — emit add shape (D-06)
+        return {
+            "action": "add",
+            "name": name,
+            "scan_result": self._entry,
+            "provider_name": self._provider_name,
         }
 
 
