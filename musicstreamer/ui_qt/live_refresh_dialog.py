@@ -644,7 +644,7 @@ class LiveRefreshDialog(QDialog):
         self._toast = toast_callback
         self._scan_worker: Optional[_LiveRefreshScanWorker] = None
         self._scan_results: list = []
-        self._row_widgets: List[_RowWidget] = []
+        self._row_widgets: List[QWidget] = []  # _RowWidget | _DiscoverRowWidget
 
         self.setWindowTitle(f"Refresh Live Streams — {provider_name}")
         self.setMinimumSize(760, 520)
@@ -777,20 +777,21 @@ class LiveRefreshDialog(QDialog):
             self._rows_layout.addWidget(row)
             self._row_widgets.append(row)
 
-        # Separator label for ADD section
+        # "Newly discovered on channel" section — one _DiscoverRowWidget per scan entry.
+        # D-05: NO dedup — every scan_result gets a row even if it is also the closest
+        # match for a REMAP-targeted flagged station (incidental double-listing acceptable).
+        # D-08: _DiscoverRowWidget rows are unchecked by default.
         if scan_results:
-            add_label = QLabel(
-                "<b>Add a currently-live stream as a new station (unchecked by default):</b>"
+            discover_label = QLabel(
+                "<b>Newly discovered on channel (unchecked by default):</b>"
             )
-            add_label.setWordWrap(True)
-            self._rows_layout.addWidget(add_label)
+            discover_label.setWordWrap(True)
+            self._rows_layout.addWidget(discover_label)
 
-            # One ADD row per scan result not already matched to a flagged station
             for entry in scan_results:
-                row = _RowWidget(
-                    "add",
-                    None,
-                    [entry],
+                row = _DiscoverRowWidget(
+                    entry,
+                    self._flagged_stations,
                     self._provider_name,
                     parent=self._rows_container,
                 )
