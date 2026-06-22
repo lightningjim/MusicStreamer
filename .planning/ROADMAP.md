@@ -548,7 +548,7 @@ Plans:
 | 94. Sidebar Logo Thumbnail Optimization | 3/3 | Complete    | 2026-06-15 |
 | 95. YT URL-Change Replay Bug | 4/4 | Complete | 2026-06-20 |
 | 96. Manual Refresh of Live-Stream URLs | 5/5 | Complete   | 2026-06-22 |
-| 96.1. Live Titles for Newly-Discovered Streams (INSERTED) | 0/3 | Planning | - |
+| 96.1. Live Titles for Newly-Discovered Streams (INSERTED) | 2/3 | In Progress|  |
 
 ### Dependency Graph (Tier Summary)
 
@@ -675,11 +675,11 @@ Plans:
 Plans:
 **Wave 1** *(test stubs — RED)*
 
-- [ ] 96.1-01-PLAN.md — Wave 0 test stubs: 6 RED stubs in tests/test_yt_import_library.py (D-01/D-02/D-03) + 7 RED stubs in tests/test_live_refresh_dialog.py (D-02/D-04/D-05/D-06/D-07/D-08)
+- [x] 96.1-01-PLAN.md — Wave 0 test stubs: 6 RED stubs in tests/test_yt_import_library.py (D-01/D-02/D-03) + 7 RED stubs in tests/test_live_refresh_dialog.py (D-02/D-04/D-05/D-06/D-07/D-08)
 
 **Wave 2** *(yt_import backend — blocked on 96.1-01)*
 
-- [ ] 96.1-02-PLAN.md — yt_import._is_blank_title + _fallback_title + resolve_live_title (per-video fetch, node-runtime threading, no-extract_flat, temp_cookies_copy, socket_timeout=10, D-03 fallback)
+- [x] 96.1-02-PLAN.md — yt_import._is_blank_title + _fallback_title + resolve_live_title (per-video fetch, node-runtime threading, no-extract_flat, temp_cookies_copy, socket_timeout=10, D-03 fallback)
 
 **Wave 3** *(dialog UI — blocked on 96.1-02)*
 
