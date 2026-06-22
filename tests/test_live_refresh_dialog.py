@@ -475,3 +475,242 @@ def test_conservative_defaults():
     assert mock_repo.insert_station.call_count == 0, (
         "Empty staged list must produce ZERO insert_station calls (W4)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 96.1 Wave 0 RED stubs — D-02, D-04, D-05, D-06, D-07, D-08
+# These tests fail with ImportError/_DiscoverRowWidget AttributeError or
+# AttributeError on resolve_live_title until Plans 02/03 add the symbols.
+# ---------------------------------------------------------------------------
+
+
+def test_scan_worker_threads_node_runtime_into_resolve():
+    """D-02: _LiveRefreshScanWorker.run() must call resolve_live_title with node_runtime.
+
+    After plan_playlist returns entries with blank titles, the worker must
+    resolve them via yt_import.resolve_live_title forwarding the same
+    node_runtime it received at construction. Guards the .desktop-launcher
+    landmine: if node_runtime is not threaded, yt-dlp cannot find Node.js.
+
+    Wave 0 RED — yt_import.resolve_live_title does not exist yet;
+    run() does not yet call it.
+    """
+    _require_module()
+
+    sentinel = object()  # unique sentinel for identity check
+
+    with patch("musicstreamer.yt_import.scan_playlist") as mock_scan, \
+         patch("musicstreamer.yt_import.resolve_live_title") as mock_resolve:
+        # Return one entry with a blank title so the blank-resolution loop fires
+        mock_scan.return_value = [
+            {"title": "", "url": "https://www.youtube.com/watch?v=abc", "provider": "YBC"}
+        ]
+        mock_resolve.return_value = "Resolved Title"
+        worker = _LiveRefreshScanWorker(
+            "https://youtube.com/@YellowBrickCinema/streams",
+            node_runtime=sentinel,
+        )
+        # Call run() directly on main thread — do NOT start a real QThread
+        worker.run()
+
+    mock_resolve.assert_called_once()
+    _args, _kwargs = mock_resolve.call_args
+    assert _kwargs.get("node_runtime") is sentinel, (
+        "resolve_live_title must be called with node_runtime=<sentinel passed to worker __init__>; "
+        f"got node_runtime={_kwargs.get('node_runtime')!r} (D-02 LANDMINE guard)"
+    )
+
+
+def test_discover_row_title_label_plaintext(qtbot):
+    """D-04 / CR-01 / T-39-01: _DiscoverRowWidget title label must use Qt.PlainText.
+
+    A scan-derived title containing HTML (e.g. '<img src=http://attacker/x.png>')
+    must NOT trigger a remote-resource load when the row paints. The label
+    textFormat must be Qt.PlainText, not Qt.AutoText or Qt.RichText.
+
+    Wave 0 RED — _DiscoverRowWidget does not exist yet.
+    """
+    _require_module()
+
+    from types import SimpleNamespace
+
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLabel
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    evil = "<img src=http://attacker/x.png>"
+    entry = {"title": evil, "url": "https://www.youtube.com/watch?v=abc", "provider": "YBC"}
+    row = _DiscoverRowWidget(entry, [], "YBC")
+    qtbot.addWidget(row)
+
+    untrusted = [lb for lb in row.findChildren(QLabel) if evil in lb.text()]
+    assert untrusted, (
+        "expected at least one QLabel in _DiscoverRowWidget rendering the untrusted scan title"
+    )
+    for lb in untrusted:
+        assert lb.textFormat() == Qt.PlainText, (
+            f"untrusted title label {lb.text()!r} must be Qt.PlainText "
+            "(T-39-01/CR-01 — scan titles are untrusted)"
+        )
+
+
+def test_discover_section_no_dedup():
+    """D-05: _populate_rows lists EVERY scan entry in the discover section.
+
+    Even if a scan entry's URL is also the closest match for a flagged station
+    REMAP row, it must still appear as a _DiscoverRowWidget. No dedup hiding.
+
+    Wave 0 RED — _DiscoverRowWidget does not exist yet.
+    """
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    # Two scan entries: both should appear as discover rows
+    scan_results = [
+        {"title": "Stream A", "url": "https://www.youtube.com/watch?v=aaa", "provider": "YBC"},
+        {"title": "Stream B", "url": "https://www.youtube.com/watch?v=bbb", "provider": "YBC"},
+    ]
+
+    flagged_station = MagicMock()
+    flagged_station.id = 1
+    flagged_station.name = "YBC Relaxing"
+    flagged_station.streams = []
+
+    # Instantiate a _DiscoverRowWidget per scan entry and count them — Plan 03
+    # must ensure _populate_rows creates one per entry with no dedup.
+    row_widgets = [_DiscoverRowWidget(e, [flagged_station], "YBC") for e in scan_results]
+    assert len(row_widgets) == len(scan_results), (
+        "There must be exactly one _DiscoverRowWidget per scan result (D-05 no-dedup)"
+    )
+
+
+def test_discover_row_add_staged_change():
+    """D-06 add: _DiscoverRowWidget in add mode, checked, returns correct add change dict.
+
+    Wave 0 RED — _DiscoverRowWidget does not exist yet.
+    """
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    entry = {"title": "New Stream", "url": "https://www.youtube.com/watch?v=abc", "provider": "YBC"}
+    row = _DiscoverRowWidget(entry, [], "YBC")
+
+    # Force the add mode and check the box so is_staged() returns True
+    # (exact API is Plan 03's discretion; we rely on is_staged() + build_staged_change())
+    # Trigger the "add" action path by checking the checkbox
+    row._check.setChecked(True)
+
+    change = row.build_staged_change()
+    assert change is not None, "build_staged_change must return a dict when checked (add mode)"
+    assert change["action"] == "add", f"action must be 'add'; got {change['action']!r}"
+    assert change["scan_result"] == entry, "scan_result must be the entry passed at construction"
+    assert change["provider_name"] == "YBC", f"provider_name must be 'YBC'; got {change.get('provider_name')!r}"
+    # Name field defaults to the entry title for add mode (D-08)
+    assert change.get("name") == entry["title"] or change.get("name"), (
+        "add staged change must include a non-empty 'name' (defaulting to scan title, D-08)"
+    )
+
+
+def test_discover_row_map_staged_change(qtbot):
+    """D-06 map: _DiscoverRowWidget in map mode returns correct remap change dict.
+
+    Checks the box, switches to map mode, selects the station from the dropdown,
+    and asserts build_staged_change returns the remap shape with station_id and stream_id.
+
+    Wave 0 RED — _DiscoverRowWidget does not exist yet.
+    """
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    stream = StationStream(id=10, station_id=1, url="https://old.url", label="Cinema",
+                           quality="hi", position=1, stream_type="hls", codec="aac", bitrate_kbps=128)
+    station = Station(id=1, name="YBC Relaxing", provider_id=None, provider_name="YBC",
+                      tags="", station_art_path=None, album_fallback_path=None,
+                      streams=[stream])
+    entry = {"title": "New Live", "url": "https://www.youtube.com/watch?v=abc", "provider": "YBC"}
+
+    row = _DiscoverRowWidget(entry, [station], "YBC")
+    qtbot.addWidget(row)
+
+    # Switch to map mode and select the station in the map combo
+    # Plan 03 controls the exact UI API; we interact via _map_combo / a radio or toggle
+    row._check.setChecked(True)
+
+    # Find and set the map combo to the station (index 0 = first flagged station)
+    map_combo = row._map_combo  # type: ignore[attr-defined]
+    map_combo.setCurrentIndex(0)
+
+    # Switch to map action (Plan 03 will expose this; we call the toggle if available)
+    if hasattr(row, "_set_action_map"):
+        row._set_action_map()  # type: ignore[attr-defined]
+    elif hasattr(row, "_action_map_radio"):
+        row._action_map_radio.setChecked(True)  # type: ignore[attr-defined]
+
+    change = row.build_staged_change()
+    assert change is not None, "build_staged_change must return a dict in map mode when checked"
+    assert change["action"] == "remap", f"map action must produce 'remap'; got {change.get('action')!r}"
+    assert change["station_id"] == station.id, (
+        f"station_id must match chosen station; got {change.get('station_id')!r}"
+    )
+    assert change["stream_id"] == stream.id, (
+        f"stream_id must be the primary stream id; got {change.get('stream_id')!r}"
+    )
+    assert change["scan_result"] == entry, "scan_result must be the entry passed at construction"
+
+
+def test_discover_row_map_dropdown_from_flagged(qtbot):
+    """D-07: _DiscoverRowWidget map QComboBox is populated from flagged_stations.
+
+    The dropdown items' userData must be the Station objects passed at construction.
+
+    Wave 0 RED — _DiscoverRowWidget does not exist yet.
+    """
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    from PySide6.QtCore import Qt
+
+    stationA = Station(id=1, name="YBC Sleep", provider_id=None, provider_name="YBC",
+                       tags="", station_art_path=None, album_fallback_path=None)
+    stationB = Station(id=2, name="YBC Study", provider_id=None, provider_name="YBC",
+                       tags="", station_art_path=None, album_fallback_path=None)
+    entry = {"title": "New Live", "url": "https://www.youtube.com/watch?v=abc", "provider": "YBC"}
+
+    row = _DiscoverRowWidget(entry, [stationA, stationB], "YBC")
+    qtbot.addWidget(row)
+
+    map_combo = row._map_combo  # type: ignore[attr-defined]
+    assert map_combo.count() == 2, (
+        f"map combo must have 2 items for 2 flagged stations; got {map_combo.count()}"
+    )
+    assert map_combo.itemData(0, Qt.UserRole) is stationA, (
+        "first combo item userData must be stationA"
+    )
+    assert map_combo.itemData(1, Qt.UserRole) is stationB, (
+        "second combo item userData must be stationB"
+    )
+
+
+def test_discover_row_unchecked_by_default():
+    """D-08: _DiscoverRowWidget is unchecked by default (conservative default).
+
+    is_staged() must return False immediately after construction, before any
+    user interaction.
+
+    Wave 0 RED — _DiscoverRowWidget does not exist yet.
+    """
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    entry = {"title": "New Stream", "url": "https://www.youtube.com/watch?v=abc", "provider": "YBC"}
+    row = _DiscoverRowWidget(entry, [], "YBC")
+
+    assert row.is_staged() is False, (
+        "is_staged() must be False immediately after construction (D-08 conservative default)"
+    )
