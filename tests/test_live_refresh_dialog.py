@@ -745,3 +745,95 @@ def test_discover_row_unchecked_by_default():
     assert row.is_staged() is False, (
         "is_staged() must be False immediately after construction (D-08 conservative default)"
     )
+
+
+def test_discover_row_map_combo_includes_unflagged_station(qtbot):
+    """Phase 96.2 D-01: _DiscoverRowWidget map combo includes both flagged and unflagged stations.
+
+    Constructs _DiscoverRowWidget with one flagged Station and one unflagged Station.
+    Asserts both appear in _map_combo with correct userData, proving the dropdown
+    is not limited to flagged stations.
+    """
+    _require_module()
+
+    from musicstreamer.ui_qt.live_refresh_dialog import _DiscoverRowWidget  # type: ignore[attr-defined]
+
+    from PySide6.QtCore import Qt
+
+    stationFlagged = Station(
+        id=1,
+        name="YBC Sleep (flagged)",
+        provider_id=10,
+        provider_name="YBC",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=True,
+    )
+    stationUnflagged = Station(
+        id=2,
+        name="YBC Study (unflagged)",
+        provider_id=10,
+        provider_name="YBC",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    entry = {"title": "New Live", "url": "https://www.youtube.com/watch?v=xyz", "provider": "YBC"}
+
+    row = _DiscoverRowWidget(entry, [stationFlagged, stationUnflagged], "YBC")
+    qtbot.addWidget(row)
+
+    map_combo = row._map_combo  # type: ignore[attr-defined]
+    assert map_combo.count() == 2, (
+        f"map combo must have 2 items (flagged + unflagged); got {map_combo.count()} (D-01)"
+    )
+
+    combo_data = {map_combo.itemData(i, Qt.UserRole) for i in range(map_combo.count())}
+    assert stationFlagged in combo_data, (
+        "flagged station must appear in combo userData (D-01)"
+    )
+    assert stationUnflagged in combo_data, (
+        "unflagged station must appear in combo userData (D-01)"
+    )
+
+
+def test_apply_remap_does_not_set_sync_flag():
+    """Phase 96.2 D-03: apply_refresh remap action must never call set_live_url_syncs_from_channel.
+
+    Merging a discovered live stream onto any station (flagged or unflagged) must
+    NOT change that station's live_url_syncs_from_channel flag. Only update_stream
+    and set_live_url_title_anchor are permitted in the remap path.
+    """
+    _require_module()
+
+    mock_repo = MagicMock()
+    existing_stream = StationStream(
+        id=10,
+        station_id=1,
+        url="https://youtu.be/old_id",
+        label="Cinema Relaxing",
+        quality="hi",
+        position=1,
+        stream_type="hls",
+        codec="aac",
+        bitrate_kbps=128,
+    )
+    mock_repo.list_streams.return_value = [existing_stream]
+
+    new_url = "https://youtu.be/new_live_id"
+    scan_result = {"title": "Cinema Relaxing Live", "url": new_url, "provider": "YBC"}
+
+    from musicstreamer.ui_qt.live_refresh_dialog import apply_refresh  # type: ignore[attr-defined]
+
+    staged_remap = {
+        "action": "remap",
+        "station_id": 1,
+        "stream_id": 10,
+        "scan_result": scan_result,
+    }
+    apply_refresh(mock_repo, [staged_remap])
+
+    # D-03: sync flag must NOT be changed during a remap
+    mock_repo.set_live_url_syncs_from_channel.assert_not_called()

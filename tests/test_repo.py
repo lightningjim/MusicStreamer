@@ -1887,3 +1887,40 @@ def test_list_flagged_stations_for_provider(repo):
     assert sid1 in flagged_ids, "Flagged station sid1 must be in result"
     assert sid2 not in flagged_ids, "Unflagged station sid2 must NOT be in result"
     assert len(flagged) == 1, f"Expected 1 flagged station; got {len(flagged)}"
+
+
+def test_list_stations_for_provider(repo):
+    """Phase 96.2 D-01/D-04: list_stations_for_provider returns all provider stations, flag-independent.
+
+    Creates two stations under the same provider, flags only one, and asserts BOTH
+    are returned. Verifies cross-provider exclusion (a station under a different provider
+    must not appear). Verifies alphabetical ordering (D-04: ORDER BY s.name COLLATE NOCASE).
+    """
+    provider_id = repo.ensure_provider("Test Channel")
+
+    # Insert stations out of alphabetical order: "Station B" before "Station A"
+    sid2 = repo.insert_station("Station B", "http://example.com/b", "Test Channel", "")
+    sid1 = repo.insert_station("Station A", "http://example.com/a", "Test Channel", "")
+
+    # Flag only station 1 (sid1 = Station A)
+    repo.set_live_url_syncs_from_channel(sid1, True)
+
+    # Insert a station under a DIFFERENT provider — must be excluded
+    repo.ensure_provider("Other Channel")
+    sid_other = repo.insert_station("Other Station", "http://example.com/other", "Other Channel", "")
+
+    result = repo.list_stations_for_provider(provider_id)
+    result_ids = {s.id for s in result}
+
+    assert sid1 in result_ids, "Flagged station sid1 (Station A) must be in result (D-01)"
+    assert sid2 in result_ids, "Unflagged station sid2 (Station B) must be in result (D-01)"
+    assert len(result) == 2, f"Expected 2 stations (flagged + unflagged); got {len(result)}"
+    assert sid_other not in result_ids, "Station from another provider must be excluded (D-01)"
+
+    # D-04: ORDER BY s.name COLLATE NOCASE — Station A must come before Station B
+    assert result[0].name == "Station A", (
+        f"First result must be 'Station A' (alphabetical); got '{result[0].name}'"
+    )
+    assert result[1].name == "Station B", (
+        f"Second result must be 'Station B' (alphabetical); got '{result[1].name}'"
+    )
