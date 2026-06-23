@@ -673,7 +673,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 96.2-01-PLAN.md — Add flag-independent repo.list_stations_for_provider + thread it into the discover-row merge dropdown (D-01/D-02/D-03/D-04), TDD RED→GREEN
+- [x] 96.2-01-PLAN.md — Add flag-independent repo.list_stations_for_provider + thread it into the discover-row merge dropdown (D-01/D-02/D-03/D-04), TDD RED→GREEN
 
 ### Phase 96.1: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (INSERTED)
 

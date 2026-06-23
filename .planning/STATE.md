@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: planning
-stopped_at: Phase 96.2 context gathered
-last_updated: "2026-06-23T18:22:34.536Z"
-last_activity: "2026-06-22 -- Phase 96.1 closed out; next: plan 96.2"
+status: executing
+stopped_at: Completed 96.2-01-PLAN.md
+last_updated: "2026-06-23T18:30:29.216Z"
+last_activity: 2026-06-23 -- Phase 96.2 execution started
 progress:
   total_phases: 25
-  completed_phases: 23
+  completed_phases: 24
   total_plans: 81
-  completed_plans: 80
-  percent: 92
+  completed_plans: 81
+  percent: 96
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 96.2 — Fix Newly-Discovered merge dropdown (planning)
+**Current focus:** Phase 96.2 — fix-newly-discovered-merge-dropdown-only-offering-one-of-the
 
 ## Current Position
 
-Phase: 96.2 (Fix Newly-Discovered merge dropdown only offering one of the 19 saved streams) — NOT PLANNED
-Plan: 0 of 0 (awaiting /gsd:plan-phase 96.2)
-Status: Phase 96.1 complete (verified pass, 8/8 must-haves); 96.2 inserted, ready to plan
-Last activity: 2026-06-22 -- Phase 96.1 closed out; next: plan 96.2
+Phase: 96.2 (fix-newly-discovered-merge-dropdown-only-offering-one-of-the) — EXECUTING
+Plan: 1 of 1
+Status: Executing Phase 96.2
+Last activity: 2026-06-23 -- Phase 96.2 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -148,6 +148,9 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: Phase 95: youtube_resolved widened to Signal(str, bool, int); _youtube_resolve_seq guard no-ops stale YT resolutions
 - [Phase ?]: Phase 999.1 Plan 01: extended BadZipFile except scope to cover member-read site
 - [Phase ?]: Phase 96 D-04/D-09/D-10: provider_refresh_requested signal + node_runtime threading wired end-to-end; human-verified with real YBC channel
+- [Phase ?]: Phase 96.2 D-01: repo.list_stations_for_provider drops the live_url_syncs_from_channel = 1 predicate; discover-row combo sourced from all-provider list via self._all_provider_stations
+- [Phase ?]: Phase 96.2 D-02: REMAP _RowWidget loop unchanged — still iterates self._flagged_stations; only the _DiscoverRowWidget call site swapped to self._all_provider_stations
+- [Phase ?]: Phase 96.2 D-03: apply_refresh remap branch confirmed never calls set_live_url_syncs_from_channel; regression test test_apply_remap_does_not_set_sync_flag added
 
 ### Decisions (v2.1, preserved for context)
 
@@ -216,12 +219,13 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 96.1 P01 | 8m | 2 tasks | 2 files |
 | Phase 96.1 P02 | 8min | 2 tasks | 1 files |
 | Phase 96.1 P03 | 2min | 3 tasks | 1 files |
+| Phase 96.2 P01 | 18 | 3 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-06-23T18:05:22.225Z
-Stopped at: Phase 96.2 context gathered
-Resume file: .planning/phases/96.2-fix-newly-discovered-merge-dropdown-only-offering-one-of-the/96.2-CONTEXT.md
+Last session: 2026-06-23T18:30:29.205Z
+Stopped at: Completed 96.2-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
