@@ -4,12 +4,12 @@ milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: planning
 stopped_at: Phase 96.2 context gathered
-last_updated: "2026-06-23T18:05:22.239Z"
+last_updated: "2026-06-23T18:22:34.536Z"
 last_activity: "2026-06-22 -- Phase 96.1 closed out; next: plan 96.2"
 progress:
   total_phases: 25
   completed_phases: 23
-  total_plans: 80
+  total_plans: 81
   completed_plans: 80
   percent: 92
 ---
