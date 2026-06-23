@@ -790,7 +790,7 @@ def test_discover_row_map_combo_includes_unflagged_station(qtbot):
         f"map combo must have 2 items (flagged + unflagged); got {map_combo.count()} (D-01)"
     )
 
-    combo_data = {map_combo.itemData(i, Qt.UserRole) for i in range(map_combo.count())}
+    combo_data = [map_combo.itemData(i, Qt.UserRole) for i in range(map_combo.count())]
     assert stationFlagged in combo_data, (
         "flagged station must appear in combo userData (D-01)"
     )

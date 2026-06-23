@@ -486,7 +486,7 @@ class _DiscoverRowWidget(QWidget):
     def __init__(
         self,
         entry: dict,
-        flagged_stations: list,
+        provider_stations: list,
         provider_name: str,
         parent=None,
     ):
@@ -542,14 +542,14 @@ class _DiscoverRowWidget(QWidget):
         action_container.addWidget(self._action_add_radio)
         action_container.addWidget(self._action_map_radio)
 
-        # Map combo — populated from flagged_stations (D-07)
+        # Map combo — populated from provider_stations (Phase 96.2 D-01: all provider stations)
         # Each item's userData is the Station object (QComboBox userData pattern)
         self._map_combo = QComboBox()
         self._map_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        for station in flagged_stations:
+        for station in provider_stations:
             self._map_combo.addItem(station.name, userData=station)
-        if not flagged_stations:
-            self._map_combo.addItem("(no flagged stations)", userData=None)
+        if not provider_stations:
+            self._map_combo.addItem("(no stations for this provider)", userData=None)
             self._action_map_radio.setEnabled(False)
 
         # When map mode selected and station chosen, update self._station
@@ -708,6 +708,10 @@ class LiveRefreshDialog(QDialog):
         self._flagged_stations: List[Station] = (
             repo.list_flagged_stations_for_provider(provider_id)
         )
+        # Phase 96.2 D-01: all provider stations (flag-independent) for the discover-row merge combo
+        self._all_provider_stations: List[Station] = (
+            repo.list_stations_for_provider(provider_id)
+        )
         self._start_scan()
 
     # ------------------------------------------------------------------
@@ -812,7 +816,7 @@ class LiveRefreshDialog(QDialog):
             for entry in scan_results:
                 row = _DiscoverRowWidget(
                     entry,
-                    self._flagged_stations,
+                    self._all_provider_stations,  # Phase 96.2 D-01: all provider stations (was _flagged_stations)
                     self._provider_name,
                     parent=self._rows_container,
                 )
