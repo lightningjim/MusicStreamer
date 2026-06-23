@@ -667,13 +667,13 @@ Plans:
 
 ### Phase 96.2: Fix Newly-Discovered merge dropdown only offering one of the 19 saved streams (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** The Newly-Discovered merge-target dropdown in LiveRefreshDialog offers ALL of a provider's saved stations (flagged + unflagged), alphabetically, so a user can merge a newly-discovered live stream onto any station whose stream went stale — not just the live-sync-flagged ones.
+**Requirements**: None mapped in ROADMAP — the behavior contract is CONTEXT.md locked decisions D-01..D-04 (the authoritative requirement set for this phase).
 **Depends on:** Phase 96
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 96.2 to break down)
+- [ ] 96.2-01-PLAN.md — Add flag-independent repo.list_stations_for_provider + thread it into the discover-row merge dropdown (D-01/D-02/D-03/D-04), TDD RED→GREEN
 
 ### Phase 96.1: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (INSERTED)
 
