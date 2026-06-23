@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 96.1 complete (verified pass)
-last_updated: "2026-06-22T18:15:31.517Z"
-last_activity: 2026-06-22 -- Phase 96.1 closed out (verification pass, 8/8); next: plan 96.2
+status: planning
+stopped_at: Phase 96.2 context gathered
+last_updated: "2026-06-23T18:05:22.239Z"
+last_activity: "2026-06-22 -- Phase 96.1 closed out; next: plan 96.2"
 progress:
-  total_phases: 26
-  completed_phases: 24
-  total_plans: 83
-  completed_plans: 83
+  total_phases: 25
+  completed_phases: 23
+  total_plans: 80
+  completed_plans: 80
   percent: 92
 ---
 
@@ -219,9 +219,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-22T03:39:52.422Z
-Stopped at: Phase 96.1 context gathered
-Resume file: .planning/phases/96.1-show-currently-live-stream-titles-for-newly-discovered-strea/96.1-CONTEXT.md
+Last session: 2026-06-23T18:05:22.225Z
+Stopped at: Phase 96.2 context gathered
+Resume file: .planning/phases/96.2-fix-newly-discovered-merge-dropdown-only-offering-one-of-the/96.2-CONTEXT.md
 
 ## Operator Next Steps
 
