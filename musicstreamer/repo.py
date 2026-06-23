@@ -1107,3 +1107,46 @@ class Repo:
             )
             for r in rows
         ]
+
+    def list_stations_for_provider(self, provider_id: int) -> List[Station]:
+        """Phase 96.2 D-01: all stations for this provider, flag-independent.
+
+        Copy of list_flagged_stations_for_provider with the
+        live_url_syncs_from_channel predicate removed. Used as the merge-target
+        dropdown source for newly-discovered rows. ORDER BY s.name COLLATE NOCASE
+        satisfies D-04.
+        """
+        rows = self.con.execute(
+            """
+            SELECT s.*, p.name AS provider_name, p.avatar_path AS provider_avatar_path
+            FROM stations s
+            LEFT JOIN providers p ON p.id = s.provider_id
+            WHERE s.provider_id = ?
+            ORDER BY s.name COLLATE NOCASE
+            """,
+            (provider_id,),
+        ).fetchall()
+        return [
+            Station(
+                id=r["id"],
+                name=r["name"],
+                provider_id=r["provider_id"],
+                provider_name=r["provider_name"],
+                tags=r["tags"] or "",
+                station_art_path=r["station_art_path"],
+                album_fallback_path=r["album_fallback_path"],
+                icy_disabled=bool(r["icy_disabled"]),
+                cover_art_source=r["cover_art_source"] or "auto",  # Phase 73 — defensive default
+                last_played_at=r["last_played_at"],
+                is_favorite=bool(r["is_favorite"]),
+                preferred_stream_id=r["preferred_stream_id"],
+                streams=self.list_streams(r["id"]),
+                prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
+                prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
+                channel_avatar_path=r["channel_avatar_path"],          # Phase 89 D-13 — deprecated Phase 89.1
+                provider_avatar_path=r["provider_avatar_path"],        # Phase 89.1 D-11
+                live_url_syncs_from_channel=bool(r["live_url_syncs_from_channel"]),  # Phase 96 D-01
+                live_url_title_anchor=r["live_url_title_anchor"],      # Phase 96 D-03
+            )
+            for r in rows
+        ]
