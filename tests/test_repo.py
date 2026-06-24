@@ -993,6 +993,94 @@ def test_set_preferred_stream_on_delete_set_null(repo):
     assert repo.get_station(sid).preferred_stream_id is None
 
 
+# ---------------------------------------------------------------------------
+# Phase 97 Plan 01: canonical_stream_id DB + Repo layer (D-04, D-07)
+# RED: these tests fail until Plan 02 adds the column + set_canonical_stream.
+# ---------------------------------------------------------------------------
+
+def test_canonical_stream_id_migration_idempotent(repo):
+    """D-04 / D-08: db_init is idempotent; canonical_stream_id has expected schema.
+
+    PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk).
+    canonical_stream_id must be INTEGER, nullable (notnull=0), no default (None).
+    Mirrors test_preferred_stream_id_migration_idempotent exactly.
+    """
+    # Second and third db_init calls must not raise.
+    db_init(repo.con)
+    db_init(repo.con)
+
+    cols = repo.con.execute("PRAGMA table_info('stations')").fetchall()
+    by_name = {row[1]: row for row in cols}
+    assert "canonical_stream_id" in by_name, (
+        f"canonical_stream_id column missing; got {sorted(by_name)}"
+    )
+    col = by_name["canonical_stream_id"]
+    # type is index 2; notnull is index 3; dflt_value is index 4
+    assert col[2] == "INTEGER", f"column type must be INTEGER; got {col[2]!r}"
+    assert col[3] == 0, "canonical_stream_id must be nullable (notnull=0)"
+    assert col[4] is None, (
+        f"canonical_stream_id must have no DEFAULT; got {col[4]!r}"
+    )
+
+
+def test_canonical_stream_id_default_none_on_fresh_station(repo):
+    """D-04: a freshly created station with no streams has canonical_stream_id == None.
+
+    The backfill EXISTS-guard skips stations with no streams, so canonical_stream_id
+    stays NULL for newly created stations until a stream is added.
+    """
+    sid = repo.create_station()
+    assert repo.get_station(sid).canonical_stream_id is None
+
+
+def test_canonical_stream_id_backfill_defaults_position1(repo):
+    """D-04 backfill: existing station gets canonical_stream_id = position-1 stream.
+
+    After db_init replay, stations with streams get their canonical_stream_id set to
+    the position-1 stream (ORDER BY position ASC, id ASC). The backfill is idempotent
+    (WHERE canonical_stream_id IS NULL) so a second db_init call does not overwrite
+    a manually-set canonical.
+    """
+    sid = repo.create_station()
+    s1_id = repo.insert_stream(sid, "http://hi.mp3", quality="hi")
+    s2_id = repo.insert_stream(sid, "http://lo.mp3", quality="lo")
+    # Simulate a db_init replay that runs the backfill
+    db_init(repo.con)
+    station = repo.get_station(sid)
+    # s1_id is position=1 (first inserted) — must be canonical
+    assert station.canonical_stream_id == s1_id
+
+
+def test_canonical_set_stream_round_trip(repo):
+    """D-04: set_canonical_stream persists and both list_stations + get_station reflect it.
+
+    Mirrors test_set_preferred_stream_round_trips_via_list_stations +
+    test_set_preferred_stream_round_trips_via_get_station in a single test.
+    """
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_canonical_stream(sid, twitch_id)
+    # Verify via get_station
+    assert repo.get_station(sid).canonical_stream_id == twitch_id
+    # Verify via list_stations
+    stations = repo.list_stations()
+    match = next(s for s in stations if s.id == sid)
+    assert match.canonical_stream_id == twitch_id
+
+
+def test_canonical_stream_id_on_delete_set_null_when_stream_deleted(repo):
+    """D-04: deleting the canonical stream FK-target auto-NULLs canonical_stream_id.
+
+    Requires PRAGMA foreign_keys = ON — already enforced by the repo fixture.
+    ON DELETE SET NULL fires so callers fall through to position-1 fallback.
+    """
+    sid, yt_id, twitch_id = _seed_two_stream_station(repo)
+    repo.set_canonical_stream(sid, twitch_id)
+    assert repo.get_station(sid).canonical_stream_id == twitch_id
+    # Delete the canonical stream — FK ON DELETE SET NULL must fire.
+    repo.delete_stream(twitch_id)
+    assert repo.get_station(sid).canonical_stream_id is None
+
+
 # ============================================================
 # Phase 83 Plan 01: SomaFM preroll schema, CRUD, eager-load, CASCADE
 # (D-01, D-04, D-15 + ASVS V5 URL scheme + DoS cap)
