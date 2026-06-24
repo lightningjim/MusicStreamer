@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Completed 96.2-01-PLAN.md
-last_updated: "2026-06-23T18:30:29.216Z"
+stopped_at: Phase 97 context gathered
+last_updated: "2026-06-24T01:17:23.915Z"
 last_activity: 2026-06-23 -- Phase 96.2 execution started
 progress:
-  total_phases: 25
+  total_phases: 26
   completed_phases: 24
   total_plans: 81
   completed_plans: 81
-  percent: 96
+  percent: 92
 ---
 
 # Project State
@@ -172,6 +172,7 @@ v2.2 roadmap-level decisions (2026-05-25):
 - Phase 89.1 inserted after Phase 89: Re-key channel avatar from per-station to per-provider (channel) — dedupe fetch + storage across sibling YT streams of the same channel (URGENT)
 - Phase 96.1 inserted after Phase 96: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (URGENT)
 - Phase 96.2 inserted after Phase 96: Fix Newly-Discovered merge dropdown only offering one of the 19 saved streams (URGENT)
+- 2026-06-23: Phase 98 added — Add to Stats for Nerds: actual encoding and bitrate detected. Surface the real detected codec/encoding and bitrate of the playing stream so the user can validate they're playing what they expect.
 
 ### Pending Todos
 
@@ -223,9 +224,9 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 
 ## Session Continuity
 
-Last session: 2026-06-23T18:30:29.205Z
-Stopped at: Completed 96.2-01-PLAN.md
-Resume file: None
+Last session: 2026-06-24T01:17:23.903Z
+Stopped at: Phase 97 context gathered
+Resume file: .planning/phases/97-resolve-station-url-duplication-between-the-top-level-standa/97-CONTEXT.md
 
 ## Operator Next Steps
 
