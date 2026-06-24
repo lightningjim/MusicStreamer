@@ -39,12 +39,31 @@ class Station:
     last_played_at: Optional[str] = None
     is_favorite: bool = False
     preferred_stream_id: Optional[int] = None  # Phase 82 D-01: per-station sticky preferred stream
+    canonical_stream_id: Optional[int] = None  # Phase 97 D-04: metadata anchor stream (separate from playback preferred)
     prerolls: List[str] = field(default_factory=list)              # Phase 83 D-01/D-03
     prerolls_fetched_at: Optional[int] = None                      # Phase 83 D-04
     channel_avatar_path: Optional[str] = None                      # Phase 89 D-13 — deprecated Phase 89.1 (use provider_avatar_path)
     provider_avatar_path: Optional[str] = None                     # Phase 89.1 D-11
     live_url_syncs_from_channel: bool = False                      # Phase 96 D-01
     live_url_title_anchor: Optional[str] = None                    # Phase 96 D-03
+
+    @property
+    def canonical_url(self) -> str:
+        """Phase 97 D-07: URL of the canonical (metadata anchor) stream.
+
+        Resolution order (D-05: playback preferred_stream_id is untouched):
+          1. Stream matching canonical_stream_id (if set and present)
+          2. Position-1 stream (fallback: canonical_stream_id unset or stale FK after delete)
+          3. "" (no streams at all)
+        """
+        if not self.streams:
+            return ""
+        if self.canonical_stream_id is not None:
+            for s in self.streams:
+                if s.id == self.canonical_stream_id:
+                    return s.url
+        by_pos = sorted(self.streams, key=lambda s: (s.position, s.id))
+        return by_pos[0].url if by_pos else ""
 
 
 @dataclass
