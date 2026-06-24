@@ -708,7 +708,7 @@ Plans:
 **Wave 2** *(blocked on 97-01)*
 - [x] 97-02-PLAN.md — Data layer: models.canonical_stream_id + canonical_url property; repo ALTER/backfill/set_canonical_stream + builder threading (D-04/D-05/D-07)
 **Wave 3** *(parallel; both blocked on 97-01+97-02, disjoint files)*
-- [ ] 97-03-PLAN.md — Edit dialog rewire: remove url_edit, canonical marker column, live-cell wiring, auto-row, save persist + breaking-test updates (D-01/D-02/D-03/D-04/D-06)
+- [x] 97-03-PLAN.md — Edit dialog rewire: remove url_edit, canonical marker column, live-cell wiring, auto-row, save persist + breaking-test updates (D-01/D-02/D-03/D-04/D-06)
 - [ ] 97-04-PLAN.md — External D-07 consumers (url_helpers, aa_live, station_filter_proxy, now_playing_panel, add_sibling_dialog) repointed to canonical_url; playback unchanged (D-05/D-07)
 
 ### Phase 98: Add to Stats for Nerds: actual encoding and bitrate detected. Good way to validate you are playing what you expect to be
