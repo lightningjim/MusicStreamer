@@ -365,6 +365,40 @@ def db_init(con: sqlite3.Connection):
     except sqlite3.OperationalError:
         pass  # column already exists — idempotent
 
+    # Phase 97 D-04 — per-station canonical (metadata anchor) stream FK.
+    # MUST land AFTER the legacy URL-column rebuild block (Pitfall 2): the
+    # rebuild's CREATE TABLE stations_new / INSERT SELECT does not carry
+    # dynamically-added columns, so placing the ALTER here ensures the column
+    # lands on the rebuilt (or fresh) table. ON DELETE SET NULL: if the canonical
+    # stream is deleted, FK goes NULL and callers fall through to position-1
+    # fallback. Idempotent via the same try/except sqlite3.OperationalError idiom.
+    try:
+        con.execute(
+            "ALTER TABLE stations ADD COLUMN canonical_stream_id INTEGER "
+            "REFERENCES station_streams(id) ON DELETE SET NULL"
+        )
+        con.commit()
+    except sqlite3.OperationalError:
+        pass  # column already exists — idempotent
+
+    # One-time backfill: set canonical_stream_id to the position-1 stream for all
+    # stations that have at least one stream and no canonical set yet.
+    # WHERE canonical_stream_id IS NULL makes this idempotent — second db_init no-op.
+    con.execute(
+        """
+        UPDATE stations
+        SET canonical_stream_id = (
+            SELECT id FROM station_streams
+            WHERE station_id = stations.id
+            ORDER BY position ASC, id ASC
+            LIMIT 1
+        )
+        WHERE canonical_stream_id IS NULL
+          AND EXISTS (SELECT 1 FROM station_streams WHERE station_id = stations.id)
+        """
+    )
+    con.commit()
+
     # Phase 89.1 D-01/D-02/D-03: one-time idempotent backfill.
     # Copy the most-recently-updated per-station PNG to the provider-keyed location
     # and record the path in providers.avatar_path. Old per-station files deleted
@@ -700,6 +734,7 @@ class Repo:
                     last_played_at=r["last_played_at"],
                     is_favorite=bool(r["is_favorite"]),
                     preferred_stream_id=r["preferred_stream_id"],
+                    canonical_stream_id=r["canonical_stream_id"],          # Phase 97 D-04
                     streams=self.list_streams(r["id"]),
                     prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                     prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
@@ -743,6 +778,7 @@ class Repo:
             last_played_at=r["last_played_at"],
             is_favorite=bool(r["is_favorite"]),
             preferred_stream_id=r["preferred_stream_id"],
+            canonical_stream_id=r["canonical_stream_id"],          # Phase 97 D-04
             streams=self.list_streams(station_id),
             prerolls=self.list_prerolls(station_id),               # Phase 83 D-01/D-03
             prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
@@ -815,6 +851,21 @@ class Repo:
         """Phase 82 D-02: persist the user's stream pick. None clears the pick."""
         self.con.execute(
             "UPDATE stations SET preferred_stream_id = ? WHERE id = ?",
+            (stream_id, station_id),
+        )
+        self.con.commit()
+
+    def set_canonical_stream(self, station_id: int, stream_id: Optional[int]) -> None:
+        """Phase 97 D-04: persist the canonical (metadata anchor) stream.
+
+        Not routed through update_station — that method does not include this
+        column (Pitfall 1: adding new columns to update_station risks silent-reset
+        on saves that omit the kwarg). Dedicated single-column UPDATE only.
+        None clears the marker (e.g. all streams deleted — fallback to position 1).
+        All values bound via ? placeholders; no string interpolation of IDs (T-97-02).
+        """
+        self.con.execute(
+            "UPDATE stations SET canonical_stream_id = ? WHERE id = ?",
             (stream_id, station_id),
         )
         self.con.commit()
