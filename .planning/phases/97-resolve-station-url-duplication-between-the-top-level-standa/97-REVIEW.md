@@ -21,7 +21,7 @@ findings:
   warning: 5
   info: 3
   total: 9
-status: issues_found
+status: resolved
 ---
 
 # Phase 97: Code Review Report
@@ -276,3 +276,31 @@ Worth a short comment in `list_streams` noting that callers relying on
 _Reviewed: 2026-06-24T03:29:18Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
+
+---
+
+## Resolution (applied during execute-phase, 2026-06-24)
+
+Substantive correctness findings fixed inline with regression tests
+(commits `347ded42`, `10bdd33a`):
+
+- **CR-01 (BLOCKER) — RESOLVED.** `_on_save` now writes `insert_stream()`'s id
+  back onto the URL item, so a newly-added starred row persists its own
+  canonical FK. Regression: `test_save_persists_new_canonical_row_with_real_id`.
+- **WR-01 — RESOLVED (and a deeper bug fixed).** Investigation found `_swap_rows`
+  was *destroying* the canonical star widgets on reorder (sequential
+  `setCellWidget` deletes the replaced widget). Fix: stars stay in place, resolve
+  their row dynamically at click time, and re-sync checked state via
+  `_sync_canonical_buttons()` after move up/down. Regression:
+  `test_canonical_star_survives_and_tracks_content_after_reorder`.
+- **WR-02 — RESOLVED.** `list_streams` now `ORDER BY position, id`, matching
+  `Station.canonical_url` and the backfill.
+- **WR-03 — RESOLVED.** Save fallback guard now explicitly handles
+  `_can_stream_id is None`.
+
+Deferred as latent/cosmetic (no functional impact, tracked for future cleanup):
+**WR-04** (un-stripped canonical URL in dirty snapshot — internally consistent),
+**WR-05** (populate-time `setChecked` against not-yet-final row — re-synced;
+no `toggled` listener today), **IN-01** (dead `_on_url_text_changed` shim),
+**IN-02** (out-of-scope `streams[0]` write-target consumers), **IN-03** (ordering
+tiebreaker doc comment).
