@@ -282,10 +282,8 @@ class AddSiblingDialog(QDialog):
         # new/streamless stations.
         if self._live_url is not None:
             current_url = self._live_url
-        elif self._current_station.streams:
-            current_url = self._current_station.streams[0].url or ""
         else:
-            current_url = ""
+            current_url = self._current_station.canonical_url  # Phase 97 D-07
 
         # Build exclusion ID set (RESEARCH Pitfall 4).
         excluded: set[int] = {self._current_station_id}

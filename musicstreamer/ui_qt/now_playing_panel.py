@@ -2426,11 +2426,14 @@ class NowPlayingPanel(QWidget):
           4. AA station with a key but no other AA stations on other networks
              share the key -> returns [].
         """
-        if self._station is None or not self._station.streams:
+        if self._station is None:
             self._sibling_label.setVisible(False)
             self._sibling_label.setText("")
             return
-        current_url = self._station.streams[0].url
+        current_url = self._station.canonical_url  # Phase 97 D-07
+        if not current_url:
+            self._sibling_label.setVisible(False)
+            return
         # Defense-in-depth (REVIEW WR-01): repo.list_stations() can in principle
         # raise on transient DB failures; this method runs from bind_station()
         # which is on the Qt slot path. Slots-never-raise -- on failure, hide

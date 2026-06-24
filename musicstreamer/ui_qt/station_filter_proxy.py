@@ -174,12 +174,10 @@ class StationFilterProxyModel(QSortFilterProxyModel):
                 )
                 station = node.station
                 ch_key: str | None = None
-                streams = getattr(station, "streams", None) or []
-                if streams:
-                    url = streams[0].url
-                    if _is_aa_url(url):
-                        slug = _aa_slug_from_url(url)
-                        ch_key = _aa_channel_key_from_url(url, slug=slug)
+                url = station.canonical_url  # Phase 97 D-07
+                if url and _is_aa_url(url):
+                    slug = _aa_slug_from_url(url)
+                    ch_key = _aa_channel_key_from_url(url, slug=slug)
                 if ch_key is None or ch_key not in self._live_channel_keys:
                     return False
             return matches_filter_multi(
