@@ -2520,3 +2520,75 @@ def test_dirty_state_captures_canonical_url_not_url_edit(dialog):
     assert "url" not in snapshot, (
         f"_snapshot_form_state must NOT include 'url' key after url_edit removal; got keys: {sorted(snapshot)}"
     )
+
+
+def test_save_persists_new_canonical_row_with_real_id(qtbot, dialog, repo):
+    """CR-01 regression: starring a newly-added (unsaved) non-first row as canonical
+    must persist that row's freshly-inserted stream id — not silently fall back to
+    the position-1 stream.
+
+    Before the fix, _on_save never wrote insert_stream()'s id back onto the URL
+    item, so the canonical-persist step read UserRole=None and fell back to
+    ordered_ids[0] (the existing first stream).
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QTableWidgetItem
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+
+    repo.insert_stream.return_value = 20  # real int so isinstance(new_id, int) passes
+
+    # Existing stream id=10 is at row 0. Add a second (new) row.
+    qtbot.mouseClick(dialog.add_stream_btn, Qt.LeftButton)
+    table = dialog.streams_table
+    assert table.rowCount() == 2
+    new_url_item = table.item(1, _COL_URL)
+    if new_url_item is None:
+        new_url_item = QTableWidgetItem("http://s2.mp3")
+        table.setItem(1, _COL_URL, new_url_item)
+    else:
+        new_url_item.setText("http://s2.mp3")
+
+    # Star the new row (row 1) as canonical.
+    dialog._on_canonical_btn_clicked(1)
+    assert dialog._canonical_row == 1
+
+    dialog._on_save()
+
+    # Must anchor canonical to the new stream (20), NOT the existing first (10).
+    repo.set_canonical_stream.assert_called_once_with(dialog._station.id, 20)
+
+
+def test_canonical_star_survives_and_tracks_content_after_reorder(qtbot, dialog, repo):
+    """WR-01 regression: reordering must not destroy the canonical star widgets,
+    the checked star must follow the canonical stream's content to its new row,
+    and a subsequent star click must act on the row it currently occupies.
+
+    Before the fix, _swap_rows moved the button cell widgets via sequential
+    setCellWidget, which deleted the replaced widget — a moved row could end up
+    with no star at all — and the click lambda captured a stale row index.
+    """
+    from PySide6.QtCore import Qt
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_CANONICAL
+
+    qtbot.mouseClick(dialog.add_stream_btn, Qt.LeftButton)
+    table = dialog.streams_table
+    assert table.rowCount() == 2
+
+    # Star row 0, then move it down: content + canonical follow to row 1.
+    dialog._on_canonical_btn_clicked(0)
+    assert dialog._canonical_row == 0
+    table.selectRow(0)
+    qtbot.mouseClick(dialog.move_down_btn, Qt.LeftButton)
+    assert dialog._canonical_row == 1
+
+    # Both star widgets must survive the reorder (not be deleted).
+    btn_r0 = table.cellWidget(0, _COL_CANONICAL)
+    btn_r1 = table.cellWidget(1, _COL_CANONICAL)
+    assert btn_r0 is not None and btn_r1 is not None
+    # The checked star must visually track the canonical content to its new row.
+    assert btn_r1.isChecked()
+    assert not btn_r0.isChecked()
+
+    # Clicking the other star (now at row 0) must set the canonical row to 0.
+    btn_r0.click()
+    assert dialog._canonical_row == 0

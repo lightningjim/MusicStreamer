@@ -1185,7 +1185,13 @@ class EditStationDialog(QDialog):
         canonical_btn.setAutoRaise(True)
         canonical_btn.setToolTip("Set as canonical (metadata anchor) stream")
         canonical_btn.setChecked(row == self._canonical_row)
-        canonical_btn.clicked.connect(lambda checked, r=row: self._on_canonical_btn_clicked(r))
+        # Phase 97 WR-01: resolve the row dynamically at click time. _swap_rows
+        # (Move Up/Down) moves the button cell widgets between rows but cannot
+        # rebind a captured `r=row`, so a star click after a reorder would set the
+        # wrong canonical row. Look the button up by its current cell instead.
+        canonical_btn.clicked.connect(
+            lambda checked, btn=canonical_btn: self._on_canonical_btn_clicked_for_widget(btn)
+        )
         self.streams_table.setCellWidget(row, _COL_CANONICAL, canonical_btn)
 
         return row
@@ -1210,6 +1216,7 @@ class EditStationDialog(QDialog):
             self._canonical_row = row - 1
         elif self._canonical_row == row - 1:
             self._canonical_row = row
+        self._sync_canonical_buttons()  # WR-01: buttons stay put; refresh checked state
         self.streams_table.selectRow(row - 1)
 
     def _on_move_down(self) -> None:
@@ -1222,6 +1229,7 @@ class EditStationDialog(QDialog):
             self._canonical_row = row + 1
         elif self._canonical_row == row + 1:
             self._canonical_row = row
+        self._sync_canonical_buttons()  # WR-01: buttons stay put; refresh checked state
         self.streams_table.selectRow(row + 1)
 
     def _swap_rows(self, r1: int, r2: int) -> None:
@@ -1234,15 +1242,13 @@ class EditStationDialog(QDialog):
             item2 = table.takeItem(r2, col) or QTableWidgetItem("")
             table.setItem(r1, col, item2)
             table.setItem(r2, col, item1)
-        # Phase 97: swap the canonical QToolButton cell widgets (takeItem/setItem does not
-        # move setCellWidget widgets — must use cellWidget/setCellWidget explicitly).
-        btn1 = table.cellWidget(r1, _COL_CANONICAL)
-        btn2 = table.cellWidget(r2, _COL_CANONICAL)
-        # Temporarily reparent to avoid Qt garbage-collection on setCellWidget replacing
-        if btn1 is not None:
-            table.setCellWidget(r2, _COL_CANONICAL, btn1)
-        if btn2 is not None:
-            table.setCellWidget(r1, _COL_CANONICAL, btn2)
+        # Phase 97 WR-01: do NOT move the canonical QToolButton cell widgets.
+        # setCellWidget deletes the widget it replaces, so a sequential swap
+        # destroyed the buttons (a moved row could end up with no star at all).
+        # The stars are presentationally identical and resolve their row
+        # dynamically at click time, so they stay put; callers update
+        # _canonical_row and call _sync_canonical_buttons() to refresh checked
+        # state after the reorder.
 
     # ------------------------------------------------------------------
     # Phase 97 D-02/D-04: canonical marker helpers
@@ -1260,6 +1266,18 @@ class EditStationDialog(QDialog):
             return ""
         item = self.streams_table.item(row, _COL_URL)
         return item.text() if item else ""
+
+    def _on_canonical_btn_clicked_for_widget(self, btn: QToolButton) -> None:
+        """Phase 97 WR-01: resolve a star button's current row, then delegate.
+
+        Scans the canonical column for the cell holding `btn` so that a click
+        after Move Up/Down (which moves the widgets but cannot rebind a captured
+        row index) acts on the row the button now occupies, not where it was built.
+        """
+        for r in range(self.streams_table.rowCount()):
+            if self.streams_table.cellWidget(r, _COL_CANONICAL) is btn:
+                self._on_canonical_btn_clicked(r)
+                return
 
     def _on_canonical_btn_clicked(self, row: int) -> None:
         """Phase 97 D-04: manual single-selection canonical marker handler.
@@ -2015,6 +2033,14 @@ class EditStationDialog(QDialog):
                 )
                 if isinstance(new_id, int):
                     ordered_ids.append(new_id)
+                    # Phase 97 CR-01: write the freshly-assigned id back onto the
+                    # URL item so the canonical-persist step (and any later save in
+                    # this same dialog session) can resolve a newly-added row that
+                    # the user starred as canonical. Without this the item's
+                    # UserRole stays None and canonical silently falls back to the
+                    # position-1 stream.
+                    if url_item is not None:
+                        url_item.setData(Qt.UserRole, new_id)
 
         # Prune streams the user removed from the UI table.
         # reorder_streams only sets positions; it never deletes rows whose ids
@@ -2029,8 +2055,11 @@ class EditStationDialog(QDialog):
         # ordered_ids is final and the deleted-stream fallback (Pitfall 6) is correct.
         _can_item = table.item(self._canonical_row, _COL_URL) if self._canonical_row >= 0 else None
         _can_stream_id: Optional[int] = _can_item.data(Qt.UserRole) if _can_item else None
-        # If canonical stream was deleted (not in ordered_ids), fall back to first (Pitfall 6).
-        if _can_stream_id not in ordered_ids:
+        # Fall back to the first stream (Pitfall 6) when the canonical row has no
+        # resolvable id (WR-03: None — e.g. an empty/blank row) OR its id was
+        # deleted from the table (absent from ordered_ids). These are distinct
+        # cases but both resolve to the position-1 anchor.
+        if _can_stream_id is None or _can_stream_id not in ordered_ids:
             _can_stream_id = ordered_ids[0] if ordered_ids else None
         repo.set_canonical_stream(station.id, _can_stream_id)
 
