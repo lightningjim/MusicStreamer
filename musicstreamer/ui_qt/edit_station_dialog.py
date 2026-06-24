@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -281,6 +282,7 @@ _COL_CODEC = 2
 _COL_BITRATE = 3
 _COL_POSITION = 4
 _COL_AUDIO_QUALITY = 5  # Phase 70 — read-only auto-detected tier (DS-03); disambiguates from _COL_QUALITY user-authored quality string
+_COL_CANONICAL = 6  # Phase 97 D-04: canonical (metadata anchor) marker; QToolButton star; trailing to avoid shifting _COL_URL=0 refs
 
 
 class _BitrateDelegate(QStyledItemDelegate):
@@ -427,21 +429,24 @@ class EditStationDialog(QDialog):
         self.name_edit = QLineEdit()
         form.addRow("Name:", self.name_edit)
 
-        # URL (primary stream convenience field; debounced thumbnail auto-fetch D-07)
-        self.url_edit = QLineEdit()
+        # Phase 97 D-01: url_edit removed — streams table is the sole URL editor.
+        # _url_timer is KEPT (rewired: canonical cell cellChanged fires it instead of url_edit.textChanged).
         self._url_timer = QTimer()
         self._url_timer.setSingleShot(True)
         self._url_timer.setInterval(500)
-        self.url_edit.textChanged.connect(self._on_url_text_changed)
         self._url_timer.timeout.connect(self._on_url_timer_timeout)
+        # Phase 97 D-04: tracks which table row holds the canonical (metadata anchor) stream.
+        # -1 = unset (before _populate runs); updated in _populate and _on_canonical_btn_clicked.
+        self._canonical_row: int = -1
+        # Phase 97 A1: guard flag to block spurious cellChanged during programmatic populate.
+        self._populating: bool = False
         # Auto-clear timer for _logo_status (D-09). 3s after a terminal status
-        # is set, clear the label. Cancelled/restarted via _on_url_text_changed
+        # is set, clear the label. Cancelled/restarted via _on_canonical_cell_changed
         # (which also clears the label immediately).
         self._logo_status_clear_timer = QTimer(self)    # parented — G-1 safety
         self._logo_status_clear_timer.setSingleShot(True)
         self._logo_status_clear_timer.setInterval(3000)
         self._logo_status_clear_timer.timeout.connect(self._logo_status.clear)
-        form.addRow("URL:", self.url_edit)
 
         # Provider
         self.provider_combo = QComboBox()
@@ -541,9 +546,9 @@ class EditStationDialog(QDialog):
         streams_vbox.setContentsMargins(0, 0, 0, 0)
         streams_vbox.setSpacing(4)
 
-        self.streams_table = QTableWidget(0, 6)
+        self.streams_table = QTableWidget(0, 7)  # Phase 97: +1 for _COL_CANONICAL
         self.streams_table.setHorizontalHeaderLabels(
-            ["URL", "Quality", "Codec", "Bitrate (kbps)", "Position", "Audio quality"]
+            ["URL", "Quality", "Codec", "Bitrate (kbps)", "Position", "Audio quality", "Primary"]
         )
         self.streams_table.setAlternatingRowColors(True)
         self.streams_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -554,11 +559,13 @@ class EditStationDialog(QDialog):
         hdr.setSectionResizeMode(_COL_BITRATE, QHeaderView.Fixed)
         hdr.setSectionResizeMode(_COL_POSITION, QHeaderView.Fixed)
         hdr.setSectionResizeMode(_COL_AUDIO_QUALITY, QHeaderView.Fixed)
+        hdr.setSectionResizeMode(_COL_CANONICAL, QHeaderView.Fixed)
         self.streams_table.setColumnWidth(_COL_QUALITY, 80)
         self.streams_table.setColumnWidth(_COL_CODEC, 80)
         self.streams_table.setColumnWidth(_COL_BITRATE, 95)
         self.streams_table.setColumnWidth(_COL_POSITION, 60)
         self.streams_table.setColumnWidth(_COL_AUDIO_QUALITY, 90)
+        self.streams_table.setColumnWidth(_COL_CANONICAL, 50)
         self.streams_table.setItemDelegateForColumn(_COL_BITRATE, _BitrateDelegate(self))
         # UI-03: surface the failover-ordering semantics on the column header
         # so users discover the feature without reading the changelog. The
@@ -572,6 +579,13 @@ class EditStationDialog(QDialog):
         self.streams_table.horizontalHeaderItem(_COL_AUDIO_QUALITY).setToolTip(
             "Auto-detected from playback. Hi-Res ≥ 48 kHz or ≥ 24-bit on a lossless codec."
         )
+        # Phase 97 D-04: canonical marker column tooltip.
+        self.streams_table.horizontalHeaderItem(_COL_CANONICAL).setToolTip(
+            "Mark as canonical (metadata anchor) stream. Stays pinned through reordering."
+        )
+        # Phase 97 D-02: cellChanged drives the debounced metadata refresh (replaces url_edit.textChanged).
+        # Filtered in _on_canonical_cell_changed to only fire when the canonical row's URL column changes.
+        self.streams_table.cellChanged.connect(self._on_canonical_cell_changed)
         streams_vbox.addWidget(self.streams_table)
 
         btn_row = QHBoxLayout()
@@ -646,10 +660,8 @@ class EditStationDialog(QDialog):
         # Name (Qt.PlainText enforced — T-39-01; QLineEdit always plain)
         self.name_edit.setText(station.name)
 
-        # URL from first stream
+        # Phase 97 D-01: url_edit removed — streams table is the sole URL editor.
         streams = self._repo.list_streams(station.id)
-        if streams:
-            self.url_edit.setText(streams[0].url)
 
         # Provider combo
         for p in self._repo.list_providers():
@@ -687,14 +699,41 @@ class EditStationDialog(QDialog):
                 self.cover_art_source_combo.setCurrentIndex(idx)
                 break
 
-        # Streams
-        for s in streams:
-            self._add_stream_row(
-                s.url, s.quality, s.codec, s.bitrate_kbps, s.position,
-                stream_id=s.id,
-                sample_rate_hz=s.sample_rate_hz,
-                bit_depth=s.bit_depth,
-            )
+        # Streams — guard flag prevents spurious cellChanged debounce during populate (A1 / Pitfall 5)
+        self._populating = True
+        try:
+            for s in streams:
+                self._add_stream_row(
+                    s.url, s.quality, s.codec, s.bitrate_kbps, s.position,
+                    stream_id=s.id,
+                    sample_rate_hz=s.sample_rate_hz,
+                    bit_depth=s.bit_depth,
+                )
+        finally:
+            self._populating = False
+
+        # Phase 97 D-04: set _canonical_row from persisted canonical_stream_id.
+        # Default to row 0 (first stream); scan rows for the matching stream_id if set.
+        self._canonical_row = 0
+        canonical_id = getattr(station, "canonical_stream_id", None)
+        if canonical_id is not None:
+            for r in range(self.streams_table.rowCount()):
+                item = self.streams_table.item(r, _COL_URL)
+                if item and item.data(Qt.UserRole) == canonical_id:
+                    self._canonical_row = r
+                    break
+
+        # Phase 97 D-03: auto-create blank primary row if station has no streams.
+        if self.streams_table.rowCount() == 0:
+            self._populating = True
+            try:
+                self._add_stream_row()
+            finally:
+                self._populating = False
+            self._canonical_row = 0
+
+        # Sync canonical button checked state now that _canonical_row is resolved.
+        self._sync_canonical_buttons()
 
         # Delete guard (T-39-03)
         is_playing = getattr(self._player, "_current_station_name", "") == station.name
@@ -751,7 +790,7 @@ class EditStationDialog(QDialog):
             streams_snapshot.append(tuple(cells))
         return {
             "name": self.name_edit.text(),
-            "url": self.url_edit.text(),
+            "canonical_url": self._get_canonical_url_live(),  # Phase 97 D-04 / Pitfall 7
             "provider": self.provider_combo.currentText(),
             "icy": self.icy_checkbox.isChecked(),
             # Phase 73-04: flipping the cover-art-source combo must enable
@@ -789,19 +828,21 @@ class EditStationDialog(QDialog):
     def _refresh_siblings(self) -> None:
         """Phase 71 / D-11, D-14, D-15: rebuild the sibling chip row.
 
-        Reads the current station's first stream URL from self.url_edit.text()
+        Reads the current canonical stream URL via _get_canonical_url_live()
         AT THE MOMENT THIS METHOD RUNS (NOT self._station.streams — Pitfall 4
-        / RESEARCH: the URL field is the source of truth at refresh time,
+        / RESEARCH: the canonical cell is the source of truth at refresh time,
         because the user may have changed it without saving yet, and the
-        AddSiblingDialog spawn path explicitly forwards self.url_edit.text()
+        AddSiblingDialog spawn path explicitly forwards _get_canonical_url_live()
         as live_url to keep AA detection consistent). Computes AA + manual
         sibling lists, renders the chips, and always appends a "+ Add sibling"
         button last.
 
+        Phase 97 D-01: url_edit removed; canonical cell is the new live URL source.
+
         WR-01: this method is invoked only on _populate(), _on_unlink_sibling
         and _on_add_sibling_clicked — there is NO debounced textChanged
-        connection on url_edit. The chip row does NOT live-refresh as the
-        user types into the URL field; AA detection updates lazily at the
+        connection. The chip row does NOT live-refresh as the user types into
+        the URL cell; AA detection updates lazily at the
         next refresh trigger (save, unlink, or "+ Add sibling" reopen). A
         live-debounce wire was considered and rejected: the AA URL pattern
         space is unusual (channel-key match) and intermediate keystrokes
@@ -829,7 +870,7 @@ class EditStationDialog(QDialog):
         in a loop. Without deleteLater the child widgets continue to live as
         invisible siblings and the next refresh stacks new ones on top.
         """
-        current_url = self.url_edit.text().strip()
+        current_url = self._get_canonical_url_live().strip()  # Phase 97 D-02
 
         # Pitfall 5: clear the layout and the underlying child widgets.
         while self._sibling_row_layout.count():
@@ -1054,7 +1095,7 @@ class EditStationDialog(QDialog):
             self._station,
             self._repo,
             parent=self,
-            live_url=self.url_edit.text().strip(),
+            live_url=self._get_canonical_url_live().strip(),  # Phase 97 D-02
         )
         if dlg.exec() == QDialog.Accepted:
             self._refresh_siblings()
@@ -1134,6 +1175,17 @@ class EditStationDialog(QDialog):
         audio_quality_item.setFlags(audio_quality_item.flags() & ~Qt.ItemIsEditable)
         self.streams_table.setItem(row, _COL_AUDIO_QUALITY, audio_quality_item)
 
+        # Phase 97 D-04: canonical marker QToolButton — checkable star.
+        # Manual single-selection (not QButtonGroup) avoids ID-tracking issues on remove (Pitfall 8).
+        canonical_btn = QToolButton()
+        canonical_btn.setText("★")
+        canonical_btn.setCheckable(True)
+        canonical_btn.setAutoRaise(True)
+        canonical_btn.setToolTip("Set as canonical (metadata anchor) stream")
+        canonical_btn.setChecked(row == self._canonical_row)
+        canonical_btn.clicked.connect(lambda checked, r=row: self._on_canonical_btn_clicked(r))
+        self.streams_table.setCellWidget(row, _COL_CANONICAL, canonical_btn)
+
         return row
 
     def _on_add_stream(self) -> None:
@@ -1151,6 +1203,11 @@ class EditStationDialog(QDialog):
         if row <= 0:
             return
         self._swap_rows(row - 1, row)
+        # Phase 97 Pitfall 4: update _canonical_row to follow the stream content.
+        if self._canonical_row == row:
+            self._canonical_row = row - 1
+        elif self._canonical_row == row - 1:
+            self._canonical_row = row
         self.streams_table.selectRow(row - 1)
 
     def _on_move_down(self) -> None:
@@ -1158,15 +1215,120 @@ class EditStationDialog(QDialog):
         if row < 0 or row >= self.streams_table.rowCount() - 1:
             return
         self._swap_rows(row, row + 1)
+        # Phase 97 Pitfall 4: update _canonical_row to follow the stream content.
+        if self._canonical_row == row:
+            self._canonical_row = row + 1
+        elif self._canonical_row == row + 1:
+            self._canonical_row = row
         self.streams_table.selectRow(row + 1)
 
     def _swap_rows(self, r1: int, r2: int) -> None:
         table = self.streams_table
+        # Swap regular QTableWidgetItem cells (all columns except _COL_CANONICAL).
         for col in range(table.columnCount()):
+            if col == _COL_CANONICAL:
+                continue  # canonical buttons are CellWidgets — handled separately below
             item1 = table.takeItem(r1, col) or QTableWidgetItem("")
             item2 = table.takeItem(r2, col) or QTableWidgetItem("")
             table.setItem(r1, col, item2)
             table.setItem(r2, col, item1)
+        # Phase 97: swap the canonical QToolButton cell widgets (takeItem/setItem does not
+        # move setCellWidget widgets — must use cellWidget/setCellWidget explicitly).
+        btn1 = table.cellWidget(r1, _COL_CANONICAL)
+        btn2 = table.cellWidget(r2, _COL_CANONICAL)
+        # Temporarily reparent to avoid Qt garbage-collection on setCellWidget replacing
+        if btn1 is not None:
+            table.setCellWidget(r2, _COL_CANONICAL, btn1)
+        if btn2 is not None:
+            table.setCellWidget(r1, _COL_CANONICAL, btn2)
+
+    # ------------------------------------------------------------------
+    # Phase 97 D-02/D-04: canonical marker helpers
+    # ------------------------------------------------------------------
+
+    def _get_canonical_url_live(self) -> str:
+        """Phase 97 D-02: return the live (unsaved) text of the canonical stream's URL cell.
+
+        Reads directly from the streams table widget, preserving D-02's requirement that
+        metadata consumers react as the user types (not only after Save).
+        Falls back to "" when no rows or no canonical row is set.
+        """
+        row = self._canonical_row
+        if row < 0 or row >= self.streams_table.rowCount():
+            return ""
+        item = self.streams_table.item(row, _COL_URL)
+        return item.text() if item else ""
+
+    def _on_canonical_btn_clicked(self, row: int) -> None:
+        """Phase 97 D-04: manual single-selection canonical marker handler.
+
+        Unchecks all other rows' canonical buttons (Pitfall 8 — no QButtonGroup),
+        checks this row, updates self._canonical_row, and fires the debounced
+        metadata refresh (same actions as the old _on_url_text_changed).
+        """
+        # Manual single-select: uncheck all rows, then check this one.
+        for r in range(self.streams_table.rowCount()):
+            btn = self.streams_table.cellWidget(r, _COL_CANONICAL)
+            if btn is not None:
+                btn.setChecked(r == row)
+        self._canonical_row = row
+        # Fire the same debounced refresh that url_edit.textChanged used to trigger.
+        self._url_timer.start()
+        self._logo_status_clear_timer.stop()
+        self._logo_status.clear()
+        # Update URL-gated controls.
+        url = self._get_canonical_url_live().strip()
+        lower = url.lower()
+        is_yt = "youtube.com" in lower or "youtu.be" in lower
+        is_twitch = "twitch.tv" in lower
+        self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
+        self._live_resync_checkbox.setEnabled(is_yt)
+        if not is_yt:
+            self._live_resync_checkbox.setChecked(False)
+        self._live_resync_channel_url_edit.setVisible(
+            is_yt and self._live_resync_checkbox.isChecked()
+        )
+
+    def _on_canonical_cell_changed(self, row: int, col: int) -> None:
+        """Phase 97 D-02 / Pitfall 5: cellChanged handler for canonical URL live-read.
+
+        Early-exits unless:
+          - Not inside a programmatic populate (_populating guard, A1)
+          - The changed cell is the canonical row's URL column
+
+        When the guard passes, fires the same debounced refresh that url_edit.textChanged
+        used to trigger (restart _url_timer, clear logo status, update URL-gated controls).
+        """
+        if self._populating:
+            return
+        if row != self._canonical_row or col != _COL_URL:
+            return
+        # Same body as _on_canonical_btn_clicked's refresh (D-02).
+        self._url_timer.start()
+        self._logo_status_clear_timer.stop()
+        self._logo_status.clear()
+        url = self._get_canonical_url_live().strip()
+        lower = url.lower()
+        is_yt = "youtube.com" in lower or "youtu.be" in lower
+        is_twitch = "twitch.tv" in lower
+        self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
+        self._live_resync_checkbox.setEnabled(is_yt)
+        if not is_yt:
+            self._live_resync_checkbox.setChecked(False)
+        self._live_resync_channel_url_edit.setVisible(
+            is_yt and self._live_resync_checkbox.isChecked()
+        )
+
+    def _sync_canonical_buttons(self) -> None:
+        """Phase 97: sync all canonical QToolButton checked states to match _canonical_row.
+
+        Called after _canonical_row is resolved in _populate so the buttons
+        visually reflect the correct row.
+        """
+        for r in range(self.streams_table.rowCount()):
+            btn = self.streams_table.cellWidget(r, _COL_CANONICAL)
+            if btn is not None:
+                btn.setChecked(r == self._canonical_row)
 
     # ------------------------------------------------------------------
     # Phase 58 / STR-15: PLS auto-resolve slot methods (D-02..D-08)
@@ -1307,31 +1469,14 @@ class EditStationDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _on_url_text_changed(self) -> None:
-        # Debounce fetch (existing behavior).
-        self._url_timer.start()
-        # D-09: clear pending auto-clear timer + clear status label immediately.
-        # QLabel.clear is idempotent — safe when label is already empty.
-        self._logo_status_clear_timer.stop()
-        self._logo_status.clear()
-        # Phase 89-05 / D-10: gate Refresh button on YouTube URL detection.
-        # Phase 89b / D-08: extend gate to include twitch.tv URLs (Pitfall 2).
-        url = self.url_edit.text().strip()
-        lower = url.lower()
-        is_yt = "youtube.com" in lower or "youtu.be" in lower
-        is_twitch = "twitch.tv" in lower
-        self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
-        # Phase 96 D-02: live-resync flag checkbox enabled ONLY for YouTube URLs (not Twitch).
-        self._live_resync_checkbox.setEnabled(is_yt)
-        if not is_yt:
-            self._live_resync_checkbox.setChecked(False)
-        # Companion channel-URL field visible only when checkbox is enabled and checked.
-        self._live_resync_channel_url_edit.setVisible(
-            is_yt and self._live_resync_checkbox.isChecked()
-        )
+        # Phase 97 D-01: url_edit removed — this method is no longer directly connected to any signal.
+        # It is preserved as a no-op shim so external callers (if any) do not crash.
+        # The canonical cell change path goes through _on_canonical_cell_changed instead.
+        pass
 
     def _on_live_resync_toggled(self, checked: bool) -> None:
         """Phase 96 D-02: toggle visibility of the companion channel-URL field."""
-        url = self.url_edit.text().strip()
+        url = self._get_canonical_url_live().strip()  # Phase 97 D-02
         lower = url.lower()
         is_yt = "youtube.com" in lower or "youtu.be" in lower
         self._live_resync_channel_url_edit.setVisible(is_yt and checked)
@@ -1347,7 +1492,7 @@ class EditStationDialog(QDialog):
         Phase 89-05 / D-01: also launches _AvatarFetchWorker when the URL is a
         YouTube URL — reuses the same 500ms debounce (separate token).
         """
-        url = self.url_edit.text().strip()
+        url = self._get_canonical_url_live().strip()  # Phase 97 D-02
         if not url:
             return
         self._logo_fetch_token += 1
@@ -1407,7 +1552,7 @@ class EditStationDialog(QDialog):
     def _on_fetch_logo_clicked(self) -> None:
         """Manual trigger — bypass debounce and fetch now."""
         self._url_timer.stop()
-        url = self.url_edit.text().strip()
+        url = self._get_canonical_url_live().strip()  # Phase 97 D-02
         if not url:
             self._logo_status.setText("Enter a URL first")
             # D-09: also auto-clear this terminal status after 3s.
@@ -1523,7 +1668,7 @@ class EditStationDialog(QDialog):
                 )
             else:
                 from musicstreamer.url_helpers import _is_aa_url
-                url = self.url_edit.text().strip()
+                url = self._get_canonical_url_live().strip()  # Phase 97 D-02
                 lower = url.lower()
                 if "youtube.com" in lower or "youtu.be" in lower or _is_aa_url(url):
                     # YT/AA recognized URL that failed mid-fetch (e.g. network
@@ -1681,7 +1826,7 @@ class EditStationDialog(QDialog):
         the identical worker pipeline) is satisfied.
         """
         self._url_timer.stop()
-        url = self.url_edit.text().strip()
+        url = self._get_canonical_url_live().strip()  # Phase 97 D-02
         if not url:
             return
         self._force_avatar_refresh = True   # Phase 89.1 D-08: bypass D-07 gate
@@ -1786,7 +1931,7 @@ class EditStationDialog(QDialog):
         # fires for blank-provider stations — a user-typed provider is NEVER
         # overwritten (Pitfall 3 / D-04).
         if not provider_name:
-            _url_for_derive = self.url_edit.text().strip()
+            _url_for_derive = self._get_canonical_url_live().strip()  # Phase 97 D-02
             if "twitch.tv" in _url_for_derive.lower():
                 from musicstreamer import twitch_helix as _twitch_helix
                 _login = _twitch_helix._parse_login(_url_for_derive)
@@ -1913,7 +2058,7 @@ class EditStationDialog(QDialog):
         # None (Pitfall-7 guard, line ~1331); and an async fetch kicked here would
         # be torn down by accept()'s _shutdown_avatar_fetch_worker() before the
         # queued finished->_on_avatar_fetched slot can persist. So do it inline.
-        self._maybe_fetch_avatar_sync(self.url_edit.text().strip(), provider_id)
+        self._maybe_fetch_avatar_sync(self._get_canonical_url_live().strip(), provider_id)  # Phase 97 D-02
         # SAVE-CLEANUP: flip _is_new False BEFORE accept() so a later
         # reject()/closeEvent() does not delete the just-saved station.
         self._is_new = False
