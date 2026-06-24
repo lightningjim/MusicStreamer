@@ -697,13 +697,29 @@ Plans:
 
 ### Phase 97: Resolve station URL duplication between the top-level standard URL (originally THE stream URL, now used for fetching/metadata) and the first StationStream URL — the two are expected to always be identical, causing the same URL to be maintained in two places and forcing duplicate edits. Investigate the data model and edit flow and unify to a single source of truth.
 
+**Goal:** The station Edit dialog has a single URL source of truth — the streams table — with a pinned canonical (metadata anchor) marker; the duplicate top-level URL field is gone, all metadata/derivation reads the canonical stream URL, and playback still keys off preferred_stream_id (D-05).
+**Requirements**: D-01..D-07 (CONTEXT.md locked decisions; no formal ROADMAP requirement IDs assigned)
+**Depends on:** Phase 96
+**Plans:** 4 plans across 3 waves
+
+Plans:
+**Wave 1**
+- [ ] 97-01-PLAN.md — Wave-0 test stubs (canonical repo/dialog/url_helpers/aa_siblings, RED) per 97-VALIDATION.md
+**Wave 2** *(blocked on 97-01)*
+- [ ] 97-02-PLAN.md — Data layer: models.canonical_stream_id + canonical_url property; repo ALTER/backfill/set_canonical_stream + builder threading (D-04/D-05/D-07)
+**Wave 3** *(parallel; both blocked on 97-01+97-02, disjoint files)*
+- [ ] 97-03-PLAN.md — Edit dialog rewire: remove url_edit, canonical marker column, live-cell wiring, auto-row, save persist + breaking-test updates (D-01/D-02/D-03/D-04/D-06)
+- [ ] 97-04-PLAN.md — External D-07 consumers (url_helpers, aa_live, station_filter_proxy, now_playing_panel, add_sibling_dialog) repointed to canonical_url; playback unchanged (D-05/D-07)
+
+### Phase 98: Add to Stats for Nerds: actual encoding and bitrate detected. Good way to validate you are playing what you expect to be
+
 **Goal:** [To be planned]
 **Requirements**: TBD
-**Depends on:** Phase 96
+**Depends on:** Phase 97
 **Plans:** 0 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 97 to break down)
+- [ ] TBD (run /gsd-plan-phase 98 to break down)
 
 ---
 
