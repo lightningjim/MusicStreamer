@@ -569,8 +569,13 @@ class Repo:
         return int(row["id"]) if row else None
 
     def list_streams(self, station_id: int) -> List[StationStream]:
+        # Phase 97 WR-02: tie-break on id so "first == canonical fallback" agrees
+        # with Station.canonical_url (sorts by (position, id)) and the backfill
+        # (ORDER BY position ASC, id ASC). Without the id tiebreaker, two streams
+        # sharing a position get undefined order and the dialog's row 0 could
+        # disagree with the model's resolved canonical anchor.
         rows = self.con.execute(
-            "SELECT * FROM station_streams WHERE station_id=? ORDER BY position", (station_id,)
+            "SELECT * FROM station_streams WHERE station_id=? ORDER BY position, id", (station_id,)
         ).fetchall()
         return [StationStream(id=r["id"], station_id=r["station_id"], url=r["url"],
                 label=r["label"], quality=r["quality"], position=r["position"],
