@@ -384,20 +384,30 @@ def db_init(con: sqlite3.Connection):
     # One-time backfill: set canonical_stream_id to the position-1 stream for all
     # stations that have at least one stream and no canonical set yet.
     # WHERE canonical_stream_id IS NULL makes this idempotent — second db_init no-op.
-    con.execute(
-        """
-        UPDATE stations
-        SET canonical_stream_id = (
-            SELECT id FROM station_streams
-            WHERE station_id = stations.id
-            ORDER BY position ASC, id ASC
-            LIMIT 1
+    # Guard: only run if the stations table has updated_at (i.e. a proper schema, not
+    # a legacy test-fixture schema). The stations_updated_at trigger fires on any UPDATE
+    # and references updated_at; running the backfill on a schema without that column
+    # would cause OperationalError "no such column: updated_at" (mirrors Phase 89.1
+    # _backfill_eligible guard pattern).
+    _canonical_stations_cols = {
+        row[1]
+        for row in con.execute("PRAGMA table_info('stations')").fetchall()
+    }
+    if "updated_at" in _canonical_stations_cols and "canonical_stream_id" in _canonical_stations_cols:
+        con.execute(
+            """
+            UPDATE stations
+            SET canonical_stream_id = (
+                SELECT id FROM station_streams
+                WHERE station_id = stations.id
+                ORDER BY position ASC, id ASC
+                LIMIT 1
+            )
+            WHERE canonical_stream_id IS NULL
+              AND EXISTS (SELECT 1 FROM station_streams WHERE station_id = stations.id)
+            """
         )
-        WHERE canonical_stream_id IS NULL
-          AND EXISTS (SELECT 1 FROM station_streams WHERE station_id = stations.id)
-        """
-    )
-    con.commit()
+        con.commit()
 
     # Phase 89.1 D-01/D-02/D-03: one-time idempotent backfill.
     # Copy the most-recently-updated per-station PNG to the provider-keyed location
@@ -907,6 +917,7 @@ class Repo:
                 last_played_at=r["last_played_at"],
                 is_favorite=bool(r["is_favorite"]),
                 preferred_stream_id=r["preferred_stream_id"],
+                canonical_stream_id=r["canonical_stream_id"],          # Phase 97 D-04
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
@@ -1026,6 +1037,7 @@ class Repo:
                 last_played_at=r["last_played_at"],
                 is_favorite=True,
                 preferred_stream_id=r["preferred_stream_id"],
+                canonical_stream_id=r["canonical_stream_id"],          # Phase 97 D-04
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
@@ -1148,6 +1160,7 @@ class Repo:
                 last_played_at=r["last_played_at"],
                 is_favorite=bool(r["is_favorite"]),
                 preferred_stream_id=r["preferred_stream_id"],
+                canonical_stream_id=r["canonical_stream_id"],          # Phase 97 D-04
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
@@ -1191,6 +1204,7 @@ class Repo:
                 last_played_at=r["last_played_at"],
                 is_favorite=bool(r["is_favorite"]),
                 preferred_stream_id=r["preferred_stream_id"],
+                canonical_stream_id=r["canonical_stream_id"],          # Phase 97 D-04
                 streams=self.list_streams(r["id"]),
                 prerolls=self.list_prerolls(r["id"]),                 # Phase 83 D-01/D-03
                 prerolls_fetched_at=r["prerolls_fetched_at"],          # Phase 83 D-04
