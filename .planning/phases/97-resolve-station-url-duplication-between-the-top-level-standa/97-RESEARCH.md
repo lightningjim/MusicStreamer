@@ -658,22 +658,18 @@ This phase is a UI refactor with no network-facing surface changes, no new input
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Column position for `_COL_CANONICAL`**
-   - What we know: Currently `_COL_URL=0`. Adding canonical at 0 shifts everything.
-   - What's unclear: Would the user prefer the canonical marker on the LEFT (before URL) or on the RIGHT (after audio quality, as a trailing column) to minimize column index churn in existing tests?
-   - Recommendation: Trailing column (`_COL_CANONICAL = 6`, after `_COL_AUDIO_QUALITY = 5`) minimizes test breakage — all existing `_COL_URL=0` references remain valid. Trade-off: star is visually far from the URL.
+All three open questions were resolved during planning; the resolutions are encoded in the 97-0x-PLAN.md context/interface blocks.
 
-2. **`Station.canonical_url` as property vs standalone function**
-   - What we know: Both work in Python. Property on dataclass is clean; standalone function in url_helpers is equally testable.
-   - What's unclear: The planner's preference; both are valid.
-   - Recommendation: Property on Station for cleaner call sites. If the planner wants to keep models.py minimal, standalone function in url_helpers.
+1. **Column position for `_COL_CANONICAL`** — RESOLVED: **trailing column `_COL_CANONICAL = 6`** (after `_COL_AUDIO_QUALITY = 5`). Minimizes test breakage — all existing `_COL_URL=0` references stay valid. Locked in 97-03.
+   - Original analysis: Adding canonical at column 0 would shift every column index; trailing accepted (star visually farther from URL) to avoid churn across the dialog tests.
 
-3. **`add_sibling_dialog.py:286` `streams[0].url` fallback**
-   - What we know: This is a fallback when no `live_url` is passed (CR-03 backward compat path). D-07 says ALL metadata consumers should use canonical_url.
-   - What's unclear: Is `add_sibling_dialog` considered a D-07 metadata consumer?
-   - Recommendation: Yes — update it to `canonical_url(station)`. Consistent with D-07's "all metadata/derivation" rule.
+2. **`Station.canonical_url` as property vs standalone function** — RESOLVED: **`@property def canonical_url` on the `Station` dataclass** (models.py) for cleaner call sites. Locked in 97-02.
+   - Original analysis: Both equally testable; property chosen over a standalone url_helpers function.
+
+3. **`add_sibling_dialog.py:286` `streams[0].url` fallback** — RESOLVED: **YES, treat as a D-07 consumer** — update to `canonical_url(station)`, consistent with D-07's "all metadata/derivation" rule. Locked in 97-04 Task 2.
+   - Original analysis: This is the CR-03 backward-compat fallback when no `live_url` is passed; D-07 covers all metadata consumers.
 
 ---
 
