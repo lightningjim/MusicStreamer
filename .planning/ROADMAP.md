@@ -706,7 +706,7 @@ Plans:
 **Wave 1**
 - [x] 97-01-PLAN.md — Wave-0 test stubs (canonical repo/dialog/url_helpers/aa_siblings, RED) per 97-VALIDATION.md
 **Wave 2** *(blocked on 97-01)*
-- [ ] 97-02-PLAN.md — Data layer: models.canonical_stream_id + canonical_url property; repo ALTER/backfill/set_canonical_stream + builder threading (D-04/D-05/D-07)
+- [x] 97-02-PLAN.md — Data layer: models.canonical_stream_id + canonical_url property; repo ALTER/backfill/set_canonical_stream + builder threading (D-04/D-05/D-07)
 **Wave 3** *(parallel; both blocked on 97-01+97-02, disjoint files)*
 - [ ] 97-03-PLAN.md — Edit dialog rewire: remove url_edit, canonical marker column, live-cell wiring, auto-row, save persist + breaking-test updates (D-01/D-02/D-03/D-04/D-06)
 - [ ] 97-04-PLAN.md — External D-07 consumers (url_helpers, aa_live, station_filter_proxy, now_playing_panel, add_sibling_dialog) repointed to canonical_url; playback unchanged (D-05/D-07)
