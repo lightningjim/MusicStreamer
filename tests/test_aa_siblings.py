@@ -229,3 +229,81 @@ def test_render_sibling_html_unknown_slug_falls_back_to_slug_literal():
     out = render_sibling_html(siblings, current_name="Ambient")
     assert "not_a_real_slug" in out
     assert 'href="sibling://9"' in out
+
+
+# ---------------------------------------------------------------------------
+# Phase 97 Plan 01: Wave-0 — canonical sibling detection (RED until Plan 03/04)
+#
+# D-07: find_aa_siblings must key off station.canonical_url, not streams[0].url.
+# This test is RED until Plan 03 removes the streams[0].url call site.
+# ---------------------------------------------------------------------------
+
+
+def test_canonical_url_drives_aa_sibling_detection():
+    """D-07: sibling detection uses Station.canonical_url, not streams[0].url.
+
+    Station 1 has two streams:
+      - streams[0]: a non-AA YouTube URL (position=1)
+      - streams[1]: a DI.fm AA URL (position=2) — this IS the canonical stream
+    Station 1's canonical_stream_id points to the AA stream (id=12).
+    Station 2 has a matching ZenRadio AA URL (cross-network sibling).
+
+    find_aa_siblings is called with current_first_url = station1.canonical_url.
+    If find_aa_siblings still reads streams[0].url (the YouTube URL), it returns []
+    (non-AA gate fails). It should instead use canonical_url and return station 2.
+
+    RED: Station.canonical_url does not exist yet; accessing it raises AttributeError.
+    After Plan 02 adds canonical_url and Plan 04 rewires find_aa_siblings, this turns GREEN.
+    """
+    from musicstreamer.models import Station, StationStream
+
+    # Station 1: canonical stream is the DI.fm AA stream (not streams[0])
+    yt_stream = StationStream(
+        id=11, station_id=1, url="https://www.youtube.com/watch?v=lofi",
+        label="", quality="hi", position=1, stream_type="youtube", codec="",
+    )
+    di_stream = StationStream(
+        id=12, station_id=1, url="http://prem1.di.fm:80/ambient_hi?listen_key=abc",
+        label="", quality="hi", position=2, stream_type="", codec="MP3",
+    )
+    station1 = Station(
+        id=1,
+        name="Ambient",
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        streams=[yt_stream, di_stream],
+        canonical_stream_id=12,  # canonical is the AA stream, not streams[0]
+    )
+
+    # Station 2: ZenRadio sibling of the DI.fm ambient channel
+    zr_stream = StationStream(
+        id=21, station_id=2, url="http://prem4.zenradio.com/zrambient?listen_key=abc",
+        label="", quality="hi", position=1, stream_type="", codec="MP3",
+    )
+    station2 = Station(
+        id=2,
+        name="Ambient",
+        provider_id=None,
+        provider_name=None,
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        streams=[zr_stream],
+        canonical_stream_id=None,
+    )
+
+    # RED: station1.canonical_url raises AttributeError until Plan 02 adds the property.
+    # After Plan 02 + Plan 04, this should return [("zenradio", 2, "Ambient")].
+    canonical_url = station1.canonical_url  # AttributeError until Plan 02
+
+    siblings = find_aa_siblings(
+        [station1, station2],
+        current_station_id=station1.id,
+        current_first_url=canonical_url,
+    )
+    assert siblings == [("zenradio", 2, "Ambient")], (
+        f"Expected ZenRadio sibling via canonical URL; got {siblings!r}"
+    )
