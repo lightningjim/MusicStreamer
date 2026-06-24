@@ -213,7 +213,7 @@ def find_aa_siblings(
         # but tests construct Station(streams=[]) directly).
         if not st.streams:
             continue
-        cand_url = st.streams[0].url
+        cand_url = st.canonical_url  # Phase 97 D-07: key off canonical stream
         # D-03: candidate must be AA, have a slug, and have a derivable key.
         if not _is_aa_url(cand_url):
             continue
@@ -355,7 +355,7 @@ def pick_similar_stations(
         aa = find_aa_siblings(
             stations,
             current_station_id=current_station.id,
-            current_first_url=current_station.streams[0].url,
+            current_first_url=current_station.canonical_url,  # Phase 97 D-07
         )
         # find_aa_siblings returns list[tuple[network_slug, station_id, station_name]]
         excluded_ids.update(sid for _, sid, _ in aa)

@@ -155,11 +155,8 @@ def get_di_channel_key(station) -> Optional[str]:
       - station's network slug is not 'di' (D-02 v1 scope).
       - the channel key cannot be derived.
     """
-    streams = getattr(station, "streams", None) or []
-    if not streams:
-        return None
-    url = streams[0].url
-    if not _is_aa_url(url):
+    url = station.canonical_url  # Phase 97 D-07: key off canonical stream
+    if not url or not _is_aa_url(url):
         return None
     slug = _aa_slug_from_url(url)
     if slug != "di":
