@@ -1086,10 +1086,10 @@ class EditStationDialog(QDialog):
         (Plan 71-04 contract); EditStationDialog only consumes the
         linked_station_name attribute for the toast text.
 
-        CR-03: pass live url_edit.text() into the dialog so the AA exclusion
+        CR-03: pass live _get_canonical_url_live() into the dialog so the AA exclusion
         set reflects the in-progress URL (the user may have edited the URL
         field without saving — RESEARCH Pitfall 4). Without this the dialog
-        reads the stale persisted streams[0].url, can offer a candidate that
+        reads the stale persisted canonical_url, can offer a candidate that
         the NEW URL would auto-detect as AA, and adding it lands in CR-02's
         AA+manual collision case after save.
         """

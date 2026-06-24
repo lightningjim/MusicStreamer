@@ -59,10 +59,10 @@ class AddSiblingDialog(QDialog):
         live_url: Optional override for the editing station's current URL.
             When the dialog is launched from EditStationDialog the user may
             have edited the URL field without saving (RESEARCH Pitfall 4);
-            EditStationDialog passes its url_edit.text().strip() so the AA
+            EditStationDialog passes its _get_canonical_url_live() so the AA
             exclusion set reflects the in-progress URL rather than the stale
-            persisted streams[0].url. When omitted the dialog falls back to
-            station.streams[0].url for backwards compatibility (CR-03).
+            persisted canonical_url. When omitted the dialog falls back to
+            station.canonical_url for consistency (CR-03, Phase 97 D-07).
 
     Public read-only attribute after exec() == QDialog.Accepted:
         linked_station_name: str — the display name of the station the user
@@ -81,8 +81,8 @@ class AddSiblingDialog(QDialog):
         self._current_station = station
         self._current_station_id = station.id
         self._repo = repo
-        # CR-03: live URL takes precedence over station.streams[0].url. None
-        # means "use stale fallback"; "" (empty string) is a valid live value
+        # CR-03: live URL takes precedence over station.canonical_url. None
+        # means "use saved canonical_url fallback"; "" (empty string) is a valid live value
         # meaning "user cleared the URL field" and is preserved as-is.
         self._live_url: Optional[str] = live_url
         # Caller reads this after exec() == Accepted for the toast (UI-SPEC
@@ -275,11 +275,10 @@ class AddSiblingDialog(QDialog):
         all_stations = self._repo.list_stations()
 
         # CR-03: prefer the live URL passed in from EditStationDialog (the
-        # in-progress url_edit.text()), falling back to the saved
-        # streams[0].url only when no live URL was provided. An explicit
-        # empty-string live_url is honored (user cleared the field) — only
-        # `None` triggers the fallback. Defensively allow an empty URL for
-        # new/streamless stations.
+        # in-progress _get_canonical_url_live() value), falling back to the
+        # saved station.canonical_url when no live URL was provided (Phase 97
+        # D-07). An explicit empty-string live_url is honored (user cleared
+        # the field) — only `None` triggers the fallback.
         if self._live_url is not None:
             current_url = self._live_url
         else:

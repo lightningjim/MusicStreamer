@@ -2414,7 +2414,7 @@ class NowPlayingPanel(QWidget):
     def _refresh_siblings(self) -> None:
         """Phase 64 / D-04, D-05: refresh the 'Also on:' label for the bound station.
 
-        Reads self._station.streams[0].url, scans repo.list_stations() for AA
+        Reads self._station.canonical_url (Phase 97 D-07), scans repo.list_stations() for AA
         siblings on different networks, then either populates _sibling_label
         with HTML or hides it entirely (zero vertical space when no siblings).
 
@@ -2954,7 +2954,7 @@ class NowPlayingPanel(QWidget):
         """
         if self._aa_poll_timer is None:
             return  # stop_aa_poll_loop was called between cycles
-        # BL-03: get_di_channel_key dereferences station.streams[0].url.
+        # BL-03: get_di_channel_key dereferences station.canonical_url (Phase 97 D-07).
         # A single legacy/malformed station bound at reschedule time should
         # not break the timer chain — fall back to the slow cadence on error.
         try:
