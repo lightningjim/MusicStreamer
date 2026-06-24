@@ -2022,6 +2022,16 @@ class EditStationDialog(QDialog):
         if ordered_ids:
             repo.reorder_streams(station.id, ordered_ids)
 
+        # Phase 97 D-04: persist canonical marker via dedicated single-column setter
+        # (NEVER update_station — Pitfall 1). Must run AFTER reorder_streams so
+        # ordered_ids is final and the deleted-stream fallback (Pitfall 6) is correct.
+        _can_item = table.item(self._canonical_row, _COL_URL) if self._canonical_row >= 0 else None
+        _can_stream_id: Optional[int] = _can_item.data(Qt.UserRole) if _can_item else None
+        # If canonical stream was deleted (not in ordered_ids), fall back to first (Pitfall 6).
+        if _can_stream_id not in ordered_ids:
+            _can_stream_id = ordered_ids[0] if ordered_ids else None
+        repo.set_canonical_stream(station.id, _can_stream_id)
+
         # Phase 96 D-01/D-03/D-04: persist live-resync flag, title anchor, and
         # channel scan URL via dedicated single-column setters (NEVER update_station
         # — Pitfall 1). Ordered: flag first, then anchor, then validated scan URL.
