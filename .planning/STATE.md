@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Completed Phase 97 Plan 01 - Wave-0 RED tests
-last_updated: "2026-06-24T03:18:17.953Z"
+stopped_at: Completed Phase 97 Plan 04 - D-07 consumers repointed to canonical_url
+last_updated: "2026-06-24T03:24:35.040Z"
 last_activity: 2026-06-24 -- Phase 97 execution started
 progress:
   total_phases: 26
-  completed_phases: 24
+  completed_phases: 25
   total_plans: 85
-  completed_plans: 84
-  percent: 92
+  completed_plans: 85
+  percent: 96
 ---
 
 # Project State
@@ -153,6 +153,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: Phase 96.2 D-03: apply_refresh remap branch confirmed never calls set_live_url_syncs_from_channel; regression test test_apply_remap_does_not_set_sync_flag added
 - [Phase ?]: Phase 97-01 D-01: renamed test_set_canonical_stream_round_trip to test_canonical_set_stream_round_trip
 - [Phase ?]: Phase 97-01 D-02: _COL_CANONICAL not at module-level in test_edit_station_dialog.py to preserve existing 97 green tests
+- [Phase ?]: Phase 97 D-07: all 5 external metadata/derivation consumers use canonical_url — one rule, one source
+- [Phase ?]: Phase 97 D-05: player.py deliberately not modified — playback path unchanged
 
 ### Decisions (v2.1, preserved for context)
 
@@ -224,11 +226,12 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 96.1 P03 | 2min | 3 tasks | 1 files |
 | Phase 96.2 P01 | 18 | 3 tasks | 4 files |
 | Phase 97 P01 | 4 minutes | 3 tasks | 4 files |
+| Phase 97 P04 | 5 minutes | 3 tasks | 5 files |
 
 ## Session Continuity
 
-Last session: 2026-06-24T03:18:17.942Z
-Stopped at: Completed Phase 97 Plan 01 - Wave-0 RED tests
+Last session: 2026-06-24T03:24:35.029Z
+Stopped at: Completed Phase 97 Plan 04 - D-07 consumers repointed to canonical_url
 Resume file: None
 
 ## Operator Next Steps
