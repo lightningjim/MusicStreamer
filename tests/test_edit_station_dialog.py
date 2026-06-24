@@ -2305,3 +2305,129 @@ def test_live_resync_checkbox_gating(qtbot, station, player, repo):
     assert not d._live_resync_checkbox.isChecked(), (
         "Checkbox must be UNCHECKED when disabled for non-YT URLs"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 97 Plan 01: Wave-0 canonical dialog tests (RED — Plan 03 turns GREEN)
+#
+# _COL_CANONICAL and _canonical_row are imported/accessed inside each test so
+# that these 7 tests fail individually while the ~97 existing tests (which are
+# currently green) are not disrupted. The module-level import of EditStationDialog
+# already works; these test failures come from missing attrs/constants.
+# ---------------------------------------------------------------------------
+
+
+def test_url_edit_widget_does_not_exist(dialog):
+    """D-01 drift-guard: url_edit must not exist after Phase 97 removes it.
+
+    This test is intentionally RED until Plan 03 removes self.url_edit from
+    _build_ui. After Plan 03 lands, this becomes a permanent regression guard.
+    """
+    assert not hasattr(dialog, "url_edit"), (
+        "url_edit survived Phase 97 D-01 removal — remove it from _build_ui"
+    )
+
+
+def test_canonical_marker_defaults_to_row_0(dialog):
+    """D-04: dialog opens with canonical marker defaulting to row 0 when no canonical_stream_id set.
+
+    The station fixture has canonical_stream_id=None (field not yet on Station).
+    After Plan 02 adds the field + Plan 03 wires the dialog, _canonical_row must
+    default to 0 (first stream row).
+    """
+    # Accessing _canonical_row will fail with AttributeError until Plan 03 adds it.
+    canonical_row = dialog._canonical_row  # noqa: AttributeError expected (RED)
+    assert canonical_row == 0
+
+
+def test_metadata_reads_canonical_cell_live(dialog):
+    """D-02: _get_canonical_url_live() reads the canonical row's URL cell without saving.
+
+    Setting the URL cell text for the canonical row and reading it back live
+    must return the updated text (unsaved). This verifies the live-read contract
+    for metadata derive (provider detection, channel scan) during edit.
+    """
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL  # already exists
+    # _get_canonical_url_live does not exist yet → AttributeError (RED)
+    table = dialog.streams_table
+    canonical_row = dialog._canonical_row  # AttributeError until Plan 03
+    item = table.item(canonical_row, _COL_URL)
+    if item is None:
+        from PySide6.QtWidgets import QTableWidgetItem
+        table.setItem(canonical_row, _COL_URL, QTableWidgetItem("http://twitch.tv/x"))
+    else:
+        item.setText("http://twitch.tv/x")
+    result = dialog._get_canonical_url_live()  # AttributeError until Plan 03
+    assert result == "http://twitch.tv/x"
+
+
+def test_save_persists_canonical_stream_id(qtbot, dialog, repo):
+    """D-04: saving the dialog calls repo.set_canonical_stream with the canonical stream's id.
+
+    Uses the existing MagicMock repo fixture per test_save_calls_repo_correctly pattern.
+    repo.set_canonical_stream must be called exactly once on Accept.
+    """
+    # Trigger save via accept button
+    dialog.button_box.accepted.emit()
+    # set_canonical_stream does not exist on real Repo yet → method is on MagicMock so
+    # assert_called_once() checks it was wired into _on_save (RED until Plan 03).
+    repo.set_canonical_stream.assert_called_once()
+
+
+def test_canonical_marker_stays_pinned_after_reorder(qtbot, dialog):
+    """D-04: canonical marker tracks content (stream_id), not table row position.
+
+    After a Move Down of the canonical row, _canonical_row must update to follow
+    the stream so it still points to the same logical stream at its new position.
+    """
+    from PySide6.QtCore import Qt
+    # _canonical_row must exist → AttributeError until Plan 03 (RED)
+    initial_canonical_row = dialog._canonical_row  # AttributeError expected
+
+    # Add a second row to allow Move Down
+    qtbot.mouseClick(dialog.add_stream_btn, Qt.LeftButton)
+
+    table = dialog.streams_table
+    # Select the canonical row (row 0) and move it down
+    table.selectRow(initial_canonical_row)
+    qtbot.mouseClick(dialog.move_down_btn, Qt.LeftButton)
+
+    # Canonical row must follow the stream content to row 1
+    assert dialog._canonical_row == 1, (
+        f"_canonical_row must follow stream to row 1 after move-down; got {dialog._canonical_row}"
+    )
+
+
+def test_auto_create_primary_row_on_empty_station(qtbot, station, player, repo):
+    """D-03: opening dialog on a station with zero streams auto-creates one blank row.
+
+    _canonical_row must be 0 on the auto-created row.
+    """
+    # Override repo to return no streams
+    repo.list_streams.return_value = []
+    from musicstreamer.ui_qt.edit_station_dialog import EditStationDialog
+    d = EditStationDialog(station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d.streams_table.rowCount() == 1, (
+        f"Auto-create D-03: expected 1 row for empty station, got {d.streams_table.rowCount()}"
+    )
+    # _canonical_row must be 0 → AttributeError until Plan 03 (RED)
+    assert d._canonical_row == 0  # AttributeError expected
+
+
+def test_dirty_state_captures_canonical_url_not_url_edit(dialog):
+    """Pitfall 7: _snapshot_form_state must use 'canonical_url' key, not 'url'.
+
+    After Phase 97 Plan 03 rewires _snapshot_form_state, the snapshot dict must
+    contain key 'canonical_url' and must NOT contain key 'url' (which was driven
+    by the removed url_edit widget).
+    """
+    # _snapshot_form_state exists but must return 'canonical_url' not 'url'.
+    snapshot = dialog._snapshot_form_state()
+    assert "canonical_url" in snapshot, (
+        f"_snapshot_form_state must include 'canonical_url' key; got keys: {sorted(snapshot)}"
+    )
+    assert "url" not in snapshot, (
+        f"_snapshot_form_state must NOT include 'url' key after url_edit removal; got keys: {sorted(snapshot)}"
+    )
