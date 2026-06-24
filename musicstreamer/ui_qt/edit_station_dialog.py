@@ -724,7 +724,9 @@ class EditStationDialog(QDialog):
                     break
 
         # Phase 97 D-03: auto-create blank primary row if station has no streams.
-        if self.streams_table.rowCount() == 0:
+        # Skip when is_new=True — __init__ adds the blank row immediately after
+        # _populate() returns (D-05 pre-add), so we must not double-add here.
+        if self.streams_table.rowCount() == 0 and not self._is_new:
             self._populating = True
             try:
                 self._add_stream_row()

@@ -512,7 +512,14 @@ def test_auto_fetch_worker_starts_on_url_change(qtbot, monkeypatch, dialog):
     fake_worker_cls = MagicMock(return_value=fake_worker_instance)
     monkeypatch.setattr(esd_mod, "_LogoFetchWorker", fake_worker_cls)
 
-    dialog.url_edit.setText("https://www.youtube.com/watch?v=abc")
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("https://www.youtube.com/watch?v=abc"))
+    else:
+        item.setText("https://www.youtube.com/watch?v=abc")
     # Fire the timer-timeout slot directly
     assert hasattr(dialog, "_on_url_timer_timeout")
     dialog._on_url_timer_timeout()
@@ -571,7 +578,14 @@ def test_logo_status_clears_after_3s(dialog, qtbot, monkeypatch):
     # with "Fetching…" → (fetch result), restarts the 3s clear timer, and the
     # assertion at t=3100ms fails non-deterministically.
     monkeypatch.setattr(esd_mod, "_LogoFetchWorker", MagicMock())
-    dialog.url_edit.setText("http://example.com/notsupported")
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("http://example.com/notsupported"))
+    else:
+        item.setText("http://example.com/notsupported")
     dialog._url_timer.stop()  # cancel the existing 500ms debounce
     # Direct-call the slot to simulate fetch-completion with no tmp_path.
     dialog._on_logo_fetched("", token=0, classification="")
@@ -584,21 +598,32 @@ def test_logo_status_clears_after_3s(dialog, qtbot, monkeypatch):
 
 
 def test_text_changed_cancels_pending_clear(dialog, qtbot, monkeypatch):
-    """Typing in url_edit immediately clears the label AND cancels the 3s timer."""
+    """Typing in the canonical URL cell immediately clears the label AND cancels the 3s timer."""
     from unittest.mock import MagicMock
     import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
 
     # Defensive: same rationale as test_logo_status_clears_after_3s. Assertions
     # below are synchronous, but stopping the debounce makes the test robust
-    # against future changes to _on_url_text_changed's debounce behavior.
+    # against future changes to _on_canonical_cell_changed's debounce behavior.
     monkeypatch.setattr(esd_mod, "_LogoFetchWorker", MagicMock())
-    dialog.url_edit.setText("http://example.com/notsupported")
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("http://example.com/notsupported"))
+    else:
+        item.setText("http://example.com/notsupported")
     dialog._url_timer.stop()
     dialog._on_logo_fetched("", token=0, classification="")
     assert dialog._logo_status.text() == "Fetch not supported for this URL"
     assert dialog._logo_status_clear_timer.isActive()
-    # Simulate the user typing — this fires textChanged.
-    dialog.url_edit.setText("http://something-new")
+    # Simulate the user typing in the canonical cell — fires cellChanged -> _on_canonical_cell_changed.
+    item2 = table.item(dialog._canonical_row, _COL_URL)
+    if item2 is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("http://something-new"))
+    else:
+        item2.setText("http://something-new")
     # The timer must be stopped and the label must be empty immediately,
     # without needing to wait 3s.
     assert dialog._logo_status.text() == ""
@@ -883,8 +908,15 @@ def test_is_dirty_after_name_edit(dialog):
 
 
 def test_is_dirty_after_url_edit(dialog):
-    """D-12: editing the URL field marks the dialog dirty."""
-    dialog.url_edit.setText("http://other.example/stream")
+    """D-12: editing the canonical stream URL cell marks the dialog dirty."""
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("http://other.example/stream"))
+    else:
+        item.setText("http://other.example/stream")
     assert dialog._is_dirty() is True
 
 
@@ -1953,25 +1985,45 @@ def test_avatar_fetch_token_initializes_zero(dialog):
 
 def test_refresh_avatar_btn_disabled_for_non_yt_url(qtbot, dialog):
     """D-10: Refresh button disabled for a non-YouTube URL."""
-    dialog.url_edit.setText("http://streams.radioprimavera.com/stream.mp3")
-    # Process events so textChanged propagates
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
     from PySide6.QtCore import QCoreApplication
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("http://streams.radioprimavera.com/stream.mp3"))
+    else:
+        item.setText("http://streams.radioprimavera.com/stream.mp3")
     QCoreApplication.processEvents()
     assert dialog._refresh_avatar_btn.isEnabled() is False
 
 
 def test_refresh_avatar_btn_enabled_for_youtube_url(qtbot, dialog):
     """D-10: Refresh button enabled for a youtube.com URL."""
-    dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
     from PySide6.QtCore import QCoreApplication
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("https://www.youtube.com/@KEXP/live"))
+    else:
+        item.setText("https://www.youtube.com/@KEXP/live")
     QCoreApplication.processEvents()
     assert dialog._refresh_avatar_btn.isEnabled() is True
 
 
 def test_refresh_avatar_btn_enabled_for_youtu_be_url(qtbot, dialog):
     """D-10: Refresh button enabled for a youtu.be URL."""
-    dialog.url_edit.setText("https://youtu.be/dQw4w9WgXcQ")
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
     from PySide6.QtCore import QCoreApplication
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("https://youtu.be/dQw4w9WgXcQ"))
+    else:
+        item.setText("https://youtu.be/dQw4w9WgXcQ")
     QCoreApplication.processEvents()
     assert dialog._refresh_avatar_btn.isEnabled() is True
 
@@ -2120,7 +2172,14 @@ def test_debounce_launches_avatar_worker_on_yt_url(qtbot, dialog):
         paths._root_override = tmp_root
         try:
             initial_token = dialog._avatar_fetch_token
-            dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+            from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+            from PySide6.QtWidgets import QTableWidgetItem
+            table = dialog.streams_table
+            item = table.item(dialog._canonical_row, _COL_URL)
+            if item is None:
+                table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("https://www.youtube.com/@KEXP/live"))
+            else:
+                item.setText("https://www.youtube.com/@KEXP/live")
 
             # Patch the worker start so we don't actually hit the network
             with patch.object(dialog, "_avatar_fetch_worker", None):
@@ -2144,8 +2203,15 @@ def test_debounce_launches_avatar_worker_on_yt_url(qtbot, dialog):
 def test_debounce_does_not_launch_worker_for_non_yt_url(qtbot, dialog):
     """D-01: non-YT URL does NOT launch an _AvatarFetchWorker on debounce timeout."""
     from unittest.mock import patch, MagicMock
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
 
-    dialog.url_edit.setText("http://streams.radioprimavera.com/stream.mp3")
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("http://streams.radioprimavera.com/stream.mp3"))
+    else:
+        item.setText("http://streams.radioprimavera.com/stream.mp3")
     initial_token = dialog._avatar_fetch_token
 
     with patch(
@@ -2165,7 +2231,14 @@ def test_yt_url_with_null_provider_does_not_launch_avatar_worker(qtbot, dialog):
     from unittest.mock import patch
 
     dialog._station.provider_id = None
-    dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("https://www.youtube.com/@KEXP/live"))
+    else:
+        item.setText("https://www.youtube.com/@KEXP/live")
     initial_token = dialog._avatar_fetch_token
 
     with patch(
@@ -2252,8 +2325,15 @@ def test_on_avatar_fetched_stale_token_discarded(qtbot, dialog, repo):
 def test_refresh_btn_wired_to_fetch_path(qtbot, dialog):
     """D-11: Refresh button invokes _on_url_timer_timeout (same async path as debounce)."""
     from unittest.mock import patch, MagicMock
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
 
-    dialog.url_edit.setText("https://www.youtube.com/@KEXP/live")
+    table = dialog.streams_table
+    item = table.item(dialog._canonical_row, _COL_URL)
+    if item is None:
+        table.setItem(dialog._canonical_row, _COL_URL, QTableWidgetItem("https://www.youtube.com/@KEXP/live"))
+    else:
+        item.setText("https://www.youtube.com/@KEXP/live")
     with patch.object(dialog, "_on_url_timer_timeout") as mock_timeout:
         dialog._on_refresh_avatar_clicked()
         mock_timeout.assert_called_once()
@@ -2276,29 +2356,38 @@ def test_live_resync_checkbox_gating(qtbot, station, player, repo):
     d = EditStationDialog(station, player, repo, parent=None)
     qtbot.addWidget(d)
 
+    from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+    from PySide6.QtWidgets import QTableWidgetItem
+
+    def _set_canonical_url(dlg, url):
+        """Helper: set canonical cell URL and trigger the cell-changed handler."""
+        table = dlg.streams_table
+        item = table.item(dlg._canonical_row, _COL_URL)
+        if item is None:
+            table.setItem(dlg._canonical_row, _COL_URL, QTableWidgetItem(url))
+        else:
+            item.setText(url)
+        # _on_canonical_cell_changed is connected to cellChanged signal — fires automatically.
+
     # --- YouTube URL: checkbox must be enabled ---
-    d.url_edit.setText("https://www.youtube.com/@YellowBrickCinema/streams")
-    d._on_url_text_changed()
+    _set_canonical_url(d, "https://www.youtube.com/@YellowBrickCinema/streams")
     assert d._live_resync_checkbox.isEnabled(), (
         "Checkbox must be ENABLED for youtube.com URLs"
     )
 
     # --- Twitch URL: checkbox must be disabled (YouTube-only gate, D-02) ---
-    d.url_edit.setText("https://www.twitch.tv/somechannel")
-    d._on_url_text_changed()
+    _set_canonical_url(d, "https://www.twitch.tv/somechannel")
     assert not d._live_resync_checkbox.isEnabled(), (
         "Checkbox must be DISABLED for twitch.tv URLs (YouTube-only gate)"
     )
 
     # --- Non-YT/non-Twitch URL: disabled AND unchecked ---
     # First enable + check it for a YT URL
-    d.url_edit.setText("https://www.youtube.com/@Channel/live")
-    d._on_url_text_changed()
+    _set_canonical_url(d, "https://www.youtube.com/@Channel/live")
     d._live_resync_checkbox.setChecked(True)
 
     # Now switch to a non-provider URL
-    d.url_edit.setText("http://icecast.example.com/stream.mp3")
-    d._on_url_text_changed()
+    _set_canonical_url(d, "http://icecast.example.com/stream.mp3")
     assert not d._live_resync_checkbox.isEnabled(), (
         "Checkbox must be DISABLED for non-YT/non-Twitch URLs"
     )
