@@ -503,6 +503,7 @@ Plans:
 **Research flag**: NO — direct extension of Phase 58 logic.
 
 Plans:
+
 - [x] 92-01-PLAN.md — URL-fallback for _extract_codec/_extract_bitrate (title miss -> scan entry URL) + 3 call sites + 4 RED->GREEN tests
 
 #### Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up
@@ -673,6 +674,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
+
 - [x] 96.2-01-PLAN.md — Add flag-independent repo.list_stations_for_provider + thread it into the discover-row merge dropdown (D-01/D-02/D-03/D-04), TDD RED→GREEN
 
 ### Phase 96.1: Show currently-live stream titles for newly-discovered streams in the live-refresh dialog so they can be mapped/merged (INSERTED)
@@ -704,10 +706,15 @@ Plans:
 
 Plans:
 **Wave 1**
+
 - [x] 97-01-PLAN.md — Wave-0 test stubs (canonical repo/dialog/url_helpers/aa_siblings, RED) per 97-VALIDATION.md
+
 **Wave 2** *(blocked on 97-01)*
+
 - [x] 97-02-PLAN.md — Data layer: models.canonical_stream_id + canonical_url property; repo ALTER/backfill/set_canonical_stream + builder threading (D-04/D-05/D-07)
+
 **Wave 3** *(parallel; both blocked on 97-01+97-02, disjoint files)*
+
 - [x] 97-03-PLAN.md — Edit dialog rewire: remove url_edit, canonical marker column, live-cell wiring, auto-row, save persist + breaking-test updates (D-01/D-02/D-03/D-04/D-06)
 - [x] 97-04-PLAN.md — External D-07 consumers (url_helpers, aa_live, station_filter_proxy, now_playing_panel, add_sibling_dialog) repointed to canonical_url; playback unchanged (D-05/D-07)
 
@@ -719,8 +726,13 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 98-01-PLAN.md — Player-side one-shot codec/bitrate detection: audio_format_detected signal + FakePlayer parity + _normalise_audio_codec + _on_gst_tag refactor (Wave 1)
 - [ ] 98-02-PLAN.md — Panel-side rendering: _StatLabel amber subclass + four detected-format rows + update_detected_format/update_detected_caps + bind_station reset (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 98-03-PLAN.md — MainWindow wiring: QueuedConnection + _on_audio_format_detected slot + update_detected_caps fan-out (Wave 2)
 
 ---
