@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
 status: executing
-stopped_at: Phase 97 context gathered
-last_updated: "2026-06-24T01:48:31.678Z"
-last_activity: 2026-06-23 -- Phase 96.2 execution started
+stopped_at: Completed Phase 97 Plan 01 - Wave-0 RED tests
+last_updated: "2026-06-24T02:57:44.877Z"
+last_activity: 2026-06-24 -- Phase 97 execution started
 progress:
   total_phases: 26
   completed_phases: 24
   total_plans: 85
-  completed_plans: 81
+  completed_plans: 82
   percent: 92
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 96.2 — fix-newly-discovered-merge-dropdown-only-offering-one-of-the
+**Current focus:** Phase 97 — resolve-station-url-duplication-between-the-top-level-standa
 
 ## Current Position
 
-Phase: 96.2 (fix-newly-discovered-merge-dropdown-only-offering-one-of-the) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 96.2
-Last activity: 2026-06-23 -- Phase 96.2 execution started
+Phase: 97 (resolve-station-url-duplication-between-the-top-level-standa) — EXECUTING
+Plan: 2 of 4
+Status: Executing Phase 97
+Last activity: 2026-06-24 -- Phase 97 execution started
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -151,6 +151,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: Phase 96.2 D-01: repo.list_stations_for_provider drops the live_url_syncs_from_channel = 1 predicate; discover-row combo sourced from all-provider list via self._all_provider_stations
 - [Phase ?]: Phase 96.2 D-02: REMAP _RowWidget loop unchanged — still iterates self._flagged_stations; only the _DiscoverRowWidget call site swapped to self._all_provider_stations
 - [Phase ?]: Phase 96.2 D-03: apply_refresh remap branch confirmed never calls set_live_url_syncs_from_channel; regression test test_apply_remap_does_not_set_sync_flag added
+- [Phase ?]: Phase 97-01 D-01: renamed test_set_canonical_stream_round_trip to test_canonical_set_stream_round_trip
+- [Phase ?]: Phase 97-01 D-02: _COL_CANONICAL not at module-level in test_edit_station_dialog.py to preserve existing 97 green tests
 
 ### Decisions (v2.1, preserved for context)
 
@@ -221,12 +223,13 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 96.1 P02 | 8min | 2 tasks | 1 files |
 | Phase 96.1 P03 | 2min | 3 tasks | 1 files |
 | Phase 96.2 P01 | 18 | 3 tasks | 4 files |
+| Phase 97 P01 | 4 minutes | 3 tasks | 4 files |
 
 ## Session Continuity
 
-Last session: 2026-06-24T01:17:23.903Z
-Stopped at: Phase 97 context gathered
-Resume file: .planning/phases/97-resolve-station-url-duplication-between-the-top-level-standa/97-CONTEXT.md
+Last session: 2026-06-24T02:57:44.866Z
+Stopped at: Completed Phase 97 Plan 01 - Wave-0 RED tests
+Resume file: None
 
 ## Operator Next Steps
 

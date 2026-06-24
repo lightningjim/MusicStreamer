@@ -704,7 +704,7 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 97-01-PLAN.md — Wave-0 test stubs (canonical repo/dialog/url_helpers/aa_siblings, RED) per 97-VALIDATION.md
+- [x] 97-01-PLAN.md — Wave-0 test stubs (canonical repo/dialog/url_helpers/aa_siblings, RED) per 97-VALIDATION.md
 **Wave 2** *(blocked on 97-01)*
 - [ ] 97-02-PLAN.md — Data layer: models.canonical_stream_id + canonical_url property; repo ALTER/backfill/set_canonical_stream + builder threading (D-04/D-05/D-07)
 **Wave 3** *(parallel; both blocked on 97-01+97-02, disjoint files)*
