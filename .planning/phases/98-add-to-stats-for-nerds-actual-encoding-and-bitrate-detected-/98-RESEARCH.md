@@ -736,7 +736,7 @@ The only injection surface is `TAG_AUDIO_CODEC` from the GStreamer bus — a tru
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Codec guard arming in `_on_playbin_state_changed` vs `_arm_caps_watch_for_current_stream`**
    - What we know: `_arm_caps_watch_for_current_stream` is called from `_on_playbin_state_changed` and handles the caps pad. The codec tag guard needs analogous arming.
