@@ -713,13 +713,15 @@ Plans:
 
 ### Phase 98: Add to Stats for Nerds: actual encoding and bitrate detected. Good way to validate you are playing what you expect to be
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Surface the actually-playing audio encoding and bitrate (plus already-detected sample-rate/bit-depth) in the hidden-by-default Stats-for-Nerds panel, shown alongside the declared/expected values with an amber mismatch flag, so the user can validate they are playing what they expect.
+**Requirements**: D-01..D-07 (CONTEXT decisions; no ROADMAP REQ IDs assigned)
 **Depends on:** Phase 97
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 98 to break down)
+- [ ] 98-01-PLAN.md — Player-side one-shot codec/bitrate detection: audio_format_detected signal + FakePlayer parity + _normalise_audio_codec + _on_gst_tag refactor (Wave 1)
+- [ ] 98-02-PLAN.md — Panel-side rendering: _StatLabel amber subclass + four detected-format rows + update_detected_format/update_detected_caps + bind_station reset (Wave 1)
+- [ ] 98-03-PLAN.md — MainWindow wiring: QueuedConnection + _on_audio_format_detected slot + update_detected_caps fan-out (Wave 2)
 
 ---
 
