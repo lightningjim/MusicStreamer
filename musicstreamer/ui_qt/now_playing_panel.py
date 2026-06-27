@@ -245,7 +245,14 @@ class _StatLabel(_MutedLabel):
         pal = self.palette()
         bg = pal.color(QPalette.Window)
         amber = self._AMBER_DARK if bg.lightness() < 128 else self._AMBER_LIGHT
-        pal.setColor(QPalette.WindowText, amber)
+        # Set amber ONLY on the Active/Inactive groups (UAT #3). The 2-arg
+        # setColor sets the role for ALL groups including Disabled — but
+        # _MutedLabel derives its muted color by reading Disabled/WindowText back,
+        # so corrupting it here made set_mismatch(False) read amber as the "muted"
+        # color and the highlight could never revert. Leaving Disabled untouched
+        # keeps the muted source intact so clearing the mismatch works.
+        pal.setColor(QPalette.Active, QPalette.WindowText, amber)
+        pal.setColor(QPalette.Inactive, QPalette.WindowText, amber)
         self.setPalette(pal)
 
 
@@ -1276,21 +1283,10 @@ class NowPlayingPanel(QWidget):
         The declared Stream.codec / Stream.bitrate_kbps remain the source of
         truth (D-03). This method provides transient display only.
         """
-        # Phase 98 gap G-03 (round 2): ignore emissions that are not for the
-        # currently-selected/active stream. When the user switches streams (or
-        # stations), a late audio_format_detected queued from the just-replaced
-        # stream can arrive AFTER the new stream's update; comparing its values
-        # against its own declared row would repaint a stale amber mismatch that
-        # no later emission corrects. The stream picker's current selection tracks
-        # the active stream (set by bind_station, _on_stream_selected, and
-        # _sync_stream_picker on failover).
-        active_id = self.stream_combo.currentData()
-        if active_id is not None and stream_id != active_id:
-            return
         declared = next((s for s in self._streams if s.id == stream_id), None)
-        # Cross-station fallback: when the picker has no selection yet, a stream_id
+        # Phase 98 gap G-03: ignore a stale cross-station emission — a stream_id
         # not among the bound station's streams is a leftover from a station we
-        # just left — ignore it rather than paint a stale value.
+        # just left; painting it would show a value for the wrong station.
         if declared is None and self._streams:
             return
         declared_codec = (declared.codec or "") if declared else ""
