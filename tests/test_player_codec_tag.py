@@ -14,9 +14,10 @@ Analogs:
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from musicstreamer.player import Player, _normalise_audio_codec
+from musicstreamer.player import Gst, Player, _normalise_audio_codec
 
 
 # ---------------------------------------------------------------------------
@@ -186,3 +187,90 @@ def test_codec_tag_suppressed_during_preroll(qtbot):
     msg = _fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000)
     with qtbot.assertNotEmitted(player.audio_format_detected, wait=200):
         player._on_gst_tag(bus=None, msg=msg)
+
+
+# ---------------------------------------------------------------------------
+# Phase 98 gap closure — one-shot-per-stream re-arm guard (G-01, G-02) and
+# arm-before-PLAYING ordering (G-03 / code-review WR-01)
+# ---------------------------------------------------------------------------
+
+def test_no_rearm_after_detected_on_rebuffer(qtbot):
+    """Gap G-01/G-02: a PAUSED->PLAYING rebuffer transition must NOT re-arm the
+    codec guard for a stream already detected.
+
+    Re-arming let a later codec-less tag re-emit audio_format_detected and blank
+    the YouTube encoding row (G-01); on FLAC the repeated emits flooded the main
+    thread and locked up the UI (G-02). After one emission the guard must stay
+    disarmed across subsequent PLAYING transitions for the same stream.
+    """
+    player = make_player(qtbot)
+    player._current_stream = SimpleNamespace(id=42)
+    player._pending_live_dvr_seek = False
+    # First tag detects and emits once, then disarms.
+    player._codec_tag_armed_for_stream_id = 42
+    msg = _fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000)
+    player._on_gst_tag(bus=None, msg=msg)
+    assert player._codec_tag_armed_for_stream_id == 0
+    assert player._codec_tag_detected_for_stream_id == 42
+
+    # Simulate a rebuffer PLAYING transition for the SAME stream.
+    with patch.object(player, "_arm_caps_watch_for_current_stream"):
+        player._on_playbin_state_changed()
+
+    assert player._codec_tag_armed_for_stream_id == 0, (
+        "guard must NOT re-arm on a rebuffer PLAYING transition for an "
+        "already-detected stream (G-01/G-02)"
+    )
+
+    # A subsequent tag must therefore emit nothing (guard stays disarmed).
+    emissions = []
+    player.audio_format_detected.connect(lambda *a: emissions.append(a))
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(nominal_bps=64_000))
+    qtbot.waitUntil(lambda: True, timeout=100)
+    assert emissions == [], "no re-emission after detection on the same stream"
+
+
+def test_rearm_allowed_for_new_stream(qtbot):
+    """Gap G-01: the one-shot tracker must not suppress detection of a genuinely
+    NEW stream. A PLAYING transition whose current stream differs from the last
+    detected id re-arms the guard.
+    """
+    player = make_player(qtbot)
+    player._current_stream = SimpleNamespace(id=42)
+    player._pending_live_dvr_seek = False
+    player._codec_tag_armed_for_stream_id = 42
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000))
+    assert player._codec_tag_detected_for_stream_id == 42
+
+    # A different stream becomes current (user switched streams/stations).
+    player._current_stream = SimpleNamespace(id=99)
+    with patch.object(player, "_arm_caps_watch_for_current_stream"):
+        player._on_playbin_state_changed()
+    assert player._codec_tag_armed_for_stream_id == 99, (
+        "guard must re-arm for a new, not-yet-detected stream"
+    )
+
+
+def test_set_uri_arms_guard_before_playing(qtbot):
+    """Gap G-03 / WR-01: _set_uri must arm the codec guard BEFORE set_state(PLAYING)
+    so any tag the bus-loop thread sees carries the correct (current) stream id,
+    not the previous stream's id (which painted a false mismatch amber).
+    """
+    player = make_player(qtbot)
+    player._current_stream = SimpleNamespace(id=7)
+
+    guard_at_playing = []
+
+    def _record_set_state(state):
+        if state == Gst.State.PLAYING:
+            guard_at_playing.append(player._codec_tag_armed_for_stream_id)
+
+    player._pipeline.set_state.side_effect = _record_set_state
+    with patch.object(player, "_arm_caps_watch_for_current_stream"):
+        player._set_uri("http://example.com/stream.mp3")
+
+    assert guard_at_playing, "set_state(PLAYING) was not called"
+    assert guard_at_playing[0] == 7, (
+        "codec guard must already be armed with the current stream id at the "
+        "moment set_state(PLAYING) runs (WR-01/G-03)"
+    )

@@ -281,6 +281,57 @@ def test_no_mismatch_when_both_unknown(qtbot):
     )
 
 
+def test_stream_switch_clears_prior_mismatch_amber(qtbot):
+    """Gap G-03: after a mismatched stream sets amber, an emission for a DIFFERENT
+    stream of the same station that matches its own declared values must clear the
+    amber.
+
+    Regression: stale-sid emissions (codec guard armed after set_state(PLAYING),
+    code-review WR-01) carried the previous stream's id, so the new stream's
+    detected values were compared against the wrong declared row and the amber
+    stayed stuck. With the correct id the comparison matches and amber clears.
+    """
+    streams = [
+        StationStream(id=1, station_id=1, url="http://x1", label="hi", quality="hi",
+                      position=1, codec="MP3", bitrate_kbps=320),
+        StationStream(id=2, station_id=1, url="http://x2", label="lo", quality="lo",
+                      position=2, codec="AAC", bitrate_kbps=128),
+    ]
+    panel = _make_panel(qtbot, streams=streams)
+    # Stream 1 declared 320 kbps but detected 128 → bitrate mismatch amber
+    panel.update_detected_format(1, "MP3", 128)
+    assert panel._bitrate_label._mismatch is True, "Δ192 kbps must set amber first"
+    # Switch to stream 2 (declared AAC/128); its emission carries the CORRECT id
+    panel.update_detected_format(2, "AAC", 128)
+    assert panel._bitrate_label._mismatch is False, (
+        "switching to a matching stream must clear the prior bitrate amber (G-03)"
+    )
+    assert panel._encoding_label._mismatch is False, (
+        "encoding amber must also clear on a matching stream switch (G-03)"
+    )
+
+
+def test_stale_cross_station_emission_ignored(qtbot):
+    """Gap G-03: an emission whose stream_id is not among the bound station's
+    streams (a signal queued before the latest bind_station) is ignored — it must
+    not overwrite the current row or paint a spurious value.
+    """
+    streams_b = [StationStream(id=20, station_id=2, url="http://b", label="hi",
+                               quality="hi", position=1, codec="FLAC",
+                               bitrate_kbps=1411)]
+    panel = _make_panel(qtbot, streams=streams_b)
+    panel.update_detected_format(20, "FLAC", 1411)  # matches its declared row
+    assert panel._bitrate_label._mismatch is False
+    # Stale emission for stream 99 — belongs to a different (previous) station.
+    panel.update_detected_format(99, "MP3", 64)
+    assert "1411" in panel._bitrate_label.text(), (
+        "stale cross-station emission must not overwrite the bound row (G-03)"
+    )
+    assert panel._bitrate_label._mismatch is False, (
+        "stale cross-station emission must not paint amber (G-03)"
+    )
+
+
 def test_update_detected_caps_sample_rate(qtbot):
     """D-05: update_detected_caps sets Sample rate label from rate_hz.
 

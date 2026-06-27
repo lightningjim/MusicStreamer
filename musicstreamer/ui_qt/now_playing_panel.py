@@ -1277,6 +1277,13 @@ class NowPlayingPanel(QWidget):
         truth (D-03). This method provides transient display only.
         """
         declared = next((s for s in self._streams if s.id == stream_id), None)
+        # Phase 98 gap G-03: ignore a stale/cross-station emission. When streams
+        # are loaded for the bound station, a stream_id that is not among them
+        # belongs to a different station (a signal queued before the latest
+        # bind_station). Painting it would set a false amber mismatch that
+        # bind_station already cleared and that no later emission corrects.
+        if declared is None and self._streams:
+            return
         declared_codec = (declared.codec or "") if declared else ""
         declared_kbps = int(declared.bitrate_kbps or 0) if declared else 0
 

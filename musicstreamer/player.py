@@ -586,6 +586,13 @@ class Player(QObject):
         self._caps_handler_id: int = 0      # GObject handler-id from pad.connect(); 0 = not connected
         self._caps_armed_for_stream_id: int = 0  # per-URL one-shot guard; 0 = disarmed (Pitfall 6)
         self._codec_tag_armed_for_stream_id: int = 0  # Phase 98: per-stream one-shot tag guard; 0 = disarmed
+        # Phase 98 gap G-01/G-02: id of the stream we have ALREADY emitted
+        # audio_format_detected for. Prevents _on_playbin_state_changed from
+        # re-arming the guard on every PAUSED->PLAYING rebuffer transition, which
+        # otherwise re-fires the signal (blanking the row / flooding the main
+        # thread on FLAC). Set on the bus-loop thread at emit; read on main.
+        # CPython-atomic int read/write (same justification as _preroll_in_flight).
+        self._codec_tag_detected_for_stream_id: int = 0
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
         # current GTK main_window.py works unchanged this phase.
@@ -1200,6 +1207,9 @@ class Player(QObject):
             if codec_norm or bitrate_kbps:
                 sid = self._codec_tag_armed_for_stream_id
                 self._codec_tag_armed_for_stream_id = 0  # disarm BEFORE emit (Pitfall 6)
+                # Phase 98 gap G-01/G-02: record this stream as detected so a later
+                # PLAYING (rebuffer) transition does NOT re-arm and re-emit.
+                self._codec_tag_detected_for_stream_id = sid
                 self.audio_format_detected.emit(sid, codec_norm, bitrate_kbps)
 
         # --- existing title path (unchanged) ---
@@ -1390,8 +1400,14 @@ class Player(QObject):
         self._pipeline.set_property("volume", self._volume)
         # Pattern 1b: synchronous one-shot caps read on the main thread.
         self._arm_caps_watch_for_current_stream()
-        # Phase 98 Pattern 1b: arm codec tag guard at PLAYING transition.
-        if self._current_stream:
+        # Phase 98 Pattern 1b: arm codec tag guard at PLAYING transition — but
+        # ONLY for a stream not already detected. Re-arming on every PAUSED->PLAYING
+        # rebuffer transition re-fired audio_format_detected (gap G-01 blanked the
+        # row with a later codec-less tag; gap G-02 flooded the main thread on FLAC).
+        if (
+            self._current_stream
+            and self._current_stream.id != self._codec_tag_detected_for_stream_id
+        ):
             self._codec_tag_armed_for_stream_id = self._current_stream.id
         # BUG-YT-LIVE-BUFFER / D-02: one-shot DVR seek for YouTube live streams.
         # Pipeline is now in PLAYING state (preroll complete; seek range valid).
@@ -1676,12 +1692,16 @@ class Player(QObject):
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         self._pipeline.set_property("uri", uri)
+        # Phase 98: arm codec/bitrate one-shot tag guard for the new stream BEFORE
+        # set_state(PLAYING) (gap G-03 / code-review WR-01). Arming after PLAYING
+        # left a window where a new-stream tag emitted with the PREVIOUS stream's
+        # id, painting a false mismatch in the panel. Setting it first means any
+        # tag the bus-loop thread sees for this pipeline carries the correct id.
+        self._codec_tag_armed_for_stream_id = self._current_stream.id if self._current_stream else 0
         self._pipeline.set_state(Gst.State.PLAYING)
         # Phase 70 / DS-01: install a fresh caps watch on the new pipeline lifecycle.
         # MUST happen AFTER set_state(PLAYING) so playbin3 starts negotiating streams.
         self._arm_caps_watch_for_current_stream()
-        # Phase 98: arm codec/bitrate one-shot tag guard for the new stream.
-        self._codec_tag_armed_for_stream_id = self._current_stream.id if self._current_stream else 0
 
     # ------------------------------------------------------------------ #
     # Phase 83 — SomaFM preroll cluster (D-05, D-09, D-12; live-spike Q3 bridge)
