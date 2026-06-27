@@ -311,6 +311,39 @@ def test_stream_switch_clears_prior_mismatch_amber(qtbot):
     )
 
 
+def test_stale_same_station_emission_ignored(qtbot):
+    """Gap G-03 (round 2): a late emission for a stream that is no longer the
+    selected/active stream must not repaint a stale amber mismatch.
+
+    This is the real-world cause of the "orange won't reset on stream switch"
+    symptom: after switching to a matching stream, a queued audio_format_detected
+    from the prior (mismatched) stream arrives last and re-paints amber.
+    """
+    streams = [
+        StationStream(id=1, station_id=1, url="http://x1", label="hi", quality="hi",
+                      position=1, codec="MP3", bitrate_kbps=320),
+        StationStream(id=2, station_id=1, url="http://x2", label="lo", quality="lo",
+                      position=2, codec="AAC", bitrate_kbps=128),
+    ]
+    panel = _make_panel(qtbot, streams=streams)
+    # Populate the picker and mark stream 2 as the active selection.
+    panel.stream_combo.blockSignals(True)
+    panel.stream_combo.addItem("s1", userData=1)
+    panel.stream_combo.addItem("s2", userData=2)
+    panel.stream_combo.setCurrentIndex(1)  # active stream = id 2
+    panel.stream_combo.blockSignals(False)
+
+    # Active stream 2 matches its declared values → no amber.
+    panel.update_detected_format(2, "AAC", 128)
+    assert panel._bitrate_label._mismatch is False
+
+    # A late emission for the now-inactive stream 1 (mismatched) must be ignored.
+    panel.update_detected_format(1, "MP3", 64)
+    assert panel._bitrate_label._mismatch is False, (
+        "stale emission for a non-active stream must not paint amber (G-03 r2)"
+    )
+
+
 def test_stale_cross_station_emission_ignored(qtbot):
     """Gap G-03: an emission whose stream_id is not among the bound station's
     streams (a signal queued before the latest bind_station) is ignored — it must
