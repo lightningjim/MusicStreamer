@@ -1259,6 +1259,77 @@ class NowPlayingPanel(QWidget):
         else:
             self._buffer_duration_label.setText(f"{s}s")
 
+    def update_detected_format(
+        self,
+        stream_id: int,
+        detected_codec: str,
+        detected_bitrate_kbps: int,
+    ) -> None:
+        """Phase 98: populate Encoding/Bitrate stats rows from detected values.
+
+        Retrieves declared codec/bitrate from self._streams (same source as
+        stream picker labels — populated by _populate_stream_picker from
+        repo.list_streams) to build the detected + expected comparison (D-01).
+        Mismatch flag (D-02) is applied via _StatLabel.set_mismatch.
+
+        Detected codec/bitrate are NOT persisted to DB (RESEARCH Finding 6).
+        The declared Stream.codec / Stream.bitrate_kbps remain the source of
+        truth (D-03). This method provides transient display only.
+        """
+        declared = next((s for s in self._streams if s.id == stream_id), None)
+        declared_codec = (declared.codec or "") if declared else ""
+        declared_kbps = int(declared.bitrate_kbps or 0) if declared else 0
+
+        _BITRATE_TOLERANCE_KBPS = 5
+
+        # --- Encoding row ---
+        if detected_codec:
+            enc_text = detected_codec
+            if declared_codec:
+                enc_text += f"  (exp: {declared_codec})"
+            # D-07: no flag when detected is unknown; case-insensitive compare
+            mismatch_enc = bool(declared_codec) and (
+                detected_codec.upper() != declared_codec.upper()
+            )
+        else:
+            enc_text = "—"
+            if declared_codec:
+                enc_text += f"  (exp: {declared_codec})"
+            mismatch_enc = False   # D-07: no flag when detected unknown
+        self._encoding_label.setText(enc_text)
+        self._encoding_label.set_mismatch(mismatch_enc)
+
+        # --- Bitrate row ---
+        if detected_bitrate_kbps > 0:
+            brate_text = f"{detected_bitrate_kbps} kbps"
+            if declared_kbps > 0:
+                brate_text += f"  (exp: {declared_kbps} kbps)"
+            mismatch_brate = bool(declared_kbps) and (
+                abs(detected_bitrate_kbps - declared_kbps) > _BITRATE_TOLERANCE_KBPS
+            )
+        else:
+            brate_text = "—"
+            if declared_kbps > 0:
+                brate_text += f"  (exp: {declared_kbps} kbps)"
+            mismatch_brate = False   # D-07: no flag when detected unknown
+        self._bitrate_label.setText(brate_text)
+        self._bitrate_label.set_mismatch(mismatch_brate)
+
+    def update_detected_caps(self, stream_id: int, rate_hz: int, bit_depth: int) -> None:
+        """Phase 98: populate Sample-rate and Bit-depth stats rows.
+
+        Called from MainWindow._on_audio_caps_detected after the existing DB
+        write + _refresh_quality_badge fan-out (RESEARCH Pattern 7 Option 1).
+        stream_id is accepted but not used — these rows are panel-wide, not
+        per-stream. rate_hz=0 and bit_depth=0 render as em-dash (D-07).
+        """
+        self._sample_rate_label.setText(
+            f"{rate_hz / 1000:g} kHz" if rate_hz > 0 else "—"
+        )
+        self._bit_depth_label.setText(
+            f"{bit_depth}-bit" if bit_depth > 0 else "—"
+        )
+
     def set_stats_visible(self, visible: bool) -> None:
         """Toggle the stats-for-nerds wrapper visibility (D-07). Phase 47.1."""
         self._stats_widget.setVisible(bool(visible))
