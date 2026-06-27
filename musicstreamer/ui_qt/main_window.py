@@ -544,6 +544,13 @@ class MainWindow(QMainWindow):
         self._player.audio_caps_detected.connect(
             self._on_audio_caps_detected, Qt.ConnectionType.QueuedConnection
         )
+        # Phase 98 / D-03 / qt-glib-bus-threading.md Rule 2: QueuedConnection is
+        # mandatory — audio_format_detected is emitted from the GStreamer bus-loop
+        # thread; the slot must run on the Qt main thread. Detected values are
+        # transient (never persisted to DB — Finding 6 / D-03).
+        self._player.audio_format_detected.connect(
+            self._on_audio_format_detected, Qt.ConnectionType.QueuedConnection
+        )
 
         # Right-click edit from station list
         self.station_panel.edit_requested.connect(self._on_edit_requested)
@@ -772,6 +779,10 @@ class MainWindow(QMainWindow):
             # NowPlayingPanel._refresh_quality_badge lands in Plan 70-06.
             if hasattr(self.now_playing, "_refresh_quality_badge"):
                 self.now_playing._refresh_quality_badge()
+            # Phase 98 / D-04: fan detected sample-rate/bit-depth to the panel's
+            # new detected-only rows (update_detected_caps lands in Plan 98-02).
+            if hasattr(self.now_playing, "update_detected_caps"):
+                self.now_playing.update_detected_caps(stream_id, rate_hz, bit_depth)
             # StationListPanel.update_quality_map lands in Plan 70-09.
             if hasattr(self.station_panel, "update_quality_map"):
                 self.station_panel.update_quality_map(quality_map)
@@ -782,6 +793,29 @@ class MainWindow(QMainWindow):
         except Exception:
             # Never-raise invariant (Phase 50 + 68 slot pattern).
             _log.exception("_on_audio_caps_detected: unhandled exception (stream_id=%r)", stream_id)
+
+    def _on_audio_format_detected(
+        self, stream_id: int, codec_norm: str, bitrate_kbps: int
+    ) -> None:
+        """Phase 98 / D-03 / D-04: deliver detected codec + bitrate to the panel.
+
+        Player emits audio_format_detected(stream_id, codec_norm, bitrate_kbps) from
+        the GStreamer bus-loop thread; QueuedConnection (see connect site above) ensures
+        this slot runs on the Qt main thread (qt-glib-bus-threading.md Rule 2).
+
+        Detected values are TRANSIENT — no repo.update_stream call here. The declared
+        Stream.codec / bitrate_kbps remain the persistent source of truth (D-03 /
+        RESEARCH Finding 6). The panel receives both declared (from its _streams cache)
+        and detected values and computes the mismatch display itself.
+        """
+        try:
+            if hasattr(self.now_playing, "update_detected_format"):
+                self.now_playing.update_detected_format(stream_id, codec_norm, bitrate_kbps)
+        except Exception:
+            # Never-raise invariant (slot called from QueuedConnection on a tag burst).
+            _log.exception(
+                "_on_audio_format_detected: unhandled exception (stream_id=%r)", stream_id
+            )
 
     def _check_and_start_aa_poll(self) -> None:
         """Phase 68 / B-04 / F-07 / N-03: reactive lifecycle hook after
