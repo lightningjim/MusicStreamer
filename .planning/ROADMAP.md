@@ -728,7 +728,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 98-01-PLAN.md — Player-side one-shot codec/bitrate detection: audio_format_detected signal + FakePlayer parity + _normalise_audio_codec + _on_gst_tag refactor (Wave 1)
+- [x] 98-01-PLAN.md — Player-side one-shot codec/bitrate detection: audio_format_detected signal + FakePlayer parity + _normalise_audio_codec + _on_gst_tag refactor (Wave 1)
 - [ ] 98-02-PLAN.md — Panel-side rendering: _StatLabel amber subclass + four detected-format rows + update_detected_format/update_detected_caps + bind_station reset (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
