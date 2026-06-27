@@ -682,6 +682,9 @@ class EditStationDialog(QDialog):
         self._live_resync_checkbox.setChecked(bool(live_flag))
 
         # Phase 96 D-04: pre-populate companion channel-URL field from provider if available.
+        # prov is hoisted to None here so the populate-time is_yt fix block below can use
+        # it for the persisted-state fallback (channel_scan_url already configured).
+        prov = None
         if station.provider_id is not None:
             providers = {p.id: p for p in self._repo.list_providers()}
             prov = providers.get(station.provider_id)
@@ -736,6 +739,60 @@ class EditStationDialog(QDialog):
 
         # Sync canonical button checked state now that _canonical_row is resolved.
         self._sync_canonical_buttons()
+
+        # Phase 97 regression fix: re-evaluate URL-gated controls now that the
+        # streams table and _canonical_row are finalized.
+        #
+        # Before Phase 97, url_edit.textChanged fired during _populate() so
+        # _on_url_text_changed() would enable _live_resync_checkbox and show
+        # _live_resync_channel_url_edit for YouTube stations.  After Phase 97
+        # removed url_edit, _live_resync_checkbox.setChecked() (line 682) fires
+        # _on_live_resync_toggled() while the streams table is still empty
+        # (_get_canonical_url_live() returns "" → is_yt=False), and the
+        # _populating=True guard suppresses _on_canonical_cell_changed during
+        # the streams loop.  Nothing ever re-enables the checkbox or shows the
+        # URL field for existing YouTube stations.  This block restores that
+        # populate-time update using the same logic as _on_canonical_btn_clicked.
+        #
+        # Phase 97 regression fix (corrected): the channel URL field visibility
+        # is now gated on is_yt ONLY — not on checkbox.isChecked().  The checkbox
+        # controls the resync BEHAVIOUR; the field controls the CONFIGURATION
+        # (which channel URL to scan).  Hiding the field when the checkbox is
+        # unchecked created a chicken-and-egg problem: the user could not see or
+        # configure the URL without first knowing to check the box.  Showing the
+        # field for all YouTube stations makes the feature discoverable and survives
+        # the case where live_url_syncs_from_channel=False in the DB.
+        #
+        # Phase 97 regression fix (second corrected): also detect via persisted state
+        # and widen URL detection to cover googlevideo.com CDN URLs.
+        #
+        # The live-resync process can update a station's canonical stream URL to a
+        # direct HLS manifest (googlevideo.com) after a resync run. When the dialog
+        # reopens, is_yt(stream_url) is False even though the station is definitively
+        # YouTube-live. The fix adds two fallback signals:
+        #   - live_flag: live_url_syncs_from_channel was True → was already configured
+        #   - channel_scan_url: provider already has a channel URL → was already configured
+        # Either signal means "show YT-live controls" regardless of URL-sniff result.
+        # Also widens URL pattern to include "googlevideo.com" (YouTube's exclusive CDN).
+        _url_at_populate = self._get_canonical_url_live().strip()
+        _lower_at_populate = _url_at_populate.lower()
+        _is_yt_at_populate = (
+            "youtube.com" in _lower_at_populate
+            or "youtu.be" in _lower_at_populate
+            or "googlevideo.com" in _lower_at_populate
+        )
+        _is_twitch_at_populate = "twitch.tv" in _lower_at_populate
+        # Persisted-state fallback: show YT controls when either live_flag or
+        # channel_scan_url signals this is a YouTube-live provider, even if the
+        # current stream URL does not look like YouTube (e.g. CDN manifest).
+        # prov was resolved above (hoisted to None when provider_id is None).
+        _channel_scan_url_configured = bool(prov and getattr(prov, "channel_scan_url", None))
+        _is_yt_context = _is_yt_at_populate or bool(live_flag) or _channel_scan_url_configured
+        self._refresh_avatar_btn.setEnabled(_is_yt_at_populate or _is_twitch_at_populate)
+        self._live_resync_checkbox.setEnabled(_is_yt_context)
+        if not _is_yt_context:
+            self._live_resync_checkbox.setChecked(False)
+        self._live_resync_channel_url_edit.setVisible(_is_yt_context)
 
         # Delete guard (T-39-03)
         is_playing = getattr(self._player, "_current_station_name", "") == station.name
@@ -1299,15 +1356,18 @@ class EditStationDialog(QDialog):
         # Update URL-gated controls.
         url = self._get_canonical_url_live().strip()
         lower = url.lower()
-        is_yt = "youtube.com" in lower or "youtu.be" in lower
+        is_yt = (
+            "youtube.com" in lower
+            or "youtu.be" in lower
+            or "googlevideo.com" in lower
+        )
         is_twitch = "twitch.tv" in lower
         self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
         self._live_resync_checkbox.setEnabled(is_yt)
         if not is_yt:
             self._live_resync_checkbox.setChecked(False)
-        self._live_resync_channel_url_edit.setVisible(
-            is_yt and self._live_resync_checkbox.isChecked()
-        )
+        # Field visible whenever URL is YouTube (not gated on checkbox.isChecked()).
+        self._live_resync_channel_url_edit.setVisible(is_yt)
 
     def _on_canonical_cell_changed(self, row: int, col: int) -> None:
         """Phase 97 D-02 / Pitfall 5: cellChanged handler for canonical URL live-read.
@@ -1329,15 +1389,18 @@ class EditStationDialog(QDialog):
         self._logo_status.clear()
         url = self._get_canonical_url_live().strip()
         lower = url.lower()
-        is_yt = "youtube.com" in lower or "youtu.be" in lower
+        is_yt = (
+            "youtube.com" in lower
+            or "youtu.be" in lower
+            or "googlevideo.com" in lower
+        )
         is_twitch = "twitch.tv" in lower
         self._refresh_avatar_btn.setEnabled(is_yt or is_twitch)
         self._live_resync_checkbox.setEnabled(is_yt)
         if not is_yt:
             self._live_resync_checkbox.setChecked(False)
-        self._live_resync_channel_url_edit.setVisible(
-            is_yt and self._live_resync_checkbox.isChecked()
-        )
+        # Field visible whenever URL is YouTube (not gated on checkbox.isChecked()).
+        self._live_resync_channel_url_edit.setVisible(is_yt)
 
     def _sync_canonical_buttons(self) -> None:
         """Phase 97: sync all canonical QToolButton checked states to match _canonical_row.
@@ -1495,11 +1558,21 @@ class EditStationDialog(QDialog):
         pass
 
     def _on_live_resync_toggled(self, checked: bool) -> None:
-        """Phase 96 D-02: toggle visibility of the companion channel-URL field."""
+        """Phase 96 D-02 (corrected): channel URL field visible whenever URL is YouTube.
+
+        The checkbox controls the resync BEHAVIOUR; the field controls the channel
+        URL CONFIGURATION.  Visibility is gated on is_yt only so the field is always
+        reachable for YouTube stations regardless of whether resync is enabled.
+        googlevideo.com (YouTube's CDN) is treated as YouTube for this purpose.
+        """
         url = self._get_canonical_url_live().strip()  # Phase 97 D-02
         lower = url.lower()
-        is_yt = "youtube.com" in lower or "youtu.be" in lower
-        self._live_resync_channel_url_edit.setVisible(is_yt and checked)
+        is_yt = (
+            "youtube.com" in lower
+            or "youtu.be" in lower
+            or "googlevideo.com" in lower
+        )
+        self._live_resync_channel_url_edit.setVisible(is_yt)
 
     def _on_url_timer_timeout(self) -> None:
         """Debounced: kick off a _LogoFetchWorker (and optionally _AvatarFetchWorker)
@@ -2073,22 +2146,37 @@ class EditStationDialog(QDialog):
             streams = repo.list_streams(station.id)
             anchor = (streams[0].label if streams else "") or station.name
             repo.set_live_url_title_anchor(station.id, anchor)
-            # D-04: validate + persist companion channel URL (T-96-06 SSRF mitigation).
+
+        # D-04 (corrected): validate + persist companion channel URL whenever the
+        # field is visible (is_yt=True), decoupled from the live-resync toggle.
+        # The channel URL is a provider-level discovery setting; it must survive
+        # enable/disable cycles and be configurable even before enabling resync.
+        # T-96-06 SSRF mitigation applies regardless of flag state.
+        #
+        # NOT isHidden() vs isVisible(): isVisible() requires every parent widget
+        # to be shown (False for unshown dialogs in tests); not isHidden() checks
+        # only the widget's own visibility flag set by setVisible() — the correct
+        # predicate for "did the populate / toggle path make this field visible?".
+        if not self._live_resync_channel_url_edit.isHidden() and station.provider_id is not None:
             channel_url = self._live_resync_channel_url_edit.text().strip()
-            if station.provider_id is not None and not channel_url:
+            if not channel_url:
                 # WR-04: an emptied field must be able to clear a previously-saved
                 # URL — the old `if channel_url` guard made clearing impossible.
                 repo.set_provider_channel_scan_url(station.provider_id, None)
-            elif channel_url and station.provider_id is not None:
-                from musicstreamer.yt_import import is_yt_playlist_url
-                if is_yt_playlist_url(channel_url):
-                    repo.set_provider_channel_scan_url(station.provider_id, channel_url)
+            else:
+                from musicstreamer.yt_import import normalize_yt_channel_scan_url
+                normalized_url = normalize_yt_channel_scan_url(channel_url)
+                if normalized_url is not None:
+                    # Persist the normalized form (bare @handle → @handle/streams)
+                    # so the downstream scanner always receives a /streams-tab URL.
+                    repo.set_provider_channel_scan_url(station.provider_id, normalized_url)
                 else:
                     QMessageBox.warning(
                         self,
                         "Invalid channel URL",
                         "The channel scan URL must be a YouTube channel or playlist URL "
-                        "(e.g. https://youtube.com/@Channel/streams). "
+                        "(e.g. https://youtube.com/@Channel or "
+                        "https://youtube.com/@Channel/streams). "
                         "The URL was not saved.",
                     )
 

@@ -170,6 +170,87 @@ def test_is_yt_playlist_url_unchanged():
     assert yt_import.is_yt_playlist_url("https://example.com") is False
 
 
+def test_normalize_yt_channel_scan_url_bare_handles():
+    """Bare @handle URLs (no /streams suffix) must be normalized to /streams."""
+    from musicstreamer.yt_import import normalize_yt_channel_scan_url
+
+    # Core case from the bug report: user types bare handle, expects save to succeed
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/@cafemusicbgmchannel"
+    ) == "https://www.youtube.com/@cafemusicbgmchannel/streams"
+
+    # Without www.
+    assert normalize_yt_channel_scan_url(
+        "https://youtube.com/@LofiGirl"
+    ) == "https://youtube.com/@LofiGirl/streams"
+
+    # With trailing slash — must strip and append /streams cleanly
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/@RainyJazz/"
+    ) == "https://www.youtube.com/@RainyJazz/streams"
+
+    # channel/ form
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx"
+    ) == "https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx/streams"
+
+    # Legacy c/ form
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/c/MusicChannel"
+    ) == "https://www.youtube.com/c/MusicChannel/streams"
+
+    # Legacy user/ form
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/user/MusicUser"
+    ) == "https://www.youtube.com/user/MusicUser/streams"
+
+
+def test_normalize_yt_channel_scan_url_already_tabbed():
+    """Already-tabbed URLs must be returned unchanged (no double /streams)."""
+    from musicstreamer.yt_import import normalize_yt_channel_scan_url
+
+    for url in (
+        "https://www.youtube.com/@LofiGirl/streams",
+        "https://www.youtube.com/@LofiGirl/live",
+        "https://www.youtube.com/@LofiGirl/videos",
+        "https://youtube.com/@Channel/streams",
+        "https://www.youtube.com/channel/UCxxx/streams",
+    ):
+        assert normalize_yt_channel_scan_url(url) == url, f"Expected unchanged: {url!r}"
+
+
+def test_normalize_yt_channel_scan_url_playlist():
+    """Playlist URLs must be returned unchanged."""
+    from musicstreamer.yt_import import normalize_yt_channel_scan_url
+
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/playlist?list=PLabc123"
+    ) == "https://www.youtube.com/playlist?list=PLabc123"
+
+    # Playlist with extra params
+    assert normalize_yt_channel_scan_url(
+        "https://youtube.com/playlist?list=PLxyz&si=extra"
+    ) == "https://youtube.com/playlist?list=PLxyz&si=extra"
+
+
+def test_normalize_yt_channel_scan_url_invalid():
+    """Non-YouTube, watch, /about, and blank URLs must return None."""
+    from musicstreamer.yt_import import normalize_yt_channel_scan_url
+
+    assert normalize_yt_channel_scan_url("") is None
+    assert normalize_yt_channel_scan_url("   ") is None
+    assert normalize_yt_channel_scan_url("https://soundcloud.com/some-playlist") is None
+    assert normalize_yt_channel_scan_url("not a url") is None
+    # Watch URL — not a channel scan URL
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/watch?v=abc123"
+    ) is None
+    # /about tab — not a scannable channel tab
+    assert normalize_yt_channel_scan_url(
+        "https://www.youtube.com/@LofiGirl/about"
+    ) is None
+
+
 def test_import_stations_unchanged():
     class FakeRepo:
         def __init__(self):

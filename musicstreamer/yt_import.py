@@ -36,6 +36,68 @@ def is_yt_playlist_url(url: str) -> bool:
     )
 
 
+# Patterns used exclusively by normalize_yt_channel_scan_url — broader than
+# is_yt_playlist_url: accepts bare channel handles and normalizes to /streams.
+_YT_NORM_PLAYLIST_RE = re.compile(r"youtube\.com/playlist\?.*list=", re.IGNORECASE)
+_YT_NORM_TABBED_RE = re.compile(
+    r"^https?://(?:www\.)?youtube\.com/"
+    r"(?:@[^/?#]+|channel/[^/?#]+|c/[^/?#]+|user/[^/?#]+)"
+    r"/(streams|live|videos|featured)"
+    r"(?:[/?#].*)?$",
+    re.IGNORECASE,
+)
+_YT_NORM_BARE_RE = re.compile(
+    r"^(https?://(?:www\.)?youtube\.com/"
+    r"(?:@[^/?#]+|channel/[^/?#]+|c/[^/?#]+|user/[^/?#]+))"
+    r"/?$",
+    re.IGNORECASE,
+)
+
+
+def normalize_yt_channel_scan_url(url: str) -> "str | None":
+    """Return a normalized YouTube channel/playlist URL for the live-resync scanner.
+
+    Accepts a broader set of URL forms than is_yt_playlist_url and normalizes
+    bare channel handles/IDs to the /streams tab.  The live-resync scanner uses
+    the /streams tab to surface live and upcoming streams via the
+    ``duration is None`` heuristic (MEMORY.md: yt-streams-tab-flat-scan).
+
+    Accepted inputs and their normalized output:
+
+    - youtube.com/@handle           → same URL + /streams appended
+    - youtube.com/channel/UCxxx     → same URL + /streams appended
+    - youtube.com/c/Name            → same URL + /streams appended
+    - youtube.com/user/Name         → same URL + /streams appended
+    - youtube.com/@handle/streams   → unchanged (already tabbed)
+    - youtube.com/@handle/live      → unchanged (already tabbed)
+    - youtube.com/@handle/videos    → unchanged (already tabbed)
+    - youtube.com/playlist?list=PL  → unchanged (playlist)
+
+    http:// and https://, with or without www., are accepted.
+    Non-YouTube URLs, watch URLs, and /about tabs return None.
+
+    Distinct from is_yt_playlist_url: that function validates import-dialog
+    entries and deliberately rejects bare handles (no /streams suffix).  This
+    function is for the save path of the channel-scan-URL field where users
+    paste bare channel links and the normalization ensures downstream
+    scan_playlist always receives a /streams-tab URL.
+    """
+    url = url.strip()
+    if not url:
+        return None
+    if _YT_NORM_PLAYLIST_RE.search(url):
+        return url
+    if _YT_NORM_TABBED_RE.match(url):
+        return url
+    m = _YT_NORM_BARE_RE.match(url)
+    if m:
+        # Append /streams to the captured prefix (trailing slash already stripped
+        # by the regex anchor — the bare pattern requires no path component after
+        # the channel identifier).
+        return m.group(1) + "/streams"
+    return None
+
+
 def _entry_is_live(entry: dict) -> bool:
     """RESEARCH.md Pitfall 1 — extract_flat may leave is_live as None for sparse
     entries. Prefer live_status, fall back to is_live.

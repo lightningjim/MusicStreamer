@@ -2396,6 +2396,435 @@ def test_live_resync_checkbox_gating(qtbot, station, player, repo):
     )
 
 
+def test_channel_url_field_visible_on_open_for_yt_station_with_live_resync(qtbot, player, repo):
+    """Regression: _live_resync_channel_url_edit must be visible when dialog opens for
+    a YouTube station that has live_url_syncs_from_channel=True and a channel_scan_url
+    on the provider.
+
+    Phase 97 (commit d0ae8ab5) removed url_edit and rewired URL detection to
+    _on_canonical_cell_changed (guarded by _populating=True during populate).
+    This caused _live_resync_checkbox to stay disabled and _live_resync_channel_url_edit
+    to stay hidden because _on_live_resync_toggled fired before the streams table was
+    populated, seeing an empty table → is_yt=False.
+    """
+    yt_station = Station(
+        id=99,
+        name="YT Live Station",
+        provider_id=1,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=True,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=20,
+            station_id=99,
+            url="https://www.youtube.com/@TestChannel/streams",
+            label="",
+            quality="hi",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(1, "TestProvider", channel_scan_url="https://youtube.com/@TestChannel/streams"),
+        Provider(2, "Other"),
+    ]
+
+    d = EditStationDialog(yt_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d._live_resync_checkbox.isEnabled(), (
+        "_live_resync_checkbox must be ENABLED after _populate() for a YouTube station"
+    )
+    assert not d._live_resync_channel_url_edit.isHidden(), (
+        "_live_resync_channel_url_edit must not be hidden when live_url_syncs_from_channel=True "
+        "and canonical URL is a YouTube URL"
+    )
+
+
+def test_channel_url_field_visible_for_yt_station_without_live_resync_flag(qtbot, player, repo):
+    """Regression: _live_resync_channel_url_edit must be visible even when
+    live_url_syncs_from_channel=False, provided the canonical URL is a YouTube URL.
+
+    Prior to this fix the field was gated on (is_yt AND checkbox.isChecked()), so a
+    YouTube station with the resync flag not yet enabled hid the field entirely —
+    the user could not see or configure the channel scan URL without first knowing
+    to check the box (chicken-and-egg UX problem).
+
+    Corrected design: field visible whenever is_yt=True, regardless of checkbox state.
+    The checkbox controls the resync BEHAVIOUR; the field controls the CONFIGURATION.
+    """
+    yt_station_no_flag = Station(
+        id=100,
+        name="YT Live Station (no flag)",
+        provider_id=1,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=21,
+            station_id=100,
+            url="https://www.youtube.com/@RainyJazz/streams",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(1, "TestProvider", channel_scan_url=None),
+        Provider(2, "Other"),
+    ]
+
+    d = EditStationDialog(yt_station_no_flag, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d._live_resync_checkbox.isEnabled(), (
+        "_live_resync_checkbox must be ENABLED after _populate() for a YouTube canonical URL"
+    )
+    assert not d._live_resync_checkbox.isChecked(), (
+        "_live_resync_checkbox must be UNCHECKED (live_url_syncs_from_channel=False)"
+    )
+    assert not d._live_resync_channel_url_edit.isHidden(), (
+        "_live_resync_channel_url_edit must be VISIBLE for a YouTube station regardless "
+        "of whether live_url_syncs_from_channel is set — field hides only for non-YT URLs"
+    )
+
+
+def test_channel_url_field_visible_for_googlevideo_cdn_url(qtbot, player, repo):
+    """Regression: is_yt detection must cover googlevideo.com (YouTube CDN) URLs.
+
+    After a live-resync run, the station's canonical stream URL may be updated to a
+    direct HLS manifest URL on googlevideo.com instead of youtube.com/watch?v=...
+    The dialog must still show the YT-live controls for this URL form.
+    """
+    cdn_station = Station(
+        id=101,
+        name="YT CDN Station",
+        provider_id=1,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=22,
+            station_id=101,
+            url="https://rr1---sn-example.googlevideo.com/videoplayback?id=abc",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(1, "TestProvider", channel_scan_url=None),
+        Provider(2, "Other"),
+    ]
+
+    d = EditStationDialog(cdn_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d._live_resync_checkbox.isEnabled(), (
+        "_live_resync_checkbox must be ENABLED for a googlevideo.com URL (YouTube CDN)"
+    )
+    assert not d._live_resync_channel_url_edit.isHidden(), (
+        "_live_resync_channel_url_edit must be VISIBLE for a googlevideo.com URL"
+    )
+
+
+def test_channel_url_field_visible_when_provider_has_channel_scan_url(qtbot, player, repo):
+    """Regression: field must be visible when provider.channel_scan_url is already set,
+    even if the current stream URL does not match YouTube patterns.
+
+    Scenario: live-resync updated the stream URL to a googlevideo.com CDN manifest AND
+    the station's live_url_syncs_from_channel was later cleared. The provider still has
+    channel_scan_url configured. Dialog must show controls using the persisted state.
+
+    This is the exact Cafe BGM / Rainy Jazz scenario: provider has
+    channel_scan_url="https://www.youtube.com/@cafemusicbgmchannel/streams" but
+    live_url_syncs_from_channel=False and the stream URL might be a CDN manifest.
+    """
+    non_yt_stream_station = Station(
+        id=102,
+        name="Cafe BGM Station",
+        provider_id=5,
+        provider_name="Cafe BGM",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    # Stream URL does NOT look like YouTube — simulates CDN manifest stored after resync
+    repo.list_streams.return_value = [
+        StationStream(
+            id=23,
+            station_id=102,
+            url="https://rr4---sn-cdn.googlevideo.com/videoplayback?id=xyz",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(5, "Cafe BGM", channel_scan_url="https://www.youtube.com/@cafemusicbgmchannel/streams"),
+        Provider(2, "Other"),
+    ]
+
+    d = EditStationDialog(non_yt_stream_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d._live_resync_checkbox.isEnabled(), (
+        "_live_resync_checkbox must be ENABLED when provider.channel_scan_url is set"
+    )
+    assert not d._live_resync_channel_url_edit.isHidden(), (
+        "_live_resync_channel_url_edit must be VISIBLE when provider.channel_scan_url is set"
+    )
+    assert d._live_resync_channel_url_edit.text() == "https://www.youtube.com/@cafemusicbgmchannel/streams", (
+        "channel URL field must be pre-populated from provider.channel_scan_url"
+    )
+
+
+def test_channel_url_field_visible_when_live_flag_true_for_cdn_url(qtbot, player, repo):
+    """Regression: field must be visible when live_url_syncs_from_channel=True even
+    if the stream URL is a googlevideo.com CDN manifest (not youtube.com).
+
+    Persisted live_flag is a reliable signal that this is a YouTube-live station.
+    """
+    live_flag_cdn_station = Station(
+        id=103,
+        name="YT Live (CDN URL)",
+        provider_id=1,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=True,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=24,
+            station_id=103,
+            url="https://rr2---sn-cdn.googlevideo.com/videoplayback?id=qqq",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(1, "TestProvider", channel_scan_url=None),
+        Provider(2, "Other"),
+    ]
+
+    d = EditStationDialog(live_flag_cdn_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    assert d._live_resync_checkbox.isEnabled(), (
+        "_live_resync_checkbox must be ENABLED when live_url_syncs_from_channel=True"
+    )
+    assert d._live_resync_checkbox.isChecked(), (
+        "_live_resync_checkbox must be CHECKED (live_url_syncs_from_channel=True)"
+    )
+    assert not d._live_resync_channel_url_edit.isHidden(), (
+        "_live_resync_channel_url_edit must be VISIBLE when live_url_syncs_from_channel=True"
+    )
+
+
+def test_channel_scan_url_bare_handle_normalizes_on_save(qtbot, player, repo, monkeypatch):
+    """Regression: saving a bare @handle URL (no /streams suffix) must normalize it
+    to @handle/streams and persist it — not show a validation error.
+
+    Bug: is_yt_playlist_url() required a /streams|/live|/videos suffix, so typing
+    https://www.youtube.com/@cafemusicbgmchannel (bare) triggered the "Invalid channel
+    URL" QMessageBox.warning and the URL was not saved.
+
+    Fix: save path now uses normalize_yt_channel_scan_url() which accepts bare handles
+    and appends /streams before persisting.
+    """
+    from PySide6.QtWidgets import QMessageBox
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    # Patch QMessageBox.warning so any unexpected call is recorded (must NOT fire)
+    warning_calls: list = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(lambda *a, **kw: warning_calls.append((a, kw)) or QMessageBox.Ok),
+    )
+
+    yt_station = Station(
+        id=200,
+        name="Cafe BGM",
+        provider_id=5,
+        provider_name="Cafe BGM",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=50,
+            station_id=200,
+            url="https://www.youtube.com/watch?v=DSGyEsJ17cI",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(5, "Cafe BGM", channel_scan_url=None),
+        Provider(2, "Other"),
+    ]
+    repo.ensure_provider.return_value = 5
+    repo.list_sibling_links.return_value = []
+
+    d = EditStationDialog(yt_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    # Field must be visible (YouTube URL → is_yt=True)
+    assert not d._live_resync_channel_url_edit.isHidden(), (
+        "Precondition: channel URL field must be visible for a YouTube station"
+    )
+
+    # User types a bare @handle URL (no /streams suffix) — the exact form that triggered the bug
+    d._live_resync_channel_url_edit.setText("https://www.youtube.com/@cafemusicbgmchannel")
+
+    d._on_save()
+
+    # CORE ASSERTION: no warning dialog must have fired
+    assert warning_calls == [], (
+        f"QMessageBox.warning must NOT fire for a bare @handle URL; got: {warning_calls}"
+    )
+
+    # CORE ASSERTION: URL must be normalized to /streams form before persisting
+    repo.set_provider_channel_scan_url.assert_called_once_with(
+        5,
+        "https://www.youtube.com/@cafemusicbgmchannel/streams",
+    )
+
+
+def test_channel_scan_url_already_streams_saves_unchanged(qtbot, player, repo, monkeypatch):
+    """Already-tabbed /streams URL must save without normalization (no double-suffix)."""
+    from PySide6.QtWidgets import QMessageBox
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    warning_calls: list = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(lambda *a, **kw: warning_calls.append((a, kw)) or QMessageBox.Ok),
+    )
+
+    yt_station = Station(
+        id=201,
+        name="Lofi Girl",
+        provider_id=6,
+        provider_name="Lofi Girl",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=51,
+            station_id=201,
+            url="https://www.youtube.com/@lofigirl/streams",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(6, "Lofi Girl", channel_scan_url=None),
+    ]
+    repo.ensure_provider.return_value = 6
+    repo.list_sibling_links.return_value = []
+
+    d = EditStationDialog(yt_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    d._live_resync_channel_url_edit.setText("https://www.youtube.com/@lofigirl/streams")
+    d._on_save()
+
+    assert warning_calls == [], "No warning for an already-tabbed /streams URL"
+    repo.set_provider_channel_scan_url.assert_called_once_with(
+        6,
+        "https://www.youtube.com/@lofigirl/streams",
+    )
+
+
+def test_channel_scan_url_invalid_still_warns(qtbot, player, repo, monkeypatch):
+    """A clearly-invalid URL (not YouTube) must still trigger the warning dialog."""
+    from PySide6.QtWidgets import QMessageBox
+    import musicstreamer.ui_qt.edit_station_dialog as esd_mod
+
+    warning_calls: list = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(lambda *a, **kw: warning_calls.append((a, kw)) or QMessageBox.Ok),
+    )
+
+    yt_station = Station(
+        id=202,
+        name="Test Station",
+        provider_id=7,
+        provider_name="TestProvider",
+        tags="",
+        station_art_path=None,
+        album_fallback_path=None,
+        live_url_syncs_from_channel=False,
+    )
+    repo.list_streams.return_value = [
+        StationStream(
+            id=52,
+            station_id=202,
+            url="https://www.youtube.com/watch?v=abc123",
+            label="",
+            quality="",
+            position=1,
+            stream_type="youtube",
+            codec="",
+        )
+    ]
+    repo.list_providers.return_value = [
+        Provider(7, "TestProvider", channel_scan_url=None),
+    ]
+    repo.ensure_provider.return_value = 7
+    repo.list_sibling_links.return_value = []
+
+    d = EditStationDialog(yt_station, player, repo, parent=None)
+    qtbot.addWidget(d)
+
+    d._live_resync_channel_url_edit.setText("https://soundcloud.com/some-playlist")
+    d._on_save()
+
+    assert len(warning_calls) == 1, "Warning must fire for a non-YouTube URL"
+    repo.set_provider_channel_scan_url.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Phase 97 Plan 01: Wave-0 canonical dialog tests (RED — Plan 03 turns GREEN)
 #
