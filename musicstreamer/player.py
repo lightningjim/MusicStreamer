@@ -360,6 +360,7 @@ class Player(QObject):
     # for the playing stream. Emitted with QueuedConnection on the receiver side
     # (MainWindow wires the slot in Plan 70-05 — qt-glib-bus-threading.md Rule 2).
     audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth
+    audio_format_detected = Signal(int, str, int)  # stream_id, codec_norm, bitrate_kbps  (Phase 98)
 
     def __init__(self, parent: QObject | None = None, *, node_runtime: "NodeRuntime | None" = None) -> None:
         super().__init__(parent)
