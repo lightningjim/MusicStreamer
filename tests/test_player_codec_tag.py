@@ -145,34 +145,31 @@ def test_bitrate_bps_to_kbps_conversion(qtbot):
     )
 
 
-def test_codec_tag_one_shot_disarm(qtbot):
-    """After first emit _codec_tag_armed_for_stream_id == 0; second call no-ops.
+def test_codec_tag_dedup_repeated_identical(qtbot):
+    """Repeated identical tags yield exactly ONE emission; the guard stays armed.
 
-    Phase 98 D-06 + Pitfall 6: disarm-before-emit; repeated tag messages yield
-    exactly one emission per stream.
+    Phase 98 gap-closure: detection accumulates for the stream's lifetime (the
+    guard is NOT disarmed after the first emit, so late-arriving bitrate is still
+    captured) but de-dups on the last-emitted (codec, bitrate), so a stream that
+    re-sends the same tag does not flood the main thread (gap G-02 / FLAC lockup).
     """
     player = make_player(qtbot)
-    player._codec_tag_armed_for_stream_id = 42
+    player._arm_codec_detect_for_stream(42)
     msg = _fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000)
 
-    emission_count = []
-
-    def _on_fmt(*args):
-        emission_count.append(args)
-
-    player.audio_format_detected.connect(_on_fmt)
+    emissions = []
+    player.audio_format_detected.connect(lambda *a: emissions.append(a))
     player._on_gst_tag(bus=None, msg=msg)
-    # Guard should be disarmed
-    assert player._codec_tag_armed_for_stream_id == 0, (
-        "Expected _codec_tag_armed_for_stream_id == 0 after first emit"
-    )
-    # Second call with the same message must not emit
+    # Guard stays armed for continued detection (late bitrate, corrected values).
+    assert player._codec_tag_armed_for_stream_id == 42
+    # Repeated identical tags must be de-duplicated.
     player._on_gst_tag(bus=None, msg=msg)
-    qtbot.waitUntil(lambda: True, timeout=200)
-    assert len(emission_count) == 1, (
-        f"Expected exactly 1 emission, got {len(emission_count)} "
-        "(Pitfall 6 one-shot guard failure)"
+    player._on_gst_tag(bus=None, msg=msg)
+    qtbot.waitUntil(lambda: True, timeout=100)
+    assert len(emissions) == 1, (
+        f"Expected exactly 1 emission for identical tags, got {len(emissions)}"
     )
+    assert emissions[0] == (42, "AAC", 128)
 
 
 def test_codec_tag_suppressed_during_preroll(qtbot):
@@ -190,71 +187,93 @@ def test_codec_tag_suppressed_during_preroll(qtbot):
 
 
 # ---------------------------------------------------------------------------
-# Phase 98 gap closure — one-shot-per-stream re-arm guard (G-01, G-02) and
-# arm-before-PLAYING ordering (G-03 / code-review WR-01)
+# Phase 98 gap closure — accumulate-and-emit-on-change detection
+# (G-01 no-downgrade, G-02 dedup/no-storm, G-03 corrected bitrate, #2 late FLAC
+#  bitrate, WR-01 arm-before-PLAYING, SomaFM preroll-handoff arming)
 # ---------------------------------------------------------------------------
 
-def test_no_rearm_after_detected_on_rebuffer(qtbot):
-    """Gap G-01/G-02: a PAUSED->PLAYING rebuffer transition must NOT re-arm the
-    codec guard for a stream already detected.
-
-    Re-arming let a later codec-less tag re-emit audio_format_detected and blank
-    the YouTube encoding row (G-01); on FLAC the repeated emits flooded the main
-    thread and locked up the UI (G-02). After one emission the guard must stay
-    disarmed across subsequent PLAYING transitions for the same stream.
+def test_codec_then_late_bitrate_emits_corrected(qtbot):
+    """Gap #2/#3: codec and bitrate arrive in SEPARATE tags. The first tag (codec
+    only) emits with bitrate 0; a later bitrate tag merges and re-emits with the
+    real bitrate. This is what captures FLAC's late bitrate and lets a corrected
+    bitrate clear a false amber mismatch.
     """
     player = make_player(qtbot)
-    player._current_stream = SimpleNamespace(id=42)
-    player._pending_live_dvr_seek = False
-    # First tag detects and emits once, then disarms.
-    player._codec_tag_armed_for_stream_id = 42
-    msg = _fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000)
-    player._on_gst_tag(bus=None, msg=msg)
-    assert player._codec_tag_armed_for_stream_id == 0
-    assert player._codec_tag_detected_for_stream_id == 42
-
-    # Simulate a rebuffer PLAYING transition for the SAME stream.
-    with patch.object(player, "_arm_caps_watch_for_current_stream"):
-        player._on_playbin_state_changed()
-
-    assert player._codec_tag_armed_for_stream_id == 0, (
-        "guard must NOT re-arm on a rebuffer PLAYING transition for an "
-        "already-detected stream (G-01/G-02)"
-    )
-
-    # A subsequent tag must therefore emit nothing (guard stays disarmed).
+    player._arm_codec_detect_for_stream(5)
     emissions = []
     player.audio_format_detected.connect(lambda *a: emissions.append(a))
-    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(nominal_bps=64_000))
+
+    # Tag 1: codec only (no bitrate yet).
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(codec="Free Lossless Audio Codec (FLAC)"))
+    # Tag 2: bitrate only arrives later.
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(bitrate_bps=900_000))
     qtbot.waitUntil(lambda: True, timeout=100)
-    assert emissions == [], "no re-emission after detection on the same stream"
+
+    assert emissions[0] == (5, "FLAC", 0), f"first emit codec-only, got {emissions[0]}"
+    assert emissions[-1] == (5, "FLAC", 900), (
+        f"late bitrate must merge and re-emit, got {emissions[-1]}"
+    )
 
 
-def test_rearm_allowed_for_new_stream(qtbot):
-    """Gap G-01: the one-shot tracker must not suppress detection of a genuinely
-    NEW stream. A PLAYING transition whose current stream differs from the last
-    detected id re-arms the guard.
+def test_codec_not_downgraded_by_codecless_tag(qtbot):
+    """Gap G-01: once a codec is known, a later codec-less tag must NOT blank it.
+
+    This is the YouTube symptom — a rebuffer re-sent a tag with bitrate but no
+    codec, which used to re-emit an empty codec and blank the encoding row.
     """
+    player = make_player(qtbot)
+    player._arm_codec_detect_for_stream(8)
+    emissions = []
+    player.audio_format_detected.connect(lambda *a: emissions.append(a))
+
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000))
+    assert emissions[-1] == (8, "AAC", 128)
+    # A later tag with the SAME bitrate but no codec → merged value unchanged → no emit.
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(nominal_bps=128_000))
+    qtbot.waitUntil(lambda: True, timeout=100)
+    assert len(emissions) == 1, "codec-less identical tag must not re-emit / blank"
+    assert player._codec_detect_codec == "AAC", "known codec must be retained"
+
+
+def test_arm_idempotent_preserves_accumulator(qtbot):
+    """Gap G-02: re-arming the SAME stream (e.g. a rebuffer PLAYING transition)
+    preserves the accumulator and last-emitted dedup state — no re-detect storm.
+    """
+    player = make_player(qtbot)
+    player._arm_codec_detect_for_stream(3)
+    player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000))
+    assert player._codec_detect_last == ("AAC", 128)
+
+    # Re-arm same stream (idempotent): accumulator/dedup state survive.
+    player._arm_codec_detect_for_stream(3)
+    assert player._codec_detect_codec == "AAC"
+    assert player._codec_detect_last == ("AAC", 128)
+
+    # A genuinely new stream resets the accumulator.
+    player._arm_codec_detect_for_stream(4)
+    assert player._codec_detect_codec == ""
+    assert player._codec_detect_bitrate == 0
+    assert player._codec_detect_last == (None, None)
+
+
+def test_rearm_for_new_stream_via_state_change(qtbot):
+    """A PLAYING transition for a NEW current stream re-arms detection for it."""
     player = make_player(qtbot)
     player._current_stream = SimpleNamespace(id=42)
     player._pending_live_dvr_seek = False
-    player._codec_tag_armed_for_stream_id = 42
+    player._arm_codec_detect_for_stream(42)
     player._on_gst_tag(bus=None, msg=_fake_codec_tag_msg(codec="MPEG-4 AAC", nominal_bps=128_000))
-    assert player._codec_tag_detected_for_stream_id == 42
 
-    # A different stream becomes current (user switched streams/stations).
     player._current_stream = SimpleNamespace(id=99)
     with patch.object(player, "_arm_caps_watch_for_current_stream"):
         player._on_playbin_state_changed()
-    assert player._codec_tag_armed_for_stream_id == 99, (
-        "guard must re-arm for a new, not-yet-detected stream"
-    )
+    assert player._codec_tag_armed_for_stream_id == 99, "must arm for the new stream"
+    assert player._codec_detect_last == (None, None), "accumulator reset for new stream"
 
 
-def test_set_uri_arms_guard_before_playing(qtbot):
-    """Gap G-03 / WR-01: _set_uri must arm the codec guard BEFORE set_state(PLAYING)
-    so any tag the bus-loop thread sees carries the correct (current) stream id,
-    not the previous stream's id (which painted a false mismatch amber).
+def test_set_uri_arms_detection_before_playing(qtbot):
+    """Gap G-03 / WR-01: _set_uri must arm detection BEFORE set_state(PLAYING) so
+    any tag the bus-loop thread sees is accumulated under the correct stream id.
     """
     player = make_player(qtbot)
     player._current_stream = SimpleNamespace(id=7)
@@ -271,6 +290,29 @@ def test_set_uri_arms_guard_before_playing(qtbot):
 
     assert guard_at_playing, "set_state(PLAYING) was not called"
     assert guard_at_playing[0] == 7, (
-        "codec guard must already be armed with the current stream id at the "
-        "moment set_state(PLAYING) runs (WR-01/G-03)"
+        "detection must be armed with the current stream id BEFORE "
+        "set_state(PLAYING) runs (WR-01/G-03)"
+    )
+
+
+def test_preroll_handoff_arms_detection(qtbot):
+    """SomaFM gap: the gapless preroll handoff must arm detection for the real
+    stream, or the Stats rows never populate after the intro jingle.
+    """
+    player = make_player(qtbot)
+    real_stream = SimpleNamespace(id=55, url="http://ice.somafm.test/groovesalad")
+    player._streams_queue = [real_stream]
+    player._preroll_in_flight = True
+    player._preroll_seq = 1
+    player._preroll_handler_id = 0
+    player._current_station_name = "Groove Salad"
+    player._current_station_id = 1
+    player._is_first_attempt = False  # skip elapsed-timer seeding branch
+
+    with patch.object(player, "_arm_caps_watch_for_current_stream"):
+        player._on_preroll_about_to_finish(expected_seq=1)
+
+    assert player._current_stream is real_stream
+    assert player._codec_tag_armed_for_stream_id == 55, (
+        "preroll handoff must arm codec detection for the real stream (SomaFM)"
     )

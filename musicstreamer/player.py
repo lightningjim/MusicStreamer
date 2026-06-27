@@ -585,14 +585,22 @@ class Player(QObject):
         self._caps_pad = None               # cached audio-pad ref for disconnect on next _set_uri
         self._caps_handler_id: int = 0      # GObject handler-id from pad.connect(); 0 = not connected
         self._caps_armed_for_stream_id: int = 0  # per-URL one-shot guard; 0 = disarmed (Pitfall 6)
-        self._codec_tag_armed_for_stream_id: int = 0  # Phase 98: per-stream one-shot tag guard; 0 = disarmed
-        # Phase 98 gap G-01/G-02: id of the stream we have ALREADY emitted
-        # audio_format_detected for. Prevents _on_playbin_state_changed from
-        # re-arming the guard on every PAUSED->PLAYING rebuffer transition, which
-        # otherwise re-fires the signal (blanking the row / flooding the main
-        # thread on FLAC). Set on the bus-loop thread at emit; read on main.
-        # CPython-atomic int read/write (same justification as _preroll_in_flight).
-        self._codec_tag_detected_for_stream_id: int = 0
+        # Phase 98 (gap-closure redesign): accumulate-and-emit-on-change codec/
+        # bitrate detection. _codec_tag_armed_for_stream_id is the stream we are
+        # currently detecting for (0 = none); it stays set for the stream's whole
+        # lifetime so codec/bitrate fields that arrive across SEPARATE tag messages
+        # are all captured (FLAC sends its bitrate later than its codec — gap #2).
+        # The accumulator never downgrades a known codec back to '' (YouTube
+        # re-sends codec-less tags — gap G-01). Emission is de-duplicated on
+        # _codec_detect_last so a stable stream stops emitting (no QueuedConnection
+        # storm / FLAC lockup — gap G-02). A corrected bitrate arriving later
+        # clears a false amber mismatch (gap #3). The accumulator is read on the
+        # bus-loop thread and reset on main at stream-start; the arm-id read is
+        # CPython-atomic (same justification as _preroll_in_flight).
+        self._codec_tag_armed_for_stream_id: int = 0
+        self._codec_detect_codec: str = ""
+        self._codec_detect_bitrate: int = 0
+        self._codec_detect_last: tuple = (None, None)
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
         # current GTK main_window.py works unchanged this phase.
@@ -1174,6 +1182,24 @@ class Player(QObject):
         recovery callbacks from the old URL have drained."""
         self._recovery_in_flight = False
 
+    def _arm_codec_detect_for_stream(self, stream_id: int) -> None:
+        """Phase 98 gap-closure: (re)arm codec/bitrate detection for a stream.
+
+        Idempotent per stream: when ``stream_id`` is already the armed stream the
+        accumulated codec/bitrate state is preserved — a rebuffer PLAYING
+        transition must NOT wipe what we already detected. A genuinely new stream
+        id clears the accumulator so detection starts fresh. Called from every
+        stream-start boundary: ``_set_uri`` (direct streams), the gapless preroll
+        handoff (SomaFM), and ``_on_playbin_state_changed`` (PLAYING transitions).
+        Main-thread only.
+        """
+        if stream_id and stream_id == self._codec_tag_armed_for_stream_id:
+            return
+        self._codec_tag_armed_for_stream_id = stream_id
+        self._codec_detect_codec = ""
+        self._codec_detect_bitrate = 0
+        self._codec_detect_last = (None, None)
+
     def _on_gst_tag(self, bus, msg) -> None:
         taglist = msg.parse_tag()
         found_title, value = taglist.get_string(Gst.TAG_TITLE)
@@ -1193,24 +1219,38 @@ class Player(QObject):
         if self._preroll_in_flight:
             return
 
-        # --- Phase 98: one-shot codec/bitrate tag block ---
+        # --- Phase 98 (gap-closure): accumulate codec/bitrate across tags ---
+        # Codec and bitrate frequently arrive in SEPARATE tag messages and a
+        # stream re-sends partial tags; merge them into a per-stream accumulator
+        # and emit only when the merged (codec, bitrate) actually changes. This
+        # captures FLAC's late bitrate (gap #2), lets a corrected bitrate clear a
+        # false amber mismatch (gap #3), never blanks a known codec with a later
+        # codec-less tag (gap G-01), and de-dups so a stable stream stops emitting
+        # (no main-thread emit storm / FLAC lockup, gap G-02).
         if self._codec_tag_armed_for_stream_id:
+            sid = self._codec_tag_armed_for_stream_id
             found_codec, raw_codec = taglist.get_string(Gst.TAG_AUDIO_CODEC)
             found_nb, nb_bps = taglist.get_uint(Gst.TAG_NOMINAL_BITRATE)
             found_b, b_bps = taglist.get_uint(Gst.TAG_BITRATE)
-            bitrate_kbps = 0
+            codec_this = _normalise_audio_codec(raw_codec if found_codec else None)
+            bitrate_this = 0
             if found_nb and nb_bps > 0:
-                bitrate_kbps = nb_bps // 1000  # Pitfall 4: integer division
+                bitrate_this = nb_bps // 1000  # Pitfall 4: integer division
             elif found_b and b_bps > 0:
-                bitrate_kbps = b_bps // 1000
-            codec_norm = _normalise_audio_codec(raw_codec if found_codec else None)
-            if codec_norm or bitrate_kbps:
-                sid = self._codec_tag_armed_for_stream_id
-                self._codec_tag_armed_for_stream_id = 0  # disarm BEFORE emit (Pitfall 6)
-                # Phase 98 gap G-01/G-02: record this stream as detected so a later
-                # PLAYING (rebuffer) transition does NOT re-arm and re-emit.
-                self._codec_tag_detected_for_stream_id = sid
-                self.audio_format_detected.emit(sid, codec_norm, bitrate_kbps)
+                bitrate_this = b_bps // 1000
+            # Merge: never downgrade a known field back to empty/zero.
+            if codec_this:
+                self._codec_detect_codec = codec_this
+            if bitrate_this:
+                self._codec_detect_bitrate = bitrate_this
+            current = (self._codec_detect_codec, self._codec_detect_bitrate)
+            if (self._codec_detect_codec or self._codec_detect_bitrate) and (
+                current != self._codec_detect_last
+            ):
+                self._codec_detect_last = current
+                self.audio_format_detected.emit(
+                    sid, self._codec_detect_codec, self._codec_detect_bitrate
+                )
 
         # --- existing title path (unchanged) ---
         if not found_title:
@@ -1400,15 +1440,12 @@ class Player(QObject):
         self._pipeline.set_property("volume", self._volume)
         # Pattern 1b: synchronous one-shot caps read on the main thread.
         self._arm_caps_watch_for_current_stream()
-        # Phase 98 Pattern 1b: arm codec tag guard at PLAYING transition — but
-        # ONLY for a stream not already detected. Re-arming on every PAUSED->PLAYING
-        # rebuffer transition re-fired audio_format_detected (gap G-01 blanked the
-        # row with a later codec-less tag; gap G-02 flooded the main thread on FLAC).
-        if (
-            self._current_stream
-            and self._current_stream.id != self._codec_tag_detected_for_stream_id
-        ):
-            self._codec_tag_armed_for_stream_id = self._current_stream.id
+        # Phase 98 Pattern 1b: keep codec/bitrate detection armed for the current
+        # stream on each PLAYING transition. _arm_codec_detect_for_stream is
+        # idempotent — it preserves the accumulator for the SAME stream (a rebuffer
+        # must not re-detect from scratch) and only resets it for a new stream.
+        if self._current_stream:
+            self._arm_codec_detect_for_stream(self._current_stream.id)
         # BUG-YT-LIVE-BUFFER / D-02: one-shot DVR seek for YouTube live streams.
         # Pipeline is now in PLAYING state (preroll complete; seek range valid).
         if self._pending_live_dvr_seek:
@@ -1692,12 +1729,14 @@ class Player(QObject):
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
         self._pipeline.set_property("uri", uri)
-        # Phase 98: arm codec/bitrate one-shot tag guard for the new stream BEFORE
+        # Phase 98: arm codec/bitrate detection for the new stream BEFORE
         # set_state(PLAYING) (gap G-03 / code-review WR-01). Arming after PLAYING
-        # left a window where a new-stream tag emitted with the PREVIOUS stream's
-        # id, painting a false mismatch in the panel. Setting it first means any
-        # tag the bus-loop thread sees for this pipeline carries the correct id.
-        self._codec_tag_armed_for_stream_id = self._current_stream.id if self._current_stream else 0
+        # left a window where a new-stream tag was accumulated under the PREVIOUS
+        # stream's id, painting a false mismatch in the panel. Arming first means
+        # any tag the bus-loop thread sees for this pipeline carries the correct id.
+        self._arm_codec_detect_for_stream(
+            self._current_stream.id if self._current_stream else 0
+        )
         self._pipeline.set_state(Gst.State.PLAYING)
         # Phase 70 / DS-01: install a fresh caps watch on the new pipeline lifecycle.
         # MUST happen AFTER set_state(PLAYING) so playbin3 starts negotiating streams.
@@ -1843,6 +1882,11 @@ class Player(QObject):
         # SomaFM, and SomaFM streams are direct HTTP(S) URLs).
         stream = self._streams_queue.pop(0)
         self._current_stream = stream
+        # Phase 98 gap-closure (SomaFM): the gapless handoff swaps the URI with no
+        # set_state(NULL/PLAYING) and no _set_uri call, so neither _set_uri nor
+        # _on_playbin_state_changed arms codec detection for the real stream. Arm
+        # it here or the Stats-for-Nerds rows never populate after a preroll jingle.
+        self._arm_codec_detect_for_stream(stream.id)
         self._last_buffer_percent = -1  # Pitfall 3 — mirror _try_next_stream:1056
         # Force-close any cycle on the OUTGOING URL with a "preroll" outcome
         # (distinguish from "failover" so analytics see this is a gapless
