@@ -32,7 +32,7 @@ from typing import Optional
 
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
 from PySide6.QtCore import QThread
-from PySide6.QtGui import QFont, QIcon, QPainter, QPainterPath, QPalette, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -199,6 +199,54 @@ class _MutedLabel(QLabel):
         if event.type() in (QEvent.PaletteChange, QEvent.StyleChange):
             self._apply_muted_palette()
         super().changeEvent(event)
+
+
+class _StatLabel(_MutedLabel):
+    """_MutedLabel extended with amber mismatch state (Phase 98 D-02).
+
+    set_mismatch(True) overrides WindowText with an amber color that
+    survives light/dark theme flips via the inherited changeEvent from
+    _MutedLabel (which dispatches to this class's _apply_muted_palette
+    override via normal Python MRO — no changeEvent override needed here).
+    set_mismatch(False) falls back to the normal muted color.
+    """
+
+    _AMBER_LIGHT = QColor(180, 120, 0)   # readable on light backgrounds
+    _AMBER_DARK = QColor(255, 180, 60)   # readable on dark backgrounds
+
+    def __init__(self, text: str = "", parent: Optional[QWidget] = None) -> None:
+        # Set _mismatch BEFORE super().__init__() — the parent's __init__ calls
+        # self._apply_muted_palette() which reads self._mismatch via MRO dispatch.
+        self._mismatch: bool = False
+        super().__init__(text, parent)
+
+    def set_mismatch(self, mismatch: bool) -> None:
+        """Apply or clear the amber mismatch highlight.
+
+        No-ops when the mismatch state is unchanged to avoid unnecessary
+        palette repaints. Calls _apply_muted_palette to propagate amber
+        color when state changes.
+        """
+        if mismatch == self._mismatch:
+            return
+        self._mismatch = mismatch
+        self._apply_muted_palette()
+
+    def _apply_muted_palette(self) -> None:
+        """Override: amber WindowText when mismatched; muted otherwise.
+
+        Detects light vs dark background via QPalette.Window.lightness()
+        and picks the appropriate amber variant (Pitfall 6 theme-safety).
+        Falls back to parent's muted palette when not mismatched.
+        """
+        if not self._mismatch:
+            super()._apply_muted_palette()
+            return
+        pal = self.palette()
+        bg = pal.color(QPalette.Window)
+        amber = self._AMBER_DARK if bg.lightness() < 128 else self._AMBER_LIGHT
+        pal.setColor(QPalette.WindowText, amber)
+        self.setPalette(pal)
 
 
 def _load_scaled_pixmap(path: Optional[str], size: QSize) -> QPixmap:
@@ -978,6 +1026,15 @@ class NowPlayingPanel(QWidget):
             self.icy_label.setText("")
         self._last_cover_icy = None
         self._last_icy_title = ""
+        # Phase 98 Pitfall 7: reset detected format rows to em-dash on station switch
+        # so stale values from the previous station are never visible between bind and
+        # the first audio_format_detected signal delivery.
+        self._encoding_label.setText("—")
+        self._encoding_label.set_mismatch(False)
+        self._bitrate_label.setText("—")
+        self._bitrate_label.set_mismatch(False)
+        self._sample_rate_label.setText("—")
+        self._bit_depth_label.setText("—")
         self.star_btn.setChecked(False)
         # Phase 60.3 Plan 05: fresh station gets a clean ajax-disabled flag.
         # _refresh_gbs_visibility's should_show=False branch handles the
@@ -3473,6 +3530,26 @@ class NowPlayingPanel(QWidget):
         wrapper = QWidget(self)
         form = QFormLayout(wrapper)
         form.setContentsMargins(0, 0, 0, 0)
+
+        # Phase 98 D-04: four actual-stream-format rows added BEFORE the existing
+        # performance rows. No per-row setVisible — the wrapper-level setVisible(False)
+        # below governs all rows (Pitfall 8 / Phase 47.1). Row ordering per D-04:
+        # Encoding, Bitrate, Sample rate, Bit depth.
+        enc_row_label = _MutedLabel("Encoding", wrapper)
+        self._encoding_label = _StatLabel("—", wrapper)    # D-07: em-dash default
+        form.addRow(enc_row_label, self._encoding_label)
+
+        brate_row_label = _MutedLabel("Bitrate", wrapper)
+        self._bitrate_label = _StatLabel("—", wrapper)     # D-07: em-dash default
+        form.addRow(brate_row_label, self._bitrate_label)
+
+        rate_row_label = _MutedLabel("Sample rate", wrapper)
+        self._sample_rate_label = _MutedLabel("—", wrapper)  # detected only (D-05)
+        form.addRow(rate_row_label, self._sample_rate_label)
+
+        depth_row_label = _MutedLabel("Bit depth", wrapper)
+        self._bit_depth_label = _MutedLabel("—", wrapper)    # detected only (D-05)
+        form.addRow(depth_row_label, self._bit_depth_label)
 
         # Row label -- muted palette (D-10; RESEARCH §6 Option A: QPalette.Disabled).
         # _MutedLabel re-applies the muted color on palette/theme changes so

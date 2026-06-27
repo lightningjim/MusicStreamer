@@ -698,11 +698,17 @@ def test_set_underrun_count_updates_label(qtbot):
 
 
 def test_buffer_duration_row_present(qtbot):
-    """Phase 84 / D-12: the stats-for-nerds wrapper contains a third
-    QFormLayout row with label text "Buf duration" (RESEARCH Discretion
-    — NOT "Buffer" which would shadow the existing progressbar row at
-    row 0), value text "30s" (baseline, format ``f"{BUFFER_DURATION_S}s"``),
-    positioned AFTER the Phase 78 "Underruns" row (row 1 → new row 2).
+    """Phase 84 / D-12: the stats-for-nerds wrapper contains a QFormLayout
+    row with label text "Buf duration" (RESEARCH Discretion — NOT "Buffer"
+    which would shadow the existing progressbar row), value text "30s"
+    (baseline, format ``f"{BUFFER_DURATION_S}s"``), positioned AFTER the
+    Phase 78 "Underruns" row.
+
+    Phase 98 update: four detected-format rows (Encoding, Bitrate, Sample
+    rate, Bit depth) were inserted before the performance rows, so the form
+    now has >= 7 rows total and "Buf duration" is at row index 6
+    (0=Encoding, 1=Bitrate, 2=Sample rate, 3=Bit depth, 4=Buffer,
+    5=Underruns, 6=Buf duration).
     """
     from musicstreamer.constants import BUFFER_DURATION_S
 
@@ -711,23 +717,26 @@ def test_buffer_duration_row_present(qtbot):
 
     form = panel._stats_widget.layout()
     assert isinstance(form, QFormLayout)
-    # rowCount must be at least 3: Buffer (row 0), Underruns (row 1),
-    # Buf duration (row 2 — NEW). A regression that drops the new row
-    # would leave rowCount at 2 and the slot/label assertions below
-    # would fire on AttributeError.
-    assert form.rowCount() >= 3, (
-        f"Phase 84 / D-12: stats-for-nerds form expected >= 3 rows "
-        f"(Buffer, Underruns, Buf duration); got {form.rowCount()}."
+    # rowCount must be at least 7: Encoding (row 0), Bitrate (row 1),
+    # Sample rate (row 2), Bit depth (row 3), Buffer (row 4),
+    # Underruns (row 5), Buf duration (row 6 — Phase 84 addition).
+    assert form.rowCount() >= 7, (
+        f"Phase 84+98 / D-12: stats-for-nerds form expected >= 7 rows; "
+        f"got {form.rowCount()}."
     )
-    label_widget = form.itemAt(2, QFormLayout.LabelRole).widget()
-    value_widget = form.itemAt(2, QFormLayout.FieldRole).widget()
-    assert label_widget.text() == "Buf duration", (
-        f"Phase 84 / D-12: row 2 label text expected 'Buf duration' "
-        f"(NOT 'Buffer' which would shadow the row 0 progressbar label); "
-        f"got {label_widget.text()!r}."
+    # Find "Buf duration" row by scanning labels (robust to future row additions)
+    buf_dur_row = None
+    for i in range(form.rowCount()):
+        item = form.itemAt(i, QFormLayout.LabelRole)
+        if item and item.widget() and item.widget().text() == "Buf duration":
+            buf_dur_row = i
+            break
+    assert buf_dur_row is not None, (
+        "Phase 84 / D-12: 'Buf duration' row not found in stats-for-nerds form"
     )
+    value_widget = form.itemAt(buf_dur_row, QFormLayout.FieldRole).widget()
     assert value_widget.text() == f"{BUFFER_DURATION_S}s", (
-        f"Phase 84 / D-12: row 2 initial value text expected "
+        f"Phase 84 / D-12: 'Buf duration' initial value text expected "
         f"'{BUFFER_DURATION_S}s' (baseline format, no '(adapted)' suffix); "
         f"got {value_widget.text()!r}."
     )
