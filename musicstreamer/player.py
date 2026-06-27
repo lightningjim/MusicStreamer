@@ -77,6 +77,40 @@ def _fix_icy_encoding(s: str) -> str:
         return s
 
 
+def _normalise_audio_codec(raw: str | None) -> str:
+    """Map GStreamer TAG_AUDIO_CODEC string to Stream.codec vocabulary.
+
+    Returns one of: 'MP3' | 'AAC' | 'FLAC' | 'OPUS' | 'OGG' | '' (unknown).
+    Case-insensitive substring match. Called from _on_gst_tag (bus-loop thread);
+    pure — no Qt/GStreamer imports. Phase 98.
+
+    Mapping (per D-03 vocabulary and assumption A5):
+    - 'layer 3' / 'layer3'  → 'MP3'  (MPEG-1/MPEG-2 Layer 3)
+    - 'layer 2' / 'mp2'     → 'MP3'  (MP2 family maps to MP3 per A5)
+    - 'aac'                 → 'AAC'
+    - 'flac'                → 'FLAC'
+    - exact 'opus'          → 'OPUS'
+    - 'vorbis'              → 'OGG'
+    - empty / None / other  → ''
+    """
+    if not raw:
+        return ""
+    s = raw.lower()
+    if "layer 3" in s or "layer3" in s:
+        return "MP3"
+    if "layer 2" in s or "mp2" in s:
+        return "MP3"
+    if "aac" in s:
+        return "AAC"
+    if "flac" in s:
+        return "FLAC"
+    if s == "opus":
+        return "OPUS"
+    if "vorbis" in s:
+        return "OGG"
+    return ""
+
+
 # Phase 62 / BUG-09: module logger (first logger in player.py).
 # Surfaced at INFO via __main__.py per-logger setLevel — see Plan 03.
 _log = logging.getLogger(__name__)

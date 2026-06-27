@@ -88,6 +88,7 @@ class FakePlayer(QObject):
 
     # Phase 70 / DS-01 caps signal (1)
     audio_caps_detected = Signal(int, int, int)  # stream_id, rate_hz, bit_depth
+    audio_format_detected = Signal(int, str, int)  # Phase 98: stream_id, codec_norm, bitrate_kbps
 
     # ------------------------------------------------------------------
     # Initializer
