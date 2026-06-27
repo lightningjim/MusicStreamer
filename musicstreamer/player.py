@@ -585,6 +585,7 @@ class Player(QObject):
         self._caps_pad = None               # cached audio-pad ref for disconnect on next _set_uri
         self._caps_handler_id: int = 0      # GObject handler-id from pad.connect(); 0 = not connected
         self._caps_armed_for_stream_id: int = 0  # per-URL one-shot guard; 0 = disarmed (Pitfall 6)
+        self._codec_tag_armed_for_stream_id: int = 0  # Phase 98: per-stream one-shot tag guard; 0 = disarmed
 
         # Legacy callback shims (set via play/play_stream) -- kept so the
         # current GTK main_window.py works unchanged this phase.
@@ -1168,12 +1169,10 @@ class Player(QObject):
 
     def _on_gst_tag(self, bus, msg) -> None:
         taglist = msg.parse_tag()
-        found, value = taglist.get_string(Gst.TAG_TITLE)
+        found_title, value = taglist.get_string(Gst.TAG_TITLE)
         # Audio arrived -- cancel failover timer on the main thread via queued
         # signal. Bus-loop thread has no Qt event loop, so singleShot vanishes.
         self._cancel_timers_requested.emit()
-        if not found:
-            return
         # Phase 83 D-07 — suppress preroll's m4a title tag so Now Playing keeps
         # showing the station name through the ~5s ID. Set on main in Player.play
         # (before set_uri to the preroll URL) and cleared in _on_preroll_about_to_finish
@@ -1181,7 +1180,30 @@ class Player(QObject):
         # case (Pitfall 2 — m4a tag arrives between disconnect and flag clear) is
         # one frame of preroll title leaked, ~30ms, acceptable per D-07's
         # "no UI flicker" intent (not "zero leak").
+        # Phase 98 Critical Sequencing: preroll guard moved BEFORE codec block and
+        # the title early-return so it covers both paths (98-PATTERNS.md Critical
+        # Sequencing Note).
         if self._preroll_in_flight:
+            return
+
+        # --- Phase 98: one-shot codec/bitrate tag block ---
+        if self._codec_tag_armed_for_stream_id:
+            found_codec, raw_codec = taglist.get_string(Gst.TAG_AUDIO_CODEC)
+            found_nb, nb_bps = taglist.get_uint(Gst.TAG_NOMINAL_BITRATE)
+            found_b, b_bps = taglist.get_uint(Gst.TAG_BITRATE)
+            bitrate_kbps = 0
+            if found_nb and nb_bps > 0:
+                bitrate_kbps = nb_bps // 1000  # Pitfall 4: integer division
+            elif found_b and b_bps > 0:
+                bitrate_kbps = b_bps // 1000
+            codec_norm = _normalise_audio_codec(raw_codec if found_codec else None)
+            if codec_norm or bitrate_kbps:
+                sid = self._codec_tag_armed_for_stream_id
+                self._codec_tag_armed_for_stream_id = 0  # disarm BEFORE emit (Pitfall 6)
+                self.audio_format_detected.emit(sid, codec_norm, bitrate_kbps)
+
+        # --- existing title path (unchanged) ---
+        if not found_title:
             return
         title = _fix_icy_encoding(value)
         self.title_changed.emit(title)  # auto-queued cross-thread to main
@@ -1368,6 +1390,9 @@ class Player(QObject):
         self._pipeline.set_property("volume", self._volume)
         # Pattern 1b: synchronous one-shot caps read on the main thread.
         self._arm_caps_watch_for_current_stream()
+        # Phase 98 Pattern 1b: arm codec tag guard at PLAYING transition.
+        if self._current_stream:
+            self._codec_tag_armed_for_stream_id = self._current_stream.id
         # BUG-YT-LIVE-BUFFER / D-02: one-shot DVR seek for YouTube live streams.
         # Pipeline is now in PLAYING state (preroll complete; seek range valid).
         if self._pending_live_dvr_seek:
@@ -1655,6 +1680,8 @@ class Player(QObject):
         # Phase 70 / DS-01: install a fresh caps watch on the new pipeline lifecycle.
         # MUST happen AFTER set_state(PLAYING) so playbin3 starts negotiating streams.
         self._arm_caps_watch_for_current_stream()
+        # Phase 98: arm codec/bitrate one-shot tag guard for the new stream.
+        self._codec_tag_armed_for_stream_id = self._current_stream.id if self._current_stream else 0
 
     # ------------------------------------------------------------------ #
     # Phase 83 — SomaFM preroll cluster (D-05, D-09, D-12; live-spike Q3 bridge)
