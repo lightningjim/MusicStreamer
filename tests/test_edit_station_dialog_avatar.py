@@ -14,7 +14,6 @@ import pytest
 
 from musicstreamer.models import Provider, Station, StationStream
 from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
-from PySide6.QtWidgets import QTableWidgetItem
 
 
 # ---------------------------------------------------------------------------
