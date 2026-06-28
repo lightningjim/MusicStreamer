@@ -744,6 +744,10 @@ Plans:
 **Requirements:** Closes audit gap `TEST-REGRESSION-97x89B` (v2.2-MILESTONE-AUDIT.md, critical)
 **Depends on:** Phase 97 (canonical-URL refactor), Phase 89b (avatar add-path under test)
 **Gap Closure:** Closes the critical gap from the v2.2 milestone audit.
+**Plans:** 1 plan
+
+Plans:
+- [ ] 99-01-PLAN.md — Migrate the 9 avatar add-path tests off the removed `url_edit` widget onto the streams-table / `_get_canonical_url_live` path; restore the test-clean baseline
 
 Tasks:
 
