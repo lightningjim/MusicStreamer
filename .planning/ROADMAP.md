@@ -747,7 +747,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 99-01-PLAN.md — Migrate the 9 avatar add-path tests off the removed `url_edit` widget onto the streams-table / `_get_canonical_url_live` path; restore the test-clean baseline
+- [x] 99-01-PLAN.md — Migrate the 9 avatar add-path tests off the removed `url_edit` widget onto the streams-table / `_get_canonical_url_live` path; restore the test-clean baseline
 
 Tasks:
 
