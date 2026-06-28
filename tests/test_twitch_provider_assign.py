@@ -112,8 +112,7 @@ def test_save_derives_provider_for_blank_twitch(qtbot, station_blank_provider, p
     d = EditStationDialog(station_blank_provider, player, repo, parent=None)
     qtbot.addWidget(d)
 
-    # Set URL to twitch.tv
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
 
     # Clear the provider combo so it's blank
     d.provider_combo.setCurrentText("")
@@ -167,8 +166,7 @@ def test_save_preserves_manual_provider_for_twitch(qtbot, station_blank_provider
     d = EditStationDialog(station_with_provider, player, repo, parent=None)
     qtbot.addWidget(d)
 
-    # Set URL to twitch.tv
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
 
     # Explicitly set provider combo to a user-chosen value
     d.provider_combo.setCurrentText("Live Sports")
@@ -220,8 +218,7 @@ def test_save_non_twitch_url_unchanged(qtbot, player, repo):
     d = EditStationDialog(non_twitch_station, player, repo, parent=None)
     qtbot.addWidget(d)
 
-    # Non-twitch URL
-    d.url_edit.setText("http://ice3.somafm.com/groovesalad-128.mp3")
+    # URL pre-loaded from overridden repo.list_streams via _populate() — no widget setText needed (Phase 97).
 
     # Blank provider
     d.provider_combo.setCurrentText("")
@@ -265,7 +262,7 @@ def test_save_add_path_fetches_avatar(qtbot, station_blank_provider, player, rep
 
     d = EditStationDialog(station_blank_provider, player, repo, parent=None)
     qtbot.addWidget(d)
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
     d.provider_combo.setCurrentText("")
 
     stub_fetcher = MagicMock(return_value=b"PNGDATA")
@@ -310,7 +307,7 @@ def test_save_add_path_refreshes_in_memory_provider(
 
     d = EditStationDialog(station_blank_provider, player, repo, parent=None)
     qtbot.addWidget(d)
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
     d.provider_combo.setCurrentText("")
 
     stub_fetcher = MagicMock(return_value=b"PNGDATA")
@@ -348,7 +345,7 @@ def test_save_existing_provider_with_avatar_no_refetch(qtbot, player, repo):
 
     d = EditStationDialog(station_existing, player, repo, parent=None)
     qtbot.addWidget(d)
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
     d.provider_combo.setCurrentText("Twitch: existing")
 
     stub_fetcher = MagicMock(return_value=b"PNGDATA")
@@ -388,7 +385,7 @@ def test_save_manual_provider_not_overwritten_still_holds(qtbot, player, repo):
 
     d = EditStationDialog(station_manual, player, repo, parent=None)
     qtbot.addWidget(d)
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
     d.provider_combo.setCurrentText("Live Sports")
 
     stub_fetcher = MagicMock(return_value=b"PNGDATA")
@@ -423,7 +420,7 @@ def test_save_fetch_failure_is_nonblocking(qtbot, station_blank_provider, player
 
     d = EditStationDialog(station_blank_provider, player, repo, parent=None)
     qtbot.addWidget(d)
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
+    # URL pre-loaded from repo.list_streams via _populate() — no widget setText needed (Phase 97).
     d.provider_combo.setCurrentText("")
 
     failing_fetcher = MagicMock(side_effect=RuntimeError("no token"))
