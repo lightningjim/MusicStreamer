@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
+status: planning
 stopped_at: Phase 98 context gathered
-last_updated: "2026-06-27T14:58:01.268Z"
-last_activity: 2026-06-27 -- Phase 98 execution started
+last_updated: "2026-06-28T14:25:32.411Z"
+last_activity: 2026-06-28 -- Phase 99 planning complete
 progress:
-  total_phases: 26
-  completed_phases: 25
-  total_plans: 88
-  completed_plans: 86
+  total_phases: 27
+  completed_phases: 26
+  total_plans: 89
+  completed_plans: 88
   percent: 96
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 98 — add-to-stats-for-nerds-actual-encoding-and-bitrate-detected-
+**Current focus:** Phase 999.1 — friendlier settings import error for text mode corrupted zip
 
 ## Current Position
 
-Phase: 98 (add-to-stats-for-nerds-actual-encoding-and-bitrate-detected-) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 98
-Last activity: 2026-06-27 -- Phase 98 execution started
+Phase: 999.1
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-28 -- Phase 99 planning complete
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 245+ (v1.0–v2.1 combined)
+- Total plans completed: 248+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
@@ -155,6 +155,8 @@ v2.2 roadmap-level decisions (2026-05-25):
 - [Phase ?]: Phase 97-01 D-02: _COL_CANONICAL not at module-level in test_edit_station_dialog.py to preserve existing 97 green tests
 - [Phase ?]: Phase 97 D-07: all 5 external metadata/derivation consumers use canonical_url — one rule, one source
 - [Phase ?]: Phase 97 D-05: player.py deliberately not modified — playback path unchanged
+- [Phase ?]: detected codec/bitrate transient panel-only
+- [Phase ?]: caps fan-out in _on_audio_caps_detected after _refresh_quality_badge
 
 ### Decisions (v2.1, preserved for context)
 
@@ -227,10 +229,12 @@ Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tra
 | Phase 96.2 P01 | 18 | 3 tasks | 4 files |
 | Phase 97 P01 | 4 minutes | 3 tasks | 4 files |
 | Phase 97 P04 | 5 minutes | 3 tasks | 5 files |
+| Phase 98 P02 | 281 | 2 tasks | 3 files |
+| Phase 98 P03 | 88 | 1 tasks | 1 files |
 
 ## Session Continuity
 
-Last session: 2026-06-27T14:58:01.258Z
+Last session: 2026-06-27T15:10:44.424Z
 Stopped at: Phase 98 context gathered
 Resume file: .planning/phases/98-add-to-stats-for-nerds-actual-encoding-and-bitrate-detected-/98-CONTEXT.md
 
