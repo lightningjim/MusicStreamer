@@ -13,6 +13,8 @@ import inspect
 import pytest
 
 from musicstreamer.models import Provider, Station, StationStream
+from musicstreamer.ui_qt.edit_station_dialog import _COL_URL
+from PySide6.QtWidgets import QTableWidgetItem
 
 
 # ---------------------------------------------------------------------------
@@ -74,8 +76,8 @@ def twitch_dialog(qtbot, station_with_provider, player, repo):
 
 
 def test_twitch_url_enables_refresh_btn(twitch_dialog):
-    """After setting url_edit to a twitch.tv URL and triggering _on_url_text_changed,
-    _refresh_avatar_btn.isEnabled() is True.
+    """After setting the canonical streams-table URL cell to a twitch.tv URL and firing
+    _on_canonical_cell_changed, _refresh_avatar_btn.isEnabled() is True.
 
     Also verifies:
     - a YouTube URL also enables it (regression guard)
@@ -84,23 +86,23 @@ def test_twitch_url_enables_refresh_btn(twitch_dialog):
     d = twitch_dialog
 
     # Twitch URL should enable refresh
-    d.url_edit.setText("https://www.twitch.tv/twitchdev")
-    d._on_url_text_changed()
+    d.streams_table.item(d._canonical_row, _COL_URL).setText("https://www.twitch.tv/twitchdev")
+    d._on_canonical_cell_changed(d._canonical_row, _COL_URL)
     assert d._refresh_avatar_btn.isEnabled() is True, (
         "Refresh button should be enabled for twitch.tv URL — "
-        "dispatch gate not yet added to _on_url_text_changed"
+        "dispatch gate not yet added to _on_canonical_cell_changed"
     )
 
     # YouTube URL should still enable refresh (regression guard)
-    d.url_edit.setText("https://www.youtube.com/@lofiirl")
-    d._on_url_text_changed()
+    d.streams_table.item(d._canonical_row, _COL_URL).setText("https://www.youtube.com/@lofiirl")
+    d._on_canonical_cell_changed(d._canonical_row, _COL_URL)
     assert d._refresh_avatar_btn.isEnabled() is True, (
         "Refresh button should remain enabled for youtube.com URL"
     )
 
     # Unrelated URL should disable refresh
-    d.url_edit.setText("http://stream.example.com/live.mp3")
-    d._on_url_text_changed()
+    d.streams_table.item(d._canonical_row, _COL_URL).setText("http://stream.example.com/live.mp3")
+    d._on_canonical_cell_changed(d._canonical_row, _COL_URL)
     assert d._refresh_avatar_btn.isEnabled() is False, (
         "Refresh button should be disabled for non-avatar-capable URL"
     )
