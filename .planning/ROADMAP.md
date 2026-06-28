@@ -49,6 +49,7 @@ Earlier milestone details collapsed for brevity; full ROADMAPs preserved under `
 - [x] **Phase 93 (CONDITIONAL): BUFFER-MONITOR Follow-Up** — Condition FIRED (all 3 triggers); closed-via-deviation 2026-06-15. YouTube live-edge starvation fixed out-of-band (commit f716f083, DVR seek); SomaFM/network residual closed as no-action. See 93-VERIFICATION.md
 - [x] **Phase 94: Sidebar Logo Thumbnail Optimization** — Investigate sidebar scroll slowdown on large lists (e.g., DI.fm); generate pre-scaled small logo variants for sidebar use while preserving full-res for Now Playing
 - [x] **Phase 95: YT URL-Change Replay Bug** — After editing a YT stream with a changed URL, first play fails with "stream exhausted"; replay picks up the new URL. Diagnose stale cached resolution post-edit, fix to invalidate on station update
+- [ ] **Phase 99: Migrate Avatar Add-Path Tests off Removed `url_edit` Widget (GAP CLOSURE)** — Phase 97 (D-01) made the streams table the sole URL editor; Phase 89B's avatar add-path tests still reference the removed `EditStationDialog.url_edit` and fail with `AttributeError` (9 tests). Migrate them to the streams-table / `_get_canonical_url_live` path to restore the test-clean baseline. Production code is intact — coverage only.
 
 ### Phase Details
 
@@ -729,11 +730,26 @@ Plans:
 **Wave 1**
 
 - [x] 98-01-PLAN.md — Player-side one-shot codec/bitrate detection: audio_format_detected signal + FakePlayer parity + _normalise_audio_codec + _on_gst_tag refactor (Wave 1)
-- [ ] 98-02-PLAN.md — Panel-side rendering: _StatLabel amber subclass + four detected-format rows + update_detected_format/update_detected_caps + bind_station reset (Wave 1)
+- [x] 98-02-PLAN.md — Panel-side rendering: _StatLabel amber subclass + four detected-format rows + update_detected_format/update_detected_caps + bind_station reset (Wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 98-03-PLAN.md — MainWindow wiring: QueuedConnection + _on_audio_format_detected slot + update_detected_caps fan-out (Wave 2)
+- [x] 98-03-PLAN.md — MainWindow wiring: QueuedConnection + _on_audio_format_detected slot + update_detected_caps fan-out (Wave 2)
+
+---
+
+### Phase 99: Migrate Avatar Add-Path Tests off Removed `url_edit` Widget (GAP CLOSURE)
+
+**Goal:** Restore the v2.2 test-clean baseline by migrating the 9 avatar add-path tests that fail with `AttributeError: 'EditStationDialog' object has no attribute 'url_edit'`. Phase 97 (D-01) removed the `url_edit` widget and made the streams table the sole URL editor; Phase 89B's tests were never migrated. Production wiring is intact (the add-path reads the URL via `_get_canonical_url_live`) — only the automated coverage references the removed widget.
+**Requirements:** Closes audit gap `TEST-REGRESSION-97x89B` (v2.2-MILESTONE-AUDIT.md, critical)
+**Depends on:** Phase 97 (canonical-URL refactor), Phase 89b (avatar add-path under test)
+**Gap Closure:** Closes the critical gap from the v2.2 milestone audit.
+
+Tasks:
+
+- [ ] Migrate `tests/test_twitch_provider_assign.py` (8 tests) to set the station URL via the streams table / `_get_canonical_url_live` path instead of `url_edit`
+- [ ] Migrate `tests/test_edit_station_dialog_avatar.py::test_twitch_url_enables_refresh_btn` (1 test) to the same path
+- [ ] Verify the full suite returns to the test-clean baseline (`.venv/bin/python -m pytest`; 9 failed → 0)
 
 ---
 

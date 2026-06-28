@@ -166,21 +166,21 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | PKG-LIN-APP-08 | Phase 85 | Complete |
 | PKG-LIN-APP-09 | Phase 85 | Complete |
 | PKG-LIN-APP-10 | Phase 85 | Complete |
-| PKG-LIN-FP-01 | Phase 86 | Pending |
-| PKG-LIN-FP-02 | Phase 86 | Pending |
-| PKG-LIN-FP-03 | Phase 86 | Pending |
-| PKG-LIN-FP-04 | Phase 86 | Pending |
-| PKG-LIN-FP-05 | Phase 86 | Pending |
+| PKG-LIN-FP-01 | Phase 86 | Complete (manifest/build satisfied by shipped signed .flatpak; audit doc-drift reconciled 2026-06-28) |
+| PKG-LIN-FP-02 | Phase 86 | Complete (verified in-sandbox, 86-VERIFICATION.md SC1–SC4 PASS) |
+| PKG-LIN-FP-03 | Phase 86 | Complete (manifest/build satisfied by shipped signed .flatpak) |
+| PKG-LIN-FP-04 | Phase 86 | Complete (manifest/build satisfied by shipped signed .flatpak; :ro mount D-05 exception) |
+| PKG-LIN-FP-05 | Phase 86 | Complete (verified in-sandbox, 86-VERIFICATION.md SC1–SC4 PASS) |
 | PKG-LIN-FP-06 | Phase 86 | Complete |
-| PKG-LIN-FP-07 | Phase 86 | Pending |
-| PKG-LIN-FP-08 | Phase 86 | Pending (gated on Phase 91 FIX-MPRIS) |
-| PKG-LIN-FP-09 | Phase 86 | Pending |
-| PKG-LIN-FP-10 | Phase 86 | Pending |
-| PKG-LIN-FP-11 | Phase 86 | Pending |
-| WIN-02 | Phase 88 | Pending |
+| PKG-LIN-FP-07 | Phase 86 | Complete (verified in-sandbox, 86-VERIFICATION.md SC1–SC4 PASS) |
+| PKG-LIN-FP-08 | Phase 86 | Complete (FIX-MPRIS Phase 91 landed; verified in-sandbox, 86-VERIFICATION.md SC4 PASS) |
+| PKG-LIN-FP-09 | Phase 86 | Complete (manifest/build satisfied by shipped signed .flatpak) |
+| PKG-LIN-FP-10 | Phase 86 | Complete (manifest/build satisfied by shipped signed .flatpak) |
+| PKG-LIN-FP-11 | Phase 86 | Complete (GPG-signed bundle, D-08) |
+| WIN-02 | Phase 88 | Complete (Inno [Icons] AUMID directive code-complete; VM acceptance folds into VER-02-J) |
 | WIN-02-A | Phase 88 | Complete |
 | WIN-02-B | Phase 88 | Complete |
-| VER-02-J | Phase 88 | Pending |
+| VER-02-J | Phase 88 | Pending — Win11 VM clean-install packaging UAT (human, target-platform; not automatable). Sole genuinely-open v2.2 requirement; defer-and-accept at milestone close or run manually. |
 | WIN-05 | Phase 88 | Complete |
 | GBS-THEME-01 | Phase 87 | Complete |
 | GBS-THEME-02 | Phase 87 | Complete |
@@ -200,8 +200,8 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | GBS-TOKEN-03 | Phase 87b | Complete |
 | GBS-TOKEN-04 | Phase 87b | Complete |
 | GBS-TOKEN-05 | Phase 87b | Complete |
-| ART-AVATAR-01 | Phase 89a | Pending |
-| ART-AVATAR-02 | Phase 89a | Pending |
+| ART-AVATAR-01 | Phase 89a | Complete (implemented repo.py:321 ADD COLUMN channel_avatar_path; later re-keyed per-provider in 89.1) |
+| ART-AVATAR-02 | Phase 89a | Complete (implemented paths.py:115 channel-avatars dir) |
 | ART-AVATAR-03 | Phase 89 | Complete |
 | ART-AVATAR-04 | Phase 89b | Complete |
 | ART-AVATAR-05 | Phase 89 | Complete |
@@ -222,15 +222,17 @@ Which phases cover which requirements. Populated during roadmap creation (2026-0
 | FIX-MPRIS-02 | Phase 91 | Complete |
 | FIX-MPRIS-03 | Phase 91 | Complete |
 | FIX-PLS-01 | Phase 92 | Complete |
-| MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Pending (trigger-gated) |
+| MON-BUFFER-01 (CONDITIONAL) | Phase 93 (CONDITIONAL) | Closed — condition fired, resolved out-of-band (commit f716f083 DVR seek); see 93-VERIFICATION.md (2026-06-15) |
 
 **Coverage:**
 - v2.2 requirements: 64 total (63 unconditional + 1 conditional)
 - Mapped to phases: 64/64 ✓
 - Unmapped: 0 ✓
 - Double-mapped: 0 ✓
+- Status: 63/64 done or closed; **1 genuinely open** (VER-02-J Win11 VM packaging UAT — human acceptance). Test-coverage regression for the avatar add-path (no REQ-ID; production intact) tracked separately as gap-closure Phase 99.
 
 ---
 
 *Requirements defined: 2026-05-25*
-*Last updated: 2026-06-02 — Phase 86 Plan 86-04: added PKG-LIN-FP-11 (Flatpak GPG signing, D-08); amended PKG-LIN-FP-04 to enumerate the narrow :ro mount as an approved exception (D-05)*
+*Last updated: 2026-06-28 — v2.2 milestone-audit doc-drift reconciliation: flipped 13 verified-but-stale rows to Complete (PKG-LIN-FP-01..05/07..11, WIN-02, ART-AVATAR-01/02) with evidence; MON-BUFFER-01 marked Closed (condition fired, resolved out-of-band f716f083); VER-02-J remains the sole open requirement. Added gap-closure Phase 99 (avatar add-path test migration) to ROADMAP.*
+*2026-06-02 — Phase 86 Plan 86-04: added PKG-LIN-FP-11 (Flatpak GPG signing, D-08); amended PKG-LIN-FP-04 to enumerate the narrow :ro mount as an approved exception (D-05)*
