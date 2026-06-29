@@ -8,19 +8,18 @@ A personal GNOME desktop app for listening to curated internet radio and live st
 
 Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
 
-## Current Milestone: v2.2 Package Building and QOL features/tweaks
+## Previous Milestone: v2.2 Package Building and QOL features/tweaks ✓ SHIPPED 2026-06-29
 
-**Goal:** Close packaging parity across Linux (AppImage + Flatpak) and Windows (SMTC shortcut + Win11 packaging UAT), and deliver a focused QOL polish pass across GBS.FM integration, SomaFM preroll consistency, ICY-disabled cover visuals, and Phase 77 test debt.
+**Delivered:** 27 phases (85–99 with decimals + 999.1), 89 plans, 105 tasks. 63/64 requirements satisfied; VER-02-J (Win11 VM clean-install packaging UAT) deferred-and-accepted as human acceptance debt at close.
 
-**Target features:**
+**Headline outcomes:**
+- Linux packaging shipped — portable `MusicStreamer-<ver>-x86_64.AppImage` (linuxdeploy conda + GStreamer plugins, GLIBC 2.35 baseline, detached `.sig`) and a GPG-signed `io.github.kcreasey.MusicStreamer.flatpak` with full audio + MPRIS2 + GBS.FM login in-sandbox, plus a consent-based first-launch import wizard (Phases 85a/85/86/86.1)
+- Windows bundle parity — Inno Setup AUMID `[Icons]` directive + `.lnk` upgrade cleanup, winrt SMTC media-session bundling (`collect_all` for the 5 pywinrt distributions), frozen-exe OAuth-helper launch fix, and an isolated-pip QtWebEngine helper exe so GBS.FM/Twitch/Google in-app logins run from the frozen build (Phases 88/88.1/88.2/88.3)
+- Channel avatars — YouTube + Twitch channel-avatar fetch into the cover slot, re-keyed per-provider to dedupe across sibling streams, provider brand-avatar fallback (SomaFM/AudioAddict), locked `ICY → iTunes → MB-CAA → channel-avatar → placeholder` precedence (Phases 89/89a/89.1/89b/89c)
+- GBS.FM polish — themed-day marquee with logo override, zero-token single-song add, session-expiry re-login affordance (Phases 87/87b/87.1)
+- Stream-engine fixes & QOL — MPRIS2 test-baseline repair (gates Flatpak FP-08), PLS codec/bitrate URL fallback, YouTube URL-change replay fix, station-URL canonicalization to a single source of truth, detected encoding/bitrate in Stats-for-Nerds, pre-scaled sidebar logo thumbnails, live-stream discovery/merge fixes, friendlier corrupted-zip import error, and a test-clean baseline restored by gap-closure Phase 99 (Phases 90–99, 999.1)
 
-- **Packaging & Distribution** — Linux AppImage (SEED-009 activated), Linux Flatpak (new second distro format), Windows SMTC AUMID Start-Menu shortcut (WIN-02), Win11 VM packaging UAT (VER-02-J) bundled with WIN-05 AAC retest
-- **GBS.FM integration** — seasonal/themed-day detection (logo_3.png hash drift + marquee keyword sniff, session-scoped at GBS launch), announcement banner from first pipe-segment of marquee, zero-token single-song add (UX never framed as "1 token")
-- **SomaFM preroll consistency** — investigate + fix missing station-ID prerolls on stations like Boot Liquor (known-good baseline: Groove Salad / Drone Zone / Beat Blender)
-- **ICY-disabled UI polish** — fetch YT channel avatar separately from video thumbnail, fetch Twitch channel avatar via Helix API, use channel avatar in cover slot instead of duplicating the station thumbnail
-- **Tech debt / carry-overs** — repair Phase 77's 7 D-03-deferred MPRIS2 cross-file test failures (FIX-MPRIS), Phase 58 PLS URL-fallback for codec/bitrate (FIX-PLS, from pending todo), conditional Phase 84 2-week buffer-events.log monitor follow-up (BUFFER-MONITOR — only if any of the 3 Follow-Up Triggers fires per 84-VERIFICATION.md)
-
-**Key context:** Phase 76 GBS in-app login subprocess (QtWebEngine) is reused for themed-logo + authenticated marquee fetches. AppImage and Flatpak are two distinct Linux targets — AppImage for download-and-run portability, Flatpak for store/auto-update-managed installs. Phase numbering continues from Phase 84.
+**Deferred at close:** VER-02-J + human-UAT sign-off on Phases 88.1/88.2/89.1 (Windows/packaging acceptance) and pre-existing backlog (2 Phase-95 debug sessions, 5 todos, SEED-009). No code blockers — see `.planning/milestones/v2.2-MILESTONE-AUDIT.md`.
 
 ## Previous Milestone: v2.1 Fixes and Tweaks ✓ SHIPPED 2026-05-25
 
@@ -54,11 +53,12 @@ Finding and playing a stream should take seconds — the right station should al
 
 **Delivered:** 14 phases (21–34), 21 plans, 53 requirements satisfied. Fixed all bugs surfaced during daily use plus opportunistic polish: multi-stream failover, Twitch via streamlink + OAuth, hamburger-menu consolidation, elapsed-time counter, YouTube cookie import, 15s YouTube failover gate, panel-layout sizing regression fix, and the Phase 33 deferred-test cleanup in Phase 34.
 
-## Current State (v2.1 shipped — 2026-05-25)
+## Current State (v2.2 shipped — 2026-06-29)
 
-- **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, radio_browser.py, yt_import.py, aa_import.py, accent_utils.py, cover_art.py, paths.py, url_helpers.py
-- **LOC:** ~13,000 Python total (source + tests) | **Tests:** 1462 passing, 1 skipped (Phase 77 closed 6-cluster deferred-items backlog — 2026-05-17; 12 collection errors + 34 test-item failures are env-gap requiring PyGObject/gi install; 1 carry-over failure test_hamburger_menu_actions from Phase 74/76; 7 MPRIS2 cross-file failures D-03-deferred to follow-up phase — see 77-06-SUMMARY.md)
-- **Stack:** Python + PySide6 + GStreamer + SQLite + yt-dlp + streamlink + urllib (iTunes API, Radio-Browser API, AudioAddict API). GTK4/Libadwaita deleted in Phase 36. Node.js runtime for yt-dlp EJS solver. mpv removed in Phase 35.
+- **Package:** `musicstreamer/` — constants, models, repo, assets, player, ui_qt/, media_keys/ (mpris2 + winrt SMTC), radio_browser.py, yt_import.py, aa_import.py, twitch_helix.py, gbs_api.py, accent_utils.py, cover_art.py, preroll_log.py, buffer_log.py, paths.py, url_helpers.py
+- **LOC:** ~13,000+ Python total (source + tests) | **Tests:** ~2,299 collected; v2.2 test-clean baseline restored (Phase 99). Note: full suite hangs past ~9% in the dev env (Qt-test condition) — scope test runs; 2 known pre-existing failures.
+- **Distribution:** Windows installer (PyInstaller + Inno Setup, AUMID + bundled QtWebEngine OAuth helper), **Linux AppImage** (portable, signed), **Linux Flatpak** (`io.github.kcreasey.MusicStreamer`, GPG-signed, sandboxed)
+- **Stack:** Python + PySide6 + GStreamer + SQLite + yt-dlp + streamlink + urllib (iTunes API, Radio-Browser API, AudioAddict API, Twitch Helix, GBS.FM). GTK4/Libadwaita deleted in Phase 36. Node.js runtime for yt-dlp EJS solver. mpv removed in Phase 35.
 - **Station list:** Provider-grouped tree + recently played section; collapsible filter strip with search box, provider/tag chip rows (FlowLayout wrapping, OR-within/AND-between), clear-all; segmented Stations/Favorites toggle; station star delegate on tree rows
 - **Now-playing:** Three-column panel — logo (16:9 for YouTube via ContentFit.CONTAIN, square otherwise) | "Name · Provider" / track title / Edit+Star+Pause+Stop+StreamPicker | cover art; volume slider with GStreamer + persistence; star button for ICY track favorites; edit button opens EditStationDialog; stream picker QComboBox syncs with failover
 - **Cover art:** iTunes Search API, junk detection, session dedup, placeholder fallback; genre cached in `last_itunes_result` for favorites
@@ -149,9 +149,11 @@ Finding and playing a stream should take seconds — the right station should al
 
 - ✓ v2.1 (Fixes and Tweaks) — 63 in-scope requirements satisfied across 42 phases (Phases 49–84). See `.planning/milestones/v2.1-REQUIREMENTS.md` for the full traceability table. Headline groups: GBS-AUTH-01 (Phase 76), BUG-09 Commit A+B (Phases 78+84), BUG-10 SQLite FK (Phase 80), BUG-11 YouTube .desktop launch (Phase 79), THEME-01 + ACCENT-02 (Phases 59/66/75), 16 ART-MB cover-art criteria (Phase 73), 17 SOMA catalog-import criteria (Phase 74), 4 LAYOUT responsive-narrow-panel criteria (Phases 72/72.1/72.3/72.4), VER-01 + VER-02 versioning (Phases 63/65). WIN-02 formally deferred to v2.2.
 
-### Active (v2.2)
+- ✓ v2.2 (Package Building and QOL features/tweaks) — 63/64 requirements satisfied across 27 phases (Phases 85–99 + 999.1). See `.planning/milestones/v2.2-REQUIREMENTS.md` for the full traceability table. Headline groups: PKG-LIN-APP-01..10 AppImage (Phase 85), PKG-LIN-FP-01..11 Flatpak (Phase 86), WIN-02/05 + bundled QtWebEngine OAuth (Phases 88/88.1/88.2/88.3), GBS-THEME/MARQ/TOKEN (Phases 87/87b), ART-AVATAR-01..12 channel avatars (Phases 89/89a/89.1/89b/89c), SOMA-PRE-01..06 preroll instrumentation (Phase 90), FIX-MPRIS (Phase 91), FIX-PLS (Phase 92). VER-02-J (Win11 VM packaging UAT) deferred-and-accepted as human acceptance debt.
 
-Requirements for v2.2 will live in a fresh `.planning/REQUIREMENTS.md` once the next milestone opens via `/gsd:new-milestone`. Pre-committed carry-overs already listed under **Current Milestone** above.
+### Active (next milestone)
+
+Requirements for the next milestone will live in a fresh `.planning/REQUIREMENTS.md` once it opens via `/gsd:new-milestone`. Carry-over candidates: VER-02-J Win11 VM UAT + the human-UAT sign-off debt on Phases 88.1/88.2/89.1 (see STATE.md Deferred Items), GBS-THEME-RETINT (accent retint from themed logo, deferred from v2.2).
 
 ### Out of Scope
 
@@ -305,7 +307,7 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-25 — v2.1 Fixes and Tweaks milestone shipped. 42 phases (49–84) / 187 plans / 249 tasks delivered across 4 weeks. 63 in-scope requirements satisfied; WIN-02 formally deferred to v2.2 (bundles with VER-02-J Win11 UAT + WIN-05 AAC retest in a single Win11 session). VER-01 auto-bump hook hardened to accept 4 commit-message forms + bump_version.py downgrade guard added. Phase directories archived to `.planning/milestones/v2.1-phases/`.*
+*Last updated: 2026-06-29 — v2.2 Package Building and QOL features/tweaks milestone shipped. 27 phases (85–99 + 999.1) / 89 plans / 105 tasks. Linux AppImage + GPG-signed Flatpak shipped, Windows bundle parity (AUMID + SMTC + QtWebEngine OAuth), channel avatars (YouTube/Twitch, per-provider), GBS.FM themed marquee + zero-token add, and a sweep of stream-engine fixes. 63/64 requirements satisfied; VER-02-J (Win11 VM packaging UAT) deferred-and-accepted as human acceptance debt. Critical avatar-test regression closed by gap-closure Phase 99. See `.planning/milestones/v2.2-MILESTONE-AUDIT.md`.*
 
 *Phase 69 (Debug why AAC streams aren't playing in Windows) complete — 2026-05-11. WIN-05 closed. New `tools/check_bundle_plugins.py` source-of-truth helper enumerating `REQUIRED_PLUGIN_DLLS = {"gstlibav.dll": ("avdec_aac", "gst-libav"), "gstaudioparsers.dll": ("aacparse", "gst-plugins-good")}`. `packaging/windows/build.ps1` step 4b plugin-presence guard with exit code 10 (WR-01-compliant `Write-Host -ForegroundColor Red`). Conda recipe in `packaging/windows/README.md` expanded with `gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly` (rediscovered Phase 43 spike findings were never fully productionized — the recipe shipped only `gstreamer` meta-package which has zero plugin runtime deps). Two new drift-guard pytests in `tests/test_packaging_spec.py` (8/8 pass). CONCERNS.md GStreamer Windows Plugin Availability section reconciled. Also productionized Phase 43.1 Pitfall #1 mid-UAT — added `pyside6` to the conda recipe + loosened `pyproject.toml` PySide6 pin to `>=6.10` (conda-forge's pyside6 6.10.1; pip's 6.11.0 wheel is ICU-ABI-incompatible with conda-forge's ICU 78 after gst-libav's transitive deps bumped it). Empirical PASS on Win11 VM: new step 4b guard fired live during rebuild when env was missing gst-libav (validating G-01); after env recreate, all tested AAC streams (multiple AA + SomaFM) play on the rebuilt installer. Verification 10/10.*
 

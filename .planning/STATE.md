@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: ready_to_plan
-stopped_at: Phase 99 complete (1/1) — ready to discuss Phase 999.1
-last_updated: 2026-06-29T03:12:29.666Z
-last_activity: 2026-06-28 -- Phase 99 execution started
+status: Awaiting next milestone
+stopped_at: Phase 98 context gathered
+last_updated: "2026-06-29T03:31:40.193Z"
+last_activity: 2026-06-29 — Milestone v2.2 completed and archived
 progress:
   total_phases: 27
   completed_phases: 27
   total_plans: 89
-  completed_plans: 92
+  completed_plans: 89
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 999.1
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-06-29
+Phase: Milestone v2.2 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-29 — Milestone v2.2 completed and archived
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -193,44 +193,26 @@ v2.2 roadmap-level decisions (2026-05-25):
 
 ## Deferred Items
 
-Items acknowledged and deferred at v2.1 milestone close on 2026-05-25 (still tracked here for visibility during v2.2):
+Items acknowledged and deferred at **v2.2** milestone close on 2026-06-29 (no code blockers; all human-acceptance or backlog):
 
 | Category | Item | Status |
 |----------|------|--------|
-| requirement | WIN-02 (SMTC AUMID Start-Menu shortcut) | In v2.2 — Phase 88 |
-| verification | Phase 84 — 2-week buffer-events.log monitor window | ✅ Closed — Phase 93 (deviation close, 2026-06-15) |
-| verification | Phase 65 VER-02-J — Win11 VM bundled-exe end-to-end | In v2.2 — Phase 88 |
-| seed | SEED-009 — Linux AppImage install | In v2.2 — Phases 85a + 85 |
-| todo | 2026-05-10-pls-codec-bitrate-url-fallback | In v2.2 — Phase 92 |
-| Phase 86.1 P02 | 1 | 2 tasks | 2 files |
-| Phase 88 P02 | 104 | 2 tasks | 1 files |
-| Phase 88.3 P01 | 5m | 2 tasks | 5 files |
-| Phase 94-optimize-sidebar-logo-loading-with-pre-scaled-thumbnails-for P02 | 22m | 2 tasks | 1 files |
-| Phase 94 P03 | 26 | 2 tasks | 2 files |
-| Phase 89 P02 | 2m | 2 tasks | 2 files |
-| Phase 89 P05 | 22 | 2 tasks | 2 files |
-| Phase 89B-twitch-channel-avatar-fetch P01 | 2m | 2 tasks | 3 files |
-| Phase 89B P03 | 8m | 3 tasks | 2 files |
-| Phase 89c P02 | 8m | 1 tasks | 2 files |
-| Phase 87.1 P04 | 211 | 3 tasks | 3 files |
-| Phase 90-somafm-preroll-instrumentation P01 | 8m | 2 tasks | 5 files |
-| Phase 90 P03 | 8 | 2 tasks | 2 files |
-| Phase 92-fix-pls-pls-url-fallback-for-codec-bitrate P01 | 3m | 3 tasks | 2 files |
-| Phase 95 P01 | 25min | 3 tasks | 5 files |
-| Phase 95 P02 | 4m | 2 tasks | 3 files |
-| Phase 999.1 P02 | 6m | 2 tasks | 1 files |
-| Phase 95 P03 | 3m | 2 tasks | 2 files |
-| Phase 96 P03 | 10 minutes | 2 tasks | 2 files |
-| Phase 96 P04 | 12 minutes | 2 tasks | 1 files |
-| Phase 96 P05 | 40 | 3 tasks | 5 files |
-| Phase 96.1 P01 | 8m | 2 tasks | 2 files |
-| Phase 96.1 P02 | 8min | 2 tasks | 1 files |
-| Phase 96.1 P03 | 2min | 3 tasks | 1 files |
-| Phase 96.2 P01 | 18 | 3 tasks | 4 files |
-| Phase 97 P01 | 4 minutes | 3 tasks | 4 files |
-| Phase 97 P04 | 5 minutes | 3 tasks | 5 files |
-| Phase 98 P02 | 281 | 2 tasks | 3 files |
-| Phase 98 P03 | 88 | 1 tasks | 1 files |
+| requirement | VER-02-J — Win11 VM clean-install packaging UAT (Phase 88) | Deferred — human, target-platform; not automatable (note: 88-03 consolidated VM session reported passed, 0 blocked) |
+| verification | Phase 87B — GBS zero-token single-song add (live tokens==0) | human_needed — awaiting human sign-off |
+| verification | Phase 88.1 — SMTC overlay + media keys (bundled Windows) | human_needed / partial UAT |
+| verification | Phase 88.2 — GBS.FM in-app login dialog (bundled Windows) | human_needed / partial UAT |
+| verification | Phase 89.1 — channel-avatar re-key per-provider | human_needed / partial UAT |
+| uat | Phase 96.2 — newly-discovered merge dropdown (1 unresolved path) | partial |
+| debug | 95-residual-exhausted-toast-already-ended-path | diagnosed (not fixed) |
+| debug | 95-spurious-stream-exhausted-toast | diagnosed (not fixed) |
+| seed | SEED-009 — Linux AppImage install | active (largely delivered by Phases 85a/85; review at backlog) |
+| todo | 2026-05-10-pls-codec-bitrate-url-fallback | open (Phase 92 shipped core fix; review) |
+| todo | 2026-05-26-host-env-docker-info-probe | open (spike-prereq) |
+| todo | 2026-05-26-test-bump-version-json-decoder-failures | open (release-tooling) |
+| todo | 2026-05-26-test-constants-drift-soma-nn-requirements | open (tests) |
+| todo | 2026-05-26-test-hamburger-menu-actions-pre-existing-d03 | open (tests) |
+
+Full audit: see archived `.planning/milestones/v2.2-MILESTONE-AUDIT.md`. Pre-close artifact audit reported 24 open items total (12 UAT gaps, 4 verification gaps, 5 todos, 2 debug sessions, 1 seed).
 
 ## Session Continuity
 
@@ -240,6 +222,4 @@ Resume file: .planning/phases/98-add-to-stats-for-nerds-actual-encoding-and-bitr
 
 ## Operator Next Steps
 
-✅ Phase 88 CLOSED (2026-06-13). The consolidated Option-C Win11 VM session passed all 8 rows (`88-UAT.md` status: resolved, 0 blocked) covering Phase 88 (G1/G5), 88.1 (G2 SMTC), 88.2 (G3 OAuth-helper launch), and 88.3 (G6 QtWebEngine logins). `88-03-SUMMARY.md` written 2026-06-16 to close the plan-without-summary bookkeeping gap; ROADMAP progress table 88 → 4/4 Complete.
-
-Next: advance v2.2 phase work via `/gsd:next` (Phase 89 YT Channel-Avatar has context gathered and is ready to plan).
+- Start the next milestone with /gsd-new-milestone

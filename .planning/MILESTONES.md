@@ -1,5 +1,22 @@
 # Milestones
 
+## v2.2 Package Building and QOL features/tweaks (Shipped: 2026-06-29)
+
+**Phases completed:** 27 phases, 89 plans, 105 tasks
+
+**Key accomplishments:**
+
+- **Linux packaging shipped** — portable `MusicStreamer-<ver>-x86_64.AppImage` (conda + GStreamer plugins, GLIBC 2.35 baseline, signed) and a GPG-signed `io.github.kcreasey.MusicStreamer.flatpak` with full audio + MPRIS2 + GBS.FM login working in-sandbox, plus a consent-based first-launch import wizard (Phases 85a/85/86/86.1).
+- **Windows bundle parity** — Inno Setup AUMID `[Icons]` directive + `.lnk` upgrade cleanup, winrt SMTC media-session bundling, frozen-exe OAuth-helper launch fix, and an isolated-pip QtWebEngine helper exe so GBS.FM/Twitch/Google in-app logins run from the frozen build (Phases 88/88.1/88.2/88.3).
+- **Channel avatars** — YouTube + Twitch channel-avatar fetch into the cover slot, re-keyed per-provider to dedupe across sibling streams, with a provider brand-avatar fallback (SomaFM/AudioAddict) and the locked `ICY → iTunes → MB-CAA → channel-avatar → placeholder` precedence (Phases 89/89a/89.1/89b/89c).
+- **GBS.FM polish** — themed-day marquee with logo override, zero-token single-song add, and a session-expiry re-login affordance (Phases 87/87b/87.1).
+- **Stream-engine fixes & QOL** — MPRIS2 test-baseline repair (gates Flatpak FP-08), PLS codec/bitrate URL fallback, YouTube URL-change replay fix, station-URL canonicalization to a single source of truth, detected encoding/bitrate in Stats-for-Nerds, pre-scaled sidebar logo thumbnails, live-stream discovery/merge fixes, and a friendlier corrupted-zip import error (Phases 90–99, 999.1).
+- **Test-clean baseline restored** — gap-closure Phase 99 migrated the 9 avatar add-path tests off the removed `url_edit` widget (zero production change), closing the milestone-audit critical regression.
+
+**Known deferred items at close:** 24 (see STATE.md Deferred Items) — all human-UAT acceptance debt (Windows/packaging sign-off on Phases 88.1/88.2/89.1, VER-02-J Win11 VM UAT) plus pre-existing backlog (2 diagnosed Phase-95 debug sessions, 5 todos, SEED-009). No code blockers.
+
+---
+
 ## v2.1 Fixes and Tweaks (Shipped: 2026-05-25)
 
 **Phases completed:** 42 phases, 187 plans, 249 tasks
