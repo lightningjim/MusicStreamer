@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.2
 milestone_name: Package Building and QOL features/tweaks
-status: executing
-stopped_at: Phase 98 context gathered
-last_updated: "2026-06-28T18:02:45.166Z"
+status: ready_to_plan
+stopped_at: Phase 99 complete (1/1) — ready to discuss Phase 999.1
+last_updated: 2026-06-29T03:12:29.666Z
 last_activity: 2026-06-28 -- Phase 99 execution started
 progress:
   total_phases: 27
   completed_phases: 27
   total_plans: 89
-  completed_plans: 89
+  completed_plans: 92
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Finding and playing a stream should take seconds — the right station should always be one or two clicks away.
-**Current focus:** Phase 99 — migrate-avatar-add-path-tests-off-removed-url-edit-widget-ga
+**Current focus:** Phase 999.1 — friendlier settings import error for text mode corrupted zip
 
 ## Current Position
 
-Phase: 99 (migrate-avatar-add-path-tests-off-removed-url-edit-widget-ga) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 99
-Last activity: 2026-06-28 -- Phase 99 execution started
+Phase: 999.1
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-06-29
 
 ## Phase 88 Gap Disposition (from 88-HUMAN-UAT.md, 2026-06-09)
 
@@ -86,7 +86,7 @@ Tier 8 (post-roadmap additions):
 
 **Velocity:**
 
-- Total plans completed: 248+ (v1.0–v2.1 combined)
+- Total plans completed: 249+ (v1.0–v2.1 combined)
 - Average duration: ~14 min/plan
 - Total execution time: ~12 hours (carried over baseline)
 
