@@ -371,16 +371,47 @@
 
 ---
 
+## Milestone: v2.2 — Package Building and QOL features/tweaks
+
+**Shipped:** 2026-06-29
+**Phases:** 27 (85–99 + 999.1, many decimal sub-phases) | **Plans:** 89 | **Tasks:** 105
+
+### What Was Built
+Linux distribution finally shipped — a portable signed AppImage and a GPG-signed sandboxed Flatpak — alongside Windows bundle parity (AUMID Start-Menu identity, winrt SMTC bundling, and an isolated-pip QtWebEngine helper exe so in-app OAuth logins run from the frozen build). On top of packaging: YouTube/Twitch channel avatars re-keyed per-provider, GBS.FM themed-day marquee + zero-token add, SomaFM preroll instrumentation, and a broad stream-engine fix sweep (MPRIS test repair, PLS fallback, YT URL-change replay, URL canonicalization, codec/bitrate stats).
+
+### What Worked
+- **Spike-before-build de-risked packaging.** Phase 85a (linuxdeploy + conda + GStreamer) and the 88.3 QtWebEngine spike caught ABI/bundling traps before committing the full recipe — the conda-vs-pip PySide6 WebEngine incompatibility would have been very expensive to discover during the build itself.
+- **Conditional phases stayed cheap.** Phase 90b (SomaFM fix) and Phase 93 (buffer-monitor) were placeholders that closed without firing / resolved out-of-band — the roadmap carried the option without paying for it.
+- **Gap-closure phase pattern.** The milestone audit caught a cross-phase test regression (Phase 97 removed `url_edit`, breaking Phase 89B's tests); inserting a tight Phase 99 closed it with zero production change and restored the test-clean baseline before close.
+
+### What Was Inefficient
+- **Packaging acceptance is human-gated and serialized on a Win11 VM.** A long tail of UAT debt (88.1/88.2/89.1 + VER-02-J) accumulated because each frozen-Windows fix can only be truly verified on the target platform — Linux/CI guards land green but acceptance defers to a consolidated VM session.
+- **Decimal-phase churn.** Many urgent insertions (86.1, 87.1, 88.1–88.3, 89.1, 89c, 96.1, 96.2) reflect defects surfaced only at UAT — packaging and frozen-build behavior repeatedly diverged from the Linux dev environment.
+
+### Patterns Established
+- Isolated-pip helper exe spawned from the conda main exe (QtWebEngine OAuth) — bundle adjacency beats PATH for Qt resolution.
+- `collect_all` for per-namespace pywinrt `.pyd` distributions (SMTC) — `hiddenimports` alone silently degrades to NoOp.
+- Per-provider (not per-station) avatar keying to dedupe fetch/storage across sibling streams.
+- Milestone-audit → insert tight gap-closure phase → re-audit, as the standard close-the-gap loop.
+
+### Key Lessons
+- Frozen-build env parity is the dominant risk in packaging work; Linux green ≠ Windows/Flatpak green. Budget for a VM acceptance session per packaging milestone.
+- A milestone can be "functionally done" with no code blockers yet still carry legitimate human-acceptance debt — `tech_debt` close (deferred-and-accepted, documented) is the honest disposition, not a forced `gaps_found`.
+
+### Cost Observations
+- Model mix: balanced profile (sonnet agents, opus orchestration).
+- Notable: heavy reliance on spikes + conditional phases kept exploratory packaging risk bounded; the test-clean baseline was restored pre-close rather than carried as debt.
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v2.0 | v2.1 |
-|--------|------|------|------|------|------|------|------|------|
-| Phases | 4 | 2 | 5 | 4 | 5 | 14 | 17 (+5 backlog) | 42 |
-| Plans | 8 | 4 | 12 | 8 | 8 | 21 | 81 | 187 |
-| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) | ~750 (+485) | ~1780 (+1030) |
-| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) | ~16,000 (+6,100) | ~25,000 (+9,000) |
-| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 | 0 | many (decimal sub-phases) |
-| Days | 35 | 1 | 3 | 8 | 2 | 5 | 14 | 28 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v2.0 | v2.1 | v2.2 |
+|--------|------|------|------|------|------|------|------|------|------|
+| Phases | 4 | 2 | 5 | 4 | 5 | 14 | 17 (+5 backlog) | 42 | 27 |
+| Plans | 8 | 4 | 12 | 8 | 8 | 21 | 81 | 187 | 89 |
+| Tests | 43 | 58 (+15) | 85 (+27) | 127 (+42) | 153 (+26) | 265 (+112) | ~750 (+485) | ~1780 (+1030) | ~2,299 (+~520) |
+| LOC (Python total) | 1,409 | 1,782 (+373) | ~2,200 | 3,150 (+950) | ~3,500 (+350) | ~9,900 (+6,400) | ~16,000 (+6,100) | ~25,000 (+9,000) | ~26,000+ |
+| Gap closure plans | 1 | 0 | 0 | 0 | 0 | 0 | 0 | many (decimal sub-phases) | 1 (Phase 99) |
+| Days | 35 | 1 | 3 | 8 | 2 | 5 | 14 | 28 | 35 |
 
 ## Milestone: v1.1 — Polish & Station Management
 
