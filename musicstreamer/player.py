@@ -707,6 +707,22 @@ class Player(QObject):
         # brief window between _on_youtube_resolved and the first PLAYING transition.
         self._pending_live_dvr_seek: bool = False
 
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: reference to the currently-live
+        # hlsdemux2 element (if any), captured by _on_deep_element_added when it
+        # first configures the element's max-buffering-time/high-watermark-time.
+        # Without this, Phase 84 / D-11 growth (_maybe_grow_buffer_duration) can
+        # only ever update _current_buffer_duration_s / stage a value for the
+        # NEXT URI bind — it has no way to reach the ALREADY-RUNNING hlsdemux2
+        # instance, so growth was a complete no-op for the duration of any live
+        # YouTube session (confirmed against production buffer-events.log: a
+        # single continuous session accumulated 57 "recovered" underrun cycles
+        # with zero improvement after growth should have capped at 120s).
+        # _apply_growth_to_live_hlsdemux2 uses this reference to re-apply the
+        # grown buffer size immediately, mid-session. Cleared on pipeline
+        # teardown (_try_next_stream / _set_uri) so a stale/disposed element is
+        # never targeted by a later session's growth event.
+        self._live_hlsdemux2_element = None
+
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
         self._eq_preamp_db: float = 0.0
@@ -1568,6 +1584,13 @@ class Player(QObject):
         self._current_buffer_duration_s = new_s
         # WR-02: is_adapted=True — any growth-step write is by definition adapted.
         self.buffer_duration_changed.emit(new_s, True)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: also push the grown value to the
+        # CURRENTLY RUNNING hlsdemux2 element (if any), immediately. Without
+        # this, growth only ever reached playbin3 at the next URI bind, which
+        # a live YouTube radio session essentially never performs — leaving
+        # hlsdemux2's real segment buffer permanently pinned at the 30s
+        # baseline no matter how many underrun cycles closed as "recovered".
+        self._apply_growth_to_live_hlsdemux2(new_s)
 
     def _on_underrun_dwell_elapsed(self) -> None:
         """Main-thread QTimer.timeout slot (Phase 62 / D-07). Cycle has been
@@ -1658,6 +1681,12 @@ class Player(QObject):
         # duplicate pad names in streamsynchronizer, triggering GStreamer
         # CRITICAL assertions that abort the process.
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: the just-torn-down pipeline's
+        # hlsdemux2 element (if any) is gone — drop the stale reference so a
+        # later growth event never targets a disposed element from a prior
+        # session. _on_deep_element_added will repopulate this on the next
+        # bind if the new stream is also HLS.
+        self._live_hlsdemux2_element = None
         if not self._streams_queue:
             # Phase 95-03: while a YouTube resolve is in flight the queue is
             # transiently empty — do NOT declare exhaustion. The pending resolve
@@ -1728,6 +1757,12 @@ class Player(QObject):
         uri = aa_normalize_stream_url(uri)  # WIN-01 / D-01: DI.fm HTTPS->HTTP at URI funnel
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: drop any stale hlsdemux2 reference
+        # from the just-torn-down pipeline (mirrors _try_next_stream). _set_uri
+        # is the funnel for resolved YouTube HLS URLs too (_on_youtube_resolved
+        # calls it directly), so this covers that path as well as the direct-
+        # stream-restart path noted above.
+        self._live_hlsdemux2_element = None
         self._pipeline.set_property("uri", uri)
         # Phase 98: arm codec/bitrate detection for the new stream BEFORE
         # set_state(PLAYING) (gap G-03 / code-review WR-01). Arming after PLAYING
@@ -2052,16 +2087,25 @@ class Player(QObject):
         and sets max-buffering-time + high-watermark-time to match the
         current buffer-duration target.
 
+        BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: also stashes a reference to the
+        element on self._live_hlsdemux2_element so a LATER in-session growth
+        event (_maybe_grow_buffer_duration) can re-apply a bigger buffer
+        target to this SAME running instance — see
+        _apply_growth_to_live_hlsdemux2. Without this, growth staged after an
+        underrun cycle closes had no element to write to and only ever
+        affected the next URI bind (which never happens mid-live-session).
+
         Threading invariant: this callback fires from GStreamer-internal
         threads (typically the thread that calls set_state, which is the Qt
         main thread for our _set_uri callers, but may be a GStreamer streaming
         thread for dynamically-added uridecodebin3 children). The handler
         MUST NOT touch Qt APIs. It only writes two GObject properties on the
         newly-added GStreamer element — safe from any thread (GLib GObject
-        property writes are thread-safe for simple scalar types). Reading
-        self._current_buffer_duration_s is a CPython-atomic int read per the
-        same justification as _preroll_in_flight cross-thread reads (Pattern
-        2 in qt-glib-bus-threading.md).
+        property writes are thread-safe for simple scalar types) — and stores
+        a plain reference on self, which is CPython-atomic per the same
+        justification as _preroll_in_flight cross-thread reads (Pattern 2 in
+        qt-glib-bus-threading.md). Reading self._current_buffer_duration_s is
+        likewise a CPython-atomic int read.
         """
         factory = element.get_factory()
         if factory is None:
@@ -2074,18 +2118,55 @@ class Player(QObject):
         # available.
         if "hlsdemux2" not in name:
             return
-        target_ns = self._current_buffer_duration_s * Gst.SECOND
+        self._live_hlsdemux2_element = element
+        self._configure_hlsdemux2_buffer(element, self._current_buffer_duration_s)
+
+    def _configure_hlsdemux2_buffer(self, element, target_s: int) -> None:
+        """Write max-buffering-time / high-watermark-time (in seconds) to a
+        live hlsdemux2 element.
+
+        Shared by _on_deep_element_added (initial configuration at element
+        creation) and _apply_growth_to_live_hlsdemux2 (BUG-YT-LIVE-DROPS-
+        BUFFER-UNDERRUN mid-session re-application after adaptive growth).
+        Defensive: element may already be disposed (pipeline torn down
+        between the growth event firing and this write) — GObject property
+        writes on a disposed element raise, which we log and swallow, mirror
+        of the original D-01 handler's error handling.
+        """
+        target_ns = target_s * Gst.SECOND
         try:
             element.set_property("max-buffering-time", target_ns)
             element.set_property("high-watermark-time", target_ns)
             _log.debug(
                 "hlsdemux2 buffer configured: max-buffering-time=%.0fs "
                 "high-watermark-time=%.0fs",
-                self._current_buffer_duration_s,
-                self._current_buffer_duration_s,
+                target_s,
+                target_s,
             )
         except Exception as exc:  # noqa: BLE001 — GObject property write; defensive
             _log.warning("hlsdemux2 buffer config failed: %s", exc)
+
+    def _apply_growth_to_live_hlsdemux2(self, new_s: int) -> None:
+        """BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: re-apply a grown buffer-duration
+        target to the CURRENTLY RUNNING hlsdemux2 element, mid-session.
+
+        Called from _maybe_grow_buffer_duration (main-thread slot, via
+        _on_underrun_cycle_closed) immediately after staging a new growth
+        step. Without this, growth only updated UI-facing state
+        (_current_buffer_duration_s / buffer_duration_changed) and staged a
+        value for playbin3's NEXT URI bind — which for a live YouTube radio
+        station essentially never happens (the session just keeps playing
+        the same resolved URL). hlsdemux2's real segment buffer was
+        therefore permanently pinned at the 30s baseline regardless of how
+        many underrun cycles closed as "recovered".
+
+        No-op when no hlsdemux2 element is currently live (non-YouTube-live
+        streams, or growth firing in the brief window before
+        _on_deep_element_added has captured the element).
+        """
+        if self._live_hlsdemux2_element is None:
+            return
+        self._configure_hlsdemux2_buffer(self._live_hlsdemux2_element, new_s)
 
     # ------------------------------------------------------------------ #
     # YouTube -- yt_dlp library API with EJS JS challenge solver (Plan 35-06)

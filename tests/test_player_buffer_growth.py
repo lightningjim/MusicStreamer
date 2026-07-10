@@ -630,3 +630,144 @@ def test_buffer_duration_changed_signal_at_class_scope():
         f"Player.buffer_duration_changed is not a PySide6 Signal: "
         f"{sig_repr}"
     )
+
+
+# ======================================================================
+# BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN — mid-session growth must reach the
+# LIVE hlsdemux2 element, not just stage a value for a URI bind that a
+# continuous live-radio session essentially never performs.
+#
+# Root cause (confirmed against production buffer-events.log): a single
+# continuous YouTube-live session accumulated 57 "recovered" underrun
+# cycles with zero improvement after growth should have capped at 120s by
+# cycle #2 — because _maybe_grow_buffer_duration only ever updated UI-facing
+# state / staged a value for the next URI bind, never the already-running
+# hlsdemux2 instance's max-buffering-time / high-watermark-time properties.
+# ======================================================================
+
+def _make_element(factory_name: str) -> MagicMock:
+    """Build a mock GStreamer element with a factory that returns factory_name.
+
+    Duplicated from tests/test_player_hlsdemux2_buffer.py per PATTERNS.md
+    §S-6 (per-file helper duplication convention).
+    """
+    factory = MagicMock()
+    factory.get_name.return_value = factory_name
+    element = MagicMock()
+    element.get_factory.return_value = factory
+    return element
+
+
+def test_live_hlsdemux2_element_none_at_init(qtbot):
+    """_live_hlsdemux2_element must be None at construction — no hlsdemux2
+    element exists before the first URI bind creates one.
+    """
+    player = make_player(qtbot)
+    assert player._live_hlsdemux2_element is None
+
+
+def test_deep_element_added_captures_live_hlsdemux2_reference(qtbot):
+    """_on_deep_element_added must stash the hlsdemux2 element on
+    self._live_hlsdemux2_element so a later growth event has something to
+    re-configure mid-session.
+    """
+    player = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+
+    player._on_deep_element_added(player._pipeline, MagicMock(), element)
+
+    assert player._live_hlsdemux2_element is element
+
+
+def test_growth_reapplies_to_live_hlsdemux2_element_immediately(qtbot):
+    """The core regression test: once hlsdemux2 is live, a cycle_close that
+    stages growth (30s -> 60s) must ALSO immediately re-write
+    max-buffering-time / high-watermark-time on the SAME running element —
+    not just stage a value for a URI bind that a live session never
+    performs. Before the fix, hlsdemux2's real segment buffer stayed
+    pinned at the 30s baseline for the life of the session no matter how
+    many underrun cycles closed as "recovered".
+    """
+    player = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+    player._on_deep_element_added(player._pipeline, MagicMock(), element)
+    element.set_property.reset_mock()  # clear the initial 30s-baseline config call
+
+    player._on_underrun_cycle_closed(_make_record())
+    qtbot.wait(50)
+
+    expected_ns = 60 * _GST_SECOND
+    element.set_property.assert_any_call("max-buffering-time", expected_ns)
+    element.set_property.assert_any_call("high-watermark-time", expected_ns)
+
+
+def test_growth_reapplies_second_step_to_live_hlsdemux2_element(qtbot):
+    """A second sequential cycle_close must push the 120s cap to the same
+    live hlsdemux2 element too (not just the first growth step).
+    """
+    player = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+    player._on_deep_element_added(player._pipeline, MagicMock(), element)
+    element.set_property.reset_mock()
+
+    player._on_underrun_cycle_closed(_make_record())
+    player._on_underrun_cycle_closed(_make_record())
+    qtbot.wait(50)
+
+    expected_ns = 120 * _GST_SECOND
+    element.set_property.assert_any_call("max-buffering-time", expected_ns)
+    element.set_property.assert_any_call("high-watermark-time", expected_ns)
+
+
+def test_growth_noop_when_no_live_hlsdemux2_element(qtbot):
+    """When no hlsdemux2 element is live (e.g. a non-YouTube direct HTTP
+    stream, or growth firing before _on_deep_element_added has captured
+    the element), _maybe_grow_buffer_duration must not raise and must
+    leave _live_hlsdemux2_element as None.
+    """
+    player = make_player(qtbot)
+    assert player._live_hlsdemux2_element is None
+
+    # Must not raise even though there is nothing to re-configure.
+    player._on_underrun_cycle_closed(_make_record())
+    qtbot.wait(50)
+
+    assert player._live_hlsdemux2_element is None
+    assert player._current_buffer_duration_s == 60  # UI-mirror growth still happens
+
+
+def test_try_next_stream_clears_live_hlsdemux2_element_reference(qtbot):
+    """_try_next_stream tears down the pipeline (set_state(NULL)) before
+    binding the next stream — any hlsdemux2 reference from the OLD,
+    now-disposed pipeline must be cleared so a later growth event never
+    targets a stale element from a prior session.
+    """
+    player = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+    player._on_deep_element_added(player._pipeline, MagicMock(), element)
+    assert player._live_hlsdemux2_element is element
+
+    player._streams_queue = [
+        SimpleNamespace(url="http://example/", id=1, station_id=1)
+    ]
+    player._is_first_attempt = False
+
+    player._try_next_stream()
+
+    assert player._live_hlsdemux2_element is None
+
+
+def test_set_uri_clears_live_hlsdemux2_element_reference(qtbot):
+    """_set_uri is the funnel for resolved YouTube HLS URLs too
+    (_on_youtube_resolved calls it directly) as well as the direct-stream-
+    restart path — it must also clear the stale hlsdemux2 reference from
+    the just-torn-down pipeline.
+    """
+    player = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+    player._on_deep_element_added(player._pipeline, MagicMock(), element)
+    assert player._live_hlsdemux2_element is element
+
+    player._set_uri("http://example/stream")
+
+    assert player._live_hlsdemux2_element is None
