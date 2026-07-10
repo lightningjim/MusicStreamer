@@ -150,7 +150,7 @@ class _CycleClose:
     station_name: str
     url: str
     outcome: str           # recovered | failover | stop | pause | shutdown
-    cause_hint: str        # unknown | network
+    cause_hint: str        # unknown | network | segment_retry
 
 
 class _BufferUnderrunTracker:
@@ -170,6 +170,11 @@ class _BufferUnderrunTracker:
         (pause / stop / failover / shutdown).
       - note_error_in_cycle() flips cause_hint to 'network' if a cycle is open
         (D-02 Discretion: minimal cause attribution this phase).
+      - note_segment_retry_in_cycle() flips cause_hint to 'segment_retry' if a
+        cycle is open AND no stronger 'network' signal has already fired for
+        it (BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN Round 2: distinguishes "hlsdemux2
+        silently retried a stalled segment fetch and recovered" from a fatal
+        top-level pipeline error).
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
@@ -268,6 +273,26 @@ class _BufferUnderrunTracker:
         """
         if self._open:
             self._cause_hint = "network"
+
+    def note_segment_retry_in_cycle(self) -> None:
+        """BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): flip cause_hint to
+        'segment_retry' if a cycle is open and no stronger signal has fired.
+
+        Called from Player._on_gst_element_message when a forwarded
+        GstBinForwarded WARNING/ERROR from hlsdemux2's internal download
+        machinery is observed (hlsdemux2 message-forward=True — see
+        _enable_hlsdemux2_message_forwarding). This is a NON-fatal signal:
+        hlsdemux2 is retrying a stalled/failed segment fetch internally and
+        the cycle may still close as 'recovered'. It is distinct from
+        note_error_in_cycle's 'network' (a fatal TOP-LEVEL bus error, which
+        also drives _handle_gst_error_recovery / failover).
+
+        'network' always wins if both fire in the same cycle — a fatal
+        top-level error is the stronger, more specific signal. Bus-loop
+        thread is fine — tracker has no Qt.
+        """
+        if self._open and self._cause_hint == "unknown":
+            self._cause_hint = "segment_retry"
 
     def _close_with_now(self, outcome: str, end_ts: float) -> _CycleClose:
         """Build the close record using the supplied end_ts, then reset
@@ -480,6 +505,12 @@ class Player(QObject):
         bus.connect("message::error", self._on_gst_error)  # async handler
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
         bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): hlsdemux2 has
+        # message-forward=True (see _enable_hlsdemux2_message_forwarding), so
+        # its internal children's ERROR/WARNING messages — normally swallowed
+        # by GstBin — arrive here wrapped as GST_MESSAGE_ELEMENT /
+        # "GstBinForwarded". See _on_gst_element_message.
+        bus.connect("message::element", self._on_gst_element_message)  # async handler
         bus.connect("message::state-changed", self._on_gst_state_changed)  # Phase 57 / WIN-03 D-12
         # Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED).
         # IN-02 (Phase 83 code review): _on_gst_eos_during_preroll is the
@@ -1297,6 +1328,64 @@ class Player(QObject):
             self._underrun_cycle_opened.emit()              # queued → main: arm dwell timer
         elif transition is not None:                         # closed naturally (recovered)
             self._underrun_cycle_closed.emit(transition)    # queued → main: log + cancel dwell
+
+    def _on_gst_element_message(self, bus, msg) -> None:
+        """Bus-loop-thread handler for forwarded child-bin messages.
+
+        BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): hlsdemux2 has
+        message-forward=True (_enable_hlsdemux2_message_forwarding), so its
+        internal download machinery's ERROR/WARNING messages — which GstBin
+        would otherwise swallow entirely — arrive here wrapped as a
+        GST_MESSAGE_ELEMENT whose structure is named "GstBinForwarded" and
+        carries the original GstMessage under the "message" field (standard
+        GstBin contract — gstreamer.freedesktop.org/documentation/gstreamer/gstbin.html).
+
+        Root cause this closes: production buffer-events.log showed EVERY
+        buffer_underrun event logging cause_hint=unknown, including cycles
+        that stalled for 100+ seconds (min_percent=0 for 108s / 172s) — far
+        too long to be explained by buffer capacity alone. note_error_in_cycle
+        only ever fires from a TOP-LEVEL message::error, but hlsdemux2's
+        segment-fetch retry/backoff (max-retries / retry-backoff-factor /
+        retry-backoff-max properties, left at GStreamer defaults — confirmed
+        via gst-inspect-1.0) operates entirely inside hlsdemux2's own GstBin
+        and recovers WITHOUT ever escalating to a fatal top-level bus error —
+        so the tracker had zero visibility into segment-fetch trouble
+        happening beneath the buffer-percent metric. This handler + the
+        message-forward property write are the standard GStreamer mechanism
+        to surface those otherwise-swallowed child messages.
+
+        Any other GST_MESSAGE_ELEMENT (not a GstBinForwarded envelope, or one
+        wrapping a message type we don't care about) is a silent no-op.
+        Bus-loop thread: may only touch the (Qt-free) tracker and the module
+        logger, never Qt state directly (Pitfall 2). Wrapped defensively —
+        GstStructure/GstMessage introspection on an unfamiliar forwarded
+        payload must never crash the bus-loop thread.
+        """
+        try:
+            struct = msg.get_structure()
+            if struct is None or struct.get_name() != "GstBinForwarded":
+                return
+            forwarded = struct.get_value("message")
+            if forwarded is None:
+                return
+            mtype = forwarded.type
+            if mtype == Gst.MessageType.ERROR:
+                err, debug = forwarded.parse_error()
+                level = "error"
+            elif mtype == Gst.MessageType.WARNING:
+                err, debug = forwarded.parse_warning()
+                level = "warning"
+            else:
+                return
+            src = forwarded.src
+            src_name = src.get_name() if src is not None else "?"
+            _log.info(
+                "hls_segment_fetch_issue level=%s src=%r err=%r debug=%r",
+                level, src_name, str(err), debug,
+            )
+            self._tracker.note_segment_retry_in_cycle()
+        except Exception as exc:  # noqa: BLE001 — bus-loop thread must never raise
+            _log.warning("hls forwarded-message handling failed: %s", exc)
 
     # ------------------------------------------------------------------ #
     # Phase 70 / DS-01: GStreamer audio-sink-pad caps detection.
@@ -2120,6 +2209,27 @@ class Player(QObject):
             return
         self._live_hlsdemux2_element = element
         self._configure_hlsdemux2_buffer(element, self._current_buffer_duration_s)
+        self._enable_hlsdemux2_message_forwarding(element)
+
+    def _enable_hlsdemux2_message_forwarding(self, element) -> None:
+        """BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): set message-forward=True
+        on the hlsdemux2 element.
+
+        Without this (GstBin default: message-forward=False), ERROR/WARNING
+        messages posted by hlsdemux2's OWN internal child elements (its
+        segment-download machinery) are swallowed by hlsdemux2's GstBin
+        filtering and never reach the pipeline's top-level bus — leaving
+        _on_gst_element_message with nothing to observe and cause_hint
+        permanently stuck at 'unknown' for this entire class of event (see
+        .planning/debug/yt-live-drops-buffer-underrun.md Round 2 evidence).
+
+        Defensive: mirrors _configure_hlsdemux2_buffer's try/except — older or
+        unusual GStreamer builds may not expose this property.
+        """
+        try:
+            element.set_property("message-forward", True)
+        except Exception as exc:  # noqa: BLE001 — GObject property write; defensive
+            _log.warning("hlsdemux2 message-forward config failed: %s", exc)
 
     def _configure_hlsdemux2_buffer(self, element, target_s: int) -> None:
         """Write max-buffering-time / high-watermark-time (in seconds) to a
