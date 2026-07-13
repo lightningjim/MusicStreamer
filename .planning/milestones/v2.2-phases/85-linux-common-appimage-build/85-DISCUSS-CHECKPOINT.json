@@ -1,0 +1,44 @@
+{
+  "phase": "85",
+  "phase_name": "Linux Common + AppImage Build",
+  "areas_selected": ["Bundle source-of-truth", "Smoke-test codec/URL surface", "Scope boundaries (signing, zsync URL, CI)"],
+  "areas_completed": ["Bundle source-of-truth", "Smoke-test codec/URL surface", "Scope boundaries (signing, zsync URL, CI)"],
+  "decisions": {
+    "bundle_source_of_truth": {
+      "approach": "B — Parse environment.yml at build start; synthesize CONDA_PACKAGES",
+      "file_layout": "tools/linux-build/environment.yml (dedicated build env, separate from any dev env)",
+      "musicstreamer_install": "pip install --no-deps . into bundled env after plugin-conda finishes"
+    },
+    "smoke_test_surface": {
+      "codec_sweep": "MP3 + AAC + AACP + PLS-resolved (full sweep across 3 distros)",
+      "pls_handling": "smoke_test.py imports musicstreamer.url_helpers and calls the production resolver",
+      "playback_duration": "35s per URL (spike default); total UAT ~7 min for 4 URLs × 3 distros",
+      "rationale": "Exercises production resolver code path; catches dependency-graph / import issues that GStreamer-only smoke would miss"
+    },
+    "scope_boundaries": {
+      "signing": "GPG-sign the AppImage in build.sh (linuxdeploy --sign + sidecar .sig); GPG_KEY_ID env var; CI key via secrets.LINUX_SIGNING_KEY / LINUX_SIGNING_KEY_ID; adds new PKG-LIN-APP-10 requirement",
+      "zsync_url": "Embed 'gh-releases-zsync|kcreasey|MusicStreamer|latest|MusicStreamer-*-x86_64.AppImage.zsync' (satisfies PKG-LIN-APP-06; serving infra deferred per PKG-LIN-APP-UPDATE)",
+      "ci_scope": "Hybrid scaffold — .github/workflows/linux-appimage.yml workflow_dispatch only; no auto-publish; single-distro (Ubuntu 22.04) parity check, distrobox sweep stays on dev rig"
+    }
+  },
+  "folded_todos": ["2026-05-26-host-env-docker-info-probe.md"],
+  "deferred_ideas": [],
+  "canonical_refs": [
+    ".planning/spikes/85a-linux-packaging-spike/85A-SPIKE-FINDINGS.md",
+    ".planning/spikes/85a-linux-packaging-spike/AppRun",
+    ".planning/spikes/85a-linux-packaging-spike/build.sh",
+    ".planning/spikes/85a-linux-packaging-spike/Dockerfile",
+    ".planning/spikes/85a-linux-packaging-spike/environment-spike.yml",
+    ".planning/spikes/85a-linux-packaging-spike/pins.env",
+    ".planning/spikes/85a-linux-packaging-spike/verify-pins.sh",
+    ".planning/spikes/85a-linux-packaging-spike/smoke_test.py",
+    ".claude/skills/spike-findings-musicstreamer/references/linux-appimage-bundling.md",
+    ".planning/phases/85A-linux-packaging-spike/85A-VERIFICATION.md",
+    ".planning/REQUIREMENTS.md (PKG-LIN-APP-01..09)",
+    "tools/linux-spike/create-distroboxes.sh",
+    "tools/linux-spike/run-smoke.sh",
+    "tools/linux-spike/teardown-distroboxes.sh",
+    "tools/check_bundle_plugins.py (Windows analog for Linux drift-guard mirror)",
+    "musicstreamer/url_helpers.py (production resolver imported by smoke_test.py)"
+  ]
+}
