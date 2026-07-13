@@ -1,21 +1,38 @@
 {
   "version": "1.0",
-  "timestamp": "2026-06-28T18:02:21.426Z",
-  "source": "auto-postool",
-  "partial": true,
+  "timestamp": "2026-07-11T03:17:59.067Z",
   "phase": null,
-  "phase_name": null,
-  "phase_dir": null,
+  "phase_name": "debug: yt-live-drops-buffer-underrun",
+  "phase_dir": ".planning/debug/yt-live-drops-buffer-underrun.md",
   "plan": null,
   "task": null,
   "total_tasks": null,
-  "status": "auto-checkpoint",
-  "completed_tasks": [],
-  "remaining_tasks": [],
-  "blockers": [],
-  "human_actions_pending": [],
-  "decisions": [],
-  "uncommitted_files": [],
-  "next_action": null,
-  "context_notes": ""
+  "status": "paused",
+  "context": "debug",
+  "branch": "fix/yt-live-drops-buffer-underrun",
+  "completed_tasks": [
+    {"id": 1, "name": "Round 1: root-cause + fix buffer-growth no-op on live hlsdemux2", "status": "done", "commit": "9b49182e"},
+    {"id": 2, "name": "Round 1: real-world verify — buffer now reaches 100%", "status": "done"},
+    {"id": 3, "name": "Round 2: root-cause residual segment-fetch stalls + ship instrumentation (cause_hint=segment_retry, hls_segment_fetch_issue log)", "status": "done", "commit": "3a5f3b41"},
+    {"id": 4, "name": "Commit both rounds as separate atomic commits on fix branch", "status": "done"}
+  ],
+  "remaining_tasks": [
+    {"id": 5, "name": "USER: run fixed build on a lofi live station; on next rebuffer inspect ~/.local/share/musicstreamer/buffer-events.log for cause_hint=segment_retry + hls_segment_fetch_issue lines", "status": "not_started"},
+    {"id": 6, "name": "Round 3 (gated): if segment_retry confirmed, build stall-duration watchdog / forced re-seek to cap 100+s stalls. If still cause_hint=unknown with no hls_segment_fetch_issue, reopen (silent sub-Bin stall).", "status": "not_started"},
+    {"id": 7, "name": "Decide push/PR for branch fix/yt-live-drops-buffer-underrun (not pushed, no PR)", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "Round 3 fix is gated on real-world log evidence that segment_retry is the true driver — cannot proceed without a user listening session", "type": "human_action", "workaround": "Round 2 instrumentation already shipped to gather that evidence"}
+  ],
+  "human_actions_pending": [
+    {"action": "Run the fixed build during a real multi-minute YouTube-live stall and inspect buffer-events.log", "context": "Only a real session validates the Round 2 instrumentation and unlocks the evidence-based Round 3 watchdog decision", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Split the intermingled player.py diff into two atomic commits (R1 buffer-growth, R2 instrumentation)", "rationale": "User asked for separate atomic commits; done via full-file backup -> reduce to R1-only -> commit -> restore -> commit R2"},
+    {"decision": "Defer the stall-duration watchdog to Round 3 rather than build it now", "rationale": "Insufficient evidence yet that a forced re-seek helps; ship instrumentation first to confirm cause=segment_retry (user chose 'wait for evidence')"},
+    {"decision": "Residual 108-172s full drains are primarily env/YouTube-CDN-side, not player-eliminable at the source", "rationale": "No buffer covers a multi-minute upstream segment gap; player's only lever is faster forced recovery"}
+  ],
+  "uncommitted_files": [".planning/HANDOFF.json", ".planning/.continue-here.md"],
+  "next_action": "Resume ONLY after the user reports a real fixed-build session: read ~/.local/share/musicstreamer/buffer-events.log for cause_hint=segment_retry / hls_segment_fetch_issue around a buffer_underrun, then either build the Round 3 watchdog or `/gsd:debug continue yt-live-drops-buffer-underrun` if evidence points elsewhere.",
+  "context_notes": "Two-root-cause investigation. R1 (buffer growth never propagated to running hlsdemux2 element) is FIXED and verified — buffer now hits 100%. R2 shipped observability for the residual segment-supply stalls, which are largely YouTube-side. Everything is committed on branch fix/yt-live-drops-buffer-underrun (2 commits, 60 tests total). Debug session file status is awaiting_human_verify. See memory yt-live-drops-two-root-causes.md."
 }

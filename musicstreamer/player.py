@@ -150,7 +150,7 @@ class _CycleClose:
     station_name: str
     url: str
     outcome: str           # recovered | failover | stop | pause | shutdown
-    cause_hint: str        # unknown | network
+    cause_hint: str        # unknown | network | segment_retry
 
 
 class _BufferUnderrunTracker:
@@ -170,6 +170,11 @@ class _BufferUnderrunTracker:
         (pause / stop / failover / shutdown).
       - note_error_in_cycle() flips cause_hint to 'network' if a cycle is open
         (D-02 Discretion: minimal cause attribution this phase).
+      - note_segment_retry_in_cycle() flips cause_hint to 'segment_retry' if a
+        cycle is open AND no stronger 'network' signal has already fired for
+        it (BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN Round 2: distinguishes "hlsdemux2
+        silently retried a stalled segment fetch and recovered" from a fatal
+        top-level pipeline error).
     """
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
@@ -268,6 +273,26 @@ class _BufferUnderrunTracker:
         """
         if self._open:
             self._cause_hint = "network"
+
+    def note_segment_retry_in_cycle(self) -> None:
+        """BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): flip cause_hint to
+        'segment_retry' if a cycle is open and no stronger signal has fired.
+
+        Called from Player._on_gst_element_message when a forwarded
+        GstBinForwarded WARNING/ERROR from hlsdemux2's internal download
+        machinery is observed (hlsdemux2 message-forward=True — see
+        _enable_hlsdemux2_message_forwarding). This is a NON-fatal signal:
+        hlsdemux2 is retrying a stalled/failed segment fetch internally and
+        the cycle may still close as 'recovered'. It is distinct from
+        note_error_in_cycle's 'network' (a fatal TOP-LEVEL bus error, which
+        also drives _handle_gst_error_recovery / failover).
+
+        'network' always wins if both fire in the same cycle — a fatal
+        top-level error is the stronger, more specific signal. Bus-loop
+        thread is fine — tracker has no Qt.
+        """
+        if self._open and self._cause_hint == "unknown":
+            self._cause_hint = "segment_retry"
 
     def _close_with_now(self, outcome: str, end_ts: float) -> _CycleClose:
         """Build the close record using the supplied end_ts, then reset
@@ -480,6 +505,12 @@ class Player(QObject):
         bus.connect("message::error", self._on_gst_error)  # async handler
         bus.connect("message::tag",   self._on_gst_tag)    # async handler
         bus.connect("message::buffering", self._on_gst_buffering)  # async handler (47.1 D-12)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): hlsdemux2 has
+        # message-forward=True (see _enable_hlsdemux2_message_forwarding), so
+        # its internal children's ERROR/WARNING messages — normally swallowed
+        # by GstBin — arrive here wrapped as GST_MESSAGE_ELEMENT /
+        # "GstBinForwarded". See _on_gst_element_message.
+        bus.connect("message::element", self._on_gst_element_message)  # async handler
         bus.connect("message::state-changed", self._on_gst_state_changed)  # Phase 57 / WIN-03 D-12
         # Phase 83 — malformed-preroll EOS bridge (live-spike Q3 RESOLVED).
         # IN-02 (Phase 83 code review): _on_gst_eos_during_preroll is the
@@ -706,6 +737,22 @@ class Player(QObject):
         # in the _on_playbin_state_changed main-thread slot.  Only True during the
         # brief window between _on_youtube_resolved and the first PLAYING transition.
         self._pending_live_dvr_seek: bool = False
+
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: reference to the currently-live
+        # hlsdemux2 element (if any), captured by _on_deep_element_added when it
+        # first configures the element's max-buffering-time/high-watermark-time.
+        # Without this, Phase 84 / D-11 growth (_maybe_grow_buffer_duration) can
+        # only ever update _current_buffer_duration_s / stage a value for the
+        # NEXT URI bind — it has no way to reach the ALREADY-RUNNING hlsdemux2
+        # instance, so growth was a complete no-op for the duration of any live
+        # YouTube session (confirmed against production buffer-events.log: a
+        # single continuous session accumulated 57 "recovered" underrun cycles
+        # with zero improvement after growth should have capped at 120s).
+        # _apply_growth_to_live_hlsdemux2 uses this reference to re-apply the
+        # grown buffer size immediately, mid-session. Cleared on pipeline
+        # teardown (_try_next_stream / _set_uri) so a stale/disposed element is
+        # never targeted by a later session's growth event.
+        self._live_hlsdemux2_element = None
 
         # Phase 47.2 D-15: EQ state mirrors settings table; restored below.
         self._eq_enabled: bool = False
@@ -1282,6 +1329,64 @@ class Player(QObject):
         elif transition is not None:                         # closed naturally (recovered)
             self._underrun_cycle_closed.emit(transition)    # queued → main: log + cancel dwell
 
+    def _on_gst_element_message(self, bus, msg) -> None:
+        """Bus-loop-thread handler for forwarded child-bin messages.
+
+        BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): hlsdemux2 has
+        message-forward=True (_enable_hlsdemux2_message_forwarding), so its
+        internal download machinery's ERROR/WARNING messages — which GstBin
+        would otherwise swallow entirely — arrive here wrapped as a
+        GST_MESSAGE_ELEMENT whose structure is named "GstBinForwarded" and
+        carries the original GstMessage under the "message" field (standard
+        GstBin contract — gstreamer.freedesktop.org/documentation/gstreamer/gstbin.html).
+
+        Root cause this closes: production buffer-events.log showed EVERY
+        buffer_underrun event logging cause_hint=unknown, including cycles
+        that stalled for 100+ seconds (min_percent=0 for 108s / 172s) — far
+        too long to be explained by buffer capacity alone. note_error_in_cycle
+        only ever fires from a TOP-LEVEL message::error, but hlsdemux2's
+        segment-fetch retry/backoff (max-retries / retry-backoff-factor /
+        retry-backoff-max properties, left at GStreamer defaults — confirmed
+        via gst-inspect-1.0) operates entirely inside hlsdemux2's own GstBin
+        and recovers WITHOUT ever escalating to a fatal top-level bus error —
+        so the tracker had zero visibility into segment-fetch trouble
+        happening beneath the buffer-percent metric. This handler + the
+        message-forward property write are the standard GStreamer mechanism
+        to surface those otherwise-swallowed child messages.
+
+        Any other GST_MESSAGE_ELEMENT (not a GstBinForwarded envelope, or one
+        wrapping a message type we don't care about) is a silent no-op.
+        Bus-loop thread: may only touch the (Qt-free) tracker and the module
+        logger, never Qt state directly (Pitfall 2). Wrapped defensively —
+        GstStructure/GstMessage introspection on an unfamiliar forwarded
+        payload must never crash the bus-loop thread.
+        """
+        try:
+            struct = msg.get_structure()
+            if struct is None or struct.get_name() != "GstBinForwarded":
+                return
+            forwarded = struct.get_value("message")
+            if forwarded is None:
+                return
+            mtype = forwarded.type
+            if mtype == Gst.MessageType.ERROR:
+                err, debug = forwarded.parse_error()
+                level = "error"
+            elif mtype == Gst.MessageType.WARNING:
+                err, debug = forwarded.parse_warning()
+                level = "warning"
+            else:
+                return
+            src = forwarded.src
+            src_name = src.get_name() if src is not None else "?"
+            _log.info(
+                "hls_segment_fetch_issue level=%s src=%r err=%r debug=%r",
+                level, src_name, str(err), debug,
+            )
+            self._tracker.note_segment_retry_in_cycle()
+        except Exception as exc:  # noqa: BLE001 — bus-loop thread must never raise
+            _log.warning("hls forwarded-message handling failed: %s", exc)
+
     # ------------------------------------------------------------------ #
     # Phase 70 / DS-01: GStreamer audio-sink-pad caps detection.
     #
@@ -1568,6 +1673,13 @@ class Player(QObject):
         self._current_buffer_duration_s = new_s
         # WR-02: is_adapted=True — any growth-step write is by definition adapted.
         self.buffer_duration_changed.emit(new_s, True)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: also push the grown value to the
+        # CURRENTLY RUNNING hlsdemux2 element (if any), immediately. Without
+        # this, growth only ever reached playbin3 at the next URI bind, which
+        # a live YouTube radio session essentially never performs — leaving
+        # hlsdemux2's real segment buffer permanently pinned at the 30s
+        # baseline no matter how many underrun cycles closed as "recovered".
+        self._apply_growth_to_live_hlsdemux2(new_s)
 
     def _on_underrun_dwell_elapsed(self) -> None:
         """Main-thread QTimer.timeout slot (Phase 62 / D-07). Cycle has been
@@ -1658,6 +1770,12 @@ class Player(QObject):
         # duplicate pad names in streamsynchronizer, triggering GStreamer
         # CRITICAL assertions that abort the process.
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: the just-torn-down pipeline's
+        # hlsdemux2 element (if any) is gone — drop the stale reference so a
+        # later growth event never targets a disposed element from a prior
+        # session. _on_deep_element_added will repopulate this on the next
+        # bind if the new stream is also HLS.
+        self._live_hlsdemux2_element = None
         if not self._streams_queue:
             # Phase 95-03: while a YouTube resolve is in flight the queue is
             # transiently empty — do NOT declare exhaustion. The pending resolve
@@ -1728,6 +1846,12 @@ class Player(QObject):
         uri = aa_normalize_stream_url(uri)  # WIN-01 / D-01: DI.fm HTTPS->HTTP at URI funnel
         self._pipeline.set_state(Gst.State.NULL)
         self._pipeline.get_state(Gst.CLOCK_TIME_NONE)
+        # BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: drop any stale hlsdemux2 reference
+        # from the just-torn-down pipeline (mirrors _try_next_stream). _set_uri
+        # is the funnel for resolved YouTube HLS URLs too (_on_youtube_resolved
+        # calls it directly), so this covers that path as well as the direct-
+        # stream-restart path noted above.
+        self._live_hlsdemux2_element = None
         self._pipeline.set_property("uri", uri)
         # Phase 98: arm codec/bitrate detection for the new stream BEFORE
         # set_state(PLAYING) (gap G-03 / code-review WR-01). Arming after PLAYING
@@ -2052,16 +2176,25 @@ class Player(QObject):
         and sets max-buffering-time + high-watermark-time to match the
         current buffer-duration target.
 
+        BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: also stashes a reference to the
+        element on self._live_hlsdemux2_element so a LATER in-session growth
+        event (_maybe_grow_buffer_duration) can re-apply a bigger buffer
+        target to this SAME running instance — see
+        _apply_growth_to_live_hlsdemux2. Without this, growth staged after an
+        underrun cycle closes had no element to write to and only ever
+        affected the next URI bind (which never happens mid-live-session).
+
         Threading invariant: this callback fires from GStreamer-internal
         threads (typically the thread that calls set_state, which is the Qt
         main thread for our _set_uri callers, but may be a GStreamer streaming
         thread for dynamically-added uridecodebin3 children). The handler
         MUST NOT touch Qt APIs. It only writes two GObject properties on the
         newly-added GStreamer element — safe from any thread (GLib GObject
-        property writes are thread-safe for simple scalar types). Reading
-        self._current_buffer_duration_s is a CPython-atomic int read per the
-        same justification as _preroll_in_flight cross-thread reads (Pattern
-        2 in qt-glib-bus-threading.md).
+        property writes are thread-safe for simple scalar types) — and stores
+        a plain reference on self, which is CPython-atomic per the same
+        justification as _preroll_in_flight cross-thread reads (Pattern 2 in
+        qt-glib-bus-threading.md). Reading self._current_buffer_duration_s is
+        likewise a CPython-atomic int read.
         """
         factory = element.get_factory()
         if factory is None:
@@ -2074,18 +2207,76 @@ class Player(QObject):
         # available.
         if "hlsdemux2" not in name:
             return
-        target_ns = self._current_buffer_duration_s * Gst.SECOND
+        self._live_hlsdemux2_element = element
+        self._configure_hlsdemux2_buffer(element, self._current_buffer_duration_s)
+        self._enable_hlsdemux2_message_forwarding(element)
+
+    def _enable_hlsdemux2_message_forwarding(self, element) -> None:
+        """BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN (Round 2): set message-forward=True
+        on the hlsdemux2 element.
+
+        Without this (GstBin default: message-forward=False), ERROR/WARNING
+        messages posted by hlsdemux2's OWN internal child elements (its
+        segment-download machinery) are swallowed by hlsdemux2's GstBin
+        filtering and never reach the pipeline's top-level bus — leaving
+        _on_gst_element_message with nothing to observe and cause_hint
+        permanently stuck at 'unknown' for this entire class of event (see
+        .planning/debug/yt-live-drops-buffer-underrun.md Round 2 evidence).
+
+        Defensive: mirrors _configure_hlsdemux2_buffer's try/except — older or
+        unusual GStreamer builds may not expose this property.
+        """
+        try:
+            element.set_property("message-forward", True)
+        except Exception as exc:  # noqa: BLE001 — GObject property write; defensive
+            _log.warning("hlsdemux2 message-forward config failed: %s", exc)
+
+    def _configure_hlsdemux2_buffer(self, element, target_s: int) -> None:
+        """Write max-buffering-time / high-watermark-time (in seconds) to a
+        live hlsdemux2 element.
+
+        Shared by _on_deep_element_added (initial configuration at element
+        creation) and _apply_growth_to_live_hlsdemux2 (BUG-YT-LIVE-DROPS-
+        BUFFER-UNDERRUN mid-session re-application after adaptive growth).
+        Defensive: element may already be disposed (pipeline torn down
+        between the growth event firing and this write) — GObject property
+        writes on a disposed element raise, which we log and swallow, mirror
+        of the original D-01 handler's error handling.
+        """
+        target_ns = target_s * Gst.SECOND
         try:
             element.set_property("max-buffering-time", target_ns)
             element.set_property("high-watermark-time", target_ns)
             _log.debug(
                 "hlsdemux2 buffer configured: max-buffering-time=%.0fs "
                 "high-watermark-time=%.0fs",
-                self._current_buffer_duration_s,
-                self._current_buffer_duration_s,
+                target_s,
+                target_s,
             )
         except Exception as exc:  # noqa: BLE001 — GObject property write; defensive
             _log.warning("hlsdemux2 buffer config failed: %s", exc)
+
+    def _apply_growth_to_live_hlsdemux2(self, new_s: int) -> None:
+        """BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN: re-apply a grown buffer-duration
+        target to the CURRENTLY RUNNING hlsdemux2 element, mid-session.
+
+        Called from _maybe_grow_buffer_duration (main-thread slot, via
+        _on_underrun_cycle_closed) immediately after staging a new growth
+        step. Without this, growth only updated UI-facing state
+        (_current_buffer_duration_s / buffer_duration_changed) and staged a
+        value for playbin3's NEXT URI bind — which for a live YouTube radio
+        station essentially never happens (the session just keeps playing
+        the same resolved URL). hlsdemux2's real segment buffer was
+        therefore permanently pinned at the 30s baseline regardless of how
+        many underrun cycles closed as "recovered".
+
+        No-op when no hlsdemux2 element is currently live (non-YouTube-live
+        streams, or growth firing in the brief window before
+        _on_deep_element_added has captured the element).
+        """
+        if self._live_hlsdemux2_element is None:
+            return
+        self._configure_hlsdemux2_buffer(self._live_hlsdemux2_element, new_s)
 
     # ------------------------------------------------------------------ #
     # YouTube -- yt_dlp library API with EJS JS challenge solver (Plan 35-06)

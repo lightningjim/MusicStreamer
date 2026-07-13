@@ -371,6 +371,164 @@ def test_apply_live_dvr_seek_uses_key_unit_flag(qtbot):
     )
 
 
+# ======================================================================
+# BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN Round 2 — message-forward instrumentation
+# ======================================================================
+
+def test_on_deep_element_added_enables_message_forward(qtbot):
+    """_on_deep_element_added must set message-forward=True on hlsdemux2 so
+    its internal children's ERROR/WARNING messages (otherwise swallowed by
+    GstBin) are surfaced via message::element / GstBinForwarded.
+    """
+    p = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+
+    p._on_deep_element_added(p._pipeline, MagicMock(), element)
+
+    element.set_property.assert_any_call("message-forward", True)
+
+
+def test_message_forward_config_survives_exception(qtbot):
+    """_enable_hlsdemux2_message_forwarding must not raise if set_property
+    fails (older/unusual GStreamer build without this property)."""
+    p = make_player(qtbot)
+    element = _make_element("hlsdemux2")
+
+    # Must not raise even if set_property always fails.
+    element.set_property.side_effect = RuntimeError("property unavailable")
+    p._on_deep_element_added(p._pipeline, MagicMock(), element)
+
+
+def test_bus_connects_message_element(qtbot):
+    """Player.__init__ must wire message::element to _on_gst_element_message
+    so forwarded GstBinForwarded messages from hlsdemux2 are handled."""
+    p = make_player(qtbot)
+    connect_calls = [c for c in p._pipeline.get_bus.return_value.connect.call_args_list
+                      if c.args and c.args[0] == "message::element"]
+    assert connect_calls, (
+        "message::element not connected in Player.__init__ — forwarded "
+        "hlsdemux2 child messages (GstBinForwarded) will never be observed."
+    )
+    assert connect_calls[0].args[1] == p._on_gst_element_message
+
+
+def _fake_forwarded_element_msg(inner):
+    """Build a fake bus message wrapping `inner` as a GstBinForwarded envelope."""
+    struct = MagicMock()
+    struct.get_name.return_value = "GstBinForwarded"
+    struct.get_value.return_value = inner
+    msg = MagicMock()
+    msg.get_structure.return_value = struct
+    return msg
+
+
+def test_on_gst_element_message_ignores_non_forwarded(qtbot):
+    """Non-GstBinForwarded element messages must be silently ignored."""
+    p = make_player(qtbot)
+    struct = MagicMock()
+    struct.get_name.return_value = "some-other-structure"
+    msg = MagicMock()
+    msg.get_structure.return_value = struct
+
+    with patch.object(p._tracker, "note_segment_retry_in_cycle") as mock_note:
+        p._on_gst_element_message(None, msg)
+    mock_note.assert_not_called()
+
+
+def test_on_gst_element_message_ignores_missing_structure(qtbot):
+    """A message with no structure (get_structure() -> None) must not raise."""
+    p = make_player(qtbot)
+    msg = MagicMock()
+    msg.get_structure.return_value = None
+
+    # Must not raise
+    p._on_gst_element_message(None, msg)
+
+
+def test_on_gst_element_message_handles_forwarded_warning(qtbot):
+    """A forwarded WARNING from hlsdemux2's internal children must log and
+    flip the tracker's cause_hint to 'segment_retry' (Round 2 fix)."""
+    import gi
+    gi.require_version("Gst", "1.0")
+    from gi.repository import Gst as _Gst
+
+    p = make_player(qtbot)
+    p._tracker.bind_url(1, "Test", "http://x/")
+    p._tracker.observe(100)  # arm
+    p._tracker.observe(70)   # open cycle
+
+    inner = MagicMock()
+    inner.type = _Gst.MessageType.WARNING
+    inner.parse_warning.return_value = ("connection timed out", "souphttpsrc debug info")
+    inner.src.get_name.return_value = "souphttpsrc0"
+    msg = _fake_forwarded_element_msg(inner)
+
+    p._on_gst_element_message(None, msg)
+
+    assert p._tracker._cause_hint == "segment_retry"
+
+
+def test_on_gst_element_message_handles_forwarded_error(qtbot):
+    """A forwarded ERROR from hlsdemux2's internal children must also flip
+    cause_hint to 'segment_retry' (non-fatal from the top-level pipeline's
+    perspective — the top-level bus never saw a message::error)."""
+    import gi
+    gi.require_version("Gst", "1.0")
+    from gi.repository import Gst as _Gst
+
+    p = make_player(qtbot)
+    p._tracker.bind_url(1, "Test", "http://x/")
+    p._tracker.observe(100)  # arm
+    p._tracker.observe(70)   # open cycle
+
+    inner = MagicMock()
+    inner.type = _Gst.MessageType.ERROR
+    inner.parse_error.return_value = ("could not read from resource", "debug")
+    inner.src.get_name.return_value = "download-worker-0"
+    msg = _fake_forwarded_element_msg(inner)
+
+    p._on_gst_element_message(None, msg)
+
+    assert p._tracker._cause_hint == "segment_retry"
+
+
+def test_on_gst_element_message_ignores_other_forwarded_types(qtbot):
+    """A forwarded message that is neither ERROR nor WARNING (e.g. INFO) must
+    not touch cause_hint."""
+    import gi
+    gi.require_version("Gst", "1.0")
+    from gi.repository import Gst as _Gst
+
+    p = make_player(qtbot)
+    p._tracker.bind_url(1, "Test", "http://x/")
+    p._tracker.observe(100)  # arm
+    p._tracker.observe(70)   # open cycle
+
+    inner = MagicMock()
+    inner.type = _Gst.MessageType.INFO
+    msg = _fake_forwarded_element_msg(inner)
+
+    p._on_gst_element_message(None, msg)
+
+    assert p._tracker._cause_hint == "unknown"
+
+
+def test_on_gst_element_message_survives_malformed_forwarded_payload(qtbot):
+    """If the forwarded message's introspection raises (unfamiliar payload
+    shape), the bus-loop-thread handler must swallow it, not crash."""
+    p = make_player(qtbot)
+    inner = MagicMock()
+    inner.type = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+    struct = MagicMock()
+    struct.get_name.return_value = "GstBinForwarded"
+    struct.get_value.side_effect = RuntimeError("boom")
+    msg = MagicMock()
+    msg.get_structure.return_value = struct
+
+    # Must not raise
+    p._on_gst_element_message(None, msg)
+
+
 def test_disarm_for_seek_clears_armed_and_open(qtbot):
     """_BufferUnderrunTracker.disarm_for_seek clears both _armed and _open.
 

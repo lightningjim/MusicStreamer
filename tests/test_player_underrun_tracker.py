@@ -102,3 +102,58 @@ def test_cause_hint_network_after_error():
     record = t.observe(100)             # closes naturally
     assert record.cause_hint == "network"
     assert record.outcome == "recovered"
+
+
+# ======================================================================
+# BUG-YT-LIVE-DROPS-BUFFER-UNDERRUN Round 2 — note_segment_retry_in_cycle
+# ======================================================================
+
+def test_cause_hint_segment_retry_after_forwarded_warning():
+    """Round 2: note_segment_retry_in_cycle during an open cycle flips
+    cause_hint to 'segment_retry'; the close record carries it."""
+    t = _BufferUnderrunTracker(clock=iter([10.0, 11.0, 12.0, 13.0]).__next__)
+    t.bind_url(1, "Test", "http://x/")
+    t.observe(100)                        # arms
+    t.observe(70)                         # opens
+    t.note_segment_retry_in_cycle()       # cause_hint flips
+    record = t.observe(100)               # closes naturally
+    assert record.cause_hint == "segment_retry"
+    assert record.outcome == "recovered"
+
+
+def test_note_segment_retry_no_op_when_no_cycle_open():
+    """Round 2: note_segment_retry_in_cycle must be a safe no-op when no
+    cycle is open (e.g. a stray forwarded message arriving outside any
+    underrun window)."""
+    t = _BufferUnderrunTracker(clock=iter([10.0]).__next__)
+    t.bind_url(1, "Test", "http://x/")
+    t.note_segment_retry_in_cycle()  # no cycle open — must not raise or set state
+    assert t._cause_hint == "unknown"
+
+
+def test_network_cause_hint_wins_over_segment_retry():
+    """Round 2: a fatal top-level error ('network') must NOT be downgraded
+    by a subsequent forwarded-warning signal within the same cycle —
+    'network' is the stronger, more specific signal."""
+    t = _BufferUnderrunTracker(clock=iter([10.0, 11.0, 12.0, 13.0]).__next__)
+    t.bind_url(1, "Test", "http://x/")
+    t.observe(100)                     # arms
+    t.observe(70)                      # opens
+    t.note_error_in_cycle()            # cause_hint -> network
+    t.note_segment_retry_in_cycle()    # must NOT downgrade to segment_retry
+    record = t.observe(100)            # closes naturally
+    assert record.cause_hint == "network"
+
+
+def test_segment_retry_does_not_flip_when_already_set_then_error_still_wins():
+    """Round 2: order-independence — segment_retry set first, then a fatal
+    error arrives in the same cycle: 'network' must still win (it is set
+    unconditionally by note_error_in_cycle)."""
+    t = _BufferUnderrunTracker(clock=iter([10.0, 11.0, 12.0, 13.0]).__next__)
+    t.bind_url(1, "Test", "http://x/")
+    t.observe(100)                     # arms
+    t.observe(70)                      # opens
+    t.note_segment_retry_in_cycle()    # cause_hint -> segment_retry
+    t.note_error_in_cycle()            # cause_hint -> network (overrides)
+    record = t.observe(100)            # closes naturally
+    assert record.cause_hint == "network"
